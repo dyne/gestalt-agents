@@ -27,8 +27,8 @@ Use the bundled `org-plan` helper to validate and change plan state.
 See `org-plan --help` for its commands.
 
 Plan file includes `#+TITLE`, `#+SUBTITLE`, `#+DATE`, `#+KEYWORDS`.
-Each L1 includes `Effort`, `Goal`, `Notes`.
-Each L2 includes `Why`, `Change`, `Tests`, `Done when`.
+Each L1 includes `- Effort ::`, `- Goal ::`, `- Notes ::`.
+Each L2 includes `- Why ::`, `- Change ::`, `- Tests ::`, `- Done when ::`.
 
 Finish the plan:
 
