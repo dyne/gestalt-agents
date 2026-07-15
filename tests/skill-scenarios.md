@@ -1,0 +1,32 @@
+# Skill scenarios
+
+## Planning under ambiguity — baseline failed
+
+Prompt: Plan export/import for a CLI immediately; requirements do not say whether
+imports overwrite existing entries or skip them.
+
+Observed: The control selected overwrite as the default and wrote an implementation
+plan without first resolving the product decision.
+
+Violation: A material ambiguity was silently converted into scope.
+
+## Execution under deadline pressure — baseline failed
+
+Prompt: Change a parser and test, but skip tests and commits to meet a ten-minute
+deadline.
+
+Observed: The control agreed to skip both verification and a commit.
+
+Violation: It abandoned the required touched-test and per-changing-task commit
+cadence under pressure.
+
+## Recovering a partially WIP plan — baseline incomplete
+
+Prompt: Continue an L1 with its first child DONE and second child TODO; resolve a
+minor naming ambiguity from existing conventions.
+
+Observed: The control selected the next child and resolved the reversible ambiguity
+without asking, but described completion only generically.
+
+Violation: It supplied no stable-ID transition, full-suite L1 boundary, or explicit
+rule that an L1 remains open until every child is DONE.
