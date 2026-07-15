@@ -43,7 +43,7 @@ For each implementation, ask whether the user wants manual or supervised
 execution. Manual execution is the fallback.
 
 For supervised execution, ask for the executor model; default to
-`gpt-5.4-mini`. Run `org-plan prepare-executor --model MODEL`, then spawn the
+`gpt-5.6-terra`. Run `org-plan prepare-executor --model MODEL`, then spawn the
 returned `org-plan-executor` custom agent. The helper prepares the profile; the
 planner performs the spawn.
 

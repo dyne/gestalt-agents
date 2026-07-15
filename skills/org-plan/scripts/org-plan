@@ -71,7 +71,7 @@ print_item() { local i=$1; printf '%s %s [#%s] %s\n' "${levels[$i]#1}" "${ids[$i
 active_l1() { local i; for ((i=0;i<count;i++)); do (( levels[$i] == 1 )) && [[ ${states[$i]} == WIP ]] && { printf '%s' "$i"; return; }; done; for ((i=0;i<count;i++)); do (( levels[$i] == 1 )) && [[ ${states[$i]} == TODO ]] && { printf '%s' "$i"; return; }; done; return 1; }
 
 prepare_executor() {
-  local model='gpt-5.4-mini' profile_name='org-plan-executor' agents_dir="${HOME:?HOME is required}/.codex/agents"
+  local model='gpt-5.6-terra' profile_name='org-plan-executor' agents_dir="${HOME:?HOME is required}/.codex/agents"
   while (( $# )); do
     case $1 in
       --model) (( $# >= 2 )) || usage; model=$2; shift 2 ;;
