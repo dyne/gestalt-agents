@@ -48,3 +48,11 @@ description-list form; helper validation rejected it. The skill now states the
 required `- Field :: value` syntax. A second fresh run created a valid two-L1,
 three-L2 root plan, created its matching branch, ran the documented failing
 baseline test, and passed `validate`, `summary`, `next l1`, `next l2`, and `l2`.
+
+## Disposable manual execution acceptance — passed
+
+A fresh explicit `$org-plan` run repaired a seeded failing Bash test, documented
+the behavior in a second changing L2, used helper-driven transitions, made two
+conventional commits, passed touched tests and the L1 full-suite boundary, and
+left the Org plan uncommitted. Independent inspection confirmed both commits,
+all DONE states, a passing root-level test command, and only the plan untracked.
