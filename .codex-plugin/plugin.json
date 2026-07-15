@@ -5,6 +5,7 @@
   "author": {
     "name": "Jaromil"
   },
+  "skills": "./skills/",
   "interface": {
     "displayName": "Org Plan",
     "shortDescription": "Plan work with strict Org files.",
