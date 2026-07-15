@@ -67,5 +67,18 @@ expect_ok "$helper" set "$tmp/forced.org" first-outcome WIP
 expect_ok "$helper" set "$tmp/forced.org" first-outcome TODO --force
 expect_fail "$helper" set "$tmp/forced.org" first-task WIP --force
 
+agents_dir="$tmp/org-plan-test-agents"
+profile="$agents_dir/org-plan-test-executor.toml"
+expect_ok "$helper" prepare-executor --agents-dir "$agents_dir" --profile-name org-plan-test-executor
+test -f "$profile" && pass || fail 'default executor profile exists'
+expect_contains "$profile" 'name = "org-plan-test-executor"'
+expect_contains "$profile" 'model = "gpt-5.4-mini"'
+expect_contains "$profile" 'developer_instructions ='
+expect_ok "$helper" prepare-executor --model gpt-5.6-terra --agents-dir "$agents_dir" --profile-name org-plan-test-executor
+expect_contains "$profile" 'model = "gpt-5.6-terra"'
+expect_fail "$helper" prepare-executor --model 'bad"value' --agents-dir "$agents_dir" --profile-name org-plan-test-executor
+expect_fail "$helper" prepare-executor --model
+test ! -e "$tmp/.codex/agents/org-plan-executor.toml" && pass || fail 'tests avoid the default agents directory'
+
 if [ "$failures" -ne 0 ]; then printf '%s passed, %s failed\n' "$passes" "$failures"; exit 1; fi
 printf '%s passed\n' "$passes"
