@@ -69,10 +69,10 @@ expect_fail "$helper" set "$tmp/forced.org" first-task WIP --force
 
 agents_dir="$tmp/org-plan-test-agents"
 profile="$agents_dir/org-plan-test-executor.toml"
-expect_ok "$helper" prepare-executor --agents-dir "$agents_dir" --profile-name org-plan-test-executor
+expect_ok "$helper" prepare-executor --model gpt-5.4-mini --agents-dir "$agents_dir" --profile-name org-plan-test-executor
 test -f "$profile" && pass || fail 'default executor profile exists'
 expect_contains "$profile" 'name = "org-plan-test-executor"'
-expect_contains "$profile" 'model = "gpt-5.6-terra"'
+expect_contains "$profile" 'model = "gpt-5.4-mini"'
 expect_contains "$profile" 'developer_instructions ='
 expect_ok "$helper" prepare-executor --model gpt-5.6-terra --agents-dir "$agents_dir" --profile-name org-plan-test-executor
 expect_contains "$profile" 'model = "gpt-5.6-terra"'
