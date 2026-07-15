@@ -1,0 +1,17 @@
+{
+  "name": "org-plan",
+  "version": "0.1.0",
+  "description": "Strict Org planning workflow for Codex",
+  "author": {
+    "name": "Jaromil"
+  },
+  "interface": {
+    "displayName": "Org Plan",
+    "shortDescription": "Plan work with strict Org files.",
+    "longDescription": "Org Plan provides a concise, strict Org planning and execution workflow.",
+    "developerName": "Jaromil",
+    "category": "Productivity",
+    "capabilities": [],
+    "defaultPrompt": "Help me create an Org implementation plan."
+  }
+}
