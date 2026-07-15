@@ -1,0 +1,21 @@
+name: Test
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+      - run: python3 -m pip install PyYAML
+      - run: bash tests/test-org-plan.sh
+      - run: bash tests/test-install.sh
+      - run: bash -n tests/test-org-plan.sh tests/test-install.sh install.sh skills/org-plan/scripts/org-plan
+      - run: python3 -m json.tool .codex-plugin/plugin.json >/dev/null
+      - run: ruby -e 'require "yaml"; YAML.load_file("skills/org-plan/agents/openai.yaml")'
+      - run: git diff --check
