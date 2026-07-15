@@ -37,6 +37,16 @@ Finish the plan:
 3. Git branch based on plan (name as org file without .org)
 4. Run all tests, make sure there is no error before handover.
 
+# Supervisor
+
+For each implementation, ask whether the user wants manual or supervised
+execution. Manual execution is the fallback.
+
+For supervised execution, ask for the executor model; default to
+`gpt-5.4-mini`. Run `org-plan prepare-executor --model MODEL`, then spawn the
+returned `org-plan-executor` custom agent. The helper prepares the profile; the
+planner performs the spawn.
+
 # Executor
 
 When assigned work, don't ask confirmation. Study the plan, check you
