@@ -1,0 +1,21 @@
+#+TITLE: Minimal
+#+SUBTITLE: Test plan
+#+DATE: 2026-07-15
+#+KEYWORDS: test org
+
+* TODO [#A] First outcome
+:PROPERTIES:
+:ID: first-outcome
+:END:
+- Effort :: Small
+- Goal :: Test the helper.
+- Notes :: None.
+
+** TODO [#A] First task
+:PROPERTIES:
+:ID: first-task
+:END:
+- Why :: Needed.
+- Change :: Add it.
+- Tests :: Run tests.
+- Done when :: It works.

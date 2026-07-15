@@ -1,0 +1,47 @@
+#+TITLE: Multi
+#+SUBTITLE: Test plan
+#+DATE: 2026-07-15
+#+KEYWORDS: test org
+
+* WIP [#A] First outcome
+:PROPERTIES:
+:ID: first-outcome
+:END:
+- Effort :: Small
+- Goal :: Test order.
+- Notes :: None.
+
+** DONE [#A] First task
+:PROPERTIES:
+:ID: first-task
+:END:
+- Why :: Needed.
+- Change :: Add it.
+- Tests :: Run tests.
+- Done when :: It works.
+
+** WIP [#B] Second task
+:PROPERTIES:
+:ID: second-task
+:END:
+- Why :: Needed.
+- Change :: Add it.
+- Tests :: Run tests.
+- Done when :: It works.
+
+* TODO [#B] Second outcome
+:PROPERTIES:
+:ID: second-outcome
+:END:
+- Effort :: Small
+- Goal :: Test order.
+- Notes :: None.
+
+** TODO [#A] Third task
+:PROPERTIES:
+:ID: third-task
+:END:
+- Why :: Needed.
+- Change :: Add it.
+- Tests :: Run tests.
+- Done when :: It works.
