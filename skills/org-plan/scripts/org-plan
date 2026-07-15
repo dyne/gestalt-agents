@@ -2,7 +2,7 @@
 # Strict helper for the small Org dialect used by the org-plan skill.
 set -Eeuo pipefail
 
-usage() { printf 'usage: org-plan {validate|next|summary|l2|set} PLAN [args]\n' >&2; exit 2; }
+usage() { printf 'usage: org-plan {validate|next|summary|l2|set|prepare-executor} [args]\n' >&2; exit 2; }
 die() { printf '%s: %s\n' "$plan" "$*" >&2; return 1; }
 declare -a ids states levels lines titles parents starts ends
 declare -A seen field
@@ -70,8 +70,37 @@ find_id() { local i; for ((i=0;i<count;i++)); do [[ ${ids[$i]} == "$1" ]] && { p
 print_item() { local i=$1; printf '%s %s [#%s] %s\n' "${levels[$i]#1}" "${ids[$i]}" "${states[$i]}" "${titles[$i]}"; }
 active_l1() { local i; for ((i=0;i<count;i++)); do (( levels[$i] == 1 )) && [[ ${states[$i]} == WIP ]] && { printf '%s' "$i"; return; }; done; for ((i=0;i<count;i++)); do (( levels[$i] == 1 )) && [[ ${states[$i]} == TODO ]] && { printf '%s' "$i"; return; }; done; return 1; }
 
+prepare_executor() {
+  local model='gpt-5.4-mini' profile_name='org-plan-executor' agents_dir="${HOME:?HOME is required}/.codex/agents"
+  while (( $# )); do
+    case $1 in
+      --model) (( $# >= 2 )) || usage; model=$2; shift 2 ;;
+      --agents-dir) (( $# >= 2 )) || usage; agents_dir=$2; shift 2 ;;
+      --profile-name) (( $# >= 2 )) || usage; profile_name=$2; shift 2 ;;
+      *) usage ;;
+    esac
+  done
+  [[ $model =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]] || { printf 'invalid model: %s\n' "$model" >&2; return 2; }
+  [[ $profile_name =~ ^[a-z0-9][a-z0-9-]*$ ]] || { printf 'invalid profile name: %s\n' "$profile_name" >&2; return 2; }
+  mkdir -p -- "$agents_dir"
+  local destination="$agents_dir/$profile_name.toml" temporary mode
+  temporary=$(mktemp "$agents_dir/.$profile_name.XXXXXX")
+  mode=$(stat -c '%a' "$destination" 2>/dev/null || stat -f '%Lp' "$destination" 2>/dev/null || printf '600')
+  trap 'rm -f "$temporary"' EXIT HUP INT TERM
+  printf '%s\n' \
+    "name = \"$profile_name\"" \
+    'description = "Executes an org-plan implementation."' \
+    'developer_instructions = "Follow the assigned Org plan strictly. Use the bundled org-plan helper for state changes, run required tests, and return concise evidence to the planner."' \
+    "model = \"$model\"" > "$temporary"
+  chmod "$mode" "$temporary"
+  mv -f -- "$temporary" "$destination"
+  trap - EXIT HUP INT TERM
+  printf 'executor=%s model=%s profile=%s\n' "$profile_name" "$model" "$destination"
+}
+
 cmd=${1:-}; shift || true
 case $cmd in
+  prepare-executor) prepare_executor "$@" ;;
   validate) [ $# = 1 ] || usage; parse "$1" ;;
   next)
     [ $# = 2 ] || usage; parse "$1"; case $2 in
