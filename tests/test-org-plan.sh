@@ -47,6 +47,7 @@ expect_contains "$tmp/out" 'first-outcome'
 expect_ok "$helper" next "$tmp/multi.org" l2
 expect_contains "$tmp/out" 'second-task'
 expect_ok "$helper" summary "$tmp/multi.org"
+expect_contains "$tmp/out" 'L1 WIP=1'
 expect_ok "$helper" l2 "$tmp/multi.org" 'Second task|Run tests'
 expect_contains "$tmp/out" 'second-task'
 expect_fail "$helper" l2 "$tmp/multi.org" '['

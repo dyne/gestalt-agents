@@ -79,7 +79,7 @@ case $cmd in
       l2) p=$(active_l1) || exit 1; for ((i=0;i<count;i++)); do (( levels[$i] == 2 && parents[$i] == p )) && [[ ${states[$i]} == WIP ]] && { print_item "$i"; exit; }; done; for ((i=0;i<count;i++)); do (( levels[$i] == 2 && parents[$i] == p )) && [[ ${states[$i]} == TODO ]] && { print_item "$i"; exit; }; done; exit 1 ;;
       *) usage;; esac ;;
   summary)
-    [ $# = 1 ] || usage; parse "$1"; printf 'L1 TODO=%s WIP=%s DONE=%s\n' "$(printf '%s\n' "${states[@]}" | head -n 0; for ((i=0;i<count;i++)); do ((levels[i]==1)) && [[ ${states[i]} == TODO ]]; done | wc -l)" 0 0
+    [ $# = 1 ] || usage; parse "$1"
     for s in TODO WIP DONE; do n=0; for ((i=0;i<count;i++)); do (( levels[i] == 1 )) && [[ ${states[i]} == $s ]] && n=$((n+1)); done; printf 'L1 %s=%s\n' "$s" "$n"; done
     for s in TODO WIP DONE; do n=0; for ((i=0;i<count;i++)); do (( levels[i] == 2 )) && [[ ${states[i]} == $s ]] && n=$((n+1)); done; printf 'L2 %s=%s\n' "$s" "$n"; done
     i=$(active_l1) && { printf 'current '; print_item "$i"; } ;;
