@@ -54,12 +54,18 @@ expect_fail "$helper" l2 "$tmp/multi.org" '['
 expect_fail "$helper" l2 "$tmp/multi.org" 'no-such-text'
 
 copy valid-minimal.org state.org
+chmod 640 "$tmp/state.org"
 expect_ok "$helper" set "$tmp/state.org" first-outcome WIP
 expect_ok "$helper" set "$tmp/state.org" first-task WIP
 expect_ok "$helper" set "$tmp/state.org" first-task DONE
 expect_ok "$helper" set "$tmp/state.org" first-outcome DONE
 expect_fail "$helper" set "$tmp/state.org" first-outcome TODO
 expect_fail "$helper" set "$tmp/state.org" missing TODO
+test "$(stat -c '%a' "$tmp/state.org" 2>/dev/null || stat -f '%Lp' "$tmp/state.org")" = 640 && pass || fail 'set preserves mode'
+copy valid-minimal.org forced.org
+expect_ok "$helper" set "$tmp/forced.org" first-outcome WIP
+expect_ok "$helper" set "$tmp/forced.org" first-outcome TODO --force
+expect_fail "$helper" set "$tmp/forced.org" first-task WIP --force
 
 if [ "$failures" -ne 0 ]; then printf '%s passed, %s failed\n' "$passes" "$failures"; exit 1; fi
 printf '%s passed\n' "$passes"
