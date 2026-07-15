@@ -1,0 +1,6 @@
+interface:
+  display_name: "Org Plan"
+  short_description: "Strict Org planning workflow for Codex."
+  default_prompt: "Use $org-plan to create a strict implementation plan."
+policy:
+  allow_implicit_invocation: false
