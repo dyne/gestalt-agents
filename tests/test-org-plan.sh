@@ -184,6 +184,17 @@ expect_contains "$skill" 'named UI screenshot/component/viewport/font-scale matr
 expect_contains "$skill" 'required structured findings with evidence plus an explicit ACCEPT or'
 expect_contains "$skill" 'Never use'
 expect_contains "$skill" 'parent-context references such as "continue above", including for nested agents'
+expect_contains "$skill" 'Luna classifies every failure'
+expect_contains "$skill" 'Routine mechanical failures return to Terra with the exact failing evidence'
+expect_contains "$skill" 'acceptance conditions'
+expect_contains "$skill" 'Sol findings return to Terra unchanged in substance'
+expect_contains "$skill" 'adds only the'
+expect_contains "$skill" 'execution scope and does not conceal or reinterpret failed checks'
+expect_contains "$skill" 'Material ambiguity invokes Sol for a read-only options audit'
+expect_contains "$skill" 'stops and asks the user'
+expect_contains "$skill" 'unresolved material requirement'
+expect_contains "$skill" 'reruns the applicable L2 or L1 gate'
+expect_contains "$skill" 'requests a new Sol verdict'
 
 if [ "$failures" -ne 0 ]; then printf '%s passed, %s failed\n' "$passes" "$failures"; exit 1; fi
 printf '%s passed\n' "$passes"

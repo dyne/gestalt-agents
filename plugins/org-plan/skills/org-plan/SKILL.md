@@ -114,6 +114,19 @@ REJECT verdict.
 Every role receives its checklist as a complete fresh assignment. Never use
 parent-context references such as "continue above", including for nested agents.
 
+Luna classifies every failure before routing it:
+
+- Routine mechanical failures return to Terra with the exact failing evidence,
+  bounded execution scope, and acceptance conditions.
+- Sol findings return to Terra unchanged in substance; Luna adds only the
+  execution scope and does not conceal or reinterpret failed checks.
+- Material ambiguity invokes Sol for a read-only options audit. If the plan
+  still does not determine the choice, Luna stops and asks the user rather than
+  letting Terra choose an unresolved material requirement.
+
+After correction, Luna reruns the applicable L2 or L1 gate. If a rejected
+milestone diff changed materially, Luna requests a new Sol verdict.
+
 # Executor
 
 When assigned work, don't ask confirmation. Study the plan, check you
