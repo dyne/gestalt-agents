@@ -1,0 +1,77 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect release baseline
+        id: baseline
+        shell: bash
+        run: |
+          set -euo pipefail
+          latest_tag=$(git tag --list --sort=-version:refname |
+            grep -E '^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$' |
+            head -n 1 || true)
+          if [[ -n "$latest_tag" ]]; then
+            echo "has_tag=true" >>"$GITHUB_OUTPUT"
+          else
+            echo "has_tag=false" >>"$GITHUB_OUTPUT"
+          fi
+
+      - name: Calculate conventional-commit version
+        if: steps.baseline.outputs.has_tag == 'true'
+        id: semver
+        uses: ietf-tools/semver-action@v1
+        with:
+          token: ${{ github.token }}
+          branch: main
+          skipInvalidTags: true
+          tagFilter: '^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$'
+          maxTagsToFetch: 100
+          noNewCommitBehavior: current
+          noVersionBumpBehavior: current
+
+      - name: Normalize release decision
+        id: release
+        shell: bash
+        env:
+          HAS_TAG: ${{ steps.baseline.outputs.has_tag }}
+          BUMP: ${{ steps.semver.outputs.bump }}
+          NEXT_TAG: ${{ steps.semver.outputs.next }}
+          NEXT_VERSION: ${{ steps.semver.outputs.nextStrict }}
+        run: |
+          set -euo pipefail
+          if [[ "$HAS_TAG" == false ]]; then
+            tag=v0.1.0
+            version=0.1.0
+            should_release=true
+          else
+            tag=$NEXT_TAG
+            version=$NEXT_VERSION
+            case "$BUMP" in
+              major|minor|patch) should_release=true ;;
+              none) should_release=false ;;
+              *) echo "Unexpected semver bump: $BUMP" >&2; exit 1 ;;
+            esac
+          fi
+          [[ "$tag" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]
+          [[ "$version" == "${tag#v}" ]]
+          echo "tag=$tag" >>"$GITHUB_OUTPUT"
+          echo "version=$version" >>"$GITHUB_OUTPUT"
+          echo "should_release=$should_release" >>"$GITHUB_OUTPUT"
