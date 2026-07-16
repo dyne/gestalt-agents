@@ -2,7 +2,7 @@
 set -euo pipefail
 
 root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
-helper="$root/skills/org-plan/scripts/org-plan"
+helper="$root/plugins/org-plan/skills/org-plan/scripts/org-plan"
 fixtures="$root/tests/fixtures"
 tmp=$(mktemp -d "${TMPDIR:-/tmp}/org-plan-test.XXXXXX")
 trap 'rm -rf "$tmp"' EXIT HUP INT TERM

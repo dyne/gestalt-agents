@@ -1,0 +1,20 @@
+{
+  "name": "dyne-agent-plugins",
+  "interface": {
+    "displayName": "Dyne Agent Plugins"
+  },
+  "plugins": [
+    {
+      "name": "org-plan",
+      "source": {
+        "source": "local",
+        "path": "./plugins/org-plan"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    }
+  ]
+}

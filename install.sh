@@ -2,7 +2,7 @@
 # Install or update org-plan from a trusted source; safe to invoke through Bash.
 set -Eeuo pipefail
 
-repository=${ORG_PLAN_REPOSITORY:-https://github.com/dyne/org-plan}
+repository=${ORG_PLAN_REPOSITORY:-https://github.com/dyne/agent-plugins}
 ref=${ORG_PLAN_REF:-main}
 home=${HOME:?HOME is required}
 plugins_dir="$home/.agents/plugins"
