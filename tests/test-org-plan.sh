@@ -84,8 +84,10 @@ test "$(stat -c '%a' "$profile" 2>/dev/null || stat -f '%Lp' "$profile")" = 640 
 python3 -c 'import sys, tomllib; tomllib.load(open(sys.argv[1], "rb"))' "$profile" && pass || fail 'executor profile is parseable TOML'
 before=$(cksum "$profile")
 expect_fail "$helper" prepare-executor --model 'bad"value' --agents-dir "$agents_dir" --profile-name org-plan-test-executor
+expect_contains "$tmp/err" 'invalid model: bad"value'
 test "$before" = "$(cksum "$profile")" && pass || fail 'invalid model does not mutate profile'
 expect_fail "$helper" prepare-executor --model gpt-5.6-terra --agents-dir "$agents_dir" --profile-name 'Bad_Profile'
+expect_contains "$tmp/err" 'invalid profile name: Bad_Profile'
 test "$before" = "$(cksum "$profile")" && pass || fail 'invalid profile name does not mutate profile'
 test -z "$(find "$agents_dir" -name '.*.??????' -print -quit)" && pass || fail 'profile writer leaves no temporary files'
 failure_bin="$tmp/failure-bin"
@@ -96,6 +98,7 @@ write_failure_dir="$tmp/write-failure-agents"
 expect_fail env PATH="$failure_bin:$PATH" "$helper" prepare-executor --agents-dir "$write_failure_dir"
 test -z "$(find "$write_failure_dir" -type f -name '.*.??????' -print -quit)" && pass || fail 'profile writer cleans current temporary file on chmod failure'
 expect_fail "$helper" prepare-executor --model
+expect_contains "$tmp/err" 'usage: org-plan'
 test ! -e "$tmp/.codex/agents/org-plan-executor.toml" && pass || fail 'tests avoid the default agents directory'
 
 supervision_dir="$tmp/supervision-agents"
@@ -129,12 +132,16 @@ expect_contains "$tmp/out" 'executor=test-executor executor_model=terra-test'
 expect_contains "$tmp/out" 'reviewer=test-reviewer reviewer_model=sol-test'
 expect_fail "$helper" prepare-supervision --agents-dir "$override_dir" --supervisor-model
 expect_fail "$helper" prepare-supervision --agents-dir "$override_dir" --reviewer-model 'bad"model'
+expect_contains "$tmp/err" 'invalid model: bad"model'
 expect_fail "$helper" prepare-supervision --agents-dir "$override_dir" --executor-profile-name Bad_Name
+expect_contains "$tmp/err" 'invalid profile name: Bad_Name'
 expect_fail "$helper" prepare-supervision --agents-dir "$override_dir" --executor-profile-name same --reviewer-profile-name same
+expect_contains "$tmp/err" 'profile names must be distinct'
 
 failure_dir="$tmp/failure-agents"
 mkdir -p "$failure_dir/org-plan-reviewer.toml"
 expect_fail "$helper" prepare-supervision --agents-dir "$failure_dir"
+expect_contains "$tmp/err" 'profile destination is not a regular file'
 test ! -e "$failure_dir/org-plan-supervisor.toml" && pass || fail 'failed preparation does not install supervisor'
 test ! -e "$failure_dir/org-plan-executor.toml" && pass || fail 'failed preparation does not install executor'
 test -z "$(find "$failure_dir" -type f -name '.*.??????' -print -quit)" && pass || fail 'failed preparation cleans staged files'
