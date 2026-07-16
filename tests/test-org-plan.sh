@@ -12,7 +12,7 @@ pass() { passes=$((passes + 1)); }
 fail() { printf 'FAIL: %s\n' "$1" >&2; failures=$((failures + 1)); }
 expect_ok() { if "$@" >"$tmp/out" 2>"$tmp/err"; then pass; else fail "$* (expected success): $(<"$tmp/err")"; fi; }
 expect_fail() { if "$@" >"$tmp/out" 2>"$tmp/err"; then fail "$* (expected failure)"; else pass; fi; }
-expect_contains() { if rg -F -- "$2" "$1" >/dev/null; then pass; else fail "missing $2 in $1"; fi; }
+expect_contains() { if grep -F -- "$2" "$1" >/dev/null; then pass; else fail "missing $2 in $1"; fi; }
 copy() { cp "$fixtures/$1" "$tmp/$2"; }
 
 copy valid-minimal.org plan.org
