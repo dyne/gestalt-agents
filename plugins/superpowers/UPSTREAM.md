@@ -7,8 +7,9 @@ The skill trees in this plugin originate from:
 - Commit: `48aba461a6405bb8f1a568dabb37bcf9a0db4f46`
 - License: MIT, copyright Jesse Vincent
 
-Dyne packaging version `6.1.1-dyne.2` is an attributed downstream adaptation,
-not a byte-identical vendor snapshot. It makes these deliberate changes:
+Dyne adaptation identity `6.1.1-dyne.2` is an attributed downstream adaptation,
+not a byte-identical vendor snapshot. It identifies the adapted skill tree and
+its checksum fixture. It makes these deliberate changes:
 
 - Replaces upstream `test-driven-development` with `development-testing`, whose
   flow is implementation, coherent tests, then test-and-fix until green.
@@ -28,7 +29,11 @@ not a byte-identical vendor snapshot. It makes these deliberate changes:
   L2/L1 boundaries and adds no universal commit, transition, or test-running
   gate.
 
+The plugin manifest starts the repository-wide release line at `0.1.0`. Future
+repository releases update every plugin manifest together; they do not change
+the adaptation identity or checksum fixture.
+
 The checksum fixture records the exact adapted package state. For an upstream
 update, import a newly pinned release, reapply and document the Dyne adaptations,
-bump the packaging version, and regenerate the fixture. A broader downstream
-versioning scheme remains future work.
+update the adaptation identity, and regenerate the fixture independently of the
+repository release version.
