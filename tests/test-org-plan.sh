@@ -97,6 +97,16 @@ chmod +x "$failure_bin/chmod"
 write_failure_dir="$tmp/write-failure-agents"
 expect_fail env PATH="$failure_bin:$PATH" "$helper" prepare-executor --agents-dir "$write_failure_dir"
 test -z "$(find "$write_failure_dir" -type f -name '.*.??????' -print -quit)" && pass || fail 'profile writer cleans current temporary file on chmod failure'
+interrupt_bin="$tmp/interrupt-bin"
+mkdir -p "$interrupt_bin"
+printf '#!/bin/sh\nkill -TERM "$PPID"\nsleep 1\nexit 1\n' > "$interrupt_bin/chmod"
+chmod +x "$interrupt_bin/chmod"
+interrupt_executor_dir="$tmp/interrupt-executor-agents"
+expect_fail env PATH="$interrupt_bin:$PATH" "$helper" prepare-executor --agents-dir "$interrupt_executor_dir"
+test -z "$(find "$interrupt_executor_dir" -type f -name '.*.??????' -print -quit)" && pass || fail 'interrupted executor preparation cleans current staged file'
+interrupt_supervision_dir="$tmp/interrupt-supervision-agents"
+expect_fail env PATH="$interrupt_bin:$PATH" "$helper" prepare-supervision --agents-dir "$interrupt_supervision_dir"
+test -z "$(find "$interrupt_supervision_dir" -type f -name '.*.??????' -print -quit)" && pass || fail 'interrupted supervision preparation cleans current staged file'
 expect_fail "$helper" prepare-executor --model
 expect_contains "$tmp/err" 'usage: org-plan'
 test ! -e "$tmp/.codex/agents/org-plan-executor.toml" && pass || fail 'tests avoid the default agents directory'

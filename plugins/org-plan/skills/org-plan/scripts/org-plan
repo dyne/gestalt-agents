@@ -75,11 +75,24 @@ valid_profile_name() { [[ $1 =~ ^[a-z0-9][a-z0-9-]*$ ]]; }
 
 staged_profile=
 written_profile=
+declare -a profile_temporaries=()
+cleanup_profile_temporaries() {
+  (( ${#profile_temporaries[@]} == 0 )) || rm -f -- "${profile_temporaries[@]}"
+}
+arm_profile_cleanup() {
+  profile_temporaries=()
+  trap cleanup_profile_temporaries EXIT HUP INT TERM
+}
+disarm_profile_cleanup() {
+  trap - EXIT HUP INT TERM
+  profile_temporaries=()
+}
 stage_profile() {
   local profile_name=$1 description=$2 instructions=$3 model=$4 agents_dir=$5 sandbox_mode=${6:-}
   local destination="$agents_dir/$profile_name.toml" temporary mode
   mkdir -p -- "$agents_dir"
   temporary=$(mktemp "$agents_dir/.$profile_name.XXXXXX")
+  profile_temporaries+=("$temporary")
   mode=$(stat -c '%a' "$destination" 2>/dev/null || stat -f '%Lp' "$destination" 2>/dev/null || printf '600')
   if ! {
     printf 'name = "%s"\n' "$profile_name"
@@ -100,11 +113,11 @@ stage_profile() {
 
 write_profile() {
   local profile_name=$1 agents_dir=$5
+  arm_profile_cleanup
   stage_profile "$@"
   local temporary=$staged_profile destination="$agents_dir/$profile_name.toml"
-  trap 'rm -f -- "${temporary:-}"' EXIT HUP INT TERM
   mv -f -- "$temporary" "$destination"
-  trap - EXIT HUP INT TERM
+  disarm_profile_cleanup
   written_profile=$destination
 }
 
@@ -158,7 +171,7 @@ prepare_supervision() {
     "$agents_dir/$executor_name.toml"
     "$agents_dir/$reviewer_name.toml"
   )
-  trap 'rm -f -- "${staged[@]}"' EXIT HUP INT TERM
+  arm_profile_cleanup
   stage_profile "$supervisor_name" 'Supervises an org-plan implementation.' \
     'Supervise with mechanical evidence gates. Delegate all implementation and corrective edits to Terra, request read-only milestone and final verdicts from Sol, keep one writer active, and report concise evidence.' \
     "$supervisor_model" "$agents_dir"
@@ -176,14 +189,14 @@ prepare_supervision() {
   for destination in "${destinations[@]}"; do
     if [[ -e $destination && ! -f $destination ]]; then
       printf 'profile destination is not a regular file: %s\n' "$destination" >&2
-      rm -f -- "${staged[@]}"
-      trap - EXIT HUP INT TERM
+      cleanup_profile_temporaries
+      disarm_profile_cleanup
       return 1
     fi
   done
   local index
   for index in 0 1 2; do mv -f -- "${staged[$index]}" "${destinations[$index]}"; done
-  trap - EXIT HUP INT TERM
+  disarm_profile_cleanup
   printf 'supervisor=%s supervisor_model=%s supervisor_profile=%s executor=%s executor_model=%s executor_profile=%s reviewer=%s reviewer_model=%s reviewer_profile=%s\n' \
     "$supervisor_name" "$supervisor_model" "${destinations[0]}" \
     "$executor_name" "$executor_model" "${destinations[1]}" \
