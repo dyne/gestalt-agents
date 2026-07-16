@@ -2,16 +2,19 @@
 set -euo pipefail
 
 root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
-python3 - "$root/.github/workflows/release.yml" <<'PY'
+tmp=$(mktemp -d "${TMPDIR:-/tmp}/release-workflow-test.XXXXXX")
+trap 'rm -rf "$tmp"' EXIT HUP INT TERM
+ruby -ryaml -rjson -e 'File.write(ARGV[1], JSON.generate(YAML.safe_load_file(ARGV[0], aliases: false)))' \
+  "$root/.github/workflows/release.yml" "$tmp/workflow.json"
+python3 - "$root/.github/workflows/release.yml" "$tmp/workflow.json" <<'PY'
+import json
 import sys
 from pathlib import Path
 
-import yaml
-
 path = Path(sys.argv[1])
 source = path.read_text()
-workflow = yaml.safe_load(source)
-trigger = workflow.get("on", workflow.get(True))
+workflow = json.loads(Path(sys.argv[2]).read_text())
+trigger = workflow.get("on", workflow.get("true"))
 
 assert workflow["name"] == "Release"
 assert trigger == {"push": {"branches": ["main"]}}
