@@ -88,6 +88,17 @@ expect_contains "$skill" 'Terra is the only role that'
 expect_contains "$skill" 'Sol must'
 expect_contains "$skill" 'never implement, modify the plan, commit, or supervise routine steps'
 expect_contains "$skill" 'Manual execution remains the fallback.'
+expect_contains "$skill" '`[agents] max_depth = 2` is required'
+expect_contains "$skill" 'never edit the user'
+expect_contains "$skill" 'configuration automatically'
+expect_contains "$skill" 'planner spawns Luna with `fork_turns=none`'
+expect_contains "$skill" 'Luna spawns Terra with `fork_turns=none`'
+expect_contains "$skill" 'every Sol review with'
+expect_contains "$skill" '`fork_turns=none` and a fresh, complete, explicit assignment'
+expect_contains "$skill" 'only one write-capable child active'
+expect_contains "$skill" 'waits for Terra to finish'
+expect_contains "$skill" 'follow-up assignments'
+expect_contains "$skill" 'without inherited conversation context'
 
 if [ "$failures" -ne 0 ]; then printf '%s passed, %s failed\n' "$passes" "$failures"; exit 1; fi
 printf '%s passed\n' "$passes"

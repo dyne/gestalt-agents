@@ -58,6 +58,23 @@ Model identifiers are configuration values; Codex reports unavailable models
 when a role is spawned. The helper prepares profiles, and the planner launches
 supervised execution. Manual execution remains the fallback.
 
+The deterministic supervised sequence is:
+
+1. The planner prepares all three profiles and checks that Codex permits
+   depth-two delegation. `[agents] max_depth = 2` is required: the root is
+   depth zero, Luna is depth one, and Terra and Sol are depth two. If nested
+   spawning is unavailable, stop and tell the user to set this prerequisite;
+   never edit the user's Codex configuration automatically.
+2. The planner spawns Luna with `fork_turns=none` and a fresh, complete,
+   explicit assignment. Luna spawns Terra with `fork_turns=none` and a fresh,
+   complete, explicit assignment. Luna also spawns every Sol review with
+   `fork_turns=none` and a fresh, complete, explicit assignment.
+3. Luna keeps only one write-capable child active. It waits for Terra to finish
+   tests and commit before starting Sol. Bounded fixes use follow-up assignments
+   to the same Terra agent instead of creating competing writers.
+
+Every assignment must stand alone without inherited conversation context.
+
 # Executor
 
 When assigned work, don't ask confirmation. Study the plan, check you
