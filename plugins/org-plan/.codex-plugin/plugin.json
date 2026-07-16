@@ -9,7 +9,7 @@
   "repository": "https://github.com/dyne/agent-plugins",
   "skills": "./skills/",
   "interface": {
-    "displayName": "Org Plan",
+    "displayName": "Dyne Org Plan",
     "shortDescription": "Plan work with strict Org files.",
     "longDescription": "Org Plan provides a concise, strict Org planning and execution workflow.",
     "developerName": "Jaromil",
