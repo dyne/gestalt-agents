@@ -11,7 +11,7 @@
   "interface": {
     "displayName": "Dyne Org Plan",
     "shortDescription": "Plan work with strict Org files.",
-    "longDescription": "Org Plan provides a concise, strict Org planning and execution workflow.",
+    "longDescription": "Org Plan provides strict manual execution or supervised execution with Luna, Terra, and Sol defaults. Supervision requires account access to the configured models and [agents] max_depth = 2.",
     "developerName": "Jaromil",
     "category": "Productivity",
     "capabilities": [

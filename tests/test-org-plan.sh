@@ -5,6 +5,7 @@ root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 helper="$root/plugins/org-plan/skills/org-plan/scripts/org-plan"
 fixtures="$root/tests/fixtures"
 skill="$root/plugins/org-plan/skills/org-plan/SKILL.md"
+manifest="$root/plugins/org-plan/.codex-plugin/plugin.json"
 tmp=$(mktemp -d "${TMPDIR:-/tmp}/org-plan-test.XXXXXX")
 trap 'rm -rf "$tmp"' EXIT HUP INT TERM
 passes=0 failures=0
@@ -195,6 +196,10 @@ expect_contains "$skill" 'stops and asks the user'
 expect_contains "$skill" 'unresolved material requirement'
 expect_contains "$skill" 'reruns the applicable L2 or L1 gate'
 expect_contains "$skill" 'requests a new Sol verdict'
+expect_contains "$manifest" 'strict manual execution or supervised execution'
+expect_contains "$manifest" 'Luna, Terra, and Sol defaults'
+expect_contains "$manifest" 'account access to the configured models'
+expect_contains "$manifest" '[agents] max_depth = 2'
 
 if [ "$failures" -ne 0 ]; then printf '%s passed, %s failed\n' "$passes" "$failures"; exit 1; fi
 printf '%s passed\n' "$passes"
