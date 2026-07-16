@@ -1,6 +1,6 @@
 {
   "name": "superpowers",
-  "version": "6.1.1-dyne.2",
+  "version": "0.1.0",
   "description": "Org Plan-aligned Superpowers debugging, development testing, verification, and skill-authoring workflows",
   "author": {
     "name": "Jesse Vincent",
@@ -16,7 +16,7 @@
   ],
   "skills": "./skills/",
   "interface": {
-    "displayName": "Superpowers (Dyne curated)",
+    "displayName": "Dyne Superpowers",
     "shortDescription": "Org Plan-aligned debugging, testing, and verification skills",
     "longDescription": "A Dyne adaptation of selected Codex Superpowers skills for systematic debugging, implementation-first development testing, verification, and skill authoring.",
     "developerName": "Dyne.org",
