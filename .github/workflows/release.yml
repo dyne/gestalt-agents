@@ -8,6 +8,9 @@ on:
 permissions:
   contents: write
 
+# GITHUB_TOKEN pushes do not recursively trigger this workflow. Protected main
+# must allow GitHub Actions to write; an atomic push rejects both branch and tag
+# if either update is denied.
 concurrency:
   group: release-${{ github.repository }}
   cancel-in-progress: false
@@ -41,6 +44,9 @@ jobs:
         with:
           token: ${{ github.token }}
           branch: main
+          majorList: ''
+          minorList: feat, feature
+          patchList: fix, bugfix, perf, refactor, test, tests
           skipInvalidTags: true
           tagFilter: '^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$'
           maxTagsToFetch: 100
