@@ -80,10 +80,14 @@ expect_contains "$profile" 'model = "gpt-5.6-terra"'
 expect_fail "$helper" prepare-executor --model 'bad"value' --agents-dir "$agents_dir" --profile-name org-plan-test-executor
 expect_fail "$helper" prepare-executor --model
 test ! -e "$tmp/.codex/agents/org-plan-executor.toml" && pass || fail 'tests avoid the default agents directory'
-expect_contains "$skill" 'fork_turns=none'
-expect_contains "$skill" 'no inherited'
-expect_contains "$skill" 'complete assignment explicitly'
-expect_contains "$skill" 'Do not rely on'
+expect_contains "$skill" '`org-plan-supervisor` defaults to `gpt-5.6-luna`'
+expect_contains "$skill" '`org-plan-executor` defaults to `gpt-5.6-terra`'
+expect_contains "$skill" '`org-plan-reviewer` defaults to `gpt-5.6-sol`'
+expect_contains "$skill" 'Luna alone performs routine'
+expect_contains "$skill" 'Terra is the only role that'
+expect_contains "$skill" 'Sol must'
+expect_contains "$skill" 'never implement, modify the plan, commit, or supervise routine steps'
+expect_contains "$skill" 'Manual execution remains the fallback.'
 
 if [ "$failures" -ne 0 ]; then printf '%s passed, %s failed\n' "$passes" "$failures"; exit 1; fi
 printf '%s passed\n' "$passes"
