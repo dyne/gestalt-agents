@@ -44,8 +44,15 @@ execution. Manual execution is the fallback.
 
 For supervised execution, ask for the executor model; default to
 `gpt-5.6-terra`. Run `org-plan prepare-executor --model MODEL`, then spawn the
-returned `org-plan-executor` custom agent. The helper prepares the profile; the
-planner performs the spawn.
+returned `org-plan-executor` custom agent as a fresh agent with no inherited
+conversation history. With the collaboration API, use `fork_turns=none`; never
+use full-history inheritance for this executor. The spawn prompt must contain
+the complete assignment explicitly: the plan path, target branch, prepared
+profile/model, required L1/L2 loop, commit and test rules, files or changes to
+preserve, and the stop condition for material ambiguity. Do not rely on
+"continue the task above" or any other parent-context reference. The helper
+prepares the profile; the planner performs the fresh spawn and supplies the
+assignment.
 
 # Executor
 

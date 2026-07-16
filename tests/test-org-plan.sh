@@ -4,6 +4,7 @@ set -euo pipefail
 root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 helper="$root/plugins/org-plan/skills/org-plan/scripts/org-plan"
 fixtures="$root/tests/fixtures"
+skill="$root/plugins/org-plan/skills/org-plan/SKILL.md"
 tmp=$(mktemp -d "${TMPDIR:-/tmp}/org-plan-test.XXXXXX")
 trap 'rm -rf "$tmp"' EXIT HUP INT TERM
 passes=0 failures=0
@@ -79,6 +80,10 @@ expect_contains "$profile" 'model = "gpt-5.6-terra"'
 expect_fail "$helper" prepare-executor --model 'bad"value' --agents-dir "$agents_dir" --profile-name org-plan-test-executor
 expect_fail "$helper" prepare-executor --model
 test ! -e "$tmp/.codex/agents/org-plan-executor.toml" && pass || fail 'tests avoid the default agents directory'
+expect_contains "$skill" 'fork_turns=none'
+expect_contains "$skill" 'no inherited'
+expect_contains "$skill" 'complete assignment explicitly'
+expect_contains "$skill" 'Do not rely on'
 
 if [ "$failures" -ne 0 ]; then printf '%s passed, %s failed\n' "$passes" "$failures"; exit 1; fi
 printf '%s passed\n' "$passes"
