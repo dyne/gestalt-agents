@@ -75,9 +75,18 @@ test -f "$profile" && pass || fail 'default executor profile exists'
 expect_contains "$profile" 'name = "org-plan-test-executor"'
 expect_contains "$profile" 'model = "gpt-5.4-mini"'
 expect_contains "$profile" 'developer_instructions ='
+test "$(stat -c '%a' "$profile" 2>/dev/null || stat -f '%Lp' "$profile")" = 600 && pass || fail 'new executor profile mode is 600'
+chmod 640 "$profile"
 expect_ok "$helper" prepare-executor --model gpt-5.6-terra --agents-dir "$agents_dir" --profile-name org-plan-test-executor
 expect_contains "$profile" 'model = "gpt-5.6-terra"'
+test "$(stat -c '%a' "$profile" 2>/dev/null || stat -f '%Lp' "$profile")" = 640 && pass || fail 'existing executor profile mode is preserved'
+python3 -c 'import sys, tomllib; tomllib.load(open(sys.argv[1], "rb"))' "$profile" && pass || fail 'executor profile is parseable TOML'
+before=$(cksum "$profile")
 expect_fail "$helper" prepare-executor --model 'bad"value' --agents-dir "$agents_dir" --profile-name org-plan-test-executor
+test "$before" = "$(cksum "$profile")" && pass || fail 'invalid model does not mutate profile'
+expect_fail "$helper" prepare-executor --model gpt-5.6-terra --agents-dir "$agents_dir" --profile-name 'Bad_Profile'
+test "$before" = "$(cksum "$profile")" && pass || fail 'invalid profile name does not mutate profile'
+test -z "$(find "$agents_dir" -name '.*.??????' -print -quit)" && pass || fail 'profile writer leaves no temporary files'
 expect_fail "$helper" prepare-executor --model
 test ! -e "$tmp/.codex/agents/org-plan-executor.toml" && pass || fail 'tests avoid the default agents directory'
 expect_contains "$skill" '`org-plan-supervisor` defaults to `gpt-5.6-luna`'
