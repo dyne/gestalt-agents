@@ -99,6 +99,19 @@ expect_contains "$skill" 'only one write-capable child active'
 expect_contains "$skill" 'waits for Terra to finish'
 expect_contains "$skill" 'follow-up assignments'
 expect_contains "$skill" 'without inherited conversation context'
+expect_contains "$skill" 'exactly one conventional implementation commit'
+expect_contains "$skill" 'no unintended dirty paths'
+expect_contains "$skill" 'current touched-test evidence'
+expect_contains "$skill" 'audit the L1 commit'
+expect_contains "$skill" "plan's Goal, Tests, and Done-when criteria"
+expect_contains "$skill" 'explicit ACCEPT verdict with evidence'
+expect_contains "$skill" 'complete branch against its base'
+expect_contains "$skill" 'current full-suite pass and clean intended scope'
+expect_contains "$skill" 'Sol REJECT verdict must contain actionable findings'
+expect_contains "$skill" 'returns the affected'
+expect_contains "$skill" 'item to Terra for correction'
+expect_contains "$skill" 'viewport sizes, and font-scale combinations'
+expect_contains "$skill" 'Non-UI work does not'
 
 if [ "$failures" -ne 0 ]; then printf '%s passed, %s failed\n' "$passes" "$failures"; exit 1; fi
 printf '%s passed\n' "$passes"

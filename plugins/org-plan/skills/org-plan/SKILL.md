@@ -75,6 +75,25 @@ The deterministic supervised sequence is:
 
 Every assignment must stand alone without inherited conversation context.
 
+Luna enforces these acceptance gates:
+
+- After each L2, Luna confirms exactly one conventional implementation commit
+  when files changed, confirms there are no unintended dirty paths, inspects the
+  L2 diff, and requires current touched-test evidence before marking it DONE.
+- After each L1, Luna runs the full suite, then asks Sol to audit the L1 commit
+  range against the plan's Goal, Tests, and Done-when criteria. Luna marks the
+  L1 DONE only after Sol returns an explicit ACCEPT verdict with evidence.
+- At final acceptance, Sol audits the complete branch against its base. Luna
+  then verifies a current full-suite pass and clean intended scope.
+
+A Sol REJECT verdict must contain actionable findings. Luna returns the affected
+item to Terra for correction; Sol never fixes it. Acceptance must always be an
+explicit verdict with evidence.
+
+For UI work, the plan's Tests and Done-when fields must name screenshots,
+components, viewport sizes, and font-scale combinations. Non-UI work does not
+require UI artifacts.
+
 # Executor
 
 When assigned work, don't ask confirmation. Study the plan, check you
