@@ -89,6 +89,48 @@ test "$before" = "$(cksum "$profile")" && pass || fail 'invalid profile name doe
 test -z "$(find "$agents_dir" -name '.*.??????' -print -quit)" && pass || fail 'profile writer leaves no temporary files'
 expect_fail "$helper" prepare-executor --model
 test ! -e "$tmp/.codex/agents/org-plan-executor.toml" && pass || fail 'tests avoid the default agents directory'
+
+supervision_dir="$tmp/supervision-agents"
+expect_ok "$helper" prepare-supervision --agents-dir "$supervision_dir"
+expect_contains "$tmp/out" 'supervisor=org-plan-supervisor supervisor_model=gpt-5.6-luna'
+expect_contains "$tmp/out" 'executor=org-plan-executor executor_model=gpt-5.6-terra'
+expect_contains "$tmp/out" 'reviewer=org-plan-reviewer reviewer_model=gpt-5.6-sol'
+expect_contains "$supervision_dir/org-plan-supervisor.toml" 'model = "gpt-5.6-luna"'
+expect_contains "$supervision_dir/org-plan-supervisor.toml" 'mechanical evidence gates'
+expect_contains "$supervision_dir/org-plan-executor.toml" 'model = "gpt-5.6-terra"'
+expect_contains "$supervision_dir/org-plan-executor.toml" 'exactly one conventional commit'
+expect_contains "$supervision_dir/org-plan-reviewer.toml" 'model = "gpt-5.6-sol"'
+expect_contains "$supervision_dir/org-plan-reviewer.toml" 'sandbox_mode = "read-only"'
+expect_contains "$supervision_dir/org-plan-reviewer.toml" 'explicit ACCEPT or REJECT verdict'
+for role in supervisor executor reviewer; do
+  python3 -c 'import sys, tomllib; tomllib.load(open(sys.argv[1], "rb"))' "$supervision_dir/org-plan-$role.toml" && pass || fail "$role profile is parseable TOML"
+done
+first_output=$(cat "$tmp/out")
+expect_ok "$helper" prepare-supervision --agents-dir "$supervision_dir"
+test "$first_output" = "$(cat "$tmp/out")" && pass || fail 'prepare-supervision is idempotent'
+
+override_dir="$tmp/override-agents"
+expect_ok "$helper" prepare-supervision --agents-dir "$override_dir" \
+  --supervisor-model luna-test --executor-model terra-test --reviewer-model sol-test \
+  --supervisor-profile-name test-supervisor --executor-profile-name test-executor --reviewer-profile-name test-reviewer
+expect_contains "$override_dir/test-supervisor.toml" 'model = "luna-test"'
+expect_contains "$override_dir/test-executor.toml" 'model = "terra-test"'
+expect_contains "$override_dir/test-reviewer.toml" 'model = "sol-test"'
+expect_contains "$tmp/out" 'supervisor=test-supervisor supervisor_model=luna-test'
+expect_contains "$tmp/out" 'executor=test-executor executor_model=terra-test'
+expect_contains "$tmp/out" 'reviewer=test-reviewer reviewer_model=sol-test'
+expect_fail "$helper" prepare-supervision --agents-dir "$override_dir" --supervisor-model
+expect_fail "$helper" prepare-supervision --agents-dir "$override_dir" --reviewer-model 'bad"model'
+expect_fail "$helper" prepare-supervision --agents-dir "$override_dir" --executor-profile-name Bad_Name
+expect_fail "$helper" prepare-supervision --agents-dir "$override_dir" --executor-profile-name same --reviewer-profile-name same
+
+failure_dir="$tmp/failure-agents"
+mkdir -p "$failure_dir/org-plan-reviewer.toml"
+expect_fail "$helper" prepare-supervision --agents-dir "$failure_dir"
+test ! -e "$failure_dir/org-plan-supervisor.toml" && pass || fail 'failed preparation does not install supervisor'
+test ! -e "$failure_dir/org-plan-executor.toml" && pass || fail 'failed preparation does not install executor'
+test -z "$(find "$failure_dir" -type f -name '.*.??????' -print -quit)" && pass || fail 'failed preparation cleans staged files'
+test ! -s "$tmp/out" && pass || fail 'failed preparation prints no success result'
 expect_contains "$skill" '`org-plan-supervisor` defaults to `gpt-5.6-luna`'
 expect_contains "$skill" '`org-plan-executor` defaults to `gpt-5.6-terra`'
 expect_contains "$skill" '`org-plan-reviewer` defaults to `gpt-5.6-sol`'

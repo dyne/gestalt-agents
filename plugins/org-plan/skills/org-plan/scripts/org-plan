@@ -2,7 +2,7 @@
 # Strict helper for the small Org dialect used by the org-plan skill.
 set -Eeuo pipefail
 
-usage() { printf 'usage: org-plan {validate|next|summary|l2|set|prepare-executor} [args]\n' >&2; exit 2; }
+usage() { printf 'usage: org-plan {validate|next|summary|l2|set|prepare-executor|prepare-supervision} [args]\n' >&2; exit 2; }
 die() { printf '%s: %s\n' "$plan" "$*" >&2; return 1; }
 declare -a ids states levels lines titles parents starts ends
 declare -A seen field
@@ -73,13 +73,13 @@ active_l1() { local i; for ((i=0;i<count;i++)); do (( levels[$i] == 1 )) && [[ $
 valid_model() { [[ $1 =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]]; }
 valid_profile_name() { [[ $1 =~ ^[a-z0-9][a-z0-9-]*$ ]]; }
 
+staged_profile=
 written_profile=
-write_profile() {
+stage_profile() {
   local profile_name=$1 description=$2 instructions=$3 model=$4 agents_dir=$5 sandbox_mode=${6:-}
   local destination="$agents_dir/$profile_name.toml" temporary mode
   mkdir -p -- "$agents_dir"
   temporary=$(mktemp "$agents_dir/.$profile_name.XXXXXX")
-  trap 'rm -f -- "${temporary:-}"' EXIT HUP INT TERM
   mode=$(stat -c '%a' "$destination" 2>/dev/null || stat -f '%Lp' "$destination" 2>/dev/null || printf '600')
   {
     printf 'name = "%s"\n' "$profile_name"
@@ -89,6 +89,14 @@ write_profile() {
     [[ -z $sandbox_mode ]] || printf 'sandbox_mode = "%s"\n' "$sandbox_mode"
   } > "$temporary"
   chmod "$mode" "$temporary"
+  staged_profile=$temporary
+}
+
+write_profile() {
+  local profile_name=$1 agents_dir=$5
+  stage_profile "$@"
+  local temporary=$staged_profile destination="$agents_dir/$profile_name.toml"
+  trap 'rm -f -- "${temporary:-}"' EXIT HUP INT TERM
   mv -f -- "$temporary" "$destination"
   trap - EXIT HUP INT TERM
   written_profile=$destination
@@ -112,9 +120,74 @@ prepare_executor() {
   printf 'executor=%s model=%s profile=%s\n' "$profile_name" "$model" "$written_profile"
 }
 
+prepare_supervision() {
+  local supervisor_model='gpt-5.6-luna' executor_model='gpt-5.6-terra' reviewer_model='gpt-5.6-sol'
+  local supervisor_name='org-plan-supervisor' executor_name='org-plan-executor' reviewer_name='org-plan-reviewer'
+  local agents_dir="${HOME:?HOME is required}/.codex/agents"
+  while (( $# )); do
+    case $1 in
+      --supervisor-model) (( $# >= 2 )) || usage; supervisor_model=$2; shift 2 ;;
+      --executor-model) (( $# >= 2 )) || usage; executor_model=$2; shift 2 ;;
+      --reviewer-model) (( $# >= 2 )) || usage; reviewer_model=$2; shift 2 ;;
+      --agents-dir) (( $# >= 2 )) || usage; agents_dir=$2; shift 2 ;;
+      --supervisor-profile-name) (( $# >= 2 )) || usage; supervisor_name=$2; shift 2 ;;
+      --executor-profile-name) (( $# >= 2 )) || usage; executor_name=$2; shift 2 ;;
+      --reviewer-profile-name) (( $# >= 2 )) || usage; reviewer_name=$2; shift 2 ;;
+      *) usage ;;
+    esac
+  done
+  local value
+  for value in "$supervisor_model" "$executor_model" "$reviewer_model"; do
+    valid_model "$value" || { printf 'invalid model: %s\n' "$value" >&2; return 2; }
+  done
+  for value in "$supervisor_name" "$executor_name" "$reviewer_name"; do
+    valid_profile_name "$value" || { printf 'invalid profile name: %s\n' "$value" >&2; return 2; }
+  done
+  [[ $supervisor_name != "$executor_name" && $supervisor_name != "$reviewer_name" && $executor_name != "$reviewer_name" ]] || {
+    printf 'profile names must be distinct\n' >&2; return 2;
+  }
+
+  local -a staged=() destinations=(
+    "$agents_dir/$supervisor_name.toml"
+    "$agents_dir/$executor_name.toml"
+    "$agents_dir/$reviewer_name.toml"
+  )
+  trap 'rm -f -- "${staged[@]}"' EXIT HUP INT TERM
+  stage_profile "$supervisor_name" 'Supervises an org-plan implementation.' \
+    'Supervise with mechanical evidence gates. Delegate all implementation and corrective edits to Terra, request read-only milestone and final verdicts from Sol, keep one writer active, and report concise evidence.' \
+    "$supervisor_model" "$agents_dir"
+  staged+=("$staged_profile")
+  stage_profile "$executor_name" 'Executes an org-plan implementation.' \
+    'Implement only the assigned Org plan item. Use the bundled helper for state changes, preserve assigned scope, run required tests, create exactly one conventional commit when files change, and return concise evidence to Luna.' \
+    "$executor_model" "$agents_dir"
+  staged+=("$staged_profile")
+  stage_profile "$reviewer_name" 'Reviews an org-plan milestone.' \
+    'Review only the assigned commit range and acceptance criteria. Do not edit files, modify the plan, commit, or perform routine supervision. Return structured findings with evidence and an explicit ACCEPT or REJECT verdict.' \
+    "$reviewer_model" "$agents_dir" 'read-only'
+  staged+=("$staged_profile")
+
+  local destination
+  for destination in "${destinations[@]}"; do
+    if [[ -e $destination && ! -f $destination ]]; then
+      printf 'profile destination is not a regular file: %s\n' "$destination" >&2
+      rm -f -- "${staged[@]}"
+      trap - EXIT HUP INT TERM
+      return 1
+    fi
+  done
+  local index
+  for index in 0 1 2; do mv -f -- "${staged[$index]}" "${destinations[$index]}"; done
+  trap - EXIT HUP INT TERM
+  printf 'supervisor=%s supervisor_model=%s supervisor_profile=%s executor=%s executor_model=%s executor_profile=%s reviewer=%s reviewer_model=%s reviewer_profile=%s\n' \
+    "$supervisor_name" "$supervisor_model" "${destinations[0]}" \
+    "$executor_name" "$executor_model" "${destinations[1]}" \
+    "$reviewer_name" "$reviewer_model" "${destinations[2]}"
+}
+
 cmd=${1:-}; shift || true
 case $cmd in
   prepare-executor) prepare_executor "$@" ;;
+  prepare-supervision) prepare_supervision "$@" ;;
   validate) [ $# = 1 ] || usage; parse "$1" ;;
   next)
     [ $# = 2 ] || usage; parse "$1"; case $2 in
