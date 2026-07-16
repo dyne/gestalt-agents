@@ -1,0 +1,31 @@
+{
+  "name": "superpowers",
+  "version": "6.1.1-dyne.2",
+  "description": "Org Plan-aligned Superpowers debugging, development testing, verification, and skill-authoring workflows",
+  "author": {
+    "name": "Jesse Vincent",
+    "url": "https://github.com/obra"
+  },
+  "repository": "https://github.com/dyne/agent-plugins",
+  "license": "MIT",
+  "keywords": [
+    "skills",
+    "testing",
+    "debugging",
+    "verification"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Superpowers (Dyne curated)",
+    "shortDescription": "Org Plan-aligned debugging, testing, and verification skills",
+    "longDescription": "A Dyne adaptation of selected Codex Superpowers skills for systematic debugging, implementation-first development testing, verification, and skill authoring.",
+    "developerName": "Dyne.org",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Instructions"
+    ],
+    "defaultPrompt": [
+      "Use the appropriate Superpowers workflow for this task."
+    ]
+  }
+}
