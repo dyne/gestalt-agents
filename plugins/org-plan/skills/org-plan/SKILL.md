@@ -42,17 +42,21 @@ Finish the plan:
 For each implementation, ask whether the user wants manual or supervised
 execution. Manual execution is the fallback.
 
-For supervised execution, ask for the executor model; default to
-`gpt-5.6-terra`. Run `org-plan prepare-executor --model MODEL`, then spawn the
-returned `org-plan-executor` custom agent as a fresh agent with no inherited
-conversation history. With the collaboration API, use `fork_turns=none`; never
-use full-history inheritance for this executor. The spawn prompt must contain
-the complete assignment explicitly: the plan path, target branch, prepared
-profile/model, required L1/L2 loop, commit and test rules, files or changes to
-preserve, and the stop condition for material ambiguity. Do not rely on
-"continue the task above" or any other parent-context reference. The helper
-prepares the profile; the planner performs the fresh spawn and supplies the
-assignment.
+Supervised execution uses three fixed roles:
+
+- `org-plan-supervisor` defaults to `gpt-5.6-luna`. Luna alone performs routine
+  supervision: inspect Org state, verify the active branch and commit boundary,
+  check dirty files, run or verify required commands, identify obvious missing
+  tests, route bounded corrections, and report progress.
+- `org-plan-executor` defaults to `gpt-5.6-terra`. Terra is the only role that
+  receives implementation work or corrective edits.
+- `org-plan-reviewer` defaults to `gpt-5.6-sol`. Sol is used only for read-only
+  milestone audits, material design ambiguity, and final acceptance. Sol must
+  never implement, modify the plan, commit, or supervise routine steps.
+
+Model identifiers are configuration values; Codex reports unavailable models
+when a role is spawned. The helper prepares profiles, and the planner launches
+supervised execution. Manual execution remains the fallback.
 
 # Executor
 
