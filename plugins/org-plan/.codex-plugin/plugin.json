@@ -14,7 +14,9 @@
     "longDescription": "Org Plan provides a concise, strict Org planning and execution workflow.",
     "developerName": "Jaromil",
     "category": "Productivity",
-    "capabilities": ["Instructions"],
+    "capabilities": [
+      "Instructions"
+    ],
     "defaultPrompt": [
       "Use Org Plan for this task."
     ]
