@@ -47,6 +47,28 @@ assert "none) should_release=false" in release["run"]
 assert 'echo "tag=$tag" >>"$GITHUB_OUTPUT"' in release["run"]
 assert 'echo "version=$version" >>"$GITHUB_OUTPUT"' in release["run"]
 assert 'echo "should_release=$should_release" >>"$GITHUB_OUTPUT"' in release["run"]
+
+synchronize = next(
+    step for step in steps if step.get("name") == "Synchronize plugin manifests"
+)
+commit = next(
+    step for step in steps if step.get("name") == "Commit synchronized plugin versions"
+)
+publish = next(
+    step for step in steps if step.get("name") == "Tag and atomically publish release"
+)
+release_guard = "steps.release.outputs.should_release == 'true'"
+assert synchronize["if"] == release_guard
+assert commit["if"] == release_guard
+assert publish["if"] == release_guard
+assert 'scripts/set-plugin-version.py "$VERSION"' in synchronize["run"]
+assert 'json.loads(manifest.read_text())["version"] == version' in synchronize["run"]
+assert "git config user.name github-actions[bot]" in commit["run"]
+assert "git diff --quiet -- plugins/*/.codex-plugin/plugin.json" in commit["run"]
+assert 'git commit -m "chore(release): $TAG [skip ci]"' in commit["run"]
+assert 'git tag "$TAG" HEAD' in publish["run"]
+assert 'git push --atomic origin HEAD:main "refs/tags/$TAG"' in publish["run"]
+assert steps.index(synchronize) < steps.index(commit) < steps.index(publish)
 PY
 
 printf 'release workflow contract is valid\n'
