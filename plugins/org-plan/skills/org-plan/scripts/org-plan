@@ -75,9 +75,14 @@ valid_profile_name() { [[ $1 =~ ^[a-z0-9][a-z0-9-]*$ ]]; }
 
 written_profile=
 profile_stage_dir=
+profile_stage_owned=0
 profile_installing=0
 declare -a staged_profiles=() profile_destinations=() profile_backups=() profile_had_destination=()
-cleanup_profile_stage() { [[ -z $profile_stage_dir ]] || rm -rf -- "$profile_stage_dir"; }
+cleanup_profile_stage() {
+  [[ -n $profile_stage_dir ]] || return 0
+  if (( profile_stage_owned )); then rm -rf -- "$profile_stage_dir"; else rmdir -- "$profile_stage_dir" 2>/dev/null || true; fi
+  profile_stage_owned=0
+}
 rollback_profiles() {
   (( profile_installing )) || return 0
   local index
@@ -101,17 +106,17 @@ profile_signal_cleanup() {
   exit "$status"
 }
 begin_profile_transaction() {
-  local agents_dir=$1 suffix=0
+  local agents_dir=$1 suffix="${RANDOM}${RANDOM}"
   mkdir -p -- "$agents_dir"
-  profile_stage_dir="$agents_dir/.org-plan-stage.$$"
-  while [[ -e $profile_stage_dir ]]; do suffix=$((suffix + 1)); profile_stage_dir="$agents_dir/.org-plan-stage.$$.${suffix}"; done
+  profile_stage_dir="$agents_dir/.org-plan-stage.$$.${suffix}"
+  profile_stage_owned=0
   staged_profiles=() profile_destinations=() profile_backups=() profile_had_destination=()
   profile_installing=0
   trap profile_exit_cleanup EXIT
   trap 'profile_signal_cleanup HUP' HUP
   trap 'profile_signal_cleanup INT' INT
   trap 'profile_signal_cleanup TERM' TERM
-  mkdir -m 700 -- "$profile_stage_dir"
+  if mkdir -m 700 -- "$profile_stage_dir"; then profile_stage_owned=1; else profile_stage_owned=0; return 1; fi
 }
 finish_profile_transaction() {
   cleanup_profile_stage
@@ -144,7 +149,6 @@ prepare_profile_install() {
   local index destination backup
   for ((index=0; index<${#profile_destinations[@]}; index++)); do
     destination=${profile_destinations[$index]}
-    [[ ! -e $destination || -f $destination ]] || { printf 'profile destination is not a regular file: %s\n' "$destination" >&2; return 1; }
     backup="$profile_stage_dir/backup.$index"
     profile_backups+=("$backup")
     if [[ -f $destination ]]; then
@@ -154,6 +158,27 @@ prepare_profile_install() {
       profile_had_destination+=(0)
     fi
   done
+}
+
+validate_profile_destinations() {
+  local destination
+  for destination in "$@"; do
+    [[ ! -L $destination && (! -e $destination || -f $destination) ]] || {
+      printf 'profile destination is not a regular file: %s\n' "$destination" >&2
+      return 1
+    }
+  done
+}
+
+# Percent-encode unsafe bytes so success records remain one-line key/value data.
+encode_record_value() {
+  local LC_ALL=C value=$1 output character hex index
+  output=
+  for ((index=0; index<${#value}; index++)); do
+    character=${value:index:1}
+    case $character in [A-Za-z0-9._~/-]) output+=$character ;; *) printf -v hex '%02X' "'$character"; output+="%$hex" ;; esac
+  done
+  printf '%s' "$output"
 }
 
 install_profiles() {
@@ -168,6 +193,7 @@ install_profiles() {
 
 write_profile() {
   local profile_name=$1 agents_dir=$5 destination="$5/$1.toml"
+  validate_profile_destinations "$destination"
   begin_profile_transaction "$agents_dir"
   stage_profile "$@"
   profile_destinations=("$destination")
@@ -191,7 +217,7 @@ prepare_executor() {
   write_profile "$profile_name" 'Executes an org-plan implementation.' \
     'Follow the assigned Org plan strictly. Use the bundled org-plan helper for state changes, run required tests, and return concise evidence to the planner.' \
     "$model" "$agents_dir"
-  printf 'executor=%s model=%s profile=%s\n' "$profile_name" "$model" "$written_profile"
+  printf 'executor=%s model=%s profile=%s\n' "$profile_name" "$model" "$(encode_record_value "$written_profile")"
 }
 
 prepare_supervision() {
@@ -226,6 +252,7 @@ prepare_supervision() {
     "$agents_dir/$executor_name.toml"
     "$agents_dir/$reviewer_name.toml"
   )
+  validate_profile_destinations "${destinations[@]}"
   begin_profile_transaction "$agents_dir"
   profile_destinations=("${destinations[@]}")
   stage_profile "$supervisor_name" 'Supervises an org-plan implementation.' \
@@ -239,10 +266,14 @@ prepare_supervision() {
     "$reviewer_model" "$agents_dir" 'read-only'
   prepare_profile_install
   install_profiles
+  local supervisor_path executor_path reviewer_path
+  supervisor_path=$(encode_record_value "${destinations[0]}")
+  executor_path=$(encode_record_value "${destinations[1]}")
+  reviewer_path=$(encode_record_value "${destinations[2]}")
   printf 'supervisor=%s supervisor_model=%s supervisor_profile=%s executor=%s executor_model=%s executor_profile=%s reviewer=%s reviewer_model=%s reviewer_profile=%s\n' \
-    "$supervisor_name" "$supervisor_model" "${destinations[0]}" \
-    "$executor_name" "$executor_model" "${destinations[1]}" \
-    "$reviewer_name" "$reviewer_model" "${destinations[2]}"
+    "$supervisor_name" "$supervisor_model" "$supervisor_path" \
+    "$executor_name" "$executor_model" "$executor_path" \
+    "$reviewer_name" "$reviewer_model" "$reviewer_path"
 }
 
 cmd=${1:-}; shift || true

@@ -73,6 +73,7 @@ expect_fail "$helper" set "$tmp/forced.org" first-task WIP --force
 agents_dir="$tmp/org-plan-test-agents"
 profile="$agents_dir/org-plan-test-executor.toml"
 expect_ok "$helper" prepare-executor --model gpt-5.4-mini --agents-dir "$agents_dir" --profile-name org-plan-test-executor
+expect_contains "$tmp/out" "profile=$profile"
 test -f "$profile" && pass || fail 'default executor profile exists'
 expect_contains "$profile" 'name = "org-plan-test-executor"'
 expect_contains "$profile" 'model = "gpt-5.4-mini"'
@@ -159,6 +160,51 @@ test "$rollback_before" = "$(cksum "$supervision_rollback_dir"/*.toml)" && pass 
 test "$rollback_modes" = "$(for file in "$supervision_rollback_dir"/*.toml; do stat -c '%a' "$file" 2>/dev/null || stat -f '%Lp' "$file"; done)" && pass || fail 'supervision rollback preserves all old modes'
 test -z "$(find "$supervision_rollback_dir" -name '.org-plan-stage.*' -print -quit)" && pass || fail 'supervision rollback cleans stage directory'
 test ! -s "$tmp/out" && pass || fail 'supervision rollback prints no success result'
+
+for command in prepare-executor prepare-supervision; do
+  for link_kind in valid dangling; do
+    symlink_dir="$tmp/symlink-$command-$link_kind"
+    mkdir -p "$symlink_dir"
+    if [[ $command == prepare-executor ]]; then link_path="$symlink_dir/org-plan-executor.toml"; else link_path="$symlink_dir/org-plan-supervisor.toml"; fi
+    link_target="$symlink_dir/target.toml"
+    if [[ $link_kind == valid ]]; then printf 'unchanged-target\n' > "$link_target"; chmod 640 "$link_target"; link_value=$link_target; else link_value="$symlink_dir/missing-target.toml"; fi
+    ln -s "$link_value" "$link_path"
+    link_before=$(readlink "$link_path")
+    target_before= target_mode=; [[ $link_kind == dangling ]] || { target_before=$(cksum "$link_target"); target_mode=$(stat -c '%a' "$link_target" 2>/dev/null || stat -f '%Lp' "$link_target"); }
+    expect_fail "$helper" "$command" --agents-dir "$symlink_dir"
+    test -L "$link_path" && test "$link_before" = "$(readlink "$link_path")" && pass || fail "$command preserves $link_kind destination symlink"
+    [[ $link_kind == dangling ]] || { test "$target_before" = "$(cksum "$link_target")" && pass || fail "$command preserves symlink target"; }
+    [[ $link_kind == dangling ]] || { test "$target_mode" = "$(stat -c '%a' "$link_target" 2>/dev/null || stat -f '%Lp' "$link_target")" && pass || fail "$command preserves symlink target mode"; }
+    test -z "$(find "$symlink_dir" -name '.org-plan-stage.*' -print -quit)" && pass || fail "$command rejects symlink before staging"
+    test ! -s "$tmp/out" && pass || fail "$command symlink rejection prints no success result"
+  done
+done
+
+collision_bin="$tmp/collision-bin"
+mkdir -p "$collision_bin"
+printf '#!/bin/sh\nreal_mkdir=%s\ncase "$*" in *org-plan-stage.*) "$real_mkdir" "$@" || exit; for last do :; done; printf foreign > "$last/sentinel"; exit 1 ;; *) exec "$real_mkdir" "$@" ;; esac\n' "$real_mkdir" > "$collision_bin/mkdir"
+chmod +x "$collision_bin/mkdir"
+for command in prepare-executor prepare-supervision; do
+  collision_dir="$tmp/collision-$command-agents"
+  expect_fail env PATH="$collision_bin:$PATH" "$helper" "$command" --agents-dir "$collision_dir"
+  foreign_stage=$(find "$collision_dir" -maxdepth 1 -type d -name '.org-plan-stage.*' -print -quit)
+  test -n "$foreign_stage" && test -f "$foreign_stage/sentinel" && pass || fail "$command preserves foreign colliding stage directory"
+  test ! -s "$tmp/out" && pass || fail "$command collision prints no success result"
+done
+
+encoded_dir="$tmp/encoded agents%="
+encoded_dir="$encoded_dir"$'\tline\nnext'
+expect_ok "$helper" prepare-supervision --agents-dir "$encoded_dir"
+test "$(wc -l < "$tmp/out")" = 1 && pass || fail 'encoded success output is exactly one record'
+python3 -c 'import sys, urllib.parse; fields=dict(item.split("=", 1) for item in open(sys.argv[1], encoding="ascii").read().strip().split(" ")); expected=sys.argv[2]; assert urllib.parse.unquote(fields["supervisor_profile"]) == expected + "/org-plan-supervisor.toml"; assert urllib.parse.unquote(fields["executor_profile"]) == expected + "/org-plan-executor.toml"; assert urllib.parse.unquote(fields["reviewer_profile"]) == expected + "/org-plan-reviewer.toml"' "$tmp/out" "$encoded_dir" && pass || fail 'encoded profile paths round-trip without eval'
+expect_contains "$tmp/out" '%20'
+expect_contains "$tmp/out" '%25'
+expect_contains "$tmp/out" '%3D'
+expect_contains "$tmp/out" '%09'
+expect_contains "$tmp/out" '%0A'
+expect_ok "$helper" prepare-executor --agents-dir "$encoded_dir" --profile-name encoded-executor
+test "$(wc -l < "$tmp/out")" = 1 && pass || fail 'legacy encoded success output is exactly one record'
+python3 -c 'import sys, urllib.parse; fields=dict(item.split("=", 1) for item in open(sys.argv[1], encoding="ascii").read().strip().split(" ")); assert urllib.parse.unquote(fields["profile"]) == sys.argv[2] + "/encoded-executor.toml"' "$tmp/out" "$encoded_dir" && pass || fail 'legacy encoded profile path round-trips without eval'
 expect_fail "$helper" prepare-executor --model
 expect_contains "$tmp/err" 'usage: org-plan'
 test ! -e "$tmp/.codex/agents/org-plan-executor.toml" && pass || fail 'tests avoid the default agents directory'

@@ -57,6 +57,8 @@ Supervised execution uses three fixed roles:
 Model identifiers are configuration values; Codex reports unavailable models
 when a role is spawned. The helper prepares profiles, and the planner launches
 supervised execution. Manual execution remains the fallback.
+Machine-readable success records percent-encode unsafe path bytes; unreserved
+path characters remain unchanged.
 
 The deterministic supervised sequence is:
 
