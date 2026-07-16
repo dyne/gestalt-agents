@@ -4,6 +4,7 @@ set -euo pipefail
 root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 python3 - "$root" <<'PY'
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -23,7 +24,6 @@ assert (skill / "SKILL.md").is_file(), "nested skill is missing"
 
 plugin_manifest = json.loads((plugin / ".codex-plugin" / "plugin.json").read_text())
 assert plugin_manifest["name"] == "org-plan"
-assert plugin_manifest["version"] == "0.1.0"
 assert plugin_manifest["interface"]["displayName"] == "Dyne Org Plan"
 assert plugin_manifest["skills"] == "./skills/"
 assert plugin_manifest["repository"] == "https://github.com/dyne/agent-plugins"
@@ -32,11 +32,21 @@ superpowers_manifest = json.loads(
     (superpowers / ".codex-plugin" / "plugin.json").read_text()
 )
 assert superpowers_manifest["name"] == "superpowers"
-assert superpowers_manifest["version"] == "0.1.0"
 assert superpowers_manifest["interface"]["displayName"] == "Dyne Superpowers"
 assert superpowers_manifest["skills"] == "./skills/"
 assert superpowers_manifest["repository"] == "https://github.com/dyne/agent-plugins"
 assert superpowers_manifest["license"] == "MIT"
+
+manifests = [
+    json.loads(path.read_text())
+    for path in sorted((root / "plugins").glob("*/.codex-plugin/plugin.json"))
+]
+versions = {manifest["version"] for manifest in manifests}
+assert len(versions) == 1, f"plugin versions differ: {sorted(versions)}"
+version = versions.pop()
+assert re.fullmatch(r"(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)", version), (
+    f"plugin version is not strict SemVer: {version}"
+)
 
 actual_skills = {
     path.parent.name
