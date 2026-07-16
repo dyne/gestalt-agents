@@ -182,14 +182,18 @@ done
 
 collision_bin="$tmp/collision-bin"
 mkdir -p "$collision_bin"
-printf '#!/bin/sh\nreal_mkdir=%s\ncase "$*" in *org-plan-stage.*) "$real_mkdir" "$@" || exit; for last do :; done; printf foreign > "$last/sentinel"; exit 1 ;; *) exec "$real_mkdir" "$@" ;; esac\n' "$real_mkdir" > "$collision_bin/mkdir"
+printf '#!/bin/sh\nreal_mkdir=%s\ncase "$*" in *org-plan-stage.*) "$real_mkdir" "$@" || exit; for last do :; done; test "${COLLISION_NONEMPTY:-0}" != 1 || printf foreign > "$last/sentinel"; exit 1 ;; *) exec "$real_mkdir" "$@" ;; esac\n' "$real_mkdir" > "$collision_bin/mkdir"
 chmod +x "$collision_bin/mkdir"
 for command in prepare-executor prepare-supervision; do
-  collision_dir="$tmp/collision-$command-agents"
-  expect_fail env PATH="$collision_bin:$PATH" "$helper" "$command" --agents-dir "$collision_dir"
-  foreign_stage=$(find "$collision_dir" -maxdepth 1 -type d -name '.org-plan-stage.*' -print -quit)
-  test -n "$foreign_stage" && test -f "$foreign_stage/sentinel" && pass || fail "$command preserves foreign colliding stage directory"
-  test ! -s "$tmp/out" && pass || fail "$command collision prints no success result"
+  for collision_kind in empty nonempty; do
+    collision_dir="$tmp/collision-$command-$collision_kind-agents"
+    if [[ $collision_kind == nonempty ]]; then collision_nonempty=1; else collision_nonempty=0; fi
+    expect_fail env PATH="$collision_bin:$PATH" COLLISION_NONEMPTY="$collision_nonempty" "$helper" "$command" --agents-dir "$collision_dir"
+    foreign_stage=$(find "$collision_dir" -maxdepth 1 -type d -name '.org-plan-stage.*' -print -quit)
+    test -n "$foreign_stage" && pass || fail "$command preserves foreign $collision_kind colliding stage directory"
+    [[ $collision_kind == empty ]] || { test -f "$foreign_stage/sentinel" && pass || fail "$command preserves foreign collision sentinel"; }
+    test ! -s "$tmp/out" && pass || fail "$command $collision_kind collision prints no success result"
+  done
 done
 
 encoded_dir="$tmp/encoded agents%="
