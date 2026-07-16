@@ -34,6 +34,9 @@ assert semver["uses"] == "ietf-tools/semver-action@v1"
 assert semver["if"] == "steps.baseline.outputs.has_tag == 'true'"
 assert semver["with"]["token"] == "${{ github.token }}"
 assert semver["with"]["branch"] == "main"
+assert semver["with"]["majorList"] == ""
+assert semver["with"]["minorList"] == "feat, feature"
+assert semver["with"]["patchList"] == "fix, bugfix, perf, refactor, test, tests"
 assert semver["with"]["skipInvalidTags"] is True
 assert semver["with"]["noNewCommitBehavior"] == "current"
 assert semver["with"]["noVersionBumpBehavior"] == "current"
@@ -69,6 +72,11 @@ assert 'git commit -m "chore(release): $TAG [skip ci]"' in commit["run"]
 assert 'git tag "$TAG" HEAD' in publish["run"]
 assert 'git push --atomic origin HEAD:main "refs/tags/$TAG"' in publish["run"]
 assert steps.index(synchronize) < steps.index(commit) < steps.index(publish)
+assert source.count(release_guard) == 3
+assert "chore" not in semver["with"]["minorList"]
+assert "chore" not in semver["with"]["patchList"]
+assert "GITHUB_TOKEN pushes do not recursively trigger" in source
+assert "Protected main" in source
 PY
 
 printf 'release workflow contract is valid\n'
