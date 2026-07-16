@@ -87,6 +87,13 @@ test "$before" = "$(cksum "$profile")" && pass || fail 'invalid model does not m
 expect_fail "$helper" prepare-executor --model gpt-5.6-terra --agents-dir "$agents_dir" --profile-name 'Bad_Profile'
 test "$before" = "$(cksum "$profile")" && pass || fail 'invalid profile name does not mutate profile'
 test -z "$(find "$agents_dir" -name '.*.??????' -print -quit)" && pass || fail 'profile writer leaves no temporary files'
+failure_bin="$tmp/failure-bin"
+mkdir -p "$failure_bin"
+printf '#!/bin/sh\nexit 1\n' > "$failure_bin/chmod"
+chmod +x "$failure_bin/chmod"
+write_failure_dir="$tmp/write-failure-agents"
+expect_fail env PATH="$failure_bin:$PATH" "$helper" prepare-executor --agents-dir "$write_failure_dir"
+test -z "$(find "$write_failure_dir" -type f -name '.*.??????' -print -quit)" && pass || fail 'profile writer cleans current temporary file on chmod failure'
 expect_fail "$helper" prepare-executor --model
 test ! -e "$tmp/.codex/agents/org-plan-executor.toml" && pass || fail 'tests avoid the default agents directory'
 
