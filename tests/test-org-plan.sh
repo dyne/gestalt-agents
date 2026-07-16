@@ -14,6 +14,7 @@ pass() { passes=$((passes + 1)); }
 fail() { printf 'FAIL: %s\n' "$1" >&2; failures=$((failures + 1)); }
 expect_ok() { if "$@" >"$tmp/out" 2>"$tmp/err"; then pass; else fail "$* (expected success): $(<"$tmp/err")"; fi; }
 expect_fail() { if "$@" >"$tmp/out" 2>"$tmp/err"; then fail "$* (expected failure)"; else pass; fi; }
+expect_status() { local expected=$1 status; shift; if "$@" >"$tmp/out" 2>"$tmp/err"; then status=0; else status=$?; fi; test "$status" = "$expected" && pass || fail "$* (expected status $expected, got $status)"; }
 expect_contains() { if grep -F -- "$2" "$1" >/dev/null; then pass; else fail "missing $2 in $1"; fi; }
 copy() { cp "$fixtures/$1" "$tmp/$2"; }
 
@@ -107,6 +108,57 @@ test -z "$(find "$interrupt_executor_dir" -type f -name '.*.??????' -print -quit
 interrupt_supervision_dir="$tmp/interrupt-supervision-agents"
 expect_fail env PATH="$interrupt_bin:$PATH" "$helper" prepare-supervision --agents-dir "$interrupt_supervision_dir"
 test -z "$(find "$interrupt_supervision_dir" -type f -name '.*.??????' -print -quit)" && pass || fail 'interrupted supervision preparation cleans current staged file'
+
+mkdir_interrupt_bin="$tmp/mkdir-interrupt-bin"
+mkdir -p "$mkdir_interrupt_bin"
+real_mkdir=$(command -v mkdir)
+printf '#!/bin/sh\nreal_mkdir=%s\n"$real_mkdir" "$@" || exit\ncase "$*" in *org-plan-stage.*) kill -TERM "$PPID" ;; esac\n' "$real_mkdir" > "$mkdir_interrupt_bin/mkdir"
+chmod +x "$mkdir_interrupt_bin/mkdir"
+for command in prepare-executor prepare-supervision; do
+  creation_dir="$tmp/creation-$command-agents"
+  expect_status 143 env PATH="$mkdir_interrupt_bin:$PATH" "$helper" "$command" --agents-dir "$creation_dir"
+  test -z "$(find "$creation_dir" -name '.org-plan-stage.*' -print -quit)" && pass || fail "$command cleans a stage directory interrupted during creation"
+  test ! -s "$tmp/out" && pass || fail "$command interruption prints no success result"
+done
+
+mv_interrupt_bin="$tmp/mv-interrupt-bin"
+mkdir -p "$mv_interrupt_bin"
+real_mv=$(command -v mv)
+printf '#!/bin/sh\nreal_mv=%s\n"$real_mv" "$@" || exit\ncount=0\ntest ! -f "$MOVE_COUNTER" || count=$(cat "$MOVE_COUNTER")\ncount=$((count + 1))\nprintf "%%s\\n" "$count" > "$MOVE_COUNTER"\ntest "$count" -ne 1 || kill -TERM "$PPID"\n' "$real_mv" > "$mv_interrupt_bin/mv"
+chmod +x "$mv_interrupt_bin/mv"
+
+fresh_rollback_dir="$tmp/fresh-rollback-agents"
+expect_status 143 env PATH="$mv_interrupt_bin:$PATH" MOVE_COUNTER="$tmp/fresh-moves" "$helper" prepare-supervision --agents-dir "$fresh_rollback_dir"
+test -z "$(find "$fresh_rollback_dir" -maxdepth 1 -type f -name '*.toml' -print -quit)" && pass || fail 'interrupted fresh supervision install leaves no partial profiles'
+test -z "$(find "$fresh_rollback_dir" -name '.org-plan-stage.*' -print -quit)" && pass || fail 'fresh supervision rollback cleans stage directory'
+test ! -s "$tmp/out" && pass || fail 'fresh supervision rollback prints no success result'
+
+legacy_rollback_dir="$tmp/legacy-rollback-agents"
+expect_ok "$helper" prepare-executor --agents-dir "$legacy_rollback_dir"
+printf 'legacy-old\n' > "$legacy_rollback_dir/org-plan-executor.toml"
+chmod 640 "$legacy_rollback_dir/org-plan-executor.toml"
+legacy_before=$(cksum "$legacy_rollback_dir/org-plan-executor.toml")
+expect_status 143 env PATH="$mv_interrupt_bin:$PATH" MOVE_COUNTER="$tmp/legacy-moves" "$helper" prepare-executor --agents-dir "$legacy_rollback_dir"
+test "$legacy_before" = "$(cksum "$legacy_rollback_dir/org-plan-executor.toml")" && pass || fail 'interrupted legacy install restores old profile'
+test "$(stat -c '%a' "$legacy_rollback_dir/org-plan-executor.toml" 2>/dev/null || stat -f '%Lp' "$legacy_rollback_dir/org-plan-executor.toml")" = 640 && pass || fail 'legacy rollback preserves old mode'
+test -z "$(find "$legacy_rollback_dir" -name '.org-plan-stage.*' -print -quit)" && pass || fail 'legacy rollback cleans stage directory'
+test ! -s "$tmp/out" && pass || fail 'legacy rollback prints no success result'
+
+supervision_rollback_dir="$tmp/supervision-rollback-agents"
+expect_ok "$helper" prepare-supervision --agents-dir "$supervision_rollback_dir"
+rollback_index=0
+for role in supervisor executor reviewer; do
+  rollback_index=$((rollback_index + 1))
+  printf 'old-%s\n' "$role" > "$supervision_rollback_dir/org-plan-$role.toml"
+  chmod "$((600 + rollback_index))" "$supervision_rollback_dir/org-plan-$role.toml"
+done
+rollback_before=$(cksum "$supervision_rollback_dir"/*.toml)
+rollback_modes=$(for file in "$supervision_rollback_dir"/*.toml; do stat -c '%a' "$file" 2>/dev/null || stat -f '%Lp' "$file"; done)
+expect_status 143 env PATH="$mv_interrupt_bin:$PATH" MOVE_COUNTER="$tmp/supervision-moves" "$helper" prepare-supervision --agents-dir "$supervision_rollback_dir"
+test "$rollback_before" = "$(cksum "$supervision_rollback_dir"/*.toml)" && pass || fail 'interrupted supervision install restores all old profiles'
+test "$rollback_modes" = "$(for file in "$supervision_rollback_dir"/*.toml; do stat -c '%a' "$file" 2>/dev/null || stat -f '%Lp' "$file"; done)" && pass || fail 'supervision rollback preserves all old modes'
+test -z "$(find "$supervision_rollback_dir" -name '.org-plan-stage.*' -print -quit)" && pass || fail 'supervision rollback cleans stage directory'
+test ! -s "$tmp/out" && pass || fail 'supervision rollback prints no success result'
 expect_fail "$helper" prepare-executor --model
 expect_contains "$tmp/err" 'usage: org-plan'
 test ! -e "$tmp/.codex/agents/org-plan-executor.toml" && pass || fail 'tests avoid the default agents directory'

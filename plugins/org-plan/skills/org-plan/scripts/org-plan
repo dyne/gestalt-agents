@@ -73,26 +73,55 @@ active_l1() { local i; for ((i=0;i<count;i++)); do (( levels[$i] == 1 )) && [[ $
 valid_model() { [[ $1 =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]]; }
 valid_profile_name() { [[ $1 =~ ^[a-z0-9][a-z0-9-]*$ ]]; }
 
-staged_profile=
 written_profile=
-declare -a profile_temporaries=()
-cleanup_profile_temporaries() {
-  (( ${#profile_temporaries[@]} == 0 )) || rm -f -- "${profile_temporaries[@]}"
+profile_stage_dir=
+profile_installing=0
+declare -a staged_profiles=() profile_destinations=() profile_backups=() profile_had_destination=()
+cleanup_profile_stage() { [[ -z $profile_stage_dir ]] || rm -rf -- "$profile_stage_dir"; }
+rollback_profiles() {
+  (( profile_installing )) || return 0
+  local index
+  for ((index=0; index<${#profile_destinations[@]}; index++)); do
+    if [[ ${profile_had_destination[$index]} == 1 ]]; then
+      cp -p -- "${profile_backups[$index]}" "${profile_destinations[$index]}"
+    else
+      rm -f -- "${profile_destinations[$index]}"
+    fi
+  done
+  profile_installing=0
 }
-arm_profile_cleanup() {
-  profile_temporaries=()
-  trap cleanup_profile_temporaries EXIT HUP INT TERM
+profile_exit_cleanup() { local status=$?; rollback_profiles; cleanup_profile_stage; return "$status"; }
+profile_signal_cleanup() {
+  local signal=$1 status
+  case $signal in HUP) status=129 ;; INT) status=130 ;; TERM) status=143 ;; esac
+  trap - HUP INT TERM
+  rollback_profiles
+  cleanup_profile_stage
+  trap - EXIT
+  exit "$status"
 }
-disarm_profile_cleanup() {
+begin_profile_transaction() {
+  local agents_dir=$1 suffix=0
+  mkdir -p -- "$agents_dir"
+  profile_stage_dir="$agents_dir/.org-plan-stage.$$"
+  while [[ -e $profile_stage_dir ]]; do suffix=$((suffix + 1)); profile_stage_dir="$agents_dir/.org-plan-stage.$$.${suffix}"; done
+  staged_profiles=() profile_destinations=() profile_backups=() profile_had_destination=()
+  profile_installing=0
+  trap profile_exit_cleanup EXIT
+  trap 'profile_signal_cleanup HUP' HUP
+  trap 'profile_signal_cleanup INT' INT
+  trap 'profile_signal_cleanup TERM' TERM
+  mkdir -m 700 -- "$profile_stage_dir"
+}
+finish_profile_transaction() {
+  cleanup_profile_stage
   trap - EXIT HUP INT TERM
-  profile_temporaries=()
+  profile_stage_dir=
+  staged_profiles=() profile_destinations=() profile_backups=() profile_had_destination=()
 }
 stage_profile() {
   local profile_name=$1 description=$2 instructions=$3 model=$4 agents_dir=$5 sandbox_mode=${6:-}
-  local destination="$agents_dir/$profile_name.toml" temporary mode
-  mkdir -p -- "$agents_dir"
-  temporary=$(mktemp "$agents_dir/.$profile_name.XXXXXX")
-  profile_temporaries+=("$temporary")
+  local destination="$agents_dir/$profile_name.toml" temporary="$profile_stage_dir/$profile_name.toml" mode
   mode=$(stat -c '%a' "$destination" 2>/dev/null || stat -f '%Lp' "$destination" 2>/dev/null || printf '600')
   if ! {
     printf 'name = "%s"\n' "$profile_name"
@@ -108,16 +137,42 @@ stage_profile() {
     rm -f -- "$temporary"
     return 1
   fi
-  staged_profile=$temporary
+  staged_profiles+=("$temporary")
+}
+
+prepare_profile_install() {
+  local index destination backup
+  for ((index=0; index<${#profile_destinations[@]}; index++)); do
+    destination=${profile_destinations[$index]}
+    [[ ! -e $destination || -f $destination ]] || { printf 'profile destination is not a regular file: %s\n' "$destination" >&2; return 1; }
+    backup="$profile_stage_dir/backup.$index"
+    profile_backups+=("$backup")
+    if [[ -f $destination ]]; then
+      cp -p -- "$destination" "$backup"
+      profile_had_destination+=(1)
+    else
+      profile_had_destination+=(0)
+    fi
+  done
+}
+
+install_profiles() {
+  local index
+  profile_installing=1
+  for ((index=0; index<${#profile_destinations[@]}; index++)); do
+    mv -f -- "${staged_profiles[$index]}" "${profile_destinations[$index]}"
+  done
+  profile_installing=0
+  finish_profile_transaction
 }
 
 write_profile() {
-  local profile_name=$1 agents_dir=$5
-  arm_profile_cleanup
+  local profile_name=$1 agents_dir=$5 destination="$5/$1.toml"
+  begin_profile_transaction "$agents_dir"
   stage_profile "$@"
-  local temporary=$staged_profile destination="$agents_dir/$profile_name.toml"
-  mv -f -- "$temporary" "$destination"
-  disarm_profile_cleanup
+  profile_destinations=("$destination")
+  prepare_profile_install
+  install_profiles
   written_profile=$destination
 }
 
@@ -166,37 +221,24 @@ prepare_supervision() {
     printf 'profile names must be distinct\n' >&2; return 2;
   }
 
-  local -a staged=() destinations=(
+  local -a destinations=(
     "$agents_dir/$supervisor_name.toml"
     "$agents_dir/$executor_name.toml"
     "$agents_dir/$reviewer_name.toml"
   )
-  arm_profile_cleanup
+  begin_profile_transaction "$agents_dir"
+  profile_destinations=("${destinations[@]}")
   stage_profile "$supervisor_name" 'Supervises an org-plan implementation.' \
     'Supervise with mechanical evidence gates. Delegate all implementation and corrective edits to Terra, request read-only milestone and final verdicts from Sol, keep one writer active, and report concise evidence.' \
     "$supervisor_model" "$agents_dir"
-  staged+=("$staged_profile")
   stage_profile "$executor_name" 'Executes an org-plan implementation.' \
     'Implement only the assigned Org plan item. Use the bundled helper for state changes, preserve assigned scope, run required tests, create exactly one conventional commit when files change, and return concise evidence to Luna.' \
     "$executor_model" "$agents_dir"
-  staged+=("$staged_profile")
   stage_profile "$reviewer_name" 'Reviews an org-plan milestone.' \
     'Review only the assigned commit range and acceptance criteria. Do not edit files, modify the plan, commit, or perform routine supervision. Return structured findings with evidence and an explicit ACCEPT or REJECT verdict.' \
     "$reviewer_model" "$agents_dir" 'read-only'
-  staged+=("$staged_profile")
-
-  local destination
-  for destination in "${destinations[@]}"; do
-    if [[ -e $destination && ! -f $destination ]]; then
-      printf 'profile destination is not a regular file: %s\n' "$destination" >&2
-      cleanup_profile_temporaries
-      disarm_profile_cleanup
-      return 1
-    fi
-  done
-  local index
-  for index in 0 1 2; do mv -f -- "${staged[$index]}" "${destinations[$index]}"; done
-  disarm_profile_cleanup
+  prepare_profile_install
+  install_profiles
   printf 'supervisor=%s supervisor_model=%s supervisor_profile=%s executor=%s executor_model=%s executor_profile=%s reviewer=%s reviewer_model=%s reviewer_profile=%s\n' \
     "$supervisor_name" "$supervisor_model" "${destinations[0]}" \
     "$executor_name" "$executor_model" "${destinations[1]}" \
