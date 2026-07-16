@@ -81,14 +81,20 @@ stage_profile() {
   mkdir -p -- "$agents_dir"
   temporary=$(mktemp "$agents_dir/.$profile_name.XXXXXX")
   mode=$(stat -c '%a' "$destination" 2>/dev/null || stat -f '%Lp' "$destination" 2>/dev/null || printf '600')
-  {
+  if ! {
     printf 'name = "%s"\n' "$profile_name"
     printf 'description = "%s"\n' "$description"
     printf 'developer_instructions = "%s"\n' "$instructions"
     printf 'model = "%s"\n' "$model"
     [[ -z $sandbox_mode ]] || printf 'sandbox_mode = "%s"\n' "$sandbox_mode"
-  } > "$temporary"
-  chmod "$mode" "$temporary"
+  } > "$temporary"; then
+    rm -f -- "$temporary"
+    return 1
+  fi
+  if ! chmod "$mode" "$temporary"; then
+    rm -f -- "$temporary"
+    return 1
+  fi
   staged_profile=$temporary
 }
 
