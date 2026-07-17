@@ -41,6 +41,28 @@ The names shown under `/plugins` are **Dyne Org Plan** and **Dyne
 Superpowers**. Their stable installation identifiers remain `org-plan` and
 `superpowers`.
 
+## Org Plan supervised execution
+
+The director can use any model selected by the Codex CLI. The other roles use
+prepared profiles with these defaults:
+
+```text
+director (depth 0, user's Codex conversation, any CLI-selected model)
+└── supervisor (depth 1, org-plan-supervisor, Luna)
+    ├── executor (depth 2, org-plan-executor, Terra, only code writer)
+    └── reviewer (depth 2, org-plan-reviewer, Sol, read-only)
+```
+
+The executor and reviewer report only to the supervisor, which reports to the
+director. Evidence flows upward as concise summaries; raw test and inspection
+logs stay outside conversational context.
+
+Each L1 starts unreviewed. After implementation and test gates make it DONE, the
+reviewer audits only assigned DONE + UNREVIEWED milestones. Accepted L1s remain
+reviewed as the plan grows, so later refinements review only new or materially
+changed L1s. Final acceptance still requires a current full-suite pass and clean
+intended scope.
+
 ## Releases
 
 All plugins share one repository release version. The first push to `main`
