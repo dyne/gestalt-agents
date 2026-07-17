@@ -26,22 +26,22 @@ git -C "$seed" remote add origin "$remote"
 git -C "$seed" push -q origin main --tags
 
 home="$tmp/home"
-expect_ok env HOME="$home" ORG_PLAN_REPOSITORY="$remote" "$installer"
-target="$home/.agents/plugins/org-plan"
+expect_ok env HOME="$home" GESTALT_REPOSITORY="$remote" "$installer"
+target="$home/.agents/plugins/gestalt"
 test "$(git -C "$target" branch --show-current)" = main && pass || fail 'default checkout is main'
 python3 - "$home/.agents/plugins/marketplace.json" <<'PY' && pass || fail 'marketplace entry is valid'
 import json, sys
 data = json.load(open(sys.argv[1]))
-entry = next(item for item in data["plugins"] if item["name"] == "org-plan")
+entry = next(item for item in data["plugins"] if item["name"] == "gestalt")
 assert data["name"] == "personal"
-assert entry["source"] == {"source": "local", "path": "./plugins/org-plan"}
+assert entry["source"] == {"source": "local", "path": "./plugins/gestalt"}
 assert entry["policy"] == {"installation": "AVAILABLE", "authentication": "ON_INSTALL"}
-assert entry["category"] == "Productivity"
+assert entry["category"] == "Developer Tools"
 PY
-expect_ok env HOME="$home" ORG_PLAN_REPOSITORY="$remote" "$installer"
-expect_ok env HOME="$home" ORG_PLAN_REPOSITORY="$remote" ORG_PLAN_REF=v-test "$installer"
+expect_ok env HOME="$home" GESTALT_REPOSITORY="$remote" "$installer"
+expect_ok env HOME="$home" GESTALT_REPOSITORY="$remote" GESTALT_REF=v-test "$installer"
 test "$(git -C "$target" describe --tags --exact-match)" = v-test && pass || fail 'reference override is checked out'
-expect_fail env HOME="$tmp/invalid-home" ORG_PLAN_REPOSITORY="$tmp/missing.git" "$installer"
+expect_fail env HOME="$tmp/invalid-home" GESTALT_REPOSITORY="$tmp/missing.git" "$installer"
 test ! -e "$home/.codex/agents/org-plan-executor.toml" && pass || fail 'installer does not create executor profile'
 
 if [ "$failures" -ne 0 ]; then printf '%s passed, %s failed\n' "$passes" "$failures"; exit 1; fi

@@ -41,11 +41,11 @@ Keep one canonical copy under
 `plugins/<plugin-name>/skills/<skill-name>/`. Codex loads that tree through
 `.codex-plugin/plugin.json` with `"skills": "./skills/"`; the marketplace entry
 points to `./plugins/<plugin-name>`, producing
-`<plugin-name>@dyne-agent-plugins`.
+`<plugin-name>@dyne-gestalt-agents`.
 
 The `skills` CLI recursively discovers `SKILL.md` files when no standard
 top-level skill container is present. The same nested directories therefore
-appear individually in `npx skills add dyne/agent-plugins --list`. Do not add a
+appear individually in `npx skills add dyne/gestalt-agents --list`. Do not add a
 duplicate root `skills/` tree or repository symlinks: copies drift, while
 symlink behavior differs across installers and operating systems.
 

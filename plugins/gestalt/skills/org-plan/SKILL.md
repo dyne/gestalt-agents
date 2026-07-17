@@ -1,6 +1,6 @@
 ---
 name: org-plan
-description: Use when explicitly invoked as $org-plan to plan or manually execute a multi-step implementation through a strict repository-root Org plan.
+description: Multi-step implementation method to use when creating, studying or executing a plan.  org-plan helper script.
 ---
 
 Never over-engineer: prefer the simplest viable approach.

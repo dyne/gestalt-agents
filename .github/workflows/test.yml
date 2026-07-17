@@ -19,8 +19,7 @@ jobs:
       - run: bash tests/test-shellcheck-org-plan.sh
       - run: bash tests/test-set-plugin-version.sh
       - run: bash tests/test-release-workflow.sh
-      - run: bash -n tests/*.sh install.sh plugins/org-plan/skills/org-plan/scripts/org-plan
-      - run: python3 -m json.tool plugins/org-plan/.codex-plugin/plugin.json >/dev/null
-      - run: python3 -m json.tool plugins/superpowers/.codex-plugin/plugin.json >/dev/null
+      - run: bash -n tests/*.sh install.sh plugins/gestalt/skills/org-plan/scripts/org-plan
+      - run: python3 -m json.tool plugins/gestalt/.codex-plugin/plugin.json >/dev/null
       - run: ruby -e 'require "yaml"; Dir["plugins/*/skills/*/agents/openai.yaml"].each { |path| YAML.load_file(path) }'
       - run: git diff --check

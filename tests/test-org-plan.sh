@@ -2,10 +2,10 @@
 set -euo pipefail
 
 root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
-helper="$root/plugins/org-plan/skills/org-plan/scripts/org-plan"
+helper="$root/plugins/gestalt/skills/org-plan/scripts/org-plan"
 fixtures="$root/tests/fixtures"
-skill="$root/plugins/org-plan/skills/org-plan/SKILL.md"
-manifest="$root/plugins/org-plan/.codex-plugin/plugin.json"
+skill="$root/plugins/gestalt/skills/org-plan/SKILL.md"
+manifest="$root/plugins/gestalt/.codex-plugin/plugin.json"
 readme="$root/README.md"
 agents="$root/AGENTS.md"
 tmp=$(mktemp -d "${TMPDIR:-/tmp}/org-plan-test.XXXXXX")
@@ -616,10 +616,9 @@ expect_contains "$agents" '`org-plan describe` and lead with its title and Goal/
 expect_contains "$agents" 'subject and purpose; IDs and hashes are supplemental.'
 expect_contains "$agents" 'Final acceptance requires the supervisor to verify a current full-suite pass'
 expect_contains "$agents" 'It does not repeat reviewer audits for REVIEWED L1s.'
-expect_contains "$manifest" 'strict manual execution or supervised execution'
-expect_contains "$manifest" 'Luna, Terra, and Sol defaults'
-expect_contains "$manifest" 'account access to the configured models'
-expect_contains "$manifest" '[agents] max_depth = 2'
+expect_contains "$manifest" 'Dyne.org Gestalt'
+expect_contains "$manifest" 'Org Plan'
+expect_contains "$manifest" 'adapted Superpowers workflows'
 
 if [ "$failures" -ne 0 ]; then printf '%s passed, %s failed\n' "$passes" "$failures"; exit 1; fi
 printf '%s passed\n' "$passes"
