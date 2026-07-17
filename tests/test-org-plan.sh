@@ -78,10 +78,95 @@ expect_ok "$helper" next "$tmp/multi.org" l2
 expect_contains "$tmp/out" 'second-task'
 expect_ok "$helper" summary "$tmp/multi.org"
 expect_contains "$tmp/out" 'L1 WIP=1'
+expect_contains "$tmp/out" 'L1 REVIEWED=1'
+expect_contains "$tmp/out" 'L1 UNREVIEWED=1'
 expect_ok "$helper" l2 "$tmp/multi.org" 'Second task|Run tests'
 expect_contains "$tmp/out" 'second-task'
 expect_fail "$helper" l2 "$tmp/multi.org" '['
 expect_fail "$helper" l2 "$tmp/multi.org" 'no-such-text'
+
+copy valid-multi.org review-order.org
+sed \
+  -e 's/^\* WIP \[#A\]/\* DONE [#A]/' \
+  -e 's/^\*\* WIP \[#B\]/\*\* DONE [#B]/' \
+  -e 's/^\* TODO \[#B\]/\* DONE [#B]/' \
+  -e 's/^\*\* TODO \[#A\]/\*\* DONE [#A]/' \
+  "$tmp/review-order.org" >"$tmp/changed" && mv "$tmp/changed" "$tmp/review-order.org"
+expect_ok "$helper" next "$tmp/review-order.org" review
+test "$(<"$tmp/out")" = ' first-outcome [#DONE] First outcome' && pass || fail 'next review selects the first completed unreviewed L1'
+expect_ok "$helper" review "$tmp/review-order.org" first-outcome REVIEWED
+expect_ok "$helper" next "$tmp/review-order.org" review
+test "$(<"$tmp/out")" = ' second-outcome [#DONE] Second outcome' && pass || fail 'next review advances in plan order'
+expect_ok "$helper" review "$tmp/review-order.org" second-outcome REVIEWED
+expect_status 1 "$helper" next "$tmp/review-order.org" review
+test ! -s "$tmp/out" && pass || fail 'next review emits no output when no review is pending'
+expect_ok "$helper" summary "$tmp/review-order.org"
+expect_contains "$tmp/out" 'L1 TODO=0'
+expect_contains "$tmp/out" 'L1 WIP=0'
+expect_contains "$tmp/out" 'L1 DONE=2'
+expect_contains "$tmp/out" 'L2 TODO=0'
+expect_contains "$tmp/out" 'L2 WIP=0'
+expect_contains "$tmp/out" 'L2 DONE=3'
+expect_contains "$tmp/out" 'L1 REVIEWED=2'
+expect_contains "$tmp/out" 'L1 UNREVIEWED=0'
+
+copy valid-minimal.org review-transitions.org
+review_before=$(cksum "$tmp/review-transitions.org")
+expect_fail "$helper" review "$tmp/review-transitions.org" first-outcome REVIEWED
+test "$review_before" = "$(cksum "$tmp/review-transitions.org")" && pass || fail 'review rejects unfinished L1 without mutation'
+expect_fail "$helper" review "$tmp/review-transitions.org" first-task REVIEWED
+expect_contains "$tmp/err" 'ID first-task is not an L1'
+expect_fail "$helper" review "$tmp/review-transitions.org" missing REVIEWED
+expect_contains "$tmp/err" 'unknown ID missing'
+expect_status 2 "$helper" review "$tmp/review-transitions.org" first-outcome PENDING
+expect_ok "$helper" set "$tmp/review-transitions.org" first-outcome WIP
+expect_fail "$helper" review "$tmp/review-transitions.org" first-outcome REVIEWED
+expect_ok "$helper" set "$tmp/review-transitions.org" first-task WIP
+expect_ok "$helper" set "$tmp/review-transitions.org" first-task DONE
+expect_ok "$helper" set "$tmp/review-transitions.org" first-outcome DONE
+chmod 640 "$tmp/review-transitions.org"
+expect_ok "$helper" review "$tmp/review-transitions.org" first-outcome REVIEWED
+expect_contains "$tmp/review-transitions.org" ':REVIEW_STATUS: REVIEWED'
+test "$(stat -c '%a' "$tmp/review-transitions.org" 2>/dev/null || stat -f '%Lp' "$tmp/review-transitions.org")" = 640 && pass || fail 'review preserves mode'
+expect_ok "$helper" review "$tmp/review-transitions.org" first-outcome UNREVIEWED
+expect_contains "$tmp/review-transitions.org" ':REVIEW_STATUS: UNREVIEWED'
+expect_contains "$tmp/review-transitions.org" '* DONE [#A] First outcome'
+sed 's/- Goal :: Test the helper\./- Goal :: Corrected after explicit review reset./' "$tmp/review-transitions.org" >"$tmp/changed" && mv "$tmp/changed" "$tmp/review-transitions.org"
+expect_ok "$helper" validate "$tmp/review-transitions.org"
+expect_ok "$helper" review "$tmp/review-transitions.org" first-outcome REVIEWED
+expect_ok "$helper" set "$tmp/review-transitions.org" first-outcome WIP --force
+expect_contains "$tmp/review-transitions.org" ':REVIEW_STATUS: UNREVIEWED'
+expect_contains "$tmp/review-transitions.org" '* WIP [#A] First outcome'
+
+copy valid-multi.org describe.org
+expect_ok "$helper" describe "$tmp/describe.org" first-outcome
+test "$(<"$tmp/out")" = $'L1 First outcome\nGoal: Test order.' && pass || fail 'describe prints stable L1 text'
+expect_ok "$helper" describe "$tmp/describe.org" second-task
+test "$(<"$tmp/out")" = $'L2 Second task\nWhy: Needed.' && pass || fail 'describe prints stable L2 text'
+expect_fail "$helper" describe "$tmp/describe.org" missing
+expect_contains "$tmp/err" 'unknown ID missing'
+whitespace_plan="$tmp/plan with spaces.org"
+copy valid-minimal.org 'plan with spaces.org'
+sed \
+  -e 's/First outcome/First outcome with  internal spaces/' \
+  -e 's/- Goal :: Test the helper\./- Goal :: Text with  internal spaces./' \
+  "$whitespace_plan" >"$tmp/changed" && mv "$tmp/changed" "$whitespace_plan"
+expect_ok "$helper" describe "$whitespace_plan" first-outcome
+test "$(<"$tmp/out")" = $'L1 First outcome with  internal spaces\nGoal: Text with  internal spaces.' && pass || fail 'describe output is whitespace-safe'
+
+copy valid-minimal.org review-failure.org
+expect_ok "$helper" set "$tmp/review-failure.org" first-outcome WIP
+expect_ok "$helper" set "$tmp/review-failure.org" first-task WIP
+expect_ok "$helper" set "$tmp/review-failure.org" first-task DONE
+expect_ok "$helper" set "$tmp/review-failure.org" first-outcome DONE
+review_failure_before=$(cksum "$tmp/review-failure.org")
+review_failure_bin="$tmp/review-failure-bin"
+mkdir -p "$review_failure_bin"
+printf '#!/bin/sh\nexit 1\n' > "$review_failure_bin/chmod"
+chmod +x "$review_failure_bin/chmod"
+expect_fail env PATH="$review_failure_bin:$PATH" "$helper" review "$tmp/review-failure.org" first-outcome REVIEWED
+test "$review_failure_before" = "$(cksum "$tmp/review-failure.org")" && pass || fail 'failed review write leaves original unchanged'
+test -z "$(find "$tmp" -maxdepth 1 -name 'review-failure.org.tmp.*' -print -quit)" && pass || fail 'failed review write cleans temporary file'
 
 copy valid-minimal.org state.org
 chmod 640 "$tmp/state.org"
@@ -328,9 +413,12 @@ expect_contains "$skill" 'summarized under this boundary.'
 expect_contains "$skill" 'exactly one conventional implementation commit'
 expect_contains "$skill" 'no unintended dirty paths'
 expect_contains "$skill" 'current touched-test evidence'
-expect_contains "$skill" 'audit the L1 commit'
+expect_contains "$skill" 'asks Sol to audit the L1'
+expect_contains "$skill" 'commit range against'
 expect_contains "$skill" "plan's Goal, Tests, and Done-when criteria"
-expect_contains "$skill" 'explicit ACCEPT verdict with evidence'
+expect_contains "$skill" 'marks the mechanically complete L1'
+expect_contains "$skill" 'records `REVIEWED` only after Sol'
+expect_contains "$skill" 'explicit ACCEPT verdict with'
 expect_contains "$skill" 'complete branch against its base'
 expect_contains "$skill" 'current full-suite pass and clean intended scope'
 expect_contains "$skill" 'Sol REJECT verdict must contain actionable findings'
@@ -367,6 +455,8 @@ expect_contains "$skill" 'stops and asks the user'
 expect_contains "$skill" 'unresolved material requirement'
 expect_contains "$skill" 'reruns the applicable L2 or L1 gate'
 expect_contains "$skill" 'requests a new Sol verdict'
+expect_contains "$skill" 'all L1s are REVIEWED'
+expect_contains "$skill" 'it becomes REVIEWED only after Sol accepts it.'
 expect_contains "$manifest" 'strict manual execution or supervised execution'
 expect_contains "$manifest" 'Luna, Terra, and Sol defaults'
 expect_contains "$manifest" 'account access to the configured models'
