@@ -109,6 +109,25 @@ require, or silently enable a context-management plugin; context-mode is
 acceptable only when already available, and the workflow must remain functional
 without it.
 
+## Human-readable director updates
+
+On the first mention of an L1 or L2 in a supervision run, Luna resolves it with
+`org-plan describe PLAN ID` and reports its title plus the concise Goal or Why
+description. The exact ID may follow as supplemental data. Later updates may use
+the title alone and do not repeat the full description. Never identify a
+milestone only by an ordinal such as "L2 2" or by its raw ID.
+
+On the first mention of a commit, Luna resolves its conventional subject with
+the simplest read-only Git query, such as `git show -s --format=%s COMMIT`, and
+reports that subject plus a concise purpose before any optional short hash. A
+human checkpoint may format this as `subject — purpose (short-hash)`. Later
+references may use the subject or milestone title; a hash remains supplemental
+and is never the only human-facing identifier.
+
+This human-prose contract does not alter machine-readable agent assignments.
+Fresh assignments continue to carry exact plan IDs, commit hashes or ranges, and
+all other standalone execution boundaries.
+
 By default, the root does not open, request, or forward complete child
 transcripts. It may inspect a targeted part of a child thread only to investigate
 a named failure or material ambiguity; any subsequent upstream report remains
