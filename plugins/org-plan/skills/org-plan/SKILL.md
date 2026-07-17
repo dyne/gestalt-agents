@@ -77,6 +77,20 @@ The deterministic supervised sequence is:
 
 Every assignment must stand alone without inherited conversation context.
 
+## Context reporting boundary
+
+Terra and Sol return concise evidence summaries, never raw logs or complete
+transcripts. Luna distills child results without concealing or reinterpreting
+findings. Luna's upstream report contains only decisions, actionable findings,
+commit IDs or ranges, test commands with pass/fail summaries, dirty-scope
+results, blockers, and the smallest relevant diagnostic excerpt when a failure
+cannot be understood without it.
+
+By default, the root does not open, request, or forward complete child
+transcripts. It may inspect a targeted part of a child thread only to investigate
+a named failure or material ambiguity; any subsequent upstream report remains
+summarized under this boundary.
+
 Luna enforces these acceptance gates:
 
 - After each L2, Luna confirms exactly one conventional implementation commit
