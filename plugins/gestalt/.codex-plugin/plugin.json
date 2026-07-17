@@ -17,19 +17,20 @@
   ],
   "skills": "./skills/",
   "interface": {
-    "displayName": "Gestalt",
+    "displayName": "Dyne.org Gestalt",
     "shortDescription": "Plan, implement, debug, test, and verify software changes",
-    "longDescription": "Gestalt provides structured Codex workflows for software planning, implementation, debugging, testing, verification, and skill authoring. It uses Org documents as inspectable execution plans, helping developers separate intent, implementation, and review. The methodology was developed by Denis \"Jaromil\" Roio at Dyne.org, drawing on long-term experience in free and open source software engineering.",
-  "developerName": "Dyne.org, led by Denis \"Jaromil\" Roio",
-  "category": "Developer Tools",
-  "capabilities": [
-    "Planning",
-    "Software Development",
-    "Debugging",
-    "Testing",
-    "Verification"
-  ],
-  "defaultPrompt": [
-    "Create or select an Org plan for this task and then ask for approval to start its implementation."
-  ]
+    "longDescription": "Gestalt provides structured Codex workflows for software planning, implementation, debugging, testing and verification. It combines Org Plan and adapted Superpowers workflows, using Org documents as inspectable execution plans to help developers separate intent, implementation, and review. The methodology was developed by Denis \"Jaromil\" Roio at Dyne.org, drawing on long-term experience in free and open source software engineering.",
+    "developerName": "Dyne.org, led by Denis \"Jaromil\" Roio",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Planning",
+      "Software Development",
+      "Debugging",
+      "Testing",
+      "Verification"
+    ],
+    "defaultPrompt": [
+      "Create or select an Org plan for this task and then ask for approval to start its implementation."
+    ]
+  }
 }
