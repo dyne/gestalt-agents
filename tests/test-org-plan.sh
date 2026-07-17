@@ -16,6 +16,7 @@ expect_ok() { if "$@" >"$tmp/out" 2>"$tmp/err"; then pass; else fail "$* (expect
 expect_fail() { if "$@" >"$tmp/out" 2>"$tmp/err"; then fail "$* (expected failure)"; else pass; fi; }
 expect_status() { local expected=$1 status; shift; if "$@" >"$tmp/out" 2>"$tmp/err"; then status=0; else status=$?; fi; test "$status" = "$expected" && pass || fail "$* (expected status $expected, got $status)"; }
 expect_contains() { if grep -F -- "$2" "$1" >/dev/null; then pass; else fail "missing $2 in $1"; fi; }
+expect_not_contains() { if grep -F -- "$2" "$1" >/dev/null; then fail "unexpected $2 in $1"; else pass; fi; }
 copy() { cp "$fixtures/$1" "$tmp/$2"; }
 
 copy valid-minimal.org plan.org
@@ -78,6 +79,7 @@ test -f "$profile" && pass || fail 'default executor profile exists'
 expect_contains "$profile" 'name = "org-plan-test-executor"'
 expect_contains "$profile" 'model = "gpt-5.4-mini"'
 expect_contains "$profile" 'developer_instructions ='
+expect_contains "$profile" 'Return only concise structured evidence to the planner, never raw logs or complete transcripts.'
 test "$(stat -c '%a' "$profile" 2>/dev/null || stat -f '%Lp' "$profile")" = 600 && pass || fail 'new executor profile mode is 600'
 chmod 640 "$profile"
 expect_ok "$helper" prepare-executor --model gpt-5.6-terra --agents-dir "$agents_dir" --profile-name org-plan-test-executor
@@ -220,13 +222,21 @@ expect_contains "$tmp/out" 'executor=org-plan-executor executor_model=gpt-5.6-te
 expect_contains "$tmp/out" 'reviewer=org-plan-reviewer reviewer_model=gpt-5.6-sol'
 expect_contains "$supervision_dir/org-plan-supervisor.toml" 'model = "gpt-5.6-luna"'
 expect_contains "$supervision_dir/org-plan-supervisor.toml" 'mechanical evidence gates'
+expect_contains "$supervision_dir/org-plan-supervisor.toml" 'Filter child output into upstream decisions, actionable findings, commit IDs or ranges, test commands with pass/fail summaries, dirty-scope results, and blockers'
+expect_contains "$supervision_dir/org-plan-supervisor.toml" 'smallest relevant diagnostic excerpt when needed to understand a failure, never raw logs or complete transcripts.'
+expect_not_contains "$supervision_dir/org-plan-supervisor.toml" 'sandbox_mode ='
 expect_contains "$supervision_dir/org-plan-executor.toml" 'model = "gpt-5.6-terra"'
 expect_contains "$supervision_dir/org-plan-executor.toml" 'exactly one conventional commit'
+expect_contains "$supervision_dir/org-plan-executor.toml" 'Return only concise structured evidence to Luna, never raw logs or complete transcripts.'
+expect_not_contains "$supervision_dir/org-plan-executor.toml" 'sandbox_mode ='
 expect_contains "$supervision_dir/org-plan-reviewer.toml" 'model = "gpt-5.6-sol"'
 expect_contains "$supervision_dir/org-plan-reviewer.toml" 'sandbox_mode = "read-only"'
 expect_contains "$supervision_dir/org-plan-reviewer.toml" 'explicit ACCEPT or REJECT verdict'
+expect_contains "$supervision_dir/org-plan-reviewer.toml" 'Return only concise structured findings with evidence'
+expect_contains "$supervision_dir/org-plan-reviewer.toml" 'never raw logs or complete transcripts.'
 for role in supervisor executor reviewer; do
   python3 -c 'import sys, tomllib; tomllib.load(open(sys.argv[1], "rb"))' "$supervision_dir/org-plan-$role.toml" && pass || fail "$role profile is parseable TOML"
+  test "$(stat -c '%a' "$supervision_dir/org-plan-$role.toml" 2>/dev/null || stat -f '%Lp' "$supervision_dir/org-plan-$role.toml")" = 600 && pass || fail "new $role profile mode is 600"
 done
 first_output=$(cat "$tmp/out")
 expect_ok "$helper" prepare-supervision --agents-dir "$supervision_dir"
