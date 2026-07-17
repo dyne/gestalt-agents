@@ -118,13 +118,16 @@ preserved paths, the `[agents] max_depth = 2` nesting requirement, and the stop
 condition for material ambiguity.
 
 Each Terra assignment states the active L1 and complete L2 block, plan path,
-target branch, exact allowed change scope, required tests, the exactly-one-commit
-rule, preserved paths, and the stop condition for material ambiguity.
+target branch, its prepared profile and model names, exact allowed change scope,
+required tests, the exactly-one-commit rule, preserved paths, and the stop
+condition for material ambiguity.
 
-Each Sol assignment states the read-only commit range or diff, relevant Goal,
-Tests, and Done-when acceptance criteria, evidence locations, any applicable
+Each Sol assignment states the plan path, target branch, its prepared profile and
+model names, the read-only commit range or diff, relevant Goal, Tests, and
+Done-when acceptance criteria, evidence locations, any applicable
 named UI screenshot/component/viewport/font-scale matrix, prohibited actions,
-and the required structured findings with evidence plus an explicit ACCEPT or
+preserved paths, the stop condition for material ambiguity, and
+the required structured findings with evidence plus an explicit ACCEPT or
 REJECT verdict.
 
 Every role receives its checklist as a complete fresh assignment. Never use
