@@ -29,6 +29,12 @@ drawers never contain `:REVIEW_STATUS:`.
 Use the bundled `org-plan` helper to validate and change plan state.
 See `org-plan --help` for its commands.
 
+Use `next PLAN review` to select the first completed unreviewed L1, `review PLAN
+ID REVIEWED` after Sol acceptance, and `review PLAN ID UNREVIEWED` before a
+material correction that does not reopen the L1. Reopening a reviewed L1 as WIP
+resets it to `UNREVIEWED` automatically. Use `describe PLAN ID` to resolve an ID
+to its title and `Goal` or `Why` text without parsing the Org file directly.
+
 Plan file includes `#+TITLE`, `#+SUBTITLE`, `#+DATE`, `#+KEYWORDS`.
 Each L1 includes `- Effort ::`, `- Goal ::`, `- Notes ::`.
 Each L2 includes `- Why ::`, `- Change ::`, `- Tests ::`, `- Done when ::`.
@@ -99,9 +105,11 @@ Luna enforces these acceptance gates:
 - After each L2, Luna confirms exactly one conventional implementation commit
   when files changed, confirms there are no unintended dirty paths, inspects the
   L2 diff, and requires current touched-test evidence before marking it DONE.
-- After each L1, Luna runs the full suite, then asks Sol to audit the L1 commit
-  range against the plan's Goal, Tests, and Done-when criteria. Luna marks the
-  L1 DONE only after Sol returns an explicit ACCEPT verdict with evidence.
+- After each L1, Luna runs the full suite and marks the mechanically complete L1
+  DONE. `next PLAN review` then selects it, and Luna asks Sol to audit the L1
+  commit range against the plan's Goal, Tests, and Done-when criteria. Luna
+  records `REVIEWED` only after Sol returns an explicit ACCEPT verdict with
+  evidence.
 - At final acceptance, Sol audits the complete branch against its base. Luna
   then verifies a current full-suite pass and clean intended scope.
 
@@ -167,14 +175,17 @@ Loop per L2, in order:
 5. Finish this WIP L2 → set DONE.
 6. If WIP L1 has all DONE L2 → run all tests, fix any errors.
 7. Finish this WIP L1 → set DONE.
+8. Take the next pending L1 review, ask Sol to audit it, then record REVIEWED
+   only after an explicit ACCEPT verdict.
 
-Repeat loops until all L1 and L2 in plan are DONE.
+Repeat loops until all L1 and L2 in plan are DONE and all L1s are REVIEWED.
 
 Remember:
 The test execution is part of the editing workflow.
 Add, update and run tests only when work on L1|L2 lead to code changes, else skip test operations.
 If an L2 changes any file, you must create one conventional commit before marking that L2 done.
-An L1 becomes DONE only after all child L2s are DONE and the full suite passes.
+An L1 becomes DONE only after all child L2s are DONE and the full suite passes;
+it becomes REVIEWED only after Sol accepts it.
 Do not commit Org plan files.
 Stop only for material ambiguity.
 
