@@ -221,7 +221,7 @@ prepare_executor() {
   valid_model "$model" || { printf 'invalid model: %s\n' "$model" >&2; return 2; }
   valid_profile_name "$profile_name" || { printf 'invalid profile name: %s\n' "$profile_name" >&2; return 2; }
   write_profile "$profile_name" 'Executes an org-plan implementation.' \
-    'Follow the assigned Org plan strictly. Use the bundled org-plan helper for state changes, run required tests, and return concise evidence to the planner.' \
+    'Follow the assigned Org plan strictly. Use the bundled org-plan helper for state changes and run required tests. Return only concise structured evidence to the planner, never raw logs or complete transcripts.' \
     "$model" "$agents_dir"
   printf 'executor=%s model=%s profile=%s\n' "$profile_name" "$model" "$(encode_record_value "$written_profile")"
 }
@@ -262,13 +262,13 @@ prepare_supervision() {
   begin_profile_transaction "$agents_dir"
   profile_destinations=("${destinations[@]}")
   stage_profile "$supervisor_name" 'Supervises an org-plan implementation.' \
-    'Supervise with mechanical evidence gates. Delegate all implementation and corrective edits to Terra, request read-only milestone and final verdicts from Sol, keep one writer active, and report concise evidence.' \
+    'Supervise with mechanical evidence gates. Delegate all implementation and corrective edits to Terra, request read-only milestone and final verdicts from Sol, and keep one writer active. Filter child output into upstream decisions, actionable findings, commit IDs or ranges, test commands with pass/fail summaries, dirty-scope results, and blockers; include only the smallest relevant diagnostic excerpt when needed to understand a failure, never raw logs or complete transcripts.' \
     "$supervisor_model" "$agents_dir"
   stage_profile "$executor_name" 'Executes an org-plan implementation.' \
-    'Implement only the assigned Org plan item. Use the bundled helper for state changes, preserve assigned scope, run required tests, create exactly one conventional commit when files change, and return concise evidence to Luna.' \
+    'Implement only the assigned Org plan item. Use the bundled helper for state changes, preserve assigned scope, run required tests, and create exactly one conventional commit when files change. Return only concise structured evidence to Luna, never raw logs or complete transcripts.' \
     "$executor_model" "$agents_dir"
   stage_profile "$reviewer_name" 'Reviews an org-plan milestone.' \
-    'Review only the assigned commit range and acceptance criteria. Do not edit files, modify the plan, commit, or perform routine supervision. Return structured findings with evidence and an explicit ACCEPT or REJECT verdict.' \
+    'Review only the assigned commit range and acceptance criteria. Do not edit files, modify the plan, commit, or perform routine supervision. Return only concise structured findings with evidence and an explicit ACCEPT or REJECT verdict, never raw logs or complete transcripts.' \
     "$reviewer_model" "$agents_dir" 'read-only'
   prepare_profile_install
   install_profiles
