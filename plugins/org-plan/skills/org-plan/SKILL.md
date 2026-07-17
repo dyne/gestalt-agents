@@ -95,6 +95,20 @@ commit IDs or ranges, test commands with pass/fail summaries, dirty-scope
 results, blockers, and the smallest relevant diagnostic excerpt when a failure
 cannot be understood without it.
 
+Luna runs potentially large repository inspections, test commands, and log
+processing through an available context-preserving execution path that derives
+milestone evidence without injecting raw output into conversational context. If
+no such facility is available, capture output outside conversational context and
+report only the command, exit status, pass/fail counts, affected scope, and the
+smallest diagnostic excerpt needed for a failure. Keep short, fixed-output
+observations direct.
+
+Apply the same rule to director-side verification. Raw command output from these
+operations must never enter supervisor or director reports. Do not install,
+require, or silently enable a context-management plugin; context-mode is
+acceptable only when already available, and the workflow must remain functional
+without it.
+
 By default, the root does not open, request, or forward complete child
 transcripts. It may inspect a targeted part of a child thread only to investigate
 a named failure or material ambiguity; any subsequent upstream report remains
