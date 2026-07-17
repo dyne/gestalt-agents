@@ -1,5 +1,40 @@
 # Agent repository guidance
 
+## Org Plan supervised workflow invariants
+
+- The director is depth zero in the user's initial Codex conversation and may
+  use any CLI-selected model. The depth-one supervisor defaults to Luna and
+  reports only to the director. The depth-two executor defaults to Terra and is
+  the only code writer. The depth-two read-only reviewer defaults to Sol and
+  reviews only assigned DONE + UNREVIEWED L1s. Both depth-two roles report only
+  to the supervisor, never directly to the director.
+- Every L1 must have exactly one `:REVIEW_STATUS:` property, initially
+  `UNREVIEWED`; L2s must not have one. `REVIEWED` is valid only after reviewer
+  acceptance of a DONE L1. Reopening a reviewed L1 as WIP resets it to
+  `UNREVIEWED`; reset a completed reviewed L1 explicitly before any material
+  correction that does not reopen it.
+- Use `org-plan next PLAN review` to select the first DONE + UNREVIEWED L1,
+  `org-plan review PLAN ID REVIEWED|UNREVIEWED` for durable transitions, and
+  `org-plan describe PLAN ID` for stable title plus Goal/Why text. The reviewer
+  skips already REVIEWED milestones, so appended refinement L1s do not trigger
+  repeat audits of accepted work.
+- Keep one writer active. The supervisor delegates implementation and corrective
+  edits only to the executor; the reviewer is read-only. Executor and reviewer
+  evidence reaches the director only through concise supervisor summaries.
+- Run potentially large inspections, tests, and log processing through an
+  available context-preserving execution path. If none is available, capture
+  output outside conversational context and report only the command, exit
+  status, pass/fail counts, affected scope, and smallest necessary failure
+  excerpt. Short fixed-output observations may remain direct. Do not install,
+  require, or silently enable an optional context-management plugin.
+- Human-facing director updates resolve the first milestone mention with
+  `org-plan describe` and lead with its title and Goal/Why; later mentions may
+  use the title alone. Lead the first commit mention with its conventional
+  subject and purpose; IDs and hashes are supplemental. Machine assignments
+  retain exact IDs and commit ranges.
+- Final acceptance requires the supervisor to verify a current full-suite pass
+  and clean intended scope. It does not repeat reviewer audits for REVIEWED L1s.
+
 ## Vendoring skills for Codex and `npx skills`
 
 Keep one canonical copy under
