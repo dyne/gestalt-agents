@@ -105,13 +105,19 @@ Luna enforces these acceptance gates:
 - After each L2, Luna confirms exactly one conventional implementation commit
   when files changed, confirms there are no unintended dirty paths, inspects the
   L2 diff, and requires current touched-test evidence before marking it DONE.
-- After each L1, Luna runs the full suite and marks the mechanically complete L1
-  DONE. `next PLAN review` then selects it, and Luna asks Sol to audit the L1
-  commit range against the plan's Goal, Tests, and Done-when criteria. Luna
-  records `REVIEWED` only after Sol returns an explicit ACCEPT verdict with
-  evidence.
-- At final acceptance, Sol audits the complete branch against its base. Luna
-  then verifies a current full-suite pass and clean intended scope.
+- After implementation gates, Luna repeatedly uses `next PLAN review` to select
+  only DONE + UNREVIEWED L1s. Each fresh Sol assignment covers only the selected
+  L1 and its commit range, Goal, Tests, Done-when criteria, shared-code regression
+  impact, and named evidence. Targeted shared context may be inspected when
+  necessary, but accepted criteria from REVIEWED L1s are not reopened.
+- Sol skips any REVIEWED L1 accidentally included in an assignment, reports the
+  skip, and does not re-audit it. On ACCEPT, Luna marks only the accepted L1
+  REVIEWED. On REJECT, it remains UNREVIEWED and Luna returns the corrections to
+  Terra before requesting a new verdict. A materially changed REVIEWED L1 must
+  first be reset to UNREVIEWED.
+- When `next PLAN review` finds nothing, Luna skips Sol and records that review is
+  already current. Final acceptance requires Luna's current full-suite pass and
+  clean intended scope, never a redundant whole-branch Sol audit.
 
 A Sol REJECT verdict must contain actionable findings. Luna returns the affected
 item to Terra for correction; Sol never fixes it. Acceptance must always be an
@@ -125,8 +131,9 @@ require UI artifacts.
 
 Each Luna assignment states the plan path, target branch and base branch, all
 prepared profile and model names, the complete L1/L2 loop, evidence gates,
-preserved paths, the `[agents] max_depth = 2` nesting requirement, and the stop
-condition for material ambiguity.
+incremental DONE + UNREVIEWED review selection and status transitions, preserved
+paths, the `[agents] max_depth = 2` nesting requirement, and the stop condition
+for material ambiguity.
 
 Each Terra assignment states the active L1 and complete L2 block, plan path,
 target branch, its prepared profile and model names, exact allowed change scope,
@@ -134,12 +141,13 @@ required tests, the exactly-one-commit rule, preserved paths, and the stop
 condition for material ambiguity.
 
 Each Sol assignment states the plan path, target branch, its prepared profile and
-model names, the read-only commit range or diff, relevant Goal, Tests, and
-Done-when acceptance criteria, evidence locations, any applicable
-named UI screenshot/component/viewport/font-scale matrix, prohibited actions,
-preserved paths, the stop condition for material ambiguity, and
-the required structured findings with evidence plus an explicit ACCEPT or
-REJECT verdict.
+model names, the selected L1 ID and UNREVIEWED status, its read-only commit range
+or diff, relevant Goal, Tests, and Done-when acceptance criteria, shared-code
+regression impact, evidence locations, any applicable named UI
+screenshot/component/viewport/font-scale matrix, prohibited actions, preserved
+paths, the REVIEWED-assignment skip rule, the stop condition for material
+ambiguity, and the required structured findings with evidence plus an explicit
+ACCEPT or REJECT verdict.
 
 Every role receives its checklist as a complete fresh assignment. Never use
 parent-context references such as "continue above", including for nested agents.
@@ -154,8 +162,10 @@ Luna classifies every failure before routing it:
   still does not determine the choice, Luna stops and asks the user rather than
   letting Terra choose an unresolved material requirement.
 
-After correction, Luna reruns the applicable L2 or L1 gate. If a rejected
-milestone diff changed materially, Luna requests a new Sol verdict.
+After correction, Luna reruns the applicable L2 or L1 gate and requests a new
+Sol verdict while the milestone remains UNREVIEWED. Before a material correction
+to an accepted milestone, Luna explicitly resets it to UNREVIEWED or reopens it
+as WIP, which performs that reset automatically.
 
 # Executor
 
@@ -175,8 +185,9 @@ Loop per L2, in order:
 5. Finish this WIP L2 → set DONE.
 6. If WIP L1 has all DONE L2 → run all tests, fix any errors.
 7. Finish this WIP L1 → set DONE.
-8. Take the next pending L1 review, ask Sol to audit it, then record REVIEWED
-   only after an explicit ACCEPT verdict.
+8. Take the next DONE + UNREVIEWED L1 review, ask Sol to audit only that
+   milestone, then record REVIEWED only after an explicit ACCEPT verdict. If no
+   review is pending, skip Sol and record that review is current.
 
 Repeat loops until all L1 and L2 in plan are DONE and all L1s are REVIEWED.
 

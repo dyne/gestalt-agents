@@ -110,6 +110,31 @@ expect_contains "$tmp/out" 'L2 DONE=3'
 expect_contains "$tmp/out" 'L1 REVIEWED=2'
 expect_contains "$tmp/out" 'L1 UNREVIEWED=0'
 
+cp "$tmp/review-order.org" "$tmp/appended-review.org"
+sed -n '/^\* DONE \[#B\] Second outcome/,$p' "$tmp/review-order.org" | sed \
+  -e 's/Second outcome/Appended refinement/' \
+  -e 's/second-outcome/appended-refinement/' \
+  -e 's/Third task/Appended task/' \
+  -e 's/third-task/appended-task/' \
+  -e 's/:REVIEW_STATUS: REVIEWED/:REVIEW_STATUS: UNREVIEWED/' \
+  >>"$tmp/appended-review.org"
+expect_ok "$helper" validate "$tmp/appended-review.org"
+expect_ok "$helper" next "$tmp/appended-review.org" review
+test "$(<"$tmp/out")" = ' appended-refinement [#DONE] Appended refinement' && pass || fail 'appended unreviewed L1 is selected without selecting reviewed history'
+expect_ok "$helper" summary "$tmp/appended-review.org"
+expect_contains "$tmp/out" 'L1 REVIEWED=2'
+expect_contains "$tmp/out" 'L1 UNREVIEWED=1'
+expect_ok "$helper" next "$tmp/appended-review.org" review
+test "$(<"$tmp/out")" = ' appended-refinement [#DONE] Appended refinement' && pass || fail 'rejected L1 remains pending without a review transition'
+expect_ok "$helper" set "$tmp/appended-review.org" appended-refinement WIP --force
+sed 's/- Goal :: Test order\./- Goal :: Correct the rejected refinement./' "$tmp/appended-review.org" >"$tmp/changed" && mv "$tmp/changed" "$tmp/appended-review.org"
+expect_ok "$helper" set "$tmp/appended-review.org" appended-refinement DONE
+expect_ok "$helper" next "$tmp/appended-review.org" review
+test "$(<"$tmp/out")" = ' appended-refinement [#DONE] Appended refinement' && pass || fail 'corrected rejected L1 is selected for re-review'
+expect_ok "$helper" review "$tmp/appended-review.org" appended-refinement REVIEWED
+expect_status 1 "$helper" next "$tmp/appended-review.org" review
+test ! -s "$tmp/out" && pass || fail 'accepted appended L1 leaves review current'
+
 copy valid-minimal.org review-transitions.org
 review_before=$(cksum "$tmp/review-transitions.org")
 expect_fail "$helper" review "$tmp/review-transitions.org" first-outcome REVIEWED
@@ -137,6 +162,9 @@ expect_ok "$helper" review "$tmp/review-transitions.org" first-outcome REVIEWED
 expect_ok "$helper" set "$tmp/review-transitions.org" first-outcome WIP --force
 expect_contains "$tmp/review-transitions.org" ':REVIEW_STATUS: UNREVIEWED'
 expect_contains "$tmp/review-transitions.org" '* WIP [#A] First outcome'
+expect_ok "$helper" set "$tmp/review-transitions.org" first-outcome DONE
+expect_ok "$helper" next "$tmp/review-transitions.org" review
+test "$(<"$tmp/out")" = ' first-outcome [#DONE] First outcome' && pass || fail 'materially changed reviewed L1 returns to pending review'
 
 copy valid-multi.org describe.org
 expect_ok "$helper" describe "$tmp/describe.org" first-outcome
@@ -333,6 +361,11 @@ expect_contains "$tmp/out" 'executor=org-plan-executor executor_model=gpt-5.6-te
 expect_contains "$tmp/out" 'reviewer=org-plan-reviewer reviewer_model=gpt-5.6-sol'
 expect_contains "$supervision_dir/org-plan-supervisor.toml" 'model = "gpt-5.6-luna"'
 expect_contains "$supervision_dir/org-plan-supervisor.toml" 'mechanical evidence gates'
+expect_contains "$supervision_dir/org-plan-supervisor.toml" 'select only DONE + UNREVIEWED L1s for read-only Sol verdicts'
+expect_contains "$supervision_dir/org-plan-supervisor.toml" 'mark only accepted L1s REVIEWED, leave rejected L1s UNREVIEWED for correction and re-review'
+expect_contains "$supervision_dir/org-plan-supervisor.toml" 'reset materially changed accepted L1s to UNREVIEWED before correction'
+expect_contains "$supervision_dir/org-plan-supervisor.toml" 'When none are pending, skip Sol and report review already current.'
+expect_contains "$supervision_dir/org-plan-supervisor.toml" 'Final acceptance requires a current full-suite pass and clean intended scope, never whole-branch Sol re-review.'
 expect_contains "$supervision_dir/org-plan-supervisor.toml" 'Filter child output into upstream decisions, actionable findings, commit IDs or ranges, test commands with pass/fail summaries, dirty-scope results, and blockers'
 expect_contains "$supervision_dir/org-plan-supervisor.toml" 'smallest relevant diagnostic excerpt when needed to understand a failure, never raw logs or complete transcripts.'
 expect_not_contains "$supervision_dir/org-plan-supervisor.toml" 'sandbox_mode ='
@@ -342,6 +375,10 @@ expect_contains "$supervision_dir/org-plan-executor.toml" 'Return only concise s
 expect_not_contains "$supervision_dir/org-plan-executor.toml" 'sandbox_mode ='
 expect_contains "$supervision_dir/org-plan-reviewer.toml" 'model = "gpt-5.6-sol"'
 expect_contains "$supervision_dir/org-plan-reviewer.toml" 'sandbox_mode = "read-only"'
+expect_contains "$supervision_dir/org-plan-reviewer.toml" 'Review only an assigned DONE + UNREVIEWED L1'
+expect_contains "$supervision_dir/org-plan-reviewer.toml" 'shared-code regression impact, and named evidence'
+expect_contains "$supervision_dir/org-plan-reviewer.toml" 'Targeted shared context may be inspected without reopening accepted criteria.'
+expect_contains "$supervision_dir/org-plan-reviewer.toml" 'If an assigned L1 is REVIEWED, skip it and report the skip without re-auditing it.'
 expect_contains "$supervision_dir/org-plan-reviewer.toml" 'explicit ACCEPT or REJECT verdict'
 expect_contains "$supervision_dir/org-plan-reviewer.toml" 'Return only concise structured findings with evidence'
 expect_contains "$supervision_dir/org-plan-reviewer.toml" 'never raw logs or complete transcripts.'
@@ -413,14 +450,19 @@ expect_contains "$skill" 'summarized under this boundary.'
 expect_contains "$skill" 'exactly one conventional implementation commit'
 expect_contains "$skill" 'no unintended dirty paths'
 expect_contains "$skill" 'current touched-test evidence'
-expect_contains "$skill" 'asks Sol to audit the L1'
-expect_contains "$skill" 'commit range against'
-expect_contains "$skill" "plan's Goal, Tests, and Done-when criteria"
-expect_contains "$skill" 'marks the mechanically complete L1'
-expect_contains "$skill" 'records `REVIEWED` only after Sol'
-expect_contains "$skill" 'explicit ACCEPT verdict with'
-expect_contains "$skill" 'complete branch against its base'
-expect_contains "$skill" 'current full-suite pass and clean intended scope'
+expect_contains "$skill" 'only DONE + UNREVIEWED L1s'
+expect_contains "$skill" 'Each fresh Sol assignment covers only the selected'
+expect_contains "$skill" 'L1 and its commit range, Goal, Tests, Done-when criteria, shared-code regression'
+expect_contains "$skill" 'Targeted shared context may be inspected when'
+expect_contains "$skill" 'accepted criteria from REVIEWED L1s are not reopened.'
+expect_contains "$skill" 'Sol skips any REVIEWED L1 accidentally included in an assignment'
+expect_contains "$skill" 'On ACCEPT, Luna marks only the accepted L1'
+expect_contains "$skill" 'On REJECT, it remains UNREVIEWED'
+expect_contains "$skill" 'materially changed REVIEWED L1 must'
+expect_contains "$skill" 'When `next PLAN review` finds nothing, Luna skips Sol'
+expect_contains "$skill" 'already current. Final acceptance requires Luna'
+expect_contains "$skill" 'clean intended scope, never a redundant whole-branch Sol audit.'
+expect_not_contains "$skill" 'Sol audits the complete branch against its base'
 expect_contains "$skill" 'Sol REJECT verdict must contain actionable findings'
 expect_contains "$skill" 'returns the affected'
 expect_contains "$skill" 'item to Terra for correction'
@@ -430,18 +472,20 @@ expect_contains "$skill" 'Each Luna assignment states the plan path, target bran
 expect_contains "$skill" 'all'
 expect_contains "$skill" 'prepared profile and model names'
 expect_contains "$skill" 'complete L1/L2 loop, evidence gates'
-expect_contains "$skill" 'preserved paths, the `[agents] max_depth = 2` nesting requirement'
+expect_contains "$skill" 'review selection and status transitions, preserved'
+expect_contains "$skill" 'paths, the `[agents] max_depth = 2` nesting requirement'
 expect_contains "$skill" 'Each Terra assignment states the active L1 and complete L2 block'
 expect_contains "$skill" 'target branch, its prepared profile and model names, exact allowed change scope,'
 expect_contains "$skill" 'required tests, the exactly-one-commit rule, preserved paths, and the stop'
 expect_contains "$skill" 'exactly-one-commit'
 expect_contains "$skill" 'Each Sol assignment states the plan path, target branch, its prepared profile and'
-expect_contains "$skill" 'model names, the read-only commit range or diff, relevant Goal, Tests, and'
+expect_contains "$skill" 'model names, the selected L1 ID and UNREVIEWED status, its read-only commit range'
+expect_contains "$skill" 'or diff, relevant Goal, Tests, and Done-when acceptance criteria, shared-code'
 expect_contains "$skill" 'evidence locations'
-expect_contains "$skill" 'named UI screenshot/component/viewport/font-scale matrix'
-expect_contains "$skill" 'named UI screenshot/component/viewport/font-scale matrix, prohibited actions,'
-expect_contains "$skill" 'preserved paths, the stop condition for material ambiguity, and'
-expect_contains "$skill" 'required structured findings with evidence plus an explicit ACCEPT or'
+expect_contains "$skill" 'regression impact, evidence locations, any applicable named UI'
+expect_contains "$skill" 'screenshot/component/viewport/font-scale matrix, prohibited actions, preserved'
+expect_contains "$skill" 'paths, the REVIEWED-assignment skip rule, the stop condition for material'
+expect_contains "$skill" 'ambiguity, and the required structured findings with evidence plus an explicit'
 expect_contains "$skill" 'Never use'
 expect_contains "$skill" 'parent-context references such as "continue above", including for nested agents'
 expect_contains "$skill" 'Luna classifies every failure'
@@ -454,7 +498,9 @@ expect_contains "$skill" 'Material ambiguity invokes Sol for a read-only options
 expect_contains "$skill" 'stops and asks the user'
 expect_contains "$skill" 'unresolved material requirement'
 expect_contains "$skill" 'reruns the applicable L2 or L1 gate'
-expect_contains "$skill" 'requests a new Sol verdict'
+expect_contains "$skill" 'requests a new'
+expect_contains "$skill" 'Sol verdict while the milestone remains UNREVIEWED.'
+expect_contains "$skill" 'Luna explicitly resets it to UNREVIEWED or reopens it'
 expect_contains "$skill" 'all L1s are REVIEWED'
 expect_contains "$skill" 'it becomes REVIEWED only after Sol accepts it.'
 expect_contains "$manifest" 'strict manual execution or supervised execution'

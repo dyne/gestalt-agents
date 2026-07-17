@@ -283,13 +283,13 @@ prepare_supervision() {
   begin_profile_transaction "$agents_dir"
   profile_destinations=("${destinations[@]}")
   stage_profile "$supervisor_name" 'Supervises an org-plan implementation.' \
-    'Supervise with mechanical evidence gates. Delegate all implementation and corrective edits to Terra, request read-only milestone and final verdicts from Sol, and keep one writer active. Filter child output into upstream decisions, actionable findings, commit IDs or ranges, test commands with pass/fail summaries, dirty-scope results, and blockers; include only the smallest relevant diagnostic excerpt when needed to understand a failure, never raw logs or complete transcripts.' \
+    'Supervise with mechanical evidence gates. Delegate all implementation and corrective edits to Terra and keep one writer active. After implementation gates, select only DONE + UNREVIEWED L1s for read-only Sol verdicts; mark only accepted L1s REVIEWED, leave rejected L1s UNREVIEWED for correction and re-review, and reset materially changed accepted L1s to UNREVIEWED before correction. When none are pending, skip Sol and report review already current. Final acceptance requires a current full-suite pass and clean intended scope, never whole-branch Sol re-review. Filter child output into upstream decisions, actionable findings, commit IDs or ranges, test commands with pass/fail summaries, dirty-scope results, and blockers; include only the smallest relevant diagnostic excerpt when needed to understand a failure, never raw logs or complete transcripts.' \
     "$supervisor_model" "$agents_dir"
   stage_profile "$executor_name" 'Executes an org-plan implementation.' \
     'Implement only the assigned Org plan item. Use the bundled helper for state changes, preserve assigned scope, run required tests, and create exactly one conventional commit when files change. Return only concise structured evidence to Luna, never raw logs or complete transcripts.' \
     "$executor_model" "$agents_dir"
   stage_profile "$reviewer_name" 'Reviews an org-plan milestone.' \
-    'Review only the assigned commit range and acceptance criteria. Do not edit files, modify the plan, commit, or perform routine supervision. Return only concise structured findings with evidence and an explicit ACCEPT or REJECT verdict, never raw logs or complete transcripts.' \
+    'Review only an assigned DONE + UNREVIEWED L1, its commit range, Goal, Tests, Done-when criteria, shared-code regression impact, and named evidence. Targeted shared context may be inspected without reopening accepted criteria. If an assigned L1 is REVIEWED, skip it and report the skip without re-auditing it. Do not edit files, modify the plan, commit, or perform routine supervision. Return only concise structured findings with evidence and an explicit ACCEPT or REJECT verdict, never raw logs or complete transcripts.' \
     "$reviewer_model" "$agents_dir" 'read-only'
   prepare_profile_install
   install_profiles
