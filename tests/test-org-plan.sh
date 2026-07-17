@@ -20,11 +20,7 @@ expect_status() { local expected=$1 status; shift; if "$@" >"$tmp/out" 2>"$tmp/e
 expect_contains() { if grep -F -- "$2" "$1" >/dev/null; then pass; else fail "missing $2 in $1"; fi; }
 expect_not_contains() { if grep -F -- "$2" "$1" >/dev/null; then fail "unexpected $2 in $1"; else pass; fi; }
 copy() {
-  awk '
-    /^\* / { l1 = 1 }
-    { print }
-    l1 && /^:ID:/ { print ":REVIEW_STATUS: UNREVIEWED"; l1 = 0 }
-  ' "$fixtures/$1" >"$tmp/$2"
+  cp "$fixtures/$1" "$tmp/$2"
 }
 
 copy valid-minimal.org plan.org
@@ -82,6 +78,17 @@ expect_ok "$helper" summary "$tmp/multi.org"
 expect_contains "$tmp/out" 'L1 WIP=1'
 expect_contains "$tmp/out" 'L1 REVIEWED=1'
 expect_contains "$tmp/out" 'L1 UNREVIEWED=1'
+printf '%s\n' \
+  'L1 TODO=1' \
+  'L1 WIP=1' \
+  'L1 DONE=0' \
+  'L2 TODO=1' \
+  'L2 WIP=1' \
+  'L2 DONE=1' \
+  'current  first-outcome [#WIP] First outcome' \
+  'L1 REVIEWED=1' \
+  'L1 UNREVIEWED=1' >"$tmp/expected-summary"
+cmp -s "$tmp/expected-summary" "$tmp/out" && pass || fail 'summary preserves execution-state line order before review counts'
 expect_ok "$helper" l2 "$tmp/multi.org" 'Second task|Run tests'
 expect_contains "$tmp/out" 'second-task'
 expect_fail "$helper" l2 "$tmp/multi.org" '['
@@ -183,6 +190,28 @@ sed \
   "$whitespace_plan" >"$tmp/changed" && mv "$tmp/changed" "$whitespace_plan"
 expect_ok "$helper" describe "$whitespace_plan" first-outcome
 test "$(<"$tmp/out")" = $'L1 First outcome with  internal spaces\nGoal: Text with  internal spaces.' && pass || fail 'describe output is whitespace-safe'
+
+describe_sentinel="$tmp/describe-output-was-evaluated"
+adversarial_plan="$tmp/"$'plan %=\tline\nnext.org'
+adversarial_title='Outcome %= with tab'
+adversarial_title+=$'\t'
+adversarial_title+='$(touch '"$describe_sentinel"') ; `touch '"$describe_sentinel"'` & | < >'
+adversarial_goal='Purpose %= with tab'
+adversarial_goal+=$'\t'
+adversarial_goal+='$(touch '"$describe_sentinel"') ; $HOME * ? [x]'
+awk -v title="$adversarial_title" -v goal="$adversarial_goal" '
+  /^\* TODO \[#A\] First outcome$/ { print "* TODO [#A] " title; next }
+  /^- Goal :: Test the helper\.$/ { print "- Goal :: " goal; next }
+  { print }
+' "$fixtures/valid-minimal.org" >"$adversarial_plan"
+expect_ok "$helper" validate "$adversarial_plan"
+expect_ok "$helper" describe "$adversarial_plan" first-outcome
+{
+  printf 'L1 %s\n' "$adversarial_title"
+  printf 'Goal: %s\n' "$adversarial_goal"
+} >"$tmp/expected-describe"
+cmp -s "$tmp/expected-describe" "$tmp/out" && pass || fail 'describe preserves adversarial text as data'
+test ! -e "$describe_sentinel" && pass || fail 'describe output is never evaluated as shell code'
 
 copy valid-minimal.org review-failure.org
 expect_ok "$helper" set "$tmp/review-failure.org" first-outcome WIP
