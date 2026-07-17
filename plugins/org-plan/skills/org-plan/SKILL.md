@@ -23,6 +23,9 @@ if very useful.
 Plan using Org files in `./<topic>.org` (short name, no date).
 Org rules: headings in execution order; L1 `*` and L2 `**`; each
 heading has TODO + importance [#A|#B|#C] and a unique kebab-case `:ID:`.
+Every L1 property drawer has exactly one `:REVIEW_STATUS:`. New L1s start
+`:REVIEW_STATUS: UNREVIEWED`; only Sol-accepted L1s use `REVIEWED`. L2 property
+drawers never contain `:REVIEW_STATUS:`.
 Use the bundled `org-plan` helper to validate and change plan state.
 See `org-plan --help` for its commands.
 

@@ -17,12 +17,38 @@ expect_fail() { if "$@" >"$tmp/out" 2>"$tmp/err"; then fail "$* (expected failur
 expect_status() { local expected=$1 status; shift; if "$@" >"$tmp/out" 2>"$tmp/err"; then status=0; else status=$?; fi; test "$status" = "$expected" && pass || fail "$* (expected status $expected, got $status)"; }
 expect_contains() { if grep -F -- "$2" "$1" >/dev/null; then pass; else fail "missing $2 in $1"; fi; }
 expect_not_contains() { if grep -F -- "$2" "$1" >/dev/null; then fail "unexpected $2 in $1"; else pass; fi; }
-copy() { cp "$fixtures/$1" "$tmp/$2"; }
+copy() {
+  awk '
+    /^\* / { l1 = 1 }
+    { print }
+    l1 && /^:ID:/ { print ":REVIEW_STATUS: UNREVIEWED"; l1 = 0 }
+  ' "$fixtures/$1" >"$tmp/$2"
+}
 
 copy valid-minimal.org plan.org
 expect_ok "$helper" validate "$tmp/plan.org"
 copy valid-multi.org multi.org
+sed '0,/:REVIEW_STATUS: UNREVIEWED/s//:REVIEW_STATUS: REVIEWED/' "$tmp/multi.org" >"$tmp/changed" && mv "$tmp/changed" "$tmp/multi.org"
 expect_ok "$helper" validate "$tmp/multi.org"
+
+copy valid-multi.org migrated.org
+sed \
+  -e '0,/:REVIEW_STATUS: UNREVIEWED/s//:REVIEW_STATUS: REVIEWED/' \
+  -e 's/^\* WIP \[#A\]/\* DONE [#A]/' \
+  -e 's/^\*\* WIP \[#B\]/\*\* DONE [#B]/' \
+  "$tmp/migrated.org" >"$tmp/changed" && mv "$tmp/changed" "$tmp/migrated.org"
+expect_ok "$helper" validate "$tmp/migrated.org"
+
+for review_mutation in \
+  '/:REVIEW_STATUS: UNREVIEWED/d' \
+  '/:REVIEW_STATUS: UNREVIEWED/a:REVIEW_STATUS: REVIEWED' \
+  's/:REVIEW_STATUS: UNREVIEWED/:REVIEW_STATUS: PENDING/' \
+  's/:REVIEW_STATUS: UNREVIEWED/:REVIEW_STATUS: unreviewed/' \
+  '/:ID: first-task/a:REVIEW_STATUS: UNREVIEWED'; do
+  copy valid-minimal.org invalid-review.org
+  sed "$review_mutation" "$tmp/invalid-review.org" >"$tmp/changed" && mv "$tmp/changed" "$tmp/invalid-review.org"
+  expect_fail "$helper" validate "$tmp/invalid-review.org"
+done
 
 for mutation in \
   '1d' \
@@ -279,6 +305,8 @@ expect_contains "$skill" 'Manual execution remains the fallback.'
 expect_contains "$skill" '`[agents] max_depth = 2` is required'
 expect_contains "$skill" 'never edit the user'
 expect_contains "$skill" 'configuration automatically'
+expect_contains "$skill" 'New L1s start'
+expect_contains "$skill" ':REVIEW_STATUS: UNREVIEWED'
 expect_contains "$skill" 'planner spawns Luna with `fork_turns=none`'
 expect_contains "$skill" 'Luna spawns Terra with `fork_turns=none`'
 expect_contains "$skill" 'every Sol review with'

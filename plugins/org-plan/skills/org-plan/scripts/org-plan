@@ -4,13 +4,13 @@ set -Eeuo pipefail
 
 usage() { printf 'usage: org-plan {validate|next|summary|l2|set|prepare-executor|prepare-supervision} [args]\n' >&2; exit 2; }
 die() { printf '%s: %s\n' "$plan" "$*" >&2; return 1; }
-declare -a ids states levels lines titles parents starts ends
+declare -a ids states levels lines titles parents starts ends review_status review_status_count
 declare -A seen field
 count=0
 
 parse() {
   plan=$1; [ -r "$plan" ] || die 'unreadable plan'
-  ids=() states=() levels=() lines=() titles=() parents=() starts=() ends=(); seen=() field=(); count=0
+  ids=() states=() levels=() lines=() titles=() parents=() starts=() ends=(); review_status=() review_status_count=(); seen=() field=(); count=0
   local line n=0 current=-1 drawer=0 id='' last_l1=-1
   local -a metadata=(TITLE SUBTITLE DATE KEYWORDS)
   declare -A meta=()
@@ -34,6 +34,14 @@ parse() {
     if (( drawer == 1 )); then
       if [[ $line == ':END:' ]]; then drawer=2; continue; fi
       if [[ $line =~ ^:ID:[[:space:]]*(.+)$ ]]; then id=${BASH_REMATCH[1]}; continue; fi
+      if [[ $line =~ ^:REVIEW_STATUS:[[:space:]]*(.*)$ ]]; then
+        (( levels[$current] == 1 )) || die "line $n: REVIEW_STATUS is only valid on L1 headings"
+        review_status_count[$current]=$(( ${review_status_count[$current]:-0} + 1 ))
+        (( review_status_count[$current] == 1 )) || die "line $n: duplicate REVIEW_STATUS"
+        review_status[$current]=${BASH_REMATCH[1]}
+        [[ ${review_status[$current]} =~ ^(UNREVIEWED|REVIEWED)$ ]] || die "line $n: invalid REVIEW_STATUS"
+        continue
+      fi
       die "line $n: malformed property drawer"
     fi
     if [[ $line =~ ^-[[:space:]]+([^:]+)[[:space:]]+::[[:space:]]*(.*)$ ]]; then field["$current:${BASH_REMATCH[1]}"]=1; fi
@@ -49,6 +57,7 @@ parse() {
     [[ $id =~ ^[a-z0-9]+(-[a-z0-9]+)*$ ]] || die "line ${lines[$i]}: missing or invalid ID"
     [[ -z ${seen[$id]:-} ]] || die "line ${lines[$i]}: duplicate ID $id"; seen[$id]=$i; ids[$i]=$id
     if (( levels[$i] == 1 )); then
+      [[ ${review_status_count[$i]:-0} == 1 ]] || die "line ${lines[$i]} ($id): missing REVIEW_STATUS"
       for x in Effort Goal Notes; do [[ ${field[$i:$x]:-} == 1 ]] || die "line ${lines[$i]} ($id): missing field $x"; done
     else
       for x in Why Change Tests; do [[ ${field[$i:$x]:-} == 1 ]] || die "line ${lines[$i]} ($id): missing field $x"; done
