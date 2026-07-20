@@ -13,7 +13,7 @@
 
 This methodology is based on Emacs org-mode and concepts by Ludwig Wittgenstein
 
-### 📖 More info on [dyne.org/gestalt-agents](https://dyne.org/gestalt-agents) <!-- omit in toc -->
+### 📖 More info on [dyne.org/gestalt-agents](https://dyne.org/gestalt) <!-- omit in toc -->
 
 ***
 
@@ -21,7 +21,6 @@ This methodology is based on Emacs org-mode and concepts by Ludwig Wittgenstein
 
 ### 🚩 Table of Contents  <!-- omit in toc -->
 - [🎮 Quick setup](#-quick-setup)
-- [💾 Build](#-build)
 - [🧪 Testing](#-testing)
 - [💼 License](#-license)
 
@@ -30,44 +29,34 @@ This methodology is based on Emacs org-mode and concepts by Ludwig Wittgenstein
 
 ## 🎮 Quick setup
 
-### Generic install as skills
-
-You may want to install our agentic skills as part of your setup, but beware you will not have the full gestalt experience.
-
-```
-npx skills add dyne/gestalt-agents
-```
-
-Check the skills and where you want to install, but **beware it conflicts with popular skill superpowers** and other planning related skills. The gestalt installer do not overwrite your skills, it instead created a new independent codex profile.
-
 ### Codex specific install as marketplace
 
 Add our plugin marketplace `dyne-gestalt-agents`:
 ```
 codex plugin marketplace add dyne/gestalt-agents
-```
-
-List all plugins available:
-```
-codex plugin list -m dyne-gestalt-agents
-```
-
-Install the unified Gestalt plugin:
-```
 codex plugin add gestalt@dyne-gestalt-agents
 ```
 
-The name shown under `/plugins` is **Dyne.org Gestalt**. Its stable installation
-identifier is `gestalt`; the included skill names remain unchanged.
-
-## 💾 Build
-
-Dyne.org Gestalt is a skills and metadata package, so it has no compilation or
-bundle step. Validate the distributable plugin manifest with:
-
+Make sure to add the following configuration directive to `~/.codex/config.toml`:
 ```
-python3 -m json.tool plugins/gestalt/.codex-plugin/plugin.json >/dev/null
-git diff --check
+[agents]
+max_depth = 2
+```
+
+The name shown under `/plugins` is **Dyne.org Gestalt**.
+
+#### Recommended plugins by third parties:
+
+Install context-mode to save tokens and optimize multi-agent comms:
+```
+codex plugin marketplace add mksglu/context-mode
+codex plugin add context-mode@context-mode
+```
+And add this config directive needed by context-mode:
+```
+[features]
+plugin_hooks = true
+hooks = true
 ```
 
 ## 🧪 Testing
@@ -105,14 +94,6 @@ reviewer audits only assigned DONE + UNREVIEWED milestones. Accepted L1s remain
 reviewed as the plan grows, so later refinements review only new or materially
 changed L1s. Final acceptance still requires a current full-suite pass and clean
 intended scope.
-
-### Recommended plugins by third parties:
-
-Context-mode:
-```
-codex plugin marketplace add mksglu/context-mode
-codex plugin add context-mode@context-mode
-```
 
 ## 💼 License
 
