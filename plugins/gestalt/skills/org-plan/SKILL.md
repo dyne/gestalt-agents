@@ -42,6 +42,15 @@ Plan file includes `#+TITLE`, `#+SUBTITLE`, `#+DATE`, `#+KEYWORDS`.
 Each L1 includes `- Effort ::`, `- Goal ::`, `- Notes ::`.
 Each L2 includes `- Why ::`, `- Change ::`, `- Tests ::`, `- Done when ::`.
 
+Order L1s by implementation dependency so foundations and contracts precede
+their consumers, then order each L1's L2s by the same rule. Partition L1s into
+cohesive, reviewable use cases sized for one fresh executor. Make every L1 a
+standalone handoff: include its relevant starting context, prior-L1 dependencies
+and outputs, scope, invariants, tests, and acceptance criteria. Avoid hidden
+cross-L1 context, arbitrary equal-sized splits, and separation of changes that
+must be understood or validated together. Repartition or add context until a
+fresh executor can complete the L1 from the plan and repository alone.
+
 Finish the plan:
 
 1. Review all L1 and L2 for clarity and coherence.
@@ -87,13 +96,20 @@ The deterministic supervised sequence is:
    depth two. If nested spawning is unavailable, stop and tell the user to set
    this prerequisite; never edit the user's Codex configuration automatically.
 2. The director spawns the supervisor with `fork_turns=none` and a fresh,
-   complete, explicit assignment. The supervisor spawns the executor with
-   `fork_turns=none` and a fresh, complete, explicit assignment, and spawns every
-   reviewer audit the same way.
-3. The supervisor keeps only one write-capable child active. It waits for the
-   executor to finish tests and commit before starting the reviewer. Bounded
-   fixes use follow-up assignments to the same executor instead of creating
-   competing writers.
+   complete assignment. The supervisor spawns one reviewer with
+   `fork_turns=none`, keeps that read-only reviewer for the entire run, and sends
+   it a complete standalone follow-up assignment for each audit.
+3. Before each new L1, the supervisor verifies the preceding L1 is REVIEWED,
+   terminates any previous executor, confirms it is closed, then spawns a fresh
+   `org-plan-executor` with `fork_turns=none` for exactly that L1. Never carry an
+   executor into another L1 or start the next L1 while the prior executor lives.
+4. The L1 executor remains available through that L1's review. The supervisor
+   waits for implementation gates before assigning the persistent reviewer; a
+   REJECT returns bounded corrections to the same executor, followed by a new
+   standalone audit assignment to the same reviewer.
+5. After ACCEPT, the supervisor marks the L1 REVIEWED, terminates its executor,
+   and confirms closure before selecting the next L1. It keeps only one
+   write-capable child active throughout.
 
 Every assignment must stand alone without inherited conversation context.
 
@@ -155,14 +171,15 @@ The supervisor enforces these acceptance gates:
 - After implementation gates, the supervisor repeatedly uses `next PLAN review`
   to select only DONE + UNREVIEWED L1s. Each fresh reviewer assignment covers
   only the selected L1 and its commit range, Goal, Tests, Done-when criteria,
-  shared-code regression impact, and named evidence. Targeted shared context may
-  be inspected when necessary, but accepted criteria from REVIEWED L1s are not
-  reopened.
+  shared-code regression impact, and named evidence, and goes to the same
+  persistent reviewer. Targeted shared context may be inspected when necessary,
+  but accepted criteria from REVIEWED L1s are not reopened.
 - The reviewer skips any REVIEWED L1 accidentally included in an assignment,
   reports the skip, and does not re-audit it. On ACCEPT, the supervisor marks
-  only the accepted L1 REVIEWED. On REJECT, it remains UNREVIEWED and the
-  supervisor returns the corrections to the executor before requesting a new
-  verdict. A materially changed REVIEWED L1 must first be reset to UNREVIEWED.
+  only the accepted L1 REVIEWED and closes that L1's executor. On REJECT, it
+  remains UNREVIEWED and the supervisor returns corrections to the same L1
+  executor before requesting a new verdict from the persistent reviewer. A
+  materially changed REVIEWED L1 must first be reset to UNREVIEWED.
 - When `next PLAN review` finds nothing, the supervisor skips the reviewer and
   records that review is already current. Final acceptance requires the
   supervisor's current full-suite pass and clean intended scope, never a
@@ -182,13 +199,15 @@ require UI artifacts.
 Each supervisor assignment states the plan path, target branch and base branch,
 all prepared profile and model names, the complete L1/L2 loop, evidence gates,
 incremental DONE + UNREVIEWED review selection and status transitions,
-preserved paths, the `[agents] max_depth = 2` nesting requirement, and the stop
-condition for material ambiguity.
+the persistent-reviewer and per-L1 fresh-executor lifecycle, preserved paths,
+the `[agents] max_depth = 2` nesting requirement, and the stop condition for
+material ambiguity.
 
 Each executor assignment states the active L1 and complete L2 block, plan path,
-target branch, its prepared profile and model names, exact allowed change scope,
-required tests, the exactly-one-commit rule, preserved paths, and the stop
-condition for material ambiguity.
+target branch, its prepared profile and model names, relevant repository starting
+state and accepted prior-L1 outputs, exact allowed change scope, required tests,
+the exactly-one-commit rule, preserved paths, the single-L1 lifetime, and the
+stop condition for material ambiguity.
 
 Each reviewer assignment states the plan path, target branch, its prepared
 profile and model names, the selected L1 ID and UNREVIEWED status, its read-only
@@ -199,8 +218,10 @@ paths, the REVIEWED-assignment skip rule, the stop condition for material
 ambiguity, and the required structured findings with evidence plus an explicit
 ACCEPT or REJECT verdict.
 
-Every role receives its checklist as a complete fresh assignment. Never use
-parent-context references such as "continue above", including for nested agents.
+Every role receives its checklist as a complete fresh assignment: once for the
+supervisor, once per L1 executor generation, and once per persistent-reviewer
+audit. Never rely on child memory or use parent-context references such as
+"continue above", including for nested agents.
 
 The supervisor classifies every failure before routing it:
 
