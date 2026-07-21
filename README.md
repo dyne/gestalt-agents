@@ -75,25 +75,28 @@ versioning, and release-workflow contracts.
 
 ## Org Plan supervised execution
 
-The director can use any model selected by the Codex CLI. The other roles use
-prepared profiles with these defaults:
+The root director is also the read-only reviewer. Launch it with the prepared
+`org-plan-reviewer` profile when possible; an already-running root keeps its
+current model and adopts the same contract. The prepared profiles default to:
 
 ```text
-director (depth 0, user's Codex conversation, any CLI-selected model)
+director/reviewer (depth 0, org-plan-reviewer, Sol, read-only)
 └── supervisor (depth 1, org-plan-supervisor, Luna)
-    ├── executor (depth 2, org-plan-executor, Terra, only code writer)
-    └── reviewer (depth 2, org-plan-reviewer, Sol, read-only)
+    └── executor (depth 2, org-plan-executor, Terra, only code writer)
 ```
 
-The executor and reviewer report only to the supervisor, which reports to the
-director. Evidence flows upward as concise summaries; raw test and inspection
-logs stay outside conversational context.
+The executor reports only to the supervisor. The supervisor sends review
+requests upward to the director/reviewer and never spawns a reviewer. This keeps
+the root active with at most two subagents below it: the supervisor and its
+executor. Evidence flows upward as concise summaries; raw test and inspection
+logs stay outside conversational context. The root gives brief user-facing
+updates such as `L1 2/5 — Validate release metadata: in review`.
 
 Each L1 starts unreviewed. After implementation and test gates make it DONE, the
-reviewer audits only assigned DONE + UNREVIEWED milestones. Accepted L1s remain
-reviewed as the plan grows, so later refinements review only new or materially
-changed L1s. Final acceptance still requires a current full-suite pass and clean
-intended scope.
+director/reviewer audits only requested DONE + UNREVIEWED milestones. Accepted
+L1s remain reviewed as the plan grows, so later refinements review only new or
+materially changed L1s. Final acceptance still requires a current full-suite
+pass and clean intended scope.
 
 ## 💼 License
 

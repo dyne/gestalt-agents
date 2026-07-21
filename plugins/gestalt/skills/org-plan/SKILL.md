@@ -63,62 +63,68 @@ Finish the plan:
 For each implementation, ask whether the user wants manual or supervised
 execution. Manual execution is the fallback.
 
-Supervised execution uses exactly four canonical roles:
+Supervised execution uses exactly three canonical roles:
 
-- The **director** is the depth-zero agent in the user's initial Codex
-  conversation. It may use any model selected by the CLI, owns communication
-  with the user, launches the supervisor, and receives reports only from the
-  supervisor.
+- The **director/reviewer** is the depth-zero agent in the user's initial Codex
+  conversation. Use the read-only `org-plan-reviewer` launch profile, whose
+  default model is `gpt-5.6-sol`, when possible. It owns user communication,
+  launches the supervisor, reviews requested DONE + UNREVIEWED L1s, and never
+  implements or modifies the plan.
 - The **supervisor** is the depth-one `org-plan-supervisor`, default model
-  `gpt-5.6-luna`. It coordinates the executor and reviewer, performs routine
-  supervision, enforces evidence gates, and reports only to the director.
+  `gpt-5.6-luna`. It coordinates the executor, performs routine supervision,
+  enforces evidence gates, requests review verdicts from the director, and
+  reports only to the director. It never spawns a reviewer.
 - The **executor** is the depth-two `org-plan-executor`, default model
   `gpt-5.6-terra`. It is the only code writer, receives implementation and
   corrective work, and reports only to the supervisor.
-- The **reviewer** is the depth-two read-only `org-plan-reviewer`, default model
-  `gpt-5.6-sol`. It reviews only assigned DONE + UNREVIEWED L1s, never implements
-  or modifies the plan, and reports only to the supervisor.
 
-Neither depth-two role reports directly to the director. Model names are defaults
-for their profiles, not substitutes for the canonical role names.
+The root launch profile and model are recommendations because a skill cannot
+change the model of an already-running root conversation. If the root was not
+launched with `org-plan-reviewer`, it adopts the director/reviewer contract in
+the current model. Model names are profile defaults, not substitutes for the
+canonical role names.
 
 Model identifiers are configuration values; Codex reports unavailable models
-when a role is spawned. The helper prepares profiles, and the director launches
-supervised execution. Manual execution remains the fallback.
+when a role is spawned. The helper prepares the recommended root reviewer
+profile plus the supervisor and executor profiles. Manual execution remains the
+fallback.
 Machine-readable success records percent-encode unsafe path bytes; unreserved
 path characters remain unchanged.
 
 The deterministic supervised sequence is:
 
-1. The director prepares all three profiles and checks that Codex permits
-   depth-two delegation. `[agents] max_depth = 2` is required: the director is
-   depth zero, the supervisor is depth one, and the executor and reviewer are
-   depth two. If nested spawning is unavailable, stop and tell the user to set
-   this prerequisite; never edit the user's Codex configuration automatically.
+1. Prepare the recommended root reviewer profile plus the supervisor and
+   executor profiles. Check that Codex permits depth-two delegation.
+   `[agents] max_depth = 2` is required: the director/reviewer is depth zero,
+   the supervisor is depth one, and the executor is depth two. If nested
+   spawning is unavailable, stop and tell the user to set this prerequisite;
+   never edit the user's Codex configuration automatically.
 2. The director spawns the supervisor with `fork_turns=none` and a fresh,
-   complete assignment. The supervisor spawns one reviewer with
-   `fork_turns=none`, keeps that read-only reviewer for the entire run, and sends
-   it a complete standalone follow-up assignment for each audit.
+   complete assignment. The supervisor never spawns a reviewer. It sends each
+   complete review request upward to the director and waits for the director's
+   explicit verdict.
 3. Before each new L1, the supervisor verifies the preceding L1 is REVIEWED,
    terminates any previous executor, confirms it is closed, then spawns a fresh
    `org-plan-executor` with `fork_turns=none` for exactly that L1. Never carry an
    executor into another L1 or start the next L1 while the prior executor lives.
-4. The L1 executor remains available through that L1's review. The supervisor
-   waits for implementation gates before assigning the persistent reviewer; a
+4. The L1 executor remains available through that L1's review. After the
+   implementation gates pass, the supervisor asks the director to review. A
    REJECT returns bounded corrections to the same executor, followed by a new
-   standalone audit assignment to the same reviewer.
+   standalone review request to the director.
 5. After ACCEPT, the supervisor marks the L1 REVIEWED, terminates its executor,
    and confirms closure before selecting the next L1. It keeps only one
    write-capable child active throughout.
 
-Every assignment must stand alone without inherited conversation context.
+Only two subagents exist below the active root at once: the supervisor and its
+single executor. Every assignment and upward review request must stand alone
+without inherited conversation context.
 
 ## Context reporting boundary
 
-The executor and reviewer return concise evidence summaries only to the
-supervisor, never raw logs or complete transcripts. The supervisor distills
-child results without concealing or reinterpreting findings. Its report to the
-director contains only decisions, actionable findings, commit IDs or ranges,
+The executor returns concise evidence summaries only to the supervisor, never
+raw logs or complete transcripts. The supervisor distills executor results
+without concealing or reinterpreting findings. Its report and review request to
+the director contain only decisions, actionable findings, commit IDs or ranges,
 test commands with pass/fail summaries, dirty-scope results, blockers, and the
 smallest relevant diagnostic excerpt when a failure cannot be understood
 without it.
@@ -139,11 +145,17 @@ without it.
 
 ## Human-readable director updates
 
+Keep the root active and show the user a brief console update at supervision
+start and whenever the active L1 starts, reaches review, is rejected, is
+accepted, or becomes blocked. Use `L1 POSITION/TOTAL — TITLE: STATUS` when the
+plan can be described. Keep routine updates to one or two lines.
+
 On the first mention of an L1 or L2 in a supervision run, the supervisor resolves
 it with `org-plan describe PLAN ID` and reports its title plus the concise Goal
-or Why description. The exact ID may follow as supplemental data. Later updates
-may use the title alone and do not repeat the full description. Never identify a
-milestone only by an ordinal such as "L2 2" or by its raw ID.
+or Why description. For L1s, `describe` also supplies the stable plan position
+and total. The exact ID may follow as supplemental data. Later updates may use
+the position and title alone and do not repeat the full description. Never
+identify a milestone only by an ordinal or raw ID.
 
 On the first mention of a commit, the supervisor resolves its conventional
 subject with the simplest read-only Git query, such as
@@ -169,18 +181,18 @@ The supervisor enforces these acceptance gates:
   inspects the L2 diff, and requires current touched-test evidence before marking
   it DONE.
 - After implementation gates, the supervisor repeatedly uses `next PLAN review`
-  to select only DONE + UNREVIEWED L1s. Each fresh reviewer assignment covers
+  to select only DONE + UNREVIEWED L1s. Each fresh upward review request covers
   only the selected L1 and its commit range, Goal, Tests, Done-when criteria,
-  shared-code regression impact, and named evidence, and goes to the same
-  persistent reviewer. Targeted shared context may be inspected when necessary,
-  but accepted criteria from REVIEWED L1s are not reopened.
-- The reviewer skips any REVIEWED L1 accidentally included in an assignment,
-  reports the skip, and does not re-audit it. On ACCEPT, the supervisor marks
-  only the accepted L1 REVIEWED and closes that L1's executor. On REJECT, it
-  remains UNREVIEWED and the supervisor returns corrections to the same L1
-  executor before requesting a new verdict from the persistent reviewer. A
-  materially changed REVIEWED L1 must first be reset to UNREVIEWED.
-- When `next PLAN review` finds nothing, the supervisor skips the reviewer and
+  shared-code regression impact, and named evidence. The director may inspect
+  targeted shared context when necessary, but accepted criteria from REVIEWED
+  L1s are not reopened.
+- The director skips any REVIEWED L1 accidentally included in a request, reports
+  the skip, and does not re-audit it. On ACCEPT, the supervisor marks only the
+  accepted L1 REVIEWED and closes that L1's executor. On REJECT, it remains
+  UNREVIEWED and the supervisor returns corrections to the same L1 executor
+  before requesting a new verdict from the director. A materially changed
+  REVIEWED L1 must first be reset to UNREVIEWED.
+- When `next PLAN review` finds nothing, the supervisor skips a review request and
   records that review is already current. Final acceptance requires the
   supervisor's current full-suite pass and clean intended scope, never a
   redundant whole-branch reviewer audit.
@@ -198,10 +210,10 @@ require UI artifacts.
 
 Each supervisor assignment states the plan path, target branch and base branch,
 all prepared profile and model names, the complete L1/L2 loop, evidence gates,
-incremental DONE + UNREVIEWED review selection and status transitions,
-the persistent-reviewer and per-L1 fresh-executor lifecycle, preserved paths,
-the `[agents] max_depth = 2` nesting requirement, and the stop condition for
-material ambiguity.
+incremental DONE + UNREVIEWED review selection and status transitions, the
+upward director-review request and per-L1 fresh-executor lifecycle, root status
+reporting contract, preserved paths, the `[agents] max_depth = 2` nesting
+requirement, and the stop condition for material ambiguity.
 
 Each executor assignment states the active L1 and complete L2 block, plan path,
 target branch, its prepared profile and model names, relevant repository starting
@@ -209,19 +221,19 @@ state and accepted prior-L1 outputs, exact allowed change scope, required tests,
 the exactly-one-commit rule, preserved paths, the single-L1 lifetime, and the
 stop condition for material ambiguity.
 
-Each reviewer assignment states the plan path, target branch, its prepared
-profile and model names, the selected L1 ID and UNREVIEWED status, its read-only
-commit range or diff, relevant Goal, Tests, and Done-when acceptance criteria,
-shared-code regression impact, evidence locations, any applicable named UI
-screenshot/component/viewport/font-scale matrix, prohibited actions, preserved
-paths, the REVIEWED-assignment skip rule, the stop condition for material
-ambiguity, and the required structured findings with evidence plus an explicit
-ACCEPT or REJECT verdict.
+Each upward review request states the plan path, target branch, the selected L1
+ID, position, title, and UNREVIEWED status, its read-only commit range or diff,
+relevant Goal, Tests, and Done-when acceptance criteria, shared-code regression
+impact, evidence locations, any applicable named UI screenshot/component/
+viewport/font-scale matrix, prohibited actions, preserved paths, the
+REVIEWED-request skip rule, the stop condition for material ambiguity, and the
+required structured findings with evidence plus an explicit ACCEPT or REJECT
+verdict.
 
 Every role receives its checklist as a complete fresh assignment: once for the
-supervisor, once per L1 executor generation, and once per persistent-reviewer
-audit. Never rely on child memory or use parent-context references such as
-"continue above", including for nested agents.
+supervisor and once per L1 executor generation. The director receives a complete
+upward request for every audit. Never rely on agent memory or use context
+references such as "continue above", including for nested agents.
 
 The supervisor classifies every failure before routing it:
 
@@ -230,13 +242,13 @@ The supervisor classifies every failure before routing it:
 - Reviewer findings return to the executor unchanged in substance; the
   supervisor adds only the execution scope and does not conceal or reinterpret
   failed checks.
-- Material ambiguity invokes the reviewer for a read-only options audit. If the
-  plan still does not determine the choice, the supervisor stops and asks the
-  director to obtain the user's decision rather than letting the executor choose
-  an unresolved material requirement.
+- Material ambiguity invokes the director/reviewer for a read-only options
+  audit. If the plan still does not determine the choice, the supervisor stops
+  and asks the director to obtain the user's decision rather than letting the
+  executor choose an unresolved material requirement.
 
 After correction, the supervisor reruns the applicable L2 or L1 gate and requests
-a new reviewer verdict while the milestone remains UNREVIEWED. Before a material
+a new director verdict while the milestone remains UNREVIEWED. Before a material
 correction to an accepted milestone, the supervisor explicitly resets it to
 UNREVIEWED or reopens it as WIP, which performs that reset automatically.
 
