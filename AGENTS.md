@@ -9,14 +9,19 @@
   defaults to Terra, is the only code writer, and reports only to the supervisor.
   The supervisor never spawns a reviewer; it requests each review upward from
   the director/reviewer.
-- Every L1 must have exactly one `:REVIEW_STATUS:` property, initially
-  `UNREVIEWED`; L2s must not have one. `REVIEWED` is valid only after reviewer
-  acceptance of a DONE L1. Reopening a reviewed L1 as WIP resets it to
-  `UNREVIEWED`; reset a completed reviewed L1 explicitly before any material
-  correction that does not reopen it.
+- Every L1 must have exactly one non-empty `:SKILLS:` property and exactly one
+  `:REVIEW_STATUS:` property, initially `UNREVIEWED`; L2s must have neither.
+  `:SKILLS:` is a whitespace-separated list of exact `$skill` references chosen
+  by comparing the L1 with the complete available skill catalog. Each fresh L1
+  executor loads exactly that declared list before repository inspection or
+  implementation and stops without edits if a reference is unavailable.
+  `REVIEWED` is valid only after reviewer acceptance of a DONE L1. Reopening a
+  reviewed L1 as WIP resets it to `UNREVIEWED`; reset a completed reviewed L1
+  explicitly before any material correction that does not reopen it.
 - Use `org-plan next PLAN review` to select the first DONE + UNREVIEWED L1,
   `org-plan review PLAN ID REVIEWED|UNREVIEWED` for durable transitions, and
-  `org-plan describe PLAN ID` for stable title plus Goal/Why text. The reviewer
+  `org-plan describe PLAN ID` for stable title plus Goal/Why text and L1 Skills.
+  The reviewer
   skips already REVIEWED milestones, so appended refinement L1s do not trigger
   repeat audits of accepted work.
 - Keep one writer active. The supervisor delegates implementation and corrective

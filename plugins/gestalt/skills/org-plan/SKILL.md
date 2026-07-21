@@ -26,9 +26,20 @@ if very useful.
 Plan using Org files in `./<topic>.org` (short name, no date).
 Org rules: headings in execution order; L1 `*` and L2 `**`; each
 heading has TODO + importance [#A|#B|#C] and a unique kebab-case `:ID:`.
-Every L1 property drawer has exactly one `:REVIEW_STATUS:`. New L1s start
-`:REVIEW_STATUS: UNREVIEWED`; only reviewer-accepted L1s use `REVIEWED`. L2 property
-drawers never contain `:REVIEW_STATUS:`.
+Every L1 property drawer has exactly one `:SKILLS:` and one `:REVIEW_STATUS:`.
+Write `:SKILLS:` as a non-empty, whitespace-separated list of exact `$skill`
+references, for example `:SKILLS: $gestalt:development-testing $make`. New L1s
+start `:REVIEW_STATUS: UNREVIEWED`; only reviewer-accepted L1s use `REVIEWED`.
+L2 property drawers contain neither `:SKILLS:` nor `:REVIEW_STATUS:`.
+
+Before finalizing the plan, inspect the names and discovery descriptions of the
+complete skill catalog available in the planning session. For each L1, compare
+its scope with every known skill and select the smallest sufficient set needed
+by that L1 executor. Record exact catalog references in `:SKILLS:`; do not guess
+names, include irrelevant skills, or omit an applicable required skill. Include
+skills mandated by governing instructions when the executor must load them. If
+a required skill is unavailable, resolve that before handover. The executor
+loads exactly the declared L1 skills and no other optional or task skill.
 Use the bundled `org-plan` helper to validate and change plan state.
 See `org-plan --help` for its commands.
 
@@ -36,7 +47,8 @@ Use `next PLAN review` to select the first completed unreviewed L1, `review PLAN
 ID REVIEWED` after reviewer acceptance, and `review PLAN ID UNREVIEWED` before a
 material correction that does not reopen the L1. Reopening a reviewed L1 as WIP
 resets it to `UNREVIEWED` automatically. Use `describe PLAN ID` to resolve an ID
-to its title and `Goal` or `Why` text without parsing the Org file directly.
+to its title and `Goal` or `Why` text; for an L1 it also returns the exact
+`Skills` list, without requiring callers to parse the Org file directly.
 
 Plan file includes `#+TITLE`, `#+SUBTITLE`, `#+DATE`, `#+KEYWORDS`.
 Each L1 includes `- Effort ::`, `- Goal ::`, `- Notes ::`.
@@ -107,6 +119,10 @@ The deterministic supervised sequence is:
    terminates any previous executor, confirms it is closed, then spawns a fresh
    `org-plan-executor` with `fork_turns=none` for exactly that L1. Never carry an
    executor into another L1 or start the next L1 while the prior executor lives.
+   The fresh assignment includes the L1's exact `:SKILLS:` list. Before any
+   repository inspection or implementation, the executor verifies every
+   reference is available, loads every listed skill, and loads no undeclared
+   optional or task skill. An unavailable reference blocks the L1 without edits.
 4. The L1 executor remains available through that L1's review. After the
    implementation gates pass, the supervisor asks the director to review. A
    REJECT returns bounded corrections to the same executor, followed by a new
@@ -222,9 +238,10 @@ requirement, and the stop condition for material ambiguity.
 Each executor assignment states the active L1 and complete L2 block, plan path,
 target branch, its prepared profile and model names, relevant repository starting
 state and accepted prior-L1 outputs, exact allowed change scope, required tests,
-the exactly-one-post-ACCEPT L1 commit rule, the prohibition on pre-review,
-fixup, and autosquash commits, preserved paths, the single-L1 lifetime, and the
-stop condition for material ambiguity.
+the exact `:SKILLS:` list and load-only-that-list gate, the
+exactly-one-post-ACCEPT L1 commit rule, the prohibition on pre-review, fixup,
+and autosquash commits, preserved paths, the single-L1 lifetime, and the stop
+condition for unavailable skills or material ambiguity.
 
 Each upward review request states the plan path, target branch, the selected L1
 ID, position, title, and UNREVIEWED status, its read-only uncommitted diff
@@ -269,7 +286,10 @@ material doubts, then start and follow strictly the Loop per L1 and L2.
 Resolve minor reversible questions from the plan and repository context.
 
 Loop per L1, in order:
-Take next WIP L1, else first TODO L1 → set WIP. Study L1.
+Take next WIP L1, else first TODO L1 → set WIP. Read its `:SKILLS:` list,
+verify every reference is available, then load exactly those skills and no other
+optional or task skill before studying the L1 or repository. Stop without edits
+if a declared skill is unavailable.
 
 Loop per L2, in order:
 1. Take next WIP L2, else first TODO L2 → set WIP.
@@ -297,7 +317,7 @@ review corrections.
 An L1 becomes DONE only after all child L2s are DONE and the full suite passes;
 it becomes REVIEWED only after reviewer acceptance.
 Do not commit Org plan files.
-Stop only for material ambiguity.
+Stop only for an unavailable declared skill or material ambiguity.
 
 Update `AGENTS.md` (LLM-oriented) with changes if relevant.
 Print a brief summary for reviewers

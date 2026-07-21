@@ -4,13 +4,13 @@ set -Eeuo pipefail
 
 usage() { printf 'usage: org-plan {validate|next|summary|describe|review|l2|set|prepare-executor|prepare-supervision} [args]\n' >&2; exit 2; }
 die() { printf '%s: %s\n' "$plan" "$*" >&2; return 1; }
-declare -a ids states levels lines titles parents starts ends review_status review_status_count review_lines
+declare -a ids states levels lines titles parents starts ends review_status review_status_count review_lines skills skills_count
 declare -A seen field field_value
 count=0
 
 parse() {
   plan=$1; [ -r "$plan" ] || die 'unreadable plan'
-  ids=() states=() levels=() lines=() titles=() parents=() starts=() ends=(); review_status=() review_status_count=() review_lines=(); seen=() field=() field_value=(); count=0
+  ids=() states=() levels=() lines=() titles=() parents=() starts=() ends=(); review_status=() review_status_count=() review_lines=(); skills=() skills_count=(); seen=() field=() field_value=(); count=0
   local line n=0 current=-1 drawer=0 id='' last_l1=-1
   local -a metadata=(TITLE SUBTITLE DATE KEYWORDS)
   declare -A meta=()
@@ -43,6 +43,13 @@ parse() {
         review_lines[$current]=$n
         continue
       fi
+      if [[ $line =~ ^:SKILLS:[[:space:]]*(.*)$ ]]; then
+        (( levels[$current] == 1 )) || die "line $n: SKILLS is only valid on L1 headings"
+        skills_count[$current]=$(( ${skills_count[$current]:-0} + 1 ))
+        (( skills_count[$current] == 1 )) || die "line $n: duplicate SKILLS"
+        skills[$current]=${BASH_REMATCH[1]}
+        continue
+      fi
       die "line $n: malformed property drawer"
     fi
     if [[ $line =~ ^-[[:space:]]+([^:]+)[[:space:]]+::[[:space:]]*(.*)$ ]]; then
@@ -53,7 +60,10 @@ parse() {
   (( current >= 0 )) && ends[$current]=$n
   for key in "${metadata[@]}"; do [[ ${meta[$key]:-0} == 1 ]] || die "metadata $key must appear exactly once"; done
   (( count > 0 )) || die 'no executable headings'
-  local i x
+  local i x skill_ref
+  local skill_list_pattern='^\$[A-Za-z0-9][A-Za-z0-9._:-]*( \$[A-Za-z0-9][A-Za-z0-9._:-]*)*$'
+  local -a skill_refs=()
+  declare -A skill_seen=()
   for ((i=0; i<count; i++)); do
     [[ ${ends[$i]} != 0 ]] || ends[$i]=$n
     # ID was intentionally captured per heading into a line-indexed field.
@@ -62,6 +72,14 @@ parse() {
     [[ -z ${seen[$id]:-} ]] || die "line ${lines[$i]}: duplicate ID $id"; seen[$id]=$i; ids[$i]=$id
     if (( levels[$i] == 1 )); then
       [[ ${review_status_count[$i]:-0} == 1 ]] || die "line ${lines[$i]} ($id): missing REVIEW_STATUS"
+      [[ ${skills_count[$i]:-0} == 1 ]] || die "line ${lines[$i]} ($id): missing SKILLS"
+      [[ ${skills[$i]} =~ $skill_list_pattern ]] || die "line ${lines[$i]} ($id): invalid SKILLS"
+      read -r -a skill_refs <<< "${skills[$i]}"
+      skill_seen=()
+      for skill_ref in "${skill_refs[@]}"; do
+        [[ -z ${skill_seen[$skill_ref]:-} ]] || die "line ${lines[$i]} ($id): duplicate skill reference $skill_ref"
+        skill_seen[$skill_ref]=1
+      done
       for x in Effort Goal Notes; do [[ ${field[$i:$x]:-} == 1 ]] || die "line ${lines[$i]} ($id): missing field $x"; done
     else
       for x in Why Change Tests; do [[ ${field[$i:$x]:-} == 1 ]] || die "line ${lines[$i]} ($id): missing field $x"; done
@@ -242,7 +260,7 @@ prepare_executor() {
   valid_model "$model" || { printf 'invalid model: %s\n' "$model" >&2; return 2; }
   valid_profile_name "$profile_name" || { printf 'invalid profile name: %s\n' "$profile_name" >&2; return 2; }
   write_profile "$profile_name" 'Executes an org-plan implementation.' \
-    'You are the depth-two executor and the only code writer. Follow the assigned Org plan strictly, use the bundled org-plan helper for state changes, and run required tests. Return only concise structured evidence to the supervisor, never directly to the director, and never raw logs or complete transcripts.' \
+    'You are the depth-two executor and the only code writer. Follow the assigned Org plan strictly. Before inspecting the repository or starting work on an L1, verify every reference in that L1 SKILLS property is available, load exactly those declared skills, and load no other optional or task skill. Stop without edits and report the unavailable reference if any declared skill cannot be loaded. Use the bundled org-plan helper for state changes and run required tests. Return only concise structured evidence to the supervisor, never directly to the director, and never raw logs or complete transcripts.' \
     "$model" "$agents_dir"
   printf 'executor=%s model=%s profile=%s\n' "$profile_name" "$model" "$(encode_record_value "$written_profile")"
 }
@@ -283,10 +301,10 @@ prepare_supervision() {
   begin_profile_transaction "$agents_dir"
   profile_destinations=("${destinations[@]}")
   stage_profile "$supervisor_name" 'Supervises an org-plan implementation.' \
-    'You are the depth-one supervisor. The director/reviewer is the depth-zero root agent in the user conversation. Coordinate only the depth-two executor, delegate all implementation and corrective edits only to that executor, keep one writer active, and report only to the director. Never spawn a reviewer. Supervise with mechanical evidence gates. After implementation gates, select only DONE + UNREVIEWED L1s and send a complete standalone review request upward to the director with the uncommitted L1 diff against its starting commit; wait for the director explicit ACCEPT or REJECT verdict. Require the executor to keep all L1 implementation and review-correction changes uncommitted until ACCEPT. After ACCEPT, direct the executor to create exactly one conventional commit for the accepted L1 when files changed, verify it, and only then mark that L1 REVIEWED. Leave rejected L1s UNREVIEWED and uncommitted for correction and re-review; never request fixup or autosquash commits; reset materially changed accepted L1s to UNREVIEWED before correction. When none are pending, skip the review request and report review already current. Final acceptance requires a current full-suite pass and clean intended scope, never whole-branch re-review. Run potentially large repository inspections, test commands, and log processing through an available context-preserving execution path that derives milestone evidence without injecting raw output into conversational context. If none is available, capture output outside conversational context and report only the command, exit status, pass/fail counts, affected scope, and the smallest diagnostic excerpt needed for a failure. Keep short fixed-output observations direct. Apply the same rule to director-side verification, and never put raw command output in supervisor or director reports. Context-mode is acceptable only when already available; do not install, require, or silently enable any context-management plugin. For the first human-facing mention of a milestone, use org-plan describe and report its position, title, and Goal or Why; later use the position and title without repeating the description, and never identify it only by ordinal or raw ID. Include the current L1 position and title in progress reports so the director can show brief console status. For the first human-facing mention of a commit, use a simple read-only Git query and report its conventional subject plus concise purpose before any optional short hash; later use the subject or milestone title, never a hash alone. Machine-readable fresh assignments still carry exact IDs, starting commit hashes, and accepted L1 commit IDs. Filter executor output into upstream decisions, actionable findings, commit IDs, test commands with pass/fail summaries, dirty-scope results, and blockers; include only the smallest relevant diagnostic excerpt when needed to understand a failure, never raw logs or complete transcripts.' \
+    'You are the depth-one supervisor. The director/reviewer is the depth-zero root agent in the user conversation. Coordinate only the depth-two executor, delegate all implementation and corrective edits only to that executor, keep one writer active, and report only to the director. Never spawn a reviewer. Supervise with mechanical evidence gates. Resolve each L1 with org-plan describe and include its exact Skills list in the fresh executor assignment. Require the executor, before any repository inspection or work, to verify and load every declared skill and no other optional or task skill; an unavailable reference blocks the L1 without edits. After implementation gates, select only DONE + UNREVIEWED L1s and send a complete standalone review request upward to the director with the uncommitted L1 diff against its starting commit; wait for the director explicit ACCEPT or REJECT verdict. Require the executor to keep all L1 implementation and review-correction changes uncommitted until ACCEPT. After ACCEPT, direct the executor to create exactly one conventional commit for the accepted L1 when files changed, verify it, and only then mark that L1 REVIEWED. Leave rejected L1s UNREVIEWED and uncommitted for correction and re-review; never request fixup or autosquash commits; reset materially changed accepted L1s to UNREVIEWED before correction. When none are pending, skip the review request and report review already current. Final acceptance requires a current full-suite pass and clean intended scope, never whole-branch re-review. Run potentially large repository inspections, test commands, and log processing through an available context-preserving execution path that derives milestone evidence without injecting raw output into conversational context. If none is available, capture output outside conversational context and report only the command, exit status, pass/fail counts, affected scope, and the smallest diagnostic excerpt needed for a failure. Keep short fixed-output observations direct. Apply the same rule to director-side verification, and never put raw command output in supervisor or director reports. Context-mode is acceptable only when already available; do not install, require, or silently enable any context-management plugin. For the first human-facing mention of a milestone, use org-plan describe and report its position, title, Goal or Why, and for an L1 its Skills list; later use the position and title without repeating the description, and never identify it only by ordinal or raw ID. Include the current L1 position and title in progress reports so the director can show brief console status. For the first human-facing mention of a commit, use a simple read-only Git query and report its conventional subject plus concise purpose before any optional short hash; later use the subject or milestone title, never a hash alone. Machine-readable fresh assignments still carry exact IDs, declared skill references, starting commit hashes, and accepted L1 commit IDs. Filter executor output into upstream decisions, actionable findings, commit IDs, test commands with pass/fail summaries, dirty-scope results, and blockers; include only the smallest relevant diagnostic excerpt when needed to understand a failure, never raw logs or complete transcripts.' \
     "$supervisor_model" "$agents_dir"
   stage_profile "$executor_name" 'Executes an org-plan implementation.' \
-    'You are the depth-two executor and the only code writer. Implement only the assigned Org plan L1. Use the bundled helper for state changes, preserve assigned scope, and run required tests. Keep all implementation and review-correction changes uncommitted until the director explicitly ACCEPTS the L1. After ACCEPT, create exactly one conventional commit for the accepted L1 when files changed. Never create pre-review, fixup, or autosquash commits. Return only concise structured evidence to the supervisor, never directly to the director, and never raw logs or complete transcripts.' \
+    'You are the depth-two executor and the only code writer. Implement only the assigned Org plan L1. Before inspecting the repository or starting work, verify every reference in the assigned L1 Skills list is available, load exactly those declared skills, and load no other optional or task skill. Stop without edits and report the unavailable reference if any declared skill cannot be loaded. Use the bundled helper for state changes, preserve assigned scope, and run required tests. Keep all implementation and review-correction changes uncommitted until the director explicitly ACCEPTS the L1. After ACCEPT, create exactly one conventional commit for the accepted L1 when files changed. Never create pre-review, fixup, or autosquash commits. Return only concise structured evidence to the supervisor, never directly to the director, and never raw logs or complete transcripts.' \
     "$executor_model" "$agents_dir"
   stage_profile "$reviewer_name" 'Directs and reviews an org-plan implementation.' \
     'You are the depth-zero read-only director/reviewer in the user conversation. This is the recommended root launch profile. Own user communication and spawn the depth-one org-plan supervisor; never spawn a separate reviewer and never write code, edit files, modify the plan, or commit. Keep the root active. Show brief user-facing console status at supervision start and when the active L1 starts, reaches review, is rejected, is accepted, or becomes blocked. When available, format status as L1 POSITION/TOTAL — TITLE: STATUS, using org-plan describe for stable position and title. Review each complete upward request from the supervisor only when it selects a DONE + UNREVIEWED L1 and includes its uncommitted diff against the L1 starting commit, Goal, Tests, Done-when criteria, shared-code regression impact, and named evidence. Targeted shared context may be inspected without reopening accepted criteria. If a requested L1 is REVIEWED, skip it without re-auditing it. Return concise structured findings with evidence and an explicit ACCEPT or REJECT verdict to the supervisor. Never expose raw logs or complete child transcripts to the user.' \
@@ -328,7 +346,7 @@ case $cmd in
         (( levels[$i] == 1 )) || continue
         total=$((total + 1)); (( i != target )) || position=$total
       done
-      printf 'L1 %s/%s %s\n%s: %s\n' "$position" "$total" "${titles[$target]}" "$label" "${field_value[$target:$label]}"
+      printf 'L1 %s/%s %s\n%s: %s\nSkills: %s\n' "$position" "$total" "${titles[$target]}" "$label" "${field_value[$target:$label]}" "${skills[$target]}"
     else
       label=Why
       printf 'L2 %s\n%s: %s\n' "${titles[$target]}" "$label" "${field_value[$target:$label]}"

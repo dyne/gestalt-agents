@@ -48,6 +48,18 @@ for review_mutation in \
   expect_fail "$helper" validate "$tmp/invalid-review.org"
 done
 
+for skills_mutation in \
+  '/:SKILLS:/d' \
+  '/:SKILLS:/a:SKILLS: $make' \
+  's/:SKILLS:.*/:SKILLS: gestalt:development-testing/' \
+  's/:SKILLS:.*/:SKILLS: $make, $vite/' \
+  's/:SKILLS:.*/:SKILLS: $make $make/' \
+  '/:ID: first-task/a:SKILLS: $make'; do
+  copy valid-minimal.org invalid-skills.org
+  sed "$skills_mutation" "$tmp/invalid-skills.org" >"$tmp/changed" && mv "$tmp/changed" "$tmp/invalid-skills.org"
+  expect_fail "$helper" validate "$tmp/invalid-skills.org"
+done
+
 for mutation in \
   '1d' \
   '1a#+TITLE: Duplicate' \
@@ -177,7 +189,7 @@ test "$(<"$tmp/out")" = ' first-outcome [#DONE] First outcome' && pass || fail '
 
 copy valid-multi.org describe.org
 expect_ok "$helper" describe "$tmp/describe.org" first-outcome
-test "$(<"$tmp/out")" = $'L1 1/2 First outcome\nGoal: Test order.' && pass || fail 'describe prints stable L1 position and text'
+test "$(<"$tmp/out")" = $'L1 1/2 First outcome\nGoal: Test order.\nSkills: $gestalt:development-testing $make' && pass || fail 'describe prints stable L1 position, text, and skills'
 expect_ok "$helper" describe "$tmp/describe.org" second-task
 test "$(<"$tmp/out")" = $'L2 Second task\nWhy: Needed.' && pass || fail 'describe prints stable L2 text'
 expect_fail "$helper" describe "$tmp/describe.org" missing
@@ -189,7 +201,7 @@ sed \
   -e 's/- Goal :: Test the helper\./- Goal :: Text with  internal spaces./' \
   "$whitespace_plan" >"$tmp/changed" && mv "$tmp/changed" "$whitespace_plan"
 expect_ok "$helper" describe "$whitespace_plan" first-outcome
-test "$(<"$tmp/out")" = $'L1 1/1 First outcome with  internal spaces\nGoal: Text with  internal spaces.' && pass || fail 'describe output is position-aware and whitespace-safe'
+test "$(<"$tmp/out")" = $'L1 1/1 First outcome with  internal spaces\nGoal: Text with  internal spaces.\nSkills: $gestalt:development-testing' && pass || fail 'describe output is position-aware and whitespace-safe'
 
 describe_sentinel="$tmp/describe-output-was-evaluated"
 adversarial_plan="$tmp/"$'plan %=\tline\nnext.org'
@@ -209,6 +221,7 @@ expect_ok "$helper" describe "$adversarial_plan" first-outcome
 {
   printf 'L1 1/1 %s\n' "$adversarial_title"
   printf 'Goal: %s\n' "$adversarial_goal"
+  printf 'Skills: $gestalt:development-testing\n'
 } >"$tmp/expected-describe"
 cmp -s "$tmp/expected-describe" "$tmp/out" && pass || fail 'describe preserves adversarial text as data'
 test ! -e "$describe_sentinel" && pass || fail 'describe output is never evaluated as shell code'
@@ -382,6 +395,9 @@ expect_contains "$tmp/out" '%0A'
 expect_ok "$helper" prepare-executor --agents-dir "$encoded_dir" --profile-name encoded-executor
 test "$(wc -l < "$tmp/out")" = 1 && pass || fail 'legacy encoded success output is exactly one record'
 python3 -c 'import sys, urllib.parse; fields=dict(item.split("=", 1) for item in open(sys.argv[1], encoding="ascii").read().strip().split(" ")); assert urllib.parse.unquote(fields["profile"]) == sys.argv[2] + "/encoded-executor.toml"' "$tmp/out" "$encoded_dir" && pass || fail 'legacy encoded profile path round-trips without eval'
+expect_contains "$encoded_dir/encoded-executor.toml" 'verify every reference in that L1 SKILLS property is available'
+expect_contains "$encoded_dir/encoded-executor.toml" 'load exactly those declared skills, and load no other optional or task skill'
+expect_contains "$encoded_dir/encoded-executor.toml" 'Stop without edits and report the unavailable reference'
 expect_fail "$helper" prepare-executor --model
 expect_contains "$tmp/err" 'usage: org-plan'
 test ! -e "$tmp/.codex/agents/org-plan-executor.toml" && pass || fail 'tests avoid the default agents directory'
@@ -399,6 +415,9 @@ expect_contains "$supervision_dir/org-plan-supervisor.toml" 'Coordinate only the
 expect_contains "$supervision_dir/org-plan-supervisor.toml" 'delegate all implementation and corrective edits only to that executor'
 expect_contains "$supervision_dir/org-plan-supervisor.toml" 'report only to the director.'
 expect_contains "$supervision_dir/org-plan-supervisor.toml" 'Never spawn a reviewer.'
+expect_contains "$supervision_dir/org-plan-supervisor.toml" 'Resolve each L1 with org-plan describe and include its exact Skills list in the fresh executor assignment.'
+expect_contains "$supervision_dir/org-plan-supervisor.toml" 'verify and load every declared skill and no other optional or task skill'
+expect_contains "$supervision_dir/org-plan-supervisor.toml" 'an unavailable reference blocks the L1 without edits.'
 expect_contains "$supervision_dir/org-plan-supervisor.toml" 'send a complete standalone review request upward to the director'
 expect_contains "$supervision_dir/org-plan-supervisor.toml" 'uncommitted L1 diff against its starting commit'
 expect_contains "$supervision_dir/org-plan-supervisor.toml" 'wait for the director explicit ACCEPT or REJECT verdict.'
@@ -417,17 +436,20 @@ expect_contains "$supervision_dir/org-plan-supervisor.toml" 'Keep short fixed-ou
 expect_contains "$supervision_dir/org-plan-supervisor.toml" 'Apply the same rule to director-side verification'
 expect_contains "$supervision_dir/org-plan-supervisor.toml" 'never put raw command output in supervisor or director reports.'
 expect_contains "$supervision_dir/org-plan-supervisor.toml" 'Context-mode is acceptable only when already available; do not install, require, or silently enable any context-management plugin.'
-expect_contains "$supervision_dir/org-plan-supervisor.toml" 'For the first human-facing mention of a milestone, use org-plan describe and report its position, title, and Goal or Why'
+expect_contains "$supervision_dir/org-plan-supervisor.toml" 'For the first human-facing mention of a milestone, use org-plan describe and report its position, title, Goal or Why, and for an L1 its Skills list'
 expect_contains "$supervision_dir/org-plan-supervisor.toml" 'Include the current L1 position and title in progress reports'
 expect_contains "$supervision_dir/org-plan-supervisor.toml" 'never identify it only by ordinal or raw ID.'
 expect_contains "$supervision_dir/org-plan-supervisor.toml" 'For the first human-facing mention of a commit, use a simple read-only Git query and report its conventional subject plus concise purpose before any optional short hash'
 expect_contains "$supervision_dir/org-plan-supervisor.toml" 'later use the subject or milestone title, never a hash alone.'
-expect_contains "$supervision_dir/org-plan-supervisor.toml" 'Machine-readable fresh assignments still carry exact IDs, starting commit hashes, and accepted L1 commit IDs.'
+expect_contains "$supervision_dir/org-plan-supervisor.toml" 'Machine-readable fresh assignments still carry exact IDs, declared skill references, starting commit hashes, and accepted L1 commit IDs.'
 expect_contains "$supervision_dir/org-plan-supervisor.toml" 'Filter executor output into upstream decisions, actionable findings, commit IDs, test commands with pass/fail summaries, dirty-scope results, and blockers'
 expect_contains "$supervision_dir/org-plan-supervisor.toml" 'smallest relevant diagnostic excerpt when needed to understand a failure, never raw logs or complete transcripts.'
 expect_not_contains "$supervision_dir/org-plan-supervisor.toml" 'sandbox_mode ='
 expect_contains "$supervision_dir/org-plan-executor.toml" 'model = "gpt-5.6-terra"'
 expect_contains "$supervision_dir/org-plan-executor.toml" 'You are the depth-two executor and the only code writer.'
+expect_contains "$supervision_dir/org-plan-executor.toml" 'verify every reference in the assigned L1 Skills list is available'
+expect_contains "$supervision_dir/org-plan-executor.toml" 'load exactly those declared skills, and load no other optional or task skill'
+expect_contains "$supervision_dir/org-plan-executor.toml" 'Stop without edits and report the unavailable reference'
 expect_contains "$supervision_dir/org-plan-executor.toml" 'Keep all implementation and review-correction changes uncommitted until the director explicitly ACCEPTS the L1.'
 expect_contains "$supervision_dir/org-plan-executor.toml" 'After ACCEPT, create exactly one conventional commit for the accepted L1 when files changed.'
 expect_contains "$supervision_dir/org-plan-executor.toml" 'Never create pre-review, fixup, or autosquash commits.'
@@ -488,6 +510,17 @@ test ! -e "$failure_dir/org-plan-executor.toml" && pass || fail 'failed preparat
 test -z "$(find "$failure_dir" -type f -name '.*.??????' -print -quit)" && pass || fail 'failed preparation cleans staged files'
 test ! -s "$tmp/out" && pass || fail 'failed preparation prints no success result'
 expect_contains "$skill" 'This section governs plan authoring only. Planner is a phase name, not a role in'
+expect_contains "$skill" 'Every L1 property drawer has exactly one `:SKILLS:` and one `:REVIEW_STATUS:`.'
+expect_contains "$skill" 'Write `:SKILLS:` as a non-empty, whitespace-separated list of exact `$skill`'
+expect_contains "$skill" 'L2 property drawers contain neither `:SKILLS:` nor `:REVIEW_STATUS:`.'
+expect_contains "$skill" 'complete skill catalog available in the planning session.'
+expect_contains "$skill" 'compare'
+expect_contains "$skill" 'its scope with every known skill and select the smallest sufficient set needed'
+expect_contains "$skill" 'Record exact catalog references in `:SKILLS:`'
+expect_contains "$skill" 'The executor'
+expect_contains "$skill" 'loads exactly the declared L1 skills and no other optional or task skill.'
+expect_contains "$skill" 'for an L1 it also returns the exact'
+expect_contains "$skill" '`Skills` list'
 expect_contains "$skill" 'This section governs manual execution only. It is distinct from the supervised'
 expect_contains "$skill" 'Supervised execution uses exactly three canonical roles:'
 expect_contains "$skill" 'The **director/reviewer** is the depth-zero agent in the user'
@@ -526,6 +559,11 @@ expect_contains "$skill" 'Before each new L1, the supervisor verifies the preced
 expect_contains "$skill" 'terminates any previous executor, confirms it is closed, then spawns a fresh'
 expect_contains "$skill" 'for exactly that L1. Never carry an'
 expect_contains "$skill" 'executor into another L1 or start the next L1 while the prior executor lives.'
+expect_contains "$skill" 'The fresh assignment includes the L1'
+expect_contains "$skill" 'Before any'
+expect_contains "$skill" 'repository inspection or implementation, the executor verifies every'
+expect_contains "$skill" 'loads every listed skill, and loads no undeclared'
+expect_contains "$skill" 'An unavailable reference blocks the L1 without edits.'
 expect_contains "$skill" 'The L1 executor remains available through that L1'
 expect_contains "$skill" 'REJECT returns bounded corrections to the same executor'
 expect_contains "$skill" 'implementation commit before the director'
@@ -595,8 +633,9 @@ expect_contains "$skill" 'root status'
 expect_contains "$skill" '`[agents] max_depth = 2` nesting'
 expect_contains "$skill" 'Each executor assignment states the active L1 and complete L2 block'
 expect_contains "$skill" 'accepted prior-L1 outputs, exact allowed change scope, required tests'
-expect_contains "$skill" 'the exactly-one-post-ACCEPT L1 commit rule, the prohibition on pre-review,'
-expect_contains "$skill" 'fixup, and autosquash commits, preserved paths, the single-L1 lifetime'
+expect_contains "$skill" 'the exact `:SKILLS:` list and load-only-that-list gate'
+expect_contains "$skill" 'exactly-one-post-ACCEPT L1 commit rule, the prohibition on pre-review, fixup,'
+expect_contains "$skill" 'and autosquash commits, preserved paths, the single-L1 lifetime, and the stop'
 expect_contains "$skill" 'Each upward review request states the plan path, target branch, the selected L1'
 expect_contains "$skill" 'ID, position, title, and UNREVIEWED status'
 expect_contains "$skill" 'read-only uncommitted diff'
@@ -617,6 +656,9 @@ expect_contains "$skill" 'the supervisor reruns the applicable L2 or L1 gate'
 expect_contains "$skill" 'new director verdict while the milestone remains UNREVIEWED.'
 expect_contains "$skill" 'the supervisor explicitly resets it to'
 expect_contains "$skill" 'all L1s are REVIEWED'
+expect_contains "$skill" 'verify every reference is available, then load exactly those skills and no other'
+expect_contains "$skill" 'optional or task skill before studying the L1 or repository.'
+expect_contains "$skill" 'Stop only for an unavailable declared skill or material ambiguity.'
 expect_contains "$skill" 'it becomes REVIEWED only after reviewer acceptance.'
 sed -n '/^# Supervised execution$/,/^# Executor$/p' "$skill" >"$tmp/supervised-skill"
 expect_not_contains "$tmp/supervised-skill" 'planner'
@@ -635,19 +677,26 @@ expect_contains "$readme" 'Evidence flows upward as concise summaries; raw test 
 expect_contains "$readme" 'director/reviewer audits only requested DONE + UNREVIEWED milestones.'
 expect_contains "$readme" 'so later refinements review only new or'
 expect_contains "$readme" 'Final acceptance still requires a current full-suite'
+expect_contains "$readme" 'Each L1 also declares a non-empty `:SKILLS:` property'
+expect_contains "$readme" 'fresh executor loads exactly that list before inspecting or implementing the L1'
 expect_contains "$agents" '## Org Plan supervised workflow invariants'
 expect_contains "$agents" 'The director/reviewer is depth zero in the user'
 expect_contains "$agents" 'recommended read-only `org-plan-reviewer` launch profile defaults to Sol'
 expect_contains "$agents" 'an already-running root keeps its CLI-selected model.'
 expect_contains "$agents" 'The supervisor never spawns a reviewer; it requests each review upward from'
-expect_contains "$agents" 'Every L1 must have exactly one `:REVIEW_STATUS:` property, initially'
-expect_contains "$agents" '`UNREVIEWED`; L2s must not have one.'
+expect_contains "$agents" 'Every L1 must have exactly one non-empty `:SKILLS:` property and exactly one'
+expect_contains "$agents" '`UNREVIEWED`; L2s must have neither.'
+expect_contains "$agents" '`:SKILLS:` is a whitespace-separated list of exact `$skill` references chosen'
+expect_contains "$agents" 'by comparing the L1 with the complete available skill catalog.'
+expect_contains "$agents" 'executor loads exactly that declared list before repository inspection or'
+expect_contains "$agents" 'implementation and stops without edits if a reference is unavailable.'
 expect_contains "$agents" '`REVIEWED` is valid only after reviewer'
-expect_contains "$agents" 'Reopening a reviewed L1 as WIP resets it to'
-expect_contains "$agents" 'reset a completed reviewed L1 explicitly before any material'
+expect_contains "$agents" 'Reopening a'
+expect_contains "$agents" 'reviewed L1 as WIP resets it to `UNREVIEWED`; reset a completed reviewed L1'
+expect_contains "$agents" 'explicitly before any material correction'
 expect_contains "$agents" '`org-plan next PLAN review` to select the first DONE + UNREVIEWED L1'
 expect_contains "$agents" '`org-plan review PLAN ID REVIEWED|UNREVIEWED` for durable transitions'
-expect_contains "$agents" '`org-plan describe PLAN ID` for stable title plus Goal/Why text.'
+expect_contains "$agents" '`org-plan describe PLAN ID` for stable title plus Goal/Why text and L1 Skills.'
 expect_contains "$agents" 'skips already REVIEWED milestones'
 expect_contains "$agents" 'Keep one writer active.'
 expect_contains "$agents" 'delegates implementation and corrective'

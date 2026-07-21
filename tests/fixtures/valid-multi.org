@@ -6,6 +6,7 @@
 * WIP [#A] First outcome
 :PROPERTIES:
 :ID: first-outcome
+:SKILLS: $gestalt:development-testing $make
 :REVIEW_STATUS: UNREVIEWED
 :END:
 - Effort :: Small
@@ -33,6 +34,7 @@
 * TODO [#B] Second outcome
 :PROPERTIES:
 :ID: second-outcome
+:SKILLS: $gestalt:development-testing
 :REVIEW_STATUS: UNREVIEWED
 :END:
 - Effort :: Small

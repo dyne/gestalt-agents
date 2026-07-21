@@ -98,6 +98,11 @@ L1s remain reviewed as the plan grows, so later refinements review only new or
 materially changed L1s. Final acceptance still requires a current full-suite
 pass and clean intended scope.
 
+Each L1 also declares a non-empty `:SKILLS:` property containing exact `$skill`
+references selected from the planner's complete available-skill catalog. A
+fresh executor loads exactly that list before inspecting or implementing the L1
+and stops without edits when a declared skill is unavailable.
+
 ## 💼 License
 
 Copyright (C) 2025-2026 Dyne.org foundation

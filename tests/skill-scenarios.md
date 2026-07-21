@@ -49,6 +49,7 @@ description-list form; helper validation rejected it. The skill now states the
 required `- Field :: value` syntax. A second fresh run created a valid two-L1,
 three-L2 root plan, created its matching branch, ran the documented failing
 baseline test, and passed `validate`, `summary`, `next l1`, `next l2`, and `l2`.
+Each L1 declared the exact task skills selected from the available catalog.
 
 ## Disposable manual execution acceptance — passed
 
