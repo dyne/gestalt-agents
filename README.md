@@ -69,9 +69,9 @@ for test in tests/test-*.sh; do
 done
 ```
 
-The suite validates the Org Plan helper, installer, unified plugin layout,
-vendored Superpowers integrity, `npx skills` discovery, shell syntax, release
-versioning, and release-workflow contracts.
+The suite validates the Org Plan helper, unified plugin layout, vendored
+Superpowers integrity, `npx skills` discovery, shell syntax, release versioning,
+and release-workflow contracts.
 
 ## Org Plan supervised execution
 
