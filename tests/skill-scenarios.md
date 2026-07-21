@@ -20,11 +20,12 @@ deadline.
 
 Observed: The control agreed to skip both verification and a commit.
 
-Violation: It abandoned the required touched-test and per-changing-task commit
-cadence under pressure.
+Violation: It abandoned required verification and the reviewed-L1 commit
+boundary under pressure.
 
 Skill result: PASS — a fresh explicit `$org-plan` run required touched tests,
-one conventional commit for the changing L2, and ordered completion.
+kept the changing L1 uncommitted through review, and required one conventional
+L1 commit only after explicit reviewer acceptance.
 
 ## Recovering a partially WIP plan — baseline incomplete
 
@@ -52,7 +53,9 @@ baseline test, and passed `validate`, `summary`, `next l1`, `next l2`, and `l2`.
 ## Disposable manual execution acceptance — passed
 
 A fresh explicit `$org-plan` run repaired a seeded failing Bash test, documented
-the behavior in a second changing L2, used helper-driven transitions, made two
-conventional commits, passed touched tests and the L1 full-suite boundary, and
-left the Org plan uncommitted. Independent inspection confirmed both commits,
-all DONE states, a passing root-level test command, and only the plan untracked.
+the behavior in a second changing L2, used helper-driven transitions, kept both
+L2 changes uncommitted through review, made one conventional L1 commit after
+explicit acceptance, passed touched tests and the L1 full-suite boundary, and
+left the Org plan uncommitted. Independent inspection confirmed the commit, all
+DONE and REVIEWED states, a passing root-level test command, and only the plan
+untracked.

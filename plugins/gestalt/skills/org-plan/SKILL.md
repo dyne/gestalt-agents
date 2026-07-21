@@ -110,10 +110,13 @@ The deterministic supervised sequence is:
 4. The L1 executor remains available through that L1's review. After the
    implementation gates pass, the supervisor asks the director to review. A
    REJECT returns bounded corrections to the same executor, followed by a new
-   standalone review request to the director.
-5. After ACCEPT, the supervisor marks the L1 REVIEWED, terminates its executor,
-   and confirms closure before selecting the next L1. It keeps only one
-   write-capable child active throughout.
+   standalone review request to the director. The executor makes no
+   implementation commit before the director's explicit ACCEPT verdict.
+5. After ACCEPT, the executor creates exactly one conventional commit for the
+   accepted L1 when files changed. The supervisor verifies that commit, marks
+   the L1 REVIEWED, terminates its executor, and confirms closure before
+   selecting the next L1. It keeps only one write-capable child active
+   throughout.
 
 Only two subagents exist below the active root at once: the supervisor and its
 single executor. Every assignment and upward review request must stand alone
@@ -176,21 +179,22 @@ summarized under this boundary.
 
 The supervisor enforces these acceptance gates:
 
-- After each L2, the supervisor confirms exactly one conventional implementation
-  commit when files changed, confirms there are no unintended dirty paths,
+- After each L2, the supervisor confirms there are no unintended dirty paths,
   inspects the L2 diff, and requires current touched-test evidence before marking
-  it DONE.
+  it DONE. L2 changes remain uncommitted through the L1 review.
 - After implementation gates, the supervisor repeatedly uses `next PLAN review`
   to select only DONE + UNREVIEWED L1s. Each fresh upward review request covers
-  only the selected L1 and its commit range, Goal, Tests, Done-when criteria,
-  shared-code regression impact, and named evidence. The director may inspect
-  targeted shared context when necessary, but accepted criteria from REVIEWED
-  L1s are not reopened.
+  only the selected L1 and its uncommitted diff against the L1 starting commit,
+  Goal, Tests, Done-when criteria, shared-code regression impact, and named
+  evidence. The director may inspect targeted shared context when necessary,
+  but accepted criteria from REVIEWED L1s are not reopened.
 - The director skips any REVIEWED L1 accidentally included in a request, reports
-  the skip, and does not re-audit it. On ACCEPT, the supervisor marks only the
-  accepted L1 REVIEWED and closes that L1's executor. On REJECT, it remains
-  UNREVIEWED and the supervisor returns corrections to the same L1 executor
-  before requesting a new verdict from the director. A materially changed
+  the skip, and does not re-audit it. On ACCEPT, the executor creates exactly one
+  conventional commit for the accepted L1 when files changed; only then does the
+  supervisor mark that L1 REVIEWED and close its executor. On REJECT, it remains
+  UNREVIEWED and uncommitted while the supervisor returns corrections to the
+  same L1 executor before requesting a new verdict from the director. Never use
+  fixup or autosquash commits for review corrections. A materially changed
   REVIEWED L1 must first be reset to UNREVIEWED.
 - When `next PLAN review` finds nothing, the supervisor skips a review request and
   records that review is already current. Final acceptance requires the
@@ -218,11 +222,13 @@ requirement, and the stop condition for material ambiguity.
 Each executor assignment states the active L1 and complete L2 block, plan path,
 target branch, its prepared profile and model names, relevant repository starting
 state and accepted prior-L1 outputs, exact allowed change scope, required tests,
-the exactly-one-commit rule, preserved paths, the single-L1 lifetime, and the
+the exactly-one-post-ACCEPT L1 commit rule, the prohibition on pre-review,
+fixup, and autosquash commits, preserved paths, the single-L1 lifetime, and the
 stop condition for material ambiguity.
 
 Each upward review request states the plan path, target branch, the selected L1
-ID, position, title, and UNREVIEWED status, its read-only commit range or diff,
+ID, position, title, and UNREVIEWED status, its read-only uncommitted diff
+against the L1 starting commit,
 relevant Goal, Tests, and Done-when acceptance criteria, shared-code regression
 impact, evidence locations, any applicable named UI screenshot/component/
 viewport/font-scale matrix, prohibited actions, preserved paths, the
@@ -269,20 +275,25 @@ Loop per L2, in order:
 1. Take next WIP L2, else first TODO L2 → set WIP.
 2. Implement this WIP L2 in the context of its L1.
 3. Add and update tests. Run touched tests only. Fix.
-4. Git commit changes; no commits if no file changed; use conventional commit messages.
-5. Finish this WIP L2 → set DONE.
-6. If WIP L1 has all DONE L2 → run all tests, fix any errors.
-7. Finish this WIP L1 → set DONE.
-8. Take the next DONE + UNREVIEWED L1 review, ask a reviewer to audit only that
-   milestone, then record REVIEWED only after an explicit ACCEPT verdict. If no
-   review is pending, skip the reviewer and record that review is current.
+4. Keep the L2 changes uncommitted and finish this WIP L2 → set DONE.
+5. If WIP L1 has all DONE L2 → run all tests, fix any errors.
+6. Finish this WIP L1 → set DONE.
+7. Take the next DONE + UNREVIEWED L1 review and ask a reviewer to audit only
+   that milestone's uncommitted diff against its starting commit. If REJECTED,
+   correct the same uncommitted diff and request review again.
+8. Only after an explicit ACCEPT verdict, create exactly one conventional commit
+   for the accepted L1 when files changed, then record REVIEWED. If no review is
+   pending, skip the reviewer and record that review is current.
 
 Repeat loops until all L1 and L2 in plan are DONE and all L1s are REVIEWED.
 
 Remember:
 The test execution is part of the editing workflow.
 Add, update and run tests only when work on L1|L2 lead to code changes, else skip test operations.
-If an L2 changes any file, you must create one conventional commit before marking that L2 done.
+Do not create implementation commits while an L1 is under implementation or
+review. After its review passes, create exactly one conventional commit for the
+accepted L1 if it changed files. Never use fixup or autosquash commits for
+review corrections.
 An L1 becomes DONE only after all child L2s are DONE and the full suite passes;
 it becomes REVIEWED only after reviewer acceptance.
 Do not commit Org plan files.
