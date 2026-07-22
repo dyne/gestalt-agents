@@ -70,7 +70,7 @@ assert publish["if"] == release_guard
 assert 'scripts/set-plugin-version.py "$VERSION"' in synchronize["run"]
 assert 'json.loads(manifest.read_text())["version"] == version' in synchronize["run"]
 assert "git config user.name github-actions[bot]" in commit["run"]
-assert "git diff --quiet -- plugins/*/.codex-plugin/plugin.json" in commit["run"]
+assert "git diff --quiet -- plugins/gestalt/.codex-plugin/plugin.json" in commit["run"]
 assert 'git commit -m "chore(release): $TAG [skip ci]"' in commit["run"]
 assert 'git tag "$TAG" HEAD' in publish["run"]
 assert 'git push --atomic origin HEAD:main "refs/tags/$TAG"' in publish["run"]

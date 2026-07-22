@@ -4,8 +4,8 @@ set -euo pipefail
 root=$(CDPATH= cd -- "$(dirname -- "$0")/../../.." && pwd)
 tmp=$(mktemp -d "${TMPDIR:-/tmp}/agent-plugins-skills-test.XXXXXX")
 trap 'rm -rf "$tmp"' EXIT HUP INT TERM
-mkdir -p "$tmp/repository"
-cp -a "$root/plugins" "$tmp/repository/plugins"
+mkdir -p "$tmp/repository/plugins"
+cp -a "$root/plugins/gestalt" "$tmp/repository/plugins/gestalt"
 
 output=$(NO_COLOR=1 npx --yes skills@1.5.18 add "$tmp/repository" --list 2>&1)
 

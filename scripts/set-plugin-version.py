@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Set one strict semantic version in every plugin manifest."""
+"""Set a strict semantic version in Dyne-owned plugin manifests only."""
 
 from __future__ import annotations
 
@@ -31,16 +31,16 @@ def parse_args() -> argparse.Namespace:
 
 
 def prepare_updates(root: Path, version: str) -> list[tuple[Path, str, int]]:
-    """Validate all manifests and serialize their updated contents in memory."""
+    """Validate owned manifests and serialize their updated contents in memory."""
 
     if not STRICT_SEMVER.fullmatch(version):
         raise ValueError(f"invalid strict semantic version: {version}")
 
-    pattern = root / "plugins"
-    manifests = sorted(pattern.glob("*/.codex-plugin/plugin.json"))
+    owned = root / "plugins" / "gestalt" / ".codex-plugin" / "plugin.json"
+    manifests = [owned] if owned.exists() else sorted((root / "plugins").glob("*/.codex-plugin/plugin.json"))
     manifests = [path for path in manifests if path.is_file() and not path.is_symlink()]
     if not manifests:
-        raise ValueError(f"no plugin manifests found below {pattern}")
+        raise ValueError("no Dyne-owned plugin manifests found")
 
     updates = []
     for path in manifests:
