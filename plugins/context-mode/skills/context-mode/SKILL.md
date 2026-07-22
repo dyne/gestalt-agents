@@ -39,6 +39,30 @@ Bash whitelist (safe to run directly):
 
 **When uncertain, use context-mode.** Every KB of unnecessary context reduces the quality and speed of the entire session.
 
+## Org Plan and agent execution
+
+Context-mode is an evidence transport for agents, not an orchestration system.
+It never spawns an agent, changes plan state, grants write ownership, or replaces
+the skills declared by an Org Plan milestone.
+
+- **Solo plans:** the active agent uses context-mode for large or uncertain
+  reads, commands, tests, and API responses. Native tools remain responsible for
+  edits and guaranteed-small control operations.
+- **Supervised plans:** the executor performs data-heavy inspection and test
+  analysis with context-mode, then reports concise findings, exit status, and
+  exact evidence to its supervisor. The supervisor and director must not relay
+  raw logs or full transcripts upward.
+- **Skill activation:** every agent still loads exactly the skills assigned to
+  its role or L1. Automatic PreToolUse routing makes the MCP available when
+  output needs protection; it does not silently add context-mode to an L1's
+  `:SKILLS:` property.
+- **Session boundaries:** treat each Codex agent session as an independent
+  working context. Share durable conclusions through the Org Plan and concise
+  reports rather than assuming another agent can see transient tool output.
+
+These rules preserve the Org Plan director/supervisor/executor ownership model
+while keeping large evidence out of every role's conversational context.
+
 ## Decision Tree
 
 ```

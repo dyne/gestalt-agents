@@ -72,6 +72,29 @@ for entry in marketplace["plugins"]:
 
 frontmatter = (plugin / "skills" / "org-plan" / "SKILL.md").read_text().split("---", 2)[1]
 assert "name: org-plan" in frontmatter
+
+readme = (root / "README.md").read_text()
+for contract in (
+    "Node.js 22.5",
+    "first MCP start",
+    "bootstraps locked native",
+    "codex plugin list --marketplace dyne-gestalt-agents --json",
+    "ctx doctor",
+    "do not add a duplicate",
+    "Context-mode transports evidence; it does not spawn agents",
+):
+    assert contract in readme, f"README lacks context-mode contract: {contract}"
+
+context_skill = (root / "plugins" / "context-mode" / "skills" / "context-mode" / "SKILL.md").read_text()
+for contract in (
+    "## Org Plan and agent execution",
+    "Context-mode is an evidence transport for agents, not an orchestration system.",
+    "Solo plans:",
+    "Supervised plans:",
+    "Session boundaries:",
+    "does not silently add context-mode to an L1's",
+):
+    assert contract in context_skill, f"context-mode skill lacks Org Plan contract: {contract}"
 PY
 
 printf 'plugin layout is valid\n'

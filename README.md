@@ -55,12 +55,39 @@ recorded in [`vendor/context-mode/UPSTREAM.md`](vendor/context-mode/UPSTREAM.md)
 and its bundled license is [`plugins/context-mode/LICENSE`](plugins/context-mode/LICENSE).
 Do not install it alongside the official `context-mode@context-mode` source.
 
+Context-mode requires either Bun or Node.js 22.5 or newer. On Linux, Bun is
+preferred for the SQLite runtime. The first MCP start bootstraps locked native
+dependencies when they are not already present, so allow 5–30 seconds plus
+network access and a native build toolchain (`python3`, `make`, and a C/C++
+compiler). Later starts use the cached dependencies.
+
 Context-mode needs these Codex settings:
 ```
 [features]
 plugin_hooks = true
 hooks = true
 ```
+
+Restart Codex after installation or configuration changes. The plugin manifest
+registers the MCP server and hooks, so do not add a duplicate
+`[mcp_servers.context-mode]` entry. Verify the effective installation with:
+
+```
+codex plugin list --marketplace dyne-gestalt-agents --json
+```
+
+Then start a fresh Codex session and ask it to run `ctx doctor`. If startup
+fails, first check the runtime prerequisite, first-start network/build access,
+the two feature flags above, and whether another context-mode marketplace
+variant is enabled.
+
+For a solo Org Plan, the active Codex agent uses context-mode for uncertain or
+large inspection and test output while normal editing tools retain ownership of
+file changes. In supervised execution, every Codex role receives the installed
+MCP and hooks: the executor derives concise evidence with context-mode, the
+supervisor forwards only conclusions and gate results, and the director reviews
+those summaries. Context-mode transports evidence; it does not spawn agents,
+change Org Plan ownership, or replace each L1's declared `:SKILLS:` contract.
 
 Refresh the vendor only through `scripts/vendor-context-mode <upstream-checkout> <pinned-commit>`, then regenerate and run the checksum guard. Gestalt releases update only the Gestalt manifest; context-mode keeps its upstream version.
 
