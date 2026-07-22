@@ -73,6 +73,7 @@ function runHook(hookFile: string, input: Record<string, unknown>, env?: Record<
       // Isolate DB writes to fake HOME
       HOME: fakeHomeDir,
       USERPROFILE: fakeHomeDir,
+      CODEX_HOME: join(fakeHomeDir, ".codex"),
       ...env,
     },
   });

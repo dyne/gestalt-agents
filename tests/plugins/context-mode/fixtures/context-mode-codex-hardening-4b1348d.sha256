@@ -204,7 +204,7 @@
 0644 9467bbf33e71712dc2317350683c7f86170f586cfee92daae6397ba49b30aff8  scripts/version-sync.mjs
 0755 7f957bf9aceeeccd98e8c241261a34e067f8ef30c02ddf0bfc75c82b2ca307c0  server.bundle.mjs
 0644 fc6585c8eba51266838a436c6b9f85bb781d2d03674861a240984345e2b17c72  skills/.ignore
-0644 b4a06fd6eaf86d0fa1e2f45fb85e4a3205e8e3c7eaaf454c55659b19a64d2df3  skills/context-mode/SKILL.md
+0644 3169e0a080b5531a51bb856fd342c5571eb89c6495350aa3afd36edec680a41a  skills/context-mode/SKILL.md
 0644 fd6112a5d73375ff2bb3029479766b9927cab48db982fa2a3019682c1c8a3a7d  skills/context-mode/references/anti-patterns.md
 0644 e0e6e6d17d2df8d93cff0922fb42b21382328d3d14a9bc32f62f0b3f127fc723  skills/context-mode/references/patterns-javascript.md
 0644 8d76144c9e812a54c884b815f526fea85179839fcc70b205bfde1e757ae95fec  skills/context-mode/references/patterns-python.md
@@ -479,7 +479,7 @@
 0644 da03c9afdd7a55fd9dc747f3a1c6e51d5111d3bc68e99e825de56a45b831ceef  tests/plugins/openclaw.test.ts
 0644 d78c71f794eaab3f57b3ec49691966bcc890cb9384398df4a15923b7b7c9011e  tests/runtime.test.ts
 0644 3ca4f97139713a2a4370f22b6fd661785b46e7e219e496bd61021dafe0ba95b8  tests/scripts/assert-bundle.test.ts
-0644 0833485e8246f2426988d351b09dc426087ebb2276bab6cee6310ae6b17607b6  tests/scripts/asymmetric-drift-assert.test.ts
+0644 25fee51dc7d6c44d5bb0a45120f59914f8510b47da52f66c90f27524fa62fa36  tests/scripts/asymmetric-drift-assert.test.ts
 0644 daf9a367d7f3d49986b7364c219c9f3df060141d1167a003cec87c642ec46133  tests/scripts/start-mjs-mcp-boot.test.ts
 0644 4e672787dea4a44dfb9b22b2eac4a3047c46997b22476220e3cfb38b141f9269  tests/scripts/start-mjs-reexec-teardown-862.test.ts
 0644 1a234cea95768e5e777bb79f258963d3541e4608011a8c08392e1b65285e9193  tests/scripts/start-mjs-win-install-861.test.ts
@@ -487,7 +487,7 @@
 0644 a83f5a5441b651be6984c1619801f45b9bab27f98720bd8654146a48156baeaf  tests/security.test.ts
 0644 10f042cce9c1fa77af9d06a384eb141c703596bbc945c6e0fe472ab843f9fd0d  tests/security/project-boundary-852.test.ts
 0644 97d9cce6191d262c62ae98ccab423cab9dea8af47a88e422990c091c2e1530d6  tests/server-stdin-eof-exit.test.ts
-0644 e1eae16968ccad3adcb777c3b3ba114b86b546d026ed45fb9aec5ec81a28e492  tests/session-hooks-smoke.test.ts
+0644 072dd15b1b66abb04c15190db17613adda0c176a0ed41b766a358f6633fa3351  tests/session-hooks-smoke.test.ts
 0644 e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  tests/session/.gitkeep
 0644 a419aa5afdf1a187fdc2d267402aebc3af7a9e849d4830bedc4dc102424b9272  tests/session/classifier.test.ts
 0644 46229e05834b212f7250f4dc5c00b1aba85d888282927eab97a45034d02c29ff  tests/session/cleanup-preserves-live-uuid-events.test.ts
