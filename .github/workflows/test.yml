@@ -11,14 +11,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: bash tests/test-org-plan.sh
-      - run: bash tests/test-plugin-layout.sh
-      - run: bash tests/test-superpowers-vendor.sh
-      - run: bash tests/test-skills-discovery.sh
-      - run: bash tests/test-shellcheck-org-plan.sh
-      - run: bash tests/test-set-plugin-version.sh
-      - run: bash tests/test-release-workflow.sh
-      - run: bash -n tests/*.sh install.sh plugins/gestalt/skills/org-plan/scripts/org-plan
+      - uses: oven-sh/setup-bun@v2
+      - run: bash tests/run.sh
+      - run: find tests -type f -name '*.sh' -exec bash -n {} +
+      - run: bash -n plugins/gestalt/skills/org-plan/scripts/org-plan
       - run: python3 -m json.tool plugins/gestalt/.codex-plugin/plugin.json >/dev/null
       - run: ruby -e 'require "yaml"; Dir["plugins/*/skills/*/agents/openai.yaml"].each { |path| YAML.load_file(path) }'
       - run: git diff --check

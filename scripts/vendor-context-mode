@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+readonly pinned_commit=4b1348d4bba530d26cfc73181a0c2f263923e334
+readonly script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+readonly root=$(CDPATH= cd -- "$script_dir/.." && pwd)
+readonly destination="$root/plugins/context-mode"
+
+if test "$#" -ne 2; then
+  printf 'usage: %s <local-upstream-checkout> <full-pinned-commit>\n' "$0" >&2
+  exit 64
+fi
+
+upstream=$1
+requested_commit=$2
+test -d "$upstream/.git" || { printf 'upstream must be a Git checkout\n' >&2; exit 65; }
+test "$requested_commit" = "$pinned_commit" || { printf 'commit must equal the recorded full pin\n' >&2; exit 65; }
+resolved=$(git -C "$upstream" rev-parse --verify "$requested_commit^{commit}")
+test "$resolved" = "$pinned_commit" || { printf 'pinned commit is unavailable or mismatched\n' >&2; exit 65; }
+
+if ! git -C "$upstream" ls-tree -r "$resolved" | awk '$1 == "120000" || $1 == "160000" { exit 1 }'; then
+  printf 'upstream object contains a symlink or submodule\n' >&2
+  exit 65
+fi
+
+tmp=$(mktemp -d "$root/plugins/.context-mode-import.XXXXXX")
+trap 'rm -rf "$tmp"' EXIT HUP INT TERM
+git -C "$upstream" archive --format=tar "$resolved" | tar -xf - -C "$tmp"
+python3 - "$tmp/.codex-plugin/plugin.json" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+manifest = Path(sys.argv[1])
+if not manifest.is_file() or json.loads(manifest.read_text()).get("name") != "context-mode":
+    raise SystemExit("archive does not contain the context-mode plugin manifest")
+PY
+
+if test -e "$destination"; then
+  backup=$(mktemp -d "$root/plugins/.context-mode-backup.XXXXXX")
+  rmdir "$backup"
+  mv "$destination" "$backup"
+  if ! mv "$tmp" "$destination"; then
+    mv "$backup" "$destination"
+    exit 1
+  fi
+  rm -rf "$backup"
+else
+  mv "$tmp" "$destination"
+fi
+trap - EXIT HUP INT TERM
+printf 'installed context-mode from %s\n' "$resolved"
