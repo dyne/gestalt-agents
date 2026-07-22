@@ -7,12 +7,25 @@ trap 'rm -rf "$tmp"' EXIT HUP INT TERM
 plugin="$tmp/cache/dyne-gestalt-agents/context-mode/1.0.169"
 mkdir -p "$(dirname -- "$plugin")" "$tmp/codex-home"
 mkdir -p "$plugin"
-tar -C "$root/plugins/context-mode" --exclude=node_modules -cf - . | tar -C "$plugin" -xf -
+tar -C "$root/plugins/context-mode" \
+  --exclude=node_modules \
+  --exclude=build \
+  --exclude='*.bundle.mjs' \
+  -cf - . | tar -C "$plugin" -xf -
 
-if ! test -d "$plugin/node_modules"; then
-  command -v bun >/dev/null
-  (cd "$plugin" && bun install --frozen-lockfile >/dev/null)
-fi
+command -v bun >/dev/null
+test ! -e "$plugin/node_modules"
+test ! -e "$plugin/server.bundle.mjs"
+(cd "$plugin" && node -e 'import("./scripts/ensure-source-build.mjs")') &
+builder_one=$!
+(cd "$plugin" && node -e 'import("./scripts/ensure-source-build.mjs")') &
+builder_two=$!
+wait "$builder_one"
+wait "$builder_two"
+test -f "$plugin/server.bundle.mjs"
+test -f "$plugin/hooks/security.bundle.mjs"
+test -f "$plugin/hooks/session-attribution.bundle.mjs"
+test ! -e "$plugin/.context-mode-source-build.lock"
 
 output=$(timeout 20s bash -c 'cd "$2"
   printf "%s\n%s\n" \
