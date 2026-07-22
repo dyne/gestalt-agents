@@ -1,0 +1,42 @@
+node_modules/
+build/
+packages/*/dist/
+*.tsbuildinfo
+.DS_Store
+/tmp/
+tmp.*/
+*.db
+server.bundle.mjs
+cli.bundle.mjs
+package-lock.json
+hooks/session-extract.bundle.mjs
+hooks/session-snapshot.bundle.mjs
+hooks/session-db.bundle.mjs
+hooks/security.bundle.mjs
+gh-cli-cache/
+tasks/
+.playwright-mcp/
+AGENTS.md
+context-mode-guidance-*/
+.claude/worktrees/
+
+# `.mcp.json` is the canonical Codex plugin companion manifest. It is tracked
+# and shipped with a relative `./start.mjs` path because Codex does not expand
+# plugin-root placeholders. The Claude contributor template remains
+# `.mcp.json.example` and deliberately uses `${CLAUDE_PLUGIN_ROOT}` instead.
+.mcp.json
+!.mcp.json
+# Exception: the GitHub Copilot CLI plugin bundle ships its OWN .mcp.json (a
+# Copilot plugin discovers MCP from a `.mcp.json` in its root — real marketplace
+# plugins do the same). It is the plugin's config, NOT the repo-root dev file the
+# rule above guards, so un-ignore exactly this one path. It pins
+# CONTEXT_MODE_PLATFORM=copilot-cli so the server self-identifies as Copilot.
+!configs/copilot-cli/.mcp.json
+.claude-worktrees/
+.vibetree/
+.cw/
+# Dev-only pricing source: the full litellm catalog (~1.5MB) is the manual
+# refresh base for src/session/model-prices.json — never bundled into the plugin.
+tools/pricing/litellm-catalog.json
+/.cocoindex_code/
+/.kilo/

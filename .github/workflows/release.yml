@@ -95,10 +95,8 @@ jobs:
           from pathlib import Path
 
           version = sys.argv[1]
-          manifests = sorted(Path("plugins").glob("*/.codex-plugin/plugin.json"))
-          assert manifests
-          for manifest in manifests:
-              assert json.loads(manifest.read_text())["version"] == version, manifest
+          manifest = Path("plugins/gestalt/.codex-plugin/plugin.json")
+          assert json.loads(manifest.read_text())["version"] == version, manifest
           PY
 
       - name: Commit synchronized plugin versions
@@ -109,7 +107,7 @@ jobs:
           set -euo pipefail
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          if git diff --quiet -- plugins/*/.codex-plugin/plugin.json; then
+          if git diff --quiet -- plugins/gestalt/.codex-plugin/plugin.json; then
             echo "Plugin manifests already match $TAG"
           else
             git add plugins/*/.codex-plugin/plugin.json
