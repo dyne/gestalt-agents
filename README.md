@@ -35,6 +35,8 @@ Add our plugin marketplace `dyne-gestalt-agents`:
 ```
 codex plugin marketplace add dyne/gestalt-agents
 codex plugin add gestalt@dyne-gestalt-agents
+# Optional: install the independently vendored context-mode plugin.
+codex plugin add context-mode@dyne-gestalt-agents
 ```
 
 Make sure to add the following configuration directive to `~/.codex/config.toml`:
@@ -45,19 +47,22 @@ max_depth = 2
 
 The name shown under `/plugins` is **Dyne.org Gestalt**.
 
-#### Recommended plugins by third parties:
+#### Context-mode provenance and updates
 
-Install context-mode to save tokens and optimize multi-agent comms:
-```
-codex plugin marketplace add mksglu/context-mode
-codex plugin add context-mode@context-mode
-```
-And add this config directive needed by context-mode:
+`context-mode@dyne-gestalt-agents` is optional and remains Elastic-2.0; it is
+not relicensed under Gestalt. Its pinned upstream provenance and fork note are
+recorded in [`vendor/context-mode/UPSTREAM.md`](vendor/context-mode/UPSTREAM.md),
+and its bundled license is [`plugins/context-mode/LICENSE`](plugins/context-mode/LICENSE).
+Do not install it alongside the official `context-mode@context-mode` source.
+
+Context-mode needs these Codex settings:
 ```
 [features]
 plugin_hooks = true
 hooks = true
 ```
+
+Refresh the vendor only through `scripts/vendor-context-mode <upstream-checkout> <pinned-commit>`, then regenerate and run the checksum guard. Gestalt releases update only the Gestalt manifest; context-mode keeps its upstream version.
 
 ## 🧪 Testing
 
@@ -67,9 +72,9 @@ Run the complete repository test suite before publishing changes:
 bash tests/run.sh
 ```
 
-The suite validates the Org Plan helper, unified plugin layout, vendored
-Superpowers integrity, `npx skills` discovery, shell syntax, release versioning,
-and release-workflow contracts.
+The suite validates repository/Gestalt contracts, context-mode provenance,
+skill discovery, nested MCP startup, shell syntax, release versioning, and
+release-workflow contracts.
 
 ## Org Plan supervised execution
 

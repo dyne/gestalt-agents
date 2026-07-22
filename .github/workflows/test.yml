@@ -11,6 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
       - run: bash tests/run.sh
       - run: find tests -type f -name '*.sh' -exec bash -n {} +
       - run: bash -n plugins/gestalt/skills/org-plan/scripts/org-plan

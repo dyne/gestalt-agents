@@ -6,6 +6,7 @@ tmp=$(mktemp -d "${TMPDIR:-/tmp}/context-mode-skills-test.XXXXXX")
 trap 'rm -rf "$tmp"' EXIT HUP INT TERM
 mkdir -p "$tmp/repository/plugins"
 cp -a "$root/plugins/context-mode" "$tmp/repository/plugins/context-mode"
+rm -rf "$tmp/repository/plugins/context-mode/.claude"
 
 output=$(NO_COLOR=1 npx --yes skills@1.5.18 add "$tmp/repository" --list 2>&1)
 
