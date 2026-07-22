@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+root=$(CDPATH= cd -- "$(dirname -- "$0")/../../.." && pwd)
 vendor="$root/plugins/gestalt/skills"
-manifest="$root/tests/fixtures/superpowers-6.1.1-dyne.2.sha256"
+manifest="$root/tests/plugins/gestalt/fixtures/superpowers-6.1.1-dyne.2.sha256"
 
 python3 - "$root" "$vendor" "$manifest" <<'PY'
 import hashlib

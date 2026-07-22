@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+root=$(CDPATH= cd -- "$(dirname -- "$0")/../../.." && pwd)
 helper="$root/plugins/gestalt/skills/org-plan/scripts/org-plan"
-fixtures="$root/tests/fixtures"
+fixtures="$root/tests/plugins/gestalt/fixtures"
 skill="$root/plugins/gestalt/skills/org-plan/SKILL.md"
 manifest="$root/plugins/gestalt/.codex-plugin/plugin.json"
 readme="$root/README.md"

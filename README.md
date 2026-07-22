@@ -64,9 +64,7 @@ hooks = true
 Run the complete repository test suite before publishing changes:
 
 ```
-for test in tests/test-*.sh; do
-  bash "$test"
-done
+bash tests/run.sh
 ```
 
 The suite validates the Org Plan helper, unified plugin layout, vendored
