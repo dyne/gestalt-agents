@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+root=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
 tmp=$(mktemp -d "${TMPDIR:-/tmp}/release-workflow-test.XXXXXX")
 trap 'rm -rf "$tmp"' EXIT HUP INT TERM
 ruby -ryaml -rjson -e 'File.write(ARGV[1], JSON.generate(YAML.safe_load_file(ARGV[0], aliases: false)))' \

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+root=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
 updater="$root/scripts/set-plugin-version.py"
 tmp=$(mktemp -d "${TMPDIR:-/tmp}/set-plugin-version-test.XXXXXX")
 trap 'rm -rf "$tmp"' EXIT HUP INT TERM

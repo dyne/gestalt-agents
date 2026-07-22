@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+root=$(CDPATH= cd -- "$(dirname -- "$0")/../../.." && pwd)
 script="$root/plugins/gestalt/skills/org-plan/scripts/org-plan"
 
 command -v shellcheck >/dev/null 2>&1 || {
