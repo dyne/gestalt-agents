@@ -5,6 +5,7 @@ root=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
 python3 - "$root" <<'PY'
 import json
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -76,8 +77,8 @@ assert "name: org-plan" in frontmatter
 readme = (root / "README.md").read_text()
 for contract in (
     "Node.js 22.5",
-    "first MCP start",
-    "bootstraps locked native",
+    "first MCP or Codex hook start",
+    "atomic build lock",
     "codex plugin list --marketplace dyne-gestalt-agents --json",
     "ctx doctor",
     "do not add a duplicate",
@@ -95,6 +96,18 @@ for contract in (
     "does not silently add context-mode to an L1's",
 ):
     assert contract in context_skill, f"context-mode skill lacks Org Plan contract: {contract}"
+
+fixture = root / "tests" / "plugins" / "context-mode" / "fixtures" / "context-mode-codex-hardening-4b1348d.sha256"
+fixture_paths = {
+    f"plugins/context-mode/{line.split('  ', 1)[1]}"
+    for line in fixture.read_text().splitlines()
+}
+tracked_paths = set(subprocess.check_output(
+    ["git", "-C", str(root), "ls-files", "plugins/context-mode"],
+    text=True,
+).splitlines())
+missing_tracked = sorted(fixture_paths - tracked_paths)
+assert not missing_tracked, f"vendored fixture paths are ignored or untracked: {missing_tracked[:12]}"
 PY
 
 printf 'plugin layout is valid\n'

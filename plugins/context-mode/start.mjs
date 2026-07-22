@@ -462,6 +462,7 @@ if (!process.env.VITEST) {
 
 // Ensure native dependencies + ABI compatibility (shared with hooks via ensure-deps.mjs)
 // ensure-deps handles better-sqlite3 install + ABI cache/rebuild automatically (#148, #203)
+await import("./scripts/ensure-source-build.mjs");
 import "./hooks/ensure-deps.mjs";
 // Pure-JS runtime deps used only by `ctx_fetch_and_index` (HTML → Markdown
 // pipeline runs in a sandboxed subprocess that `require.resolve()`s these at

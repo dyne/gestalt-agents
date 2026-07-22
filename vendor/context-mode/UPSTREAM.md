@@ -10,7 +10,9 @@
 
 `plugins/context-mode/` is a forked export of that Git object. It is not a
 working-tree copy: local modifications, untracked files, dependency caches, and
-build output are excluded. The fork changes four upstream files:
+build output are excluded. Generated `*.bundle.mjs` artifacts are intentionally
+omitted from this source vendor and compiled in the installed plugin cache on
+first use. The fork changes eight upstream files:
 
 - `tests/setup-home.ts` forces `CODEX_HOME` into the test suite's temporary home
   so Codex adapter tests never touch a host configuration directory.
@@ -20,6 +22,10 @@ build output are excluded. The fork changes four upstream files:
   home so Codex hook smoke tests cannot read or write host configuration state.
 - `tests/scripts/asymmetric-drift-assert.test.ts` accepts both array and
   package-keyed-object JSON shapes emitted by supported npm versions.
+- `scripts/ensure-source-build.mjs`, `start.mjs`,
+  `hooks/codex/platform.mjs`, and `package.json` provide and package a locked,
+  concurrent-safe first-use build path shared by the MCP server and every Codex
+  hook.
 
 Repository-specific provenance, integrity fixtures, and tests remain outside
 the vendored tree. Refresh it only with

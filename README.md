@@ -56,10 +56,12 @@ and its bundled license is [`plugins/context-mode/LICENSE`](plugins/context-mode
 Do not install it alongside the official `context-mode@context-mode` source.
 
 Context-mode requires either Bun or Node.js 22.5 or newer. On Linux, Bun is
-preferred for the SQLite runtime. The first MCP start bootstraps locked native
-dependencies when they are not already present, so allow 5–30 seconds plus
+preferred for the SQLite runtime. This marketplace keeps generated JavaScript
+bundles out of Git: the first MCP or Codex hook start installs locked build
+dependencies and compiles them in the plugin cache, so allow 5–30 seconds plus
 network access and a native build toolchain (`python3`, `make`, and a C/C++
-compiler). Later starts use the cached dependencies.
+compiler). An atomic build lock makes concurrent solo/subagent starts share one
+build; later starts use the generated cache.
 
 Context-mode needs these Codex settings:
 ```
