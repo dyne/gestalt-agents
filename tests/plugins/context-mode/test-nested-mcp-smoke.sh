@@ -13,6 +13,21 @@ tar -C "$root/plugins/context-mode" \
   --exclude='*.bundle.mjs' \
   -cf - . | tar -C "$plugin" -xf -
 
+# Codex/marketplace installers may normalize the unrelated Claude manifest to
+# an absolute cache path. First-use compilation must not run source-release
+# assertions against that installed-state rewrite.
+python3 - "$plugin" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+plugin = Path(sys.argv[1])
+manifest = plugin / ".claude-plugin" / "plugin.json"
+payload = json.loads(manifest.read_text())
+payload["mcpServers"]["context-mode"]["args"][0] = str(plugin / "start.mjs")
+manifest.write_text(json.dumps(payload, indent=2) + "\n")
+PY
+
 command -v bun >/dev/null
 test ! -e "$plugin/node_modules"
 test ! -e "$plugin/server.bundle.mjs"
@@ -26,6 +41,7 @@ test -f "$plugin/server.bundle.mjs"
 test -f "$plugin/hooks/security.bundle.mjs"
 test -f "$plugin/hooks/session-attribution.bundle.mjs"
 test ! -e "$plugin/.context-mode-source-build.lock"
+test ! -e "$plugin/.context-mode-source-build-tmp"
 
 output=$(timeout 20s bash -c 'cd "$2"
   printf "%s\n%s\n" \

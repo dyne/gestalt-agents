@@ -9,6 +9,7 @@
  */
 import { execFileSync } from "node:child_process";
 import {
+  chmodSync,
   existsSync,
   mkdirSync,
   rmSync,
@@ -21,6 +22,7 @@ import { fileURLToPath } from "node:url";
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 const PLUGIN_ROOT = resolve(SCRIPT_DIR, "..");
 const LOCK_DIR = join(PLUGIN_ROOT, ".context-mode-source-build.lock");
+const BUILD_TMP_DIR = join(PLUGIN_ROOT, ".context-mode-source-build-tmp");
 const WAIT_MS = 250;
 const WAIT_TIMEOUT_MS = 180_000;
 const STALE_LOCK_MS = 300_000;
@@ -52,9 +54,17 @@ function findBun() {
 }
 
 function run(command, args, timeout) {
+  mkdirSync(BUILD_TMP_DIR, { recursive: true });
   execFileSync(command, args, {
     cwd: PLUGIN_ROOT,
-    env: process.env,
+    env: {
+      ...process.env,
+      TMPDIR: BUILD_TMP_DIR,
+      TMP: BUILD_TMP_DIR,
+      TEMP: BUILD_TMP_DIR,
+      BUN_INSTALL_CACHE_DIR: join(BUILD_TMP_DIR, "bun-cache"),
+      npm_config_cache: join(BUILD_TMP_DIR, "npm-cache"),
+    },
     stdio: ["ignore", "ignore", "pipe"],
     timeout,
     windowsHide: true,
@@ -78,9 +88,23 @@ function installBuildDependencies() {
 
 function buildRuntimeArtifacts() {
   installBuildDependencies();
+  const npm = process.platform === "win32" ? "npm.cmd" : "npm";
   run(
-    process.platform === "win32" ? "npm.cmd" : "npm",
-    ["run", "build", "--silent"],
+    npm,
+    ["exec", "--", "tsc"],
+    WAIT_TIMEOUT_MS,
+  );
+  if (process.platform !== "win32") {
+    chmodSync(join(PLUGIN_ROOT, "build", "cli.js"), 0o755);
+  }
+  run(
+    npm,
+    ["run", "bundle", "--silent"],
+    WAIT_TIMEOUT_MS,
+  );
+  run(
+    npm,
+    ["run", "assert-bundle", "--silent"],
     WAIT_TIMEOUT_MS,
   );
 }
@@ -113,6 +137,7 @@ export async function ensureSourceBuild() {
       try {
         if (!outputsReady()) buildRuntimeArtifacts();
       } finally {
+        rmSync(BUILD_TMP_DIR, { recursive: true, force: true });
         rmSync(LOCK_DIR, { recursive: true, force: true });
       }
       if (outputsReady()) return;
