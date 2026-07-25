@@ -12,8 +12,10 @@ import {
   chmodSync,
   existsSync,
   mkdirSync,
+  readFileSync,
   rmSync,
   statSync,
+  writeFileSync,
 } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
@@ -22,6 +24,8 @@ import { fileURLToPath } from "node:url";
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 const PLUGIN_ROOT = resolve(SCRIPT_DIR, "..");
 const LOCK_DIR = join(PLUGIN_ROOT, ".context-mode-source-build.lock");
+const LOCK_OWNER = join(LOCK_DIR, "owner.pid");
+const RECOVERY_LOCK_DIR = join(PLUGIN_ROOT, ".context-mode-source-build.recovery.lock");
 const BUILD_TMP_DIR = join(PLUGIN_ROOT, ".context-mode-source-build-tmp");
 const WAIT_MS = 250;
 const WAIT_TIMEOUT_MS = 180_000;
@@ -111,11 +115,29 @@ function buildRuntimeArtifacts() {
 
 function removeStaleLock() {
   try {
-    if (Date.now() - statSync(LOCK_DIR).mtimeMs > STALE_LOCK_MS) {
+    mkdirSync(RECOVERY_LOCK_DIR);
+  } catch (error) {
+    if (error?.code === "EEXIST") return;
+    throw error;
+  }
+
+  try {
+    const ownerPid = Number.parseInt(readFileSync(LOCK_OWNER, "utf8"), 10);
+    let ownerAlive = Number.isInteger(ownerPid) && ownerPid > 0;
+    if (ownerAlive) {
+      try {
+        process.kill(ownerPid, 0);
+      } catch (error) {
+        ownerAlive = error?.code !== "ESRCH";
+      }
+    }
+    if (!ownerAlive || Date.now() - statSync(LOCK_DIR).mtimeMs > STALE_LOCK_MS) {
       rmSync(LOCK_DIR, { recursive: true, force: true });
     }
   } catch {
     // Another process may have released the lock between stat and cleanup.
+  } finally {
+    rmSync(RECOVERY_LOCK_DIR, { recursive: true, force: true });
   }
 }
 
@@ -127,6 +149,7 @@ export async function ensureSourceBuild() {
     let ownsLock = false;
     try {
       mkdirSync(LOCK_DIR);
+      writeFileSync(LOCK_OWNER, `${process.pid}\n`);
       ownsLock = true;
     } catch (error) {
       if (error?.code !== "EEXIST") throw error;
