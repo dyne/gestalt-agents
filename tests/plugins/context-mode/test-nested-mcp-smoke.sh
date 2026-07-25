@@ -31,6 +31,8 @@ PY
 command -v bun >/dev/null
 test ! -e "$plugin/node_modules"
 test ! -e "$plugin/server.bundle.mjs"
+mkdir -p "$plugin/.context-mode-source-build.lock"
+printf '%s\n' 99999999 >"$plugin/.context-mode-source-build.lock/owner.pid"
 (cd "$plugin" && node -e 'import("./scripts/ensure-source-build.mjs")') &
 builder_one=$!
 (cd "$plugin" && node -e 'import("./scripts/ensure-source-build.mjs")') &
@@ -41,6 +43,7 @@ test -f "$plugin/server.bundle.mjs"
 test -f "$plugin/hooks/security.bundle.mjs"
 test -f "$plugin/hooks/session-attribution.bundle.mjs"
 test ! -e "$plugin/.context-mode-source-build.lock"
+test ! -e "$plugin/.context-mode-source-build.recovery.lock"
 test ! -e "$plugin/.context-mode-source-build-tmp"
 
 output=$(timeout 20s bash -c 'cd "$2"

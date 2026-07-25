@@ -61,7 +61,9 @@ bundles out of Git: the first MCP or Codex hook start installs locked build
 dependencies and compiles them in the plugin cache, so allow 5–30 seconds plus
 network access and a native build toolchain (`python3`, `make`, and a C/C++
 compiler). An atomic build lock makes concurrent solo/subagent starts share one
-build; later starts use the generated cache.
+build; later starts use the generated cache. The builder allows up to three
+minutes on a slow network. If Codex times out first, restart the session: the
+next process recovers an abandoned build lock and resumes from cached downloads.
 
 Context-mode needs these Codex settings:
 ```
