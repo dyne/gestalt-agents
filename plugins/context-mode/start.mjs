@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { execSync, spawn } from "node:child_process";
+import { execFileSync, execSync, spawn } from "node:child_process";
 import { existsSync, chmodSync, readFileSync, writeFileSync, readdirSync, symlinkSync, mkdirSync, lstatSync, unlinkSync } from "node:fs";
 import { dirname, resolve, join, sep } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -71,7 +71,19 @@ if (typeof globalThis.Bun === "undefined" && process.platform === "linux") {
     "/usr/local/bin/bun",
     "/usr/bin/bun",
   ].filter(Boolean);
-  const bunBin = bunCandidates.find((p) => existsSync(p));
+  const bunBin = bunCandidates.find((candidate) => {
+    if (!existsSync(candidate)) return false;
+    try {
+      execFileSync(candidate, ["--version"], {
+        stdio: "ignore",
+        timeout: 1_000,
+        windowsHide: true,
+      });
+      return true;
+    } catch {
+      return false;
+    }
+  });
   if (bunBin) {
     const child = spawn(bunBin, [fileURLToPath(import.meta.url)], {
       stdio: ["pipe", "inherit", "inherit"],

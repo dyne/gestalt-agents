@@ -184,7 +184,7 @@
 0644 b7d52f131c3ee47f30a315db145358463969b6655b84f3fce94c7d7787d02076  scripts/assert-asymmetric-drift.mjs
 0644 0e0693d6159e36922528e78c13078596c55c4dd6b8563d568fec596aacad2e24  scripts/assert-bundle.mjs
 0755 3b0ef506a9c5dce94489443a7140e1e009c4ce9f1611f38d763451d40aa5a84a  scripts/ctx-debug.sh
-0644 615fb43f69dc3ed3b3e490be56415c8b16c969e65983c49fe1d7957f489fb129  scripts/ensure-source-build.mjs
+0644 71b7ccd175add742f311b139dc0dd699432f106778b35665874234ea31357fe1  scripts/ensure-source-build.mjs
 0644 338ca21acf6e68932dd449bd8fce152dcbb3a21b360e3016d24e4b45723ddbc9  scripts/heal-better-sqlite3.mjs
 0644 e0fe3e9b246dd0f465151776c1f83c4ba4e99544b6cb7a9f003623f82cc5bdf1  scripts/heal-installed-plugins.mjs
 0755 010c737f69c54489a802f1edc5ad9ac143e817d3cbee59b714eb1bc4444d4bed  scripts/install-openclaw-plugin.sh
@@ -310,7 +310,7 @@
 0644 3096479b6f70f378119cd50572617fcbb1b502679f008be68195e51bb3f4553b  src/util/plugin-cache-integrity.ts
 0644 5b04977eeb9fd408a090fb8c4b908356d03dd419e9f0a5cba7b2fcd9702d7a0a  src/util/project-dir.ts
 0644 4e53d1a7405579eaa0489faef19be96a623e3fedac003bf2bc25f2c773cf53cd  src/util/sibling-mcp.ts
-0644 0b2969089f27fc69e6fa867fb9fcc0f317af6473c995e93350bb6e1b302274b4  start.mjs
+0644 dc6311302f3dea074174e6481ae9e6490424f6bad2086817d3bbda19ca89f3f5  start.mjs
 0644 f18fc8a8eb85d4c3318a4ceeb7e6a0601e5072a6105871a9f894de739e2c4cfa  stats.json
 0644 52efff0026adf413816554d7c9f1eed523b346bda94eb82419466f9f5ffb8cee  tests/adapters/antigravity.test.ts
 0644 a20187f4c4784a6ec1579bf2a1e8808a495d92311624252a5e1798e6a3c9e5f9  tests/adapters/base-adapter-memory.test.ts
@@ -475,7 +475,9 @@
 0644 3ca4f97139713a2a4370f22b6fd661785b46e7e219e496bd61021dafe0ba95b8  tests/scripts/assert-bundle.test.ts
 0644 25fee51dc7d6c44d5bb0a45120f59914f8510b47da52f66c90f27524fa62fa36  tests/scripts/asymmetric-drift-assert.test.ts
 0644 daf9a367d7f3d49986b7364c219c9f3df060141d1167a003cec87c642ec46133  tests/scripts/start-mjs-mcp-boot.test.ts
-0644 4e672787dea4a44dfb9b22b2eac4a3047c46997b22476220e3cfb38b141f9269  tests/scripts/start-mjs-reexec-teardown-862.test.ts
+0644 56124f2d1ddbb33ba729a8abee09bebf5e94062e694f793bf5503e671f6f8e9e  tests/scripts/start-mjs-reexec-teardown-862.test.ts
+0644 556756849a1c2edd43ee13443a9fe9fcfe09362fff4f13dab93b32d3bc33d9c8  tests/scripts/ensure-source-build-bun-probe.test.ts
+0644 f4665d9b0c15f3aa4ae9ae497151eb19517d4f6f744b013b62decdae1de82a6b  UPSTREAM.md
 0644 1a234cea95768e5e777bb79f258963d3541e4608011a8c08392e1b65285e9193  tests/scripts/start-mjs-win-install-861.test.ts
 0644 5318341331c0d3e181d677ba71dc86e783b87658cc039d18dbea7b23d9040a0c  tests/scripts/version-sync.test.ts
 0644 a83f5a5441b651be6984c1619801f45b9bab27f98720bd8654146a48156baeaf  tests/security.test.ts

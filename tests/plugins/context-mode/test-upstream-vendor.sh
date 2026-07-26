@@ -4,7 +4,7 @@ set -euo pipefail
 root=$(CDPATH= cd -- "$(dirname -- "$0")/../../.." && pwd)
 vendor=${VENDOR_DIR:-"$root/plugins/context-mode"}
 fixture=${FIXTURE:-"$root/tests/plugins/context-mode/fixtures/context-mode-codex-hardening-4b1348d.sha256"}
-provenance=${PROVENANCE:-"$root/vendor/context-mode/UPSTREAM.md"}
+provenance=${PROVENANCE:-"$root/plugins/context-mode/UPSTREAM.md"}
 
 python3 - "$vendor" "$fixture" "$provenance" <<'PY'
 import hashlib
@@ -55,7 +55,7 @@ assert actual == expected, (
     f"extra={sorted(actual.keys() - expected.keys())[:5]}, "
     f"changed={[key for key in actual.keys() & expected.keys() if actual[key] != expected[key]][:5]}"
 )
-assert len(actual) == 603, f"expected 603 source vendor files, found {len(actual)}"
+assert len(actual) == 605, f"expected 605 source vendor files, found {len(actual)}"
 assert sum(mode == 0o755 for mode, _ in actual.values()) == 13, "unexpected executable file count"
 print("context-mode upstream vendor integrity is valid")
 PY

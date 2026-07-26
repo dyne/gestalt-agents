@@ -66,6 +66,7 @@ describe("start.mjs Linux re-exec proxy lifecycle (#862)", () => {
 
   it("still re-execs under Bun on Linux node invocations (#564 preserved)", () => {
     expect(PROXY_BLOCK).toContain('process.platform === "linux"');
+    expect(PROXY_BLOCK).toContain('execFileSync(candidate, ["--version"]');
     expect(compact).toContain("spawn(bunBin,");
   });
 

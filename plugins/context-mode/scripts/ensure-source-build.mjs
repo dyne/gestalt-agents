@@ -54,7 +54,19 @@ function findBun() {
     "/usr/local/bin/bun",
     "/usr/bin/bun",
   ].filter(Boolean);
-  return candidates.find((candidate) => existsSync(candidate)) ?? null;
+  return candidates.find((candidate) => {
+    if (!existsSync(candidate)) return false;
+    try {
+      execFileSync(candidate, ["--version"], {
+        stdio: "ignore",
+        timeout: 1_000,
+        windowsHide: true,
+      });
+      return true;
+    } catch {
+      return false;
+    }
+  }) ?? null;
 }
 
 function run(command, args, timeout) {

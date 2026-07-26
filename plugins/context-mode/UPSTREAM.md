@@ -25,7 +25,8 @@ first use. The fork changes eight upstream files:
 - `scripts/ensure-source-build.mjs`, `start.mjs`,
   `hooks/codex/platform.mjs`, and `package.json` provide and package a locked,
   concurrent-safe first-use build path shared by the MCP server and every Codex
-  hook.
+  hook. The startup and build selectors probe Bun before using it, falling back
+  to Node when a discovered Bun executable is unusable.
 
 Repository-specific provenance, integrity fixtures, and tests remain outside
 the vendored tree. Refresh it only with
