@@ -7,6 +7,8 @@ trap 'rm -rf "$tmp"' EXIT HUP INT TERM
 mkdir -p "$tmp/repository/plugins"
 cp -a "$root/plugins/gestalt" "$tmp/repository/plugins/gestalt"
 
+test "$(sed -n 's/^  allow_implicit_invocation: //p' "$tmp/repository/plugins/gestalt/skills/org-plan/agents/openai.yaml")" = true
+
 output=$(NO_COLOR=1 npx --yes skills@1.5.18 add "$tmp/repository" --list 2>&1)
 
 python3 - "$output" <<'PY'
