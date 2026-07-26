@@ -41,6 +41,10 @@
   and Goal/Why; later mentions may use the position and title alone. Lead the
   first commit mention with its conventional subject and purpose; IDs and hashes
   are supplemental. Machine assignments retain exact IDs and commit ranges.
+- Routine L1 review is an agent-to-agent gate: the director independently
+  returns ACCEPT or REJECT from the supervisor's evidence and the supervisor
+  continues. Do not ask the user for progress decisions or review approval;
+  request user input only for material ambiguity or an unavailable prerequisite.
 - Final acceptance requires the supervisor to verify a current full-suite pass
   and clean intended scope. It does not repeat reviewer audits for REVIEWED L1s.
 

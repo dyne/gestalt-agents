@@ -114,7 +114,11 @@ The deterministic supervised sequence is:
 2. The director spawns the supervisor with `fork_turns=none` and a fresh,
    complete assignment. The supervisor never spawns a reviewer. It sends each
    complete review request upward to the director and waits for the director's
-   explicit verdict.
+   explicit verdict. For routine review, the director independently returns
+   ACCEPT or REJECT from the supplied evidence and the supervisor continues the
+   loop; neither role asks the user for a progress decision or review approval.
+   User input is reserved for a material ambiguity or an unavailable
+   prerequisite.
 3. Before each new L1, the supervisor verifies the preceding L1 is REVIEWED,
    terminates any previous executor, confirms it is closed, then spawns a fresh
    `org-plan-executor` with `fork_turns=none` for exactly that L1. Never carry an
