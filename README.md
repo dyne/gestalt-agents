@@ -45,7 +45,7 @@ Make sure to add the following configuration directive to `~/.codex/config.toml`
 max_depth = 2
 ```
 
-The name shown under `/plugins` is **Dyne.org Gestalt**.
+The Gestalt workflow plugin is shown as **org-plan** under `/plugins`.
 
 #### Context-mode provenance and updates
 

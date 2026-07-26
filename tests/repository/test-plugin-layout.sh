@@ -25,7 +25,7 @@ assert not (root / "plugins" / "superpowers").exists(), "legacy superpowers plug
 
 plugin_manifest = json.loads((plugin / ".codex-plugin" / "plugin.json").read_text())
 assert plugin_manifest["name"] == "gestalt"
-assert plugin_manifest["interface"]["displayName"] == "Dyne.org Gestalt"
+assert plugin_manifest["interface"]["displayName"] == "org-plan"
 assert plugin_manifest["skills"] == "./skills/"
 assert plugin_manifest["repository"] == "https://github.com/dyne/gestalt-agents"
 assert plugin_manifest["license"] == "MIT"
