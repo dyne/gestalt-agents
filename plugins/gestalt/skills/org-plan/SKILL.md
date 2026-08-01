@@ -31,15 +31,19 @@ Write `:SKILLS:` as a non-empty, whitespace-separated list of exact `$skill`
 references, for example `:SKILLS: $gestalt:development-testing $make`. New L1s
 start `:REVIEW_STATUS: UNREVIEWED`; only reviewer-accepted L1s use `REVIEWED`.
 L2 property drawers contain neither `:SKILLS:` nor `:REVIEW_STATUS:`.
+`$context-mode:context-mode` is a mandatory execution baseline loaded outside
+the plan contract. Do not include it in `:SKILLS:`; reserve that property for
+task-specific skills.
 
 Before finalizing the plan, inspect the names and discovery descriptions of the
 complete skill catalog available in the planning session. For each L1, compare
 its scope with every known skill and select the smallest sufficient set needed
-by that L1 executor. Record exact catalog references in `:SKILLS:`; do not guess
+by that L1 executor. Record exact task-specific references in `:SKILLS:`; do not guess
 names, include irrelevant skills, or omit an applicable required skill. Include
 skills mandated by governing instructions when the executor must load them. If
 a required skill is unavailable, resolve that before handover. The executor
-loads exactly the declared L1 skills and no other optional or task skill.
+loads `$context-mode:context-mode` plus exactly the declared L1 skills and no
+other optional or task skill.
 Use the bundled `org-plan` helper to validate and change plan state.
 See `org-plan --help` for its commands.
 
@@ -103,6 +107,12 @@ fallback.
 Machine-readable success records percent-encode unsafe path bytes; unreserved
 path characters remain unchanged.
 
+Every supervised role loads `$context-mode:context-mode` before repository
+inspection, implementation, review, or verification. This baseline is implicit
+and never needs to appear in an L1 `:SKILLS:` property. If it is unavailable,
+stop before task work and report the missing baseline; do not install it
+automatically.
+
 The deterministic supervised sequence is:
 
 1. Prepare the recommended root reviewer profile plus the supervisor and
@@ -127,9 +137,10 @@ The deterministic supervised sequence is:
    `org-plan-executor` with `fork_turns=none` for exactly that L1. Never carry an
    executor into another L1 or start the next L1 while the prior executor lives.
    The fresh assignment includes the L1's exact `:SKILLS:` list. Before any
-   repository inspection or implementation, the executor verifies every
-   reference is available, loads every listed skill, and loads no undeclared
-   optional or task skill. An unavailable reference blocks the L1 without edits.
+   repository inspection or implementation, the executor loads the mandatory
+   `$context-mode:context-mode` baseline, verifies every declared reference is
+   available, loads every listed skill, and loads no other optional or task
+   skill. An unavailable baseline or declared reference blocks the L1 without edits.
 4. The L1 executor remains available through that L1's review. After the
    implementation gates pass, the supervisor asks the director to review. A
    REJECT returns bounded corrections to the same executor, followed by a new
@@ -170,10 +181,9 @@ scope, and the smallest diagnostic excerpt needed for a failure. Keep short,
 fixed-output observations direct.
 
 Apply the same rule to director-side verification. Raw command output from these
-operations must never enter supervisor or director reports. Do not install,
-require, or silently enable a context-management plugin; context-mode is
-acceptable only when already available, and the workflow must remain functional
-without it.
+operations must never enter supervisor or director reports. Every role must load
+the installed `$context-mode:context-mode` baseline, but no role installs or
+enables it automatically when unavailable.
 
 ## Human-readable director updates
 
@@ -251,7 +261,8 @@ requirement, and the stop condition for material ambiguity.
 Each executor assignment states the active L1 and complete L2 block, plan path,
 target branch, its prepared profile and model names, relevant repository starting
 state and accepted prior-L1 outputs, exact allowed change scope, required tests,
-the exact `:SKILLS:` list and load-only-that-list gate, the
+the exact `:SKILLS:` list, the mandatory `$context-mode:context-mode` baseline,
+and the declared-task-skills-only gate, the
 exactly-one-post-ACCEPT L1 commit rule, the prohibition on pre-review, fixup,
 and autosquash commits, preserved paths, the single-L1 lifetime, and the stop
 condition for unavailable skills or material ambiguity.
@@ -305,9 +316,10 @@ Resolve minor reversible questions from the plan and repository context.
 
 Loop per L1, in order:
 Take next WIP L1, else first TODO L1 → set WIP. Read its `:SKILLS:` list,
-verify every reference is available, then load exactly those skills and no other
-optional or task skill before studying the L1 or repository. Stop without edits
-if a declared skill is unavailable.
+load the mandatory `$context-mode:context-mode` baseline, verify every declared
+reference is available, then load exactly those task-specific skills and no
+other optional or task skill before studying the L1 or repository. Stop without
+edits if the baseline or a declared skill is unavailable.
 
 Loop per L2, in order:
 1. Take next WIP L2, else first TODO L2 → set WIP.
@@ -335,7 +347,8 @@ review corrections.
 An L1 becomes DONE only after all child L2s are DONE and the full suite passes;
 it becomes REVIEWED only after reviewer acceptance.
 Do not commit Org plan files.
-Stop only for an unavailable declared skill or material ambiguity.
+Stop only for an unavailable context-mode baseline, unavailable declared skill,
+or material ambiguity.
 
 Update `AGENTS.md` (LLM-oriented) with changes if relevant.
 Print a brief summary for reviewers

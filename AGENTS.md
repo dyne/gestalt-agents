@@ -12,9 +12,11 @@
 - Every L1 must have exactly one non-empty `:SKILLS:` property and exactly one
   `:REVIEW_STATUS:` property, initially `UNREVIEWED`; L2s must have neither.
   `:SKILLS:` is a whitespace-separated list of exact `$skill` references chosen
-  by comparing the L1 with the complete available skill catalog. Each fresh L1
-  executor loads exactly that declared list before repository inspection or
-  implementation and stops without edits if a reference is unavailable.
+  by comparing the L1 with the complete available skill catalog. Do not list
+  `$context-mode:context-mode`; every role loads it as a mandatory baseline.
+  Each fresh L1 executor loads that baseline plus exactly the declared
+  task-specific list before repository inspection or implementation and stops
+  without edits if either is unavailable.
   `REVIEWED` is valid only after reviewer acceptance of a DONE L1. Reopening a
   reviewed L1 as WIP resets it to `UNREVIEWED`; reset a completed reviewed L1
   explicitly before any material correction that does not reopen it.
@@ -32,8 +34,9 @@
   available context-preserving execution path. If none is available, capture
   output outside conversational context and report only the command, exit
   status, pass/fail counts, affected scope, and smallest necessary failure
-  excerpt. Short fixed-output observations may remain direct. Do not install,
-  require, or silently enable an optional context-management plugin.
+  excerpt. Short fixed-output observations may remain direct. Load the installed
+  `$context-mode:context-mode` skill in every role, but do not install or enable
+  it automatically when unavailable.
 - Keep the root active and post brief human-facing status at supervision start
   and when an L1 starts, reaches review, is rejected, is accepted, or blocks.
   Use `L1 POSITION/TOTAL — TITLE: STATUS` when possible. Resolve the first

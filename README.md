@@ -85,13 +85,13 @@ fails, first check the runtime prerequisite, first-start network/build access,
 the two feature flags above, and whether another context-mode marketplace
 variant is enabled.
 
-For a solo Org Plan, the active Codex agent uses context-mode for uncertain or
-large inspection and test output while normal editing tools retain ownership of
-file changes. In supervised execution, every Codex role receives the installed
-MCP and hooks: the executor derives concise evidence with context-mode, the
-supervisor forwards only conclusions and gate results, and the director reviews
-those summaries. Context-mode transports evidence; it does not spawn agents,
-change Org Plan ownership, or replace each L1's declared `:SKILLS:` contract.
+For every Org Plan, each active Codex role loads `$context-mode:context-mode` as
+a mandatory baseline while normal editing tools retain ownership of file
+changes. In supervised execution, the executor derives concise evidence with
+context-mode, the supervisor forwards only conclusions and gate results, and
+the director reviews those summaries. Context-mode transports evidence; it does not spawn agents.
+It does not change Org Plan ownership or belong in an L1's declared `:SKILLS:`
+contract.
 
 Refresh the vendor only through `scripts/vendor-context-mode <upstream-checkout> <pinned-commit>`, then regenerate and run the checksum guard. Gestalt releases update only the Gestalt manifest; context-mode keeps its upstream version.
 
@@ -133,9 +133,11 @@ materially changed L1s. Final acceptance still requires a current full-suite
 pass and clean intended scope.
 
 Each L1 also declares a non-empty `:SKILLS:` property containing exact `$skill`
-references selected from the planner's complete available-skill catalog. A
-fresh executor loads exactly that list before inspecting or implementing the L1
-and stops without edits when a declared skill is unavailable.
+references selected from the planner's complete available-skill catalog. Do not
+list `$context-mode:context-mode`; it is an implicit baseline for every role. A
+fresh executor loads that baseline plus exactly the declared task-specific list
+before inspecting or implementing the L1 and stops without edits when either is
+unavailable.
 
 ## 💼 License
 
