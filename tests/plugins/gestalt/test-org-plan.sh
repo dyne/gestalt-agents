@@ -738,6 +738,14 @@ assert document["reason"] == "supervision-start"
 assert set(document) == {"schemaVersion", "planPath", "reason", "updatedAt"}
 datetime.datetime.fromisoformat(document["updatedAt"].replace("Z", "+00:00"))
 ' "$status_file" "$status_plan" && pass || fail 'signal writes the versioned canonical JSON envelope'
+directory_status_dir="$tmp/directory-status/session-a"
+mkdir -m 700 -p "$directory_status_dir"
+expect_ok env GESTALT_MOBILE_ORG_PLAN_STATUS_DIRECTORY="$directory_status_dir" "$helper" signal "$status_plan" supervision-start
+directory_status_file=$(find "$directory_status_dir" -maxdepth 1 -type f -name '*.plan-status.json' -print -quit)
+python3 -c 'import hashlib, json, os, pathlib, sys; plan=os.path.realpath(sys.argv[2]); expected=hashlib.sha256(plan.encode()).hexdigest()+".plan-status.json"; assert pathlib.Path(sys.argv[1]).name == expected; assert json.load(open(sys.argv[1], encoding="utf-8"))["planPath"] == plan' "$directory_status_file" "$status_plan" && pass || fail 'directory publication derives a plan-specific opaque status filename'
+copy valid-minimal.org second-status-plan.org
+expect_ok env GESTALT_MOBILE_ORG_PLAN_STATUS_DIRECTORY="$directory_status_dir" "$helper" signal "$tmp/second-status-plan.org" supervision-start
+test "$(find "$directory_status_dir" -maxdepth 1 -type f -name '*.plan-status.json' | wc -l)" = 2 && pass || fail 'different Org plans retain distinct status files in one session'
 final_plan_link="$status_dir/final-plan-link.org"
 ln -s "$status_plan" "$final_plan_link"
 expect_ok env GESTALT_MOBILE_ORG_PLAN_STATUS_FILE="$status_file" "$helper" signal "$final_plan_link" final-plan-symlink
@@ -813,7 +821,7 @@ expect_contains "$supervision_dir/org-plan-supervisor.toml" 'direct TODO keyword
 expect_contains "$supervision_dir/org-plan-supervisor.toml" 'org-plan l2 PLAN L2_ID WIP|DONE'
 expect_contains "$supervision_dir/org-plan-executor.toml" 'org-plan set PLAN L1_ID WIP|DONE'
 expect_contains "$supervision_dir/org-plan-executor.toml" 'org-plan signal PLAN resync'
-expect_contains "$encoded_dir/encoded-executor.toml" 'Status publication is optional when GESTALT_MOBILE_ORG_PLAN_STATUS_FILE is absent.'
+expect_contains "$encoded_dir/encoded-executor.toml" 'Status publication is optional when neither GESTALT_MOBILE_ORG_PLAN_STATUS_DIRECTORY nor the legacy GESTALT_MOBILE_ORG_PLAN_STATUS_FILE is present.'
 
 if [ "$failures" -ne 0 ]; then printf '%s passed, %s failed\n' "$passes" "$failures"; exit 1; fi
 printf '%s passed\n' "$passes"

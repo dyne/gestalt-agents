@@ -149,17 +149,35 @@ safe_status_directory() {
   (( (8#$mode & 8#22) == 0 ))
 }
 
+sha256_text() {
+  if command -v sha256sum >/dev/null 2>&1; then
+    printf '%s' "$1" | sha256sum | awk '{print $1}'
+  elif command -v shasum >/dev/null 2>&1; then
+    printf '%s' "$1" | shasum -a 256 | awk '{print $1}'
+  else
+    printf 'sha256sum or shasum is required for plan status publication\n' >&2
+    return 1
+  fi
+}
+
 publish_plan_status() {
   local original=$1 reason=$2 status_file=${GESTALT_MOBILE_ORG_PLAN_STATUS_FILE:-}
-  local directory base tmp='' plan_path updated_at old_umask
-  [[ -n $status_file ]] || return 0
+  local status_directory=${GESTALT_MOBILE_ORG_PLAN_STATUS_DIRECTORY:-}
+  local directory base tmp='' plan_path plan_id updated_at old_umask
+  [[ -n $status_directory || -n $status_file ]] || return 0
+  plan_path=$(canonical_plan_path "$original") || { printf 'cannot resolve plan path\n' >&2; return 1; }
+  if [[ -n $status_directory ]]; then
+    [[ $status_directory == /* ]] || { printf 'status directory must be absolute\n' >&2; return 1; }
+    safe_status_directory "$status_directory" || { printf 'unsafe status file directory\n' >&2; return 1; }
+    plan_id=$(sha256_text "$plan_path") || return 1
+    status_file=$status_directory/$plan_id.plan-status.json
+  fi
   [[ $status_file == /* ]] || { printf 'status file must be absolute\n' >&2; return 1; }
   directory=${status_file%/*}; base=${status_file##*/}
   [[ -n $directory && -n $base && $directory != "$status_file" ]] || { printf 'invalid status file path\n' >&2; return 1; }
   safe_status_directory "$directory" || { printf 'unsafe status file directory\n' >&2; return 1; }
   [[ ! -L $status_file ]] || { printf 'status file must not be a symlink\n' >&2; return 1; }
   [[ ! -e $status_file || -f $status_file ]] || { printf 'status file must be a regular file\n' >&2; return 1; }
-  plan_path=$(canonical_plan_path "$original") || { printf 'cannot resolve plan path\n' >&2; return 1; }
   updated_at=$(date -u '+%Y-%m-%dT%H:%M:%SZ') || { printf 'cannot create status timestamp\n' >&2; return 1; }
   old_umask=$(umask); umask 077
   tmp=$(mktemp "$directory/.${base}.tmp.XXXXXX") || { umask "$old_umask"; printf 'cannot create status file\n' >&2; return 1; }
@@ -332,7 +350,7 @@ write_profile() {
 
 prepare_executor() {
   local model='gpt-5.6-terra' profile_name='org-plan-executor' agents_dir="${HOME:?HOME is required}/.codex/agents"
-  local lifecycle_requirements=' During supervised execution, direct TODO keyword or property edits are forbidden. Use org-plan set PLAN L1_ID WIP|DONE for L1 transitions and org-plan l2 PLAN L2_ID WIP|DONE for L2 transitions. Use org-plan next PLAN review and org-plan review PLAN L1_ID REVIEWED|UNREVIEWED for review selection and state. After any externally corrected plan file, run org-plan signal PLAN resync. Status publication is optional when GESTALT_MOBILE_ORG_PLAN_STATUS_FILE is absent.'
+  local lifecycle_requirements=' During supervised execution, direct TODO keyword or property edits are forbidden. Use org-plan set PLAN L1_ID WIP|DONE for L1 transitions and org-plan l2 PLAN L2_ID WIP|DONE for L2 transitions. Use org-plan next PLAN review and org-plan review PLAN L1_ID REVIEWED|UNREVIEWED for review selection and state. After any externally corrected plan file, run org-plan signal PLAN resync. Status publication is optional when neither GESTALT_MOBILE_ORG_PLAN_STATUS_DIRECTORY nor the legacy GESTALT_MOBILE_ORG_PLAN_STATUS_FILE is present.'
   while (( $# )); do
     case $1 in
       --model) (( $# >= 2 )) || usage; model=$2; shift 2 ;;
@@ -353,7 +371,7 @@ prepare_supervision() {
   local supervisor_model='gpt-5.6-luna' executor_model='gpt-5.6-terra' reviewer_model='gpt-5.6-sol'
   local supervisor_name='org-plan-supervisor' executor_name='org-plan-executor' reviewer_name='org-plan-reviewer'
   local agents_dir="${HOME:?HOME is required}/.codex/agents"
-  local lifecycle_requirements=' Before the first L1, run org-plan signal PLAN supervision-start. During supervised execution, direct TODO keyword or property edits are forbidden. Require the executor to use org-plan set PLAN L1_ID WIP|DONE and org-plan l2 PLAN L2_ID WIP|DONE for all state transitions, retain org-plan next PLAN review and org-plan review PLAN L1_ID REVIEWED|UNREVIEWED for review selection and state, and run org-plan signal PLAN resync after any externally corrected plan file. Status publication is optional when GESTALT_MOBILE_ORG_PLAN_STATUS_FILE is absent.'
+  local lifecycle_requirements=' Before the first L1, run org-plan signal PLAN supervision-start. During supervised execution, direct TODO keyword or property edits are forbidden. Require the executor to use org-plan set PLAN L1_ID WIP|DONE and org-plan l2 PLAN L2_ID WIP|DONE for all state transitions, retain org-plan next PLAN review and org-plan review PLAN L1_ID REVIEWED|UNREVIEWED for review selection and state, and run org-plan signal PLAN resync after any externally corrected plan file. Status publication is optional when neither GESTALT_MOBILE_ORG_PLAN_STATUS_DIRECTORY nor the legacy GESTALT_MOBILE_ORG_PLAN_STATUS_FILE is present.'
   while (( $# )); do
     case $1 in
       --supervisor-model) (( $# >= 2 )) || usage; supervisor_model=$2; shift 2 ;;
