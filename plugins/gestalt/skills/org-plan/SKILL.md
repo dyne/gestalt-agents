@@ -119,6 +119,9 @@ The deterministic supervised sequence is:
    loop; neither role asks the user for a progress decision or review approval.
    User input is reserved for a material ambiguity or an unavailable
    prerequisite.
+   Before the first L1, the supervisor runs `org-plan signal PLAN supervision-start`.
+   The signal is optional when
+   `GESTALT_MOBILE_ORG_PLAN_STATUS_FILE` is absent.
 3. Before each new L1, the supervisor verifies the preceding L1 is REVIEWED,
    terminates any previous executor, confirms it is closed, then spawns a fresh
    `org-plan-executor` with `fork_turns=none` for exactly that L1. Never carry an
@@ -132,6 +135,12 @@ The deterministic supervised sequence is:
    REJECT returns bounded corrections to the same executor, followed by a new
    standalone review request to the director. The executor makes no
    implementation commit before the director's explicit ACCEPT verdict.
+   During supervised execution, direct TODO keyword or property edits are
+   forbidden. Use `org-plan set PLAN L1_ID WIP|DONE` for L1 transitions and
+   `org-plan l2 PLAN L2_ID WIP|DONE` for L2 transitions. Keep
+   `org-plan next PLAN review` and `org-plan review PLAN L1_ID
+   REVIEWED|UNREVIEWED` for review selection and review state. After any
+   externally corrected plan file, run `org-plan signal PLAN resync`.
 5. After ACCEPT, the executor creates exactly one conventional commit for the
    accepted L1 when files changed. The supervisor verifies that commit, marks
    the L1 REVIEWED, terminates its executor, and confirms closure before
@@ -246,6 +255,11 @@ the exact `:SKILLS:` list and load-only-that-list gate, the
 exactly-one-post-ACCEPT L1 commit rule, the prohibition on pre-review, fixup,
 and autosquash commits, preserved paths, the single-L1 lifetime, and the stop
 condition for unavailable skills or material ambiguity.
+It also requires `org-plan set PLAN L1_ID WIP|DONE` and
+`org-plan l2 PLAN L2_ID WIP|DONE` for every supervised transition, forbids
+direct TODO/property edits, retains `org-plan next PLAN review` and
+`org-plan review PLAN L1_ID REVIEWED|UNREVIEWED`, and requires
+`org-plan signal PLAN resync` after an externally corrected plan.
 
 Each upward review request states the plan path, target branch, the selected L1
 ID, position, title, and UNREVIEWED status, its read-only uncommitted diff
