@@ -35,6 +35,12 @@ L2 property drawers contain neither `:SKILLS:` nor `:REVIEW_STATUS:`.
 the plan contract. Do not include it in `:SKILLS:`; reserve that property for
 task-specific skills.
 
+Before the first `org-plan signal PLAN authoring-start`, create and validate a
+minimal plan skeleton. Re-signal `authoring-start` after coherent authoring
+edits so Gestalt Mobile can select the Plan tab. When implementation begins or
+resumes, signal `org-plan signal PLAN work-start`. Signals remain safe no-ops
+outside Gestalt Mobile.
+
 Measured plans may additionally use the optional properties `STARTED_AT`,
 `UPDATED_AT`, `COMPLETED_AT`, `ELAPSED_SECONDS`,
 `WEEKLY_REMAINING_START`, `WEEKLY_REMAINING_CURRENT`,
@@ -64,6 +70,8 @@ loads `$context-mode:context-mode` plus exactly the declared L1 skills and no
 other optional or task skill.
 Use the bundled `org-plan` helper to validate and change plan state.
 See `org-plan --help` for its commands.
+
+Measure work only with `org-plan measure start|checkpoint|finish PLAN ID SNAPSHOT_JSON`; never hand-edit derived measurement properties. Start the L1, then each L2; checkpoint after every Org state mutation and at least every 60 seconds while active; finish each L2, then the L1.
 
 Use `next PLAN review` to select the first completed unreviewed L1, `review PLAN
 ID REVIEWED` after reviewer acceptance, and `review PLAN ID UNREVIEWED` before a

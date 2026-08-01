@@ -29,6 +29,46 @@ copy valid-multi.org multi.org
 sed '0,/:REVIEW_STATUS: UNREVIEWED/s//:REVIEW_STATUS: REVIEWED/' "$tmp/multi.org" >"$tmp/changed" && mv "$tmp/changed" "$tmp/multi.org"
 expect_ok "$helper" validate "$tmp/multi.org"
 
+copy valid-multi.org measured.org
+measurement_start='{"observedAt":"2026-08-01T10:00:00Z","weeklyRemaining":80,"tokensUsed":100}'
+measurement_checkpoint='{"observedAt":"2026-08-01T10:01:30Z","weeklyRemaining":75,"tokensUsed":160}'
+measurement_finish='{"observedAt":"2026-08-01T10:02:00Z","weeklyRemaining":74,"tokensUsed":180}'
+expect_fail "$helper" measure finish "$tmp/measured.org" second-task "$measurement_finish"
+expect_ok "$helper" measure start "$tmp/measured.org" first-outcome "$measurement_start"
+expect_ok "$helper" measure start "$tmp/measured.org" second-task "$measurement_start"
+expect_fail "$helper" measure start "$tmp/measured.org" second-task "$measurement_start"
+expect_ok "$helper" measure checkpoint "$tmp/measured.org" second-task "$measurement_checkpoint"
+measurement_before=$(cksum "$tmp/measured.org")
+expect_ok "$helper" measure checkpoint "$tmp/measured.org" second-task "$measurement_checkpoint"
+test "$measurement_before" = "$(cksum "$tmp/measured.org")" && pass || fail 'repeated checkpoint is idempotent'
+expect_fail "$helper" measure checkpoint "$tmp/measured.org" second-task '{"tokensUsed":160}'
+expect_contains "$tmp/measured.org" ':ELAPSED_SECONDS: 90'
+expect_contains "$tmp/measured.org" ':WEEKLY_PERCENT_USED: 5'
+expect_contains "$tmp/measured.org" ':TOKENS_USED: 60'
+expect_ok "$helper" measure checkpoint "$tmp/measured.org" second-task '{"observedAt":"2026-08-01T10:01:30Z","weeklyRemaining":90,"tokensUsed":160}'
+expect_contains "$tmp/measured.org" ':WEEKLY_PERCENT_USED: 0'
+expect_ok "$helper" measure finish "$tmp/measured.org" second-task "$measurement_finish"
+expect_contains "$tmp/measured.org" ':COMPLETED_AT: 2026-08-01T10:02:00Z'
+expect_contains "$tmp/measured.org" ':WEEKLY_REMAINING_END: 74'
+expect_contains "$tmp/measured.org" ':TOKENS_END: 180'
+expect_ok "$helper" validate "$tmp/measured.org"
+
+copy valid-multi.org 'measured plan with spaces.org'
+measured_with_spaces="$tmp/measured plan with spaces.org"
+expect_ok "$helper" measure start "$measured_with_spaces" second-task "$measurement_start"
+expect_ok "$helper" measure checkpoint "$measured_with_spaces" second-task "$measurement_checkpoint"
+expect_contains "$measured_with_spaces" ':ELAPSED_SECONDS: 90'
+
+copy valid-multi.org measure-failure.org
+measure_failure_before=$(cksum "$tmp/measure-failure.org")
+measure_failure_bin="$tmp/measure-failure-bin"
+mkdir -p "$measure_failure_bin"
+printf '#!/bin/sh\nexit 1\n' > "$measure_failure_bin/chmod"
+chmod +x "$measure_failure_bin/chmod"
+expect_fail env PATH="$measure_failure_bin:$PATH" "$helper" measure start "$tmp/measure-failure.org" second-task "$measurement_start"
+test "$measure_failure_before" = "$(cksum "$tmp/measure-failure.org")" && pass || fail 'failed measurement write leaves original unchanged'
+test -z "$(find "$tmp" -maxdepth 1 -name 'measure-failure.org.tmp.*' -print -quit)" && pass || fail 'failed measurement write cleans temporary file'
+
 copy valid-multi.org migrated.org
 sed \
   -e '0,/:REVIEW_STATUS: UNREVIEWED/s//:REVIEW_STATUS: REVIEWED/' \
@@ -750,6 +790,10 @@ assert document["reason"] == "supervision-start"
 assert set(document) == {"schemaVersion", "planPath", "reason", "updatedAt"}
 datetime.datetime.fromisoformat(document["updatedAt"].replace("Z", "+00:00"))
 ' "$status_file" "$status_plan" && pass || fail 'signal writes the versioned canonical JSON envelope'
+expect_ok env GESTALT_MOBILE_ORG_PLAN_STATUS_FILE="$status_file" "$helper" signal "$status_plan" authoring-start
+python3 -c 'import json, sys; assert json.load(open(sys.argv[1], encoding="utf-8"))["reason"] == "authoring-start"' "$status_file" && pass || fail 'authoring-start preserves its Plan-tab signal reason'
+expect_ok env GESTALT_MOBILE_ORG_PLAN_STATUS_FILE="$status_file" "$helper" signal "$status_plan" work-start
+python3 -c 'import json, sys; assert json.load(open(sys.argv[1], encoding="utf-8"))["reason"] == "work-start"' "$status_file" && pass || fail 'resumed work preserves its Plan-tab signal reason'
 directory_status_dir="$tmp/directory-status/session-a"
 mkdir -m 700 -p "$directory_status_dir"
 expect_ok env GESTALT_MOBILE_ORG_PLAN_STATUS_DIRECTORY="$directory_status_dir" "$helper" signal "$status_plan" supervision-start
@@ -824,15 +868,28 @@ test "$status_before" = "$(cksum "$status_file")" && pass || fail 'unknown trans
 expect_ok "$helper" l2 "$lifecycle_plan" 'First task'
 test ! -e "$tmp/status-without-publish.json" && pass || fail 'read-only L2 selection does not publish'
 expect_contains "$skill" '`org-plan signal PLAN supervision-start`'
+expect_contains "$skill" '`org-plan signal PLAN authoring-start`'
+expect_contains "$skill" '`org-plan signal PLAN work-start`'
+expect_contains "$skill" '`org-plan measure start|checkpoint|finish PLAN ID SNAPSHOT_JSON`'
+expect_contains "$skill" 'checkpoint after every Org state mutation and at least every 60'
 expect_contains "$skill" '`org-plan set PLAN L1_ID WIP|DONE`'
 expect_contains "$skill" '`org-plan l2 PLAN L2_ID WIP|DONE`'
 expect_contains "$skill" 'direct TODO keyword or property edits are'
 expect_contains "$skill" '`org-plan signal PLAN resync`'
 expect_contains "$supervision_dir/org-plan-supervisor.toml" 'org-plan signal PLAN supervision-start'
+expect_contains "$supervision_dir/org-plan-supervisor.toml" 'org-plan signal PLAN authoring-start'
+expect_contains "$supervision_dir/org-plan-supervisor.toml" 'org-plan signal PLAN work-start'
+expect_contains "$supervision_dir/org-plan-supervisor.toml" 'org-plan measure start|checkpoint|finish PLAN ID SNAPSHOT_JSON'
 expect_contains "$supervision_dir/org-plan-supervisor.toml" 'direct TODO keyword or property edits are forbidden'
 expect_contains "$supervision_dir/org-plan-supervisor.toml" 'org-plan l2 PLAN L2_ID WIP|DONE'
 expect_contains "$supervision_dir/org-plan-executor.toml" 'org-plan set PLAN L1_ID WIP|DONE'
 expect_contains "$supervision_dir/org-plan-executor.toml" 'org-plan signal PLAN resync'
+expect_contains "$supervision_dir/org-plan-executor.toml" 'org-plan signal PLAN authoring-start'
+expect_contains "$supervision_dir/org-plan-executor.toml" 'org-plan signal PLAN work-start'
+expect_contains "$supervision_dir/org-plan-executor.toml" 'org-plan measure start|checkpoint|finish PLAN ID SNAPSHOT_JSON'
+expect_contains "$encoded_dir/encoded-executor.toml" 'org-plan signal PLAN authoring-start'
+expect_contains "$encoded_dir/encoded-executor.toml" 'org-plan signal PLAN work-start'
+expect_contains "$encoded_dir/encoded-executor.toml" 'org-plan measure start|checkpoint|finish PLAN ID SNAPSHOT_JSON'
 expect_contains "$encoded_dir/encoded-executor.toml" 'Status publication is optional when neither GESTALT_MOBILE_ORG_PLAN_STATUS_DIRECTORY nor the legacy GESTALT_MOBILE_ORG_PLAN_STATUS_FILE is present.'
 
 if [ "$failures" -ne 0 ]; then printf '%s passed, %s failed\n' "$passes" "$failures"; exit 1; fi
