@@ -35,6 +35,24 @@ L2 property drawers contain neither `:SKILLS:` nor `:REVIEW_STATUS:`.
 the plan contract. Do not include it in `:SKILLS:`; reserve that property for
 task-specific skills.
 
+Measured plans may additionally use the optional properties `STARTED_AT`,
+`UPDATED_AT`, `COMPLETED_AT`, `ELAPSED_SECONDS`,
+`WEEKLY_REMAINING_START`, `WEEKLY_REMAINING_CURRENT`,
+`WEEKLY_REMAINING_END`, `WEEKLY_PERCENT_USED`, `TOKENS_START`,
+`TOKENS_CURRENT`, `TOKENS_END`, and `TOKENS_USED` on either L1 or L2.
+Timestamp values are UTC ISO-8601 instants; elapsed time is a non-negative
+integer number of seconds; quota values are integer percentages; and token
+counters are non-negative integers. Start values are immutable, current values
+are refreshed, and completion snapshots end values. `ELAPSED_SECONDS` is the
+wall-clock interval from `STARTED_AT` to the latest observation, while
+`WEEKLY_PERCENT_USED` and `TOKENS_USED` are non-negative deltas from their
+start values. Preserve unavailable quota values by omitting their properties;
+if an account quota moves backwards or resets, record `WEEKLY_PERCENT_USED: 0`.
+Each heading owns its interval: an L1 begins before its first L2 and completes
+after its accepted work, review, retries, and waiting. Refresh the active L1
+when recording an L2 checkpoint, but never compute an L1 duration by summing
+L2 durations.
+
 Before finalizing the plan, inspect the names and discovery descriptions of the
 complete skill catalog available in the planning session. For each L1, compare
 its scope with every known skill and select the smallest sufficient set needed
