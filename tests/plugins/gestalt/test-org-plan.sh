@@ -720,5 +720,100 @@ expect_contains "$manifest" 'Dyne.org Gestalt'
 expect_contains "$manifest" 'Org Plan'
 expect_contains "$manifest" 'adapted Superpowers workflows'
 
+status_dir="$tmp/status-dir"
+mkdir -m 700 "$status_dir"
+status_plan="$status_dir/plan with \"quotes\" \\ backslash ✓.org"
+copy valid-minimal.org "status-plan.org"
+mv "$tmp/status-plan.org" "$status_plan"
+status_file="$status_dir/status.json"
+expect_ok "$helper" signal "$status_plan" absent-env
+test ! -e "$status_file" && pass || fail 'signal is a no-op when status publishing is not configured'
+expect_ok env GESTALT_MOBILE_ORG_PLAN_STATUS_FILE="$status_file" "$helper" signal "$status_plan" 'supervision-start'
+python3 -c '
+import datetime, json, os, sys
+document = json.load(open(sys.argv[1], encoding="utf-8"))
+assert document["schemaVersion"] == 1
+assert document["planPath"] == os.path.realpath(sys.argv[2])
+assert document["reason"] == "supervision-start"
+assert set(document) == {"schemaVersion", "planPath", "reason", "updatedAt"}
+datetime.datetime.fromisoformat(document["updatedAt"].replace("Z", "+00:00"))
+' "$status_file" "$status_plan" && pass || fail 'signal writes the versioned canonical JSON envelope'
+final_plan_link="$status_dir/final-plan-link.org"
+ln -s "$status_plan" "$final_plan_link"
+expect_ok env GESTALT_MOBILE_ORG_PLAN_STATUS_FILE="$status_file" "$helper" signal "$final_plan_link" final-plan-symlink
+python3 -c 'import json, os, sys; assert json.load(open(sys.argv[1], encoding="utf-8"))["planPath"] == os.path.realpath(sys.argv[2])' "$status_file" "$final_plan_link" && pass || fail 'final plan symlink publishes its true canonical target path'
+linked_parent="$tmp/status-parent-link"
+ln -s "$status_dir" "$linked_parent"
+expect_ok env GESTALT_MOBILE_ORG_PLAN_STATUS_FILE="$status_file" "$helper" signal "$linked_parent/${status_plan##*/}" parent-symlink
+python3 -c 'import json, os, sys; assert json.load(open(sys.argv[1], encoding="utf-8"))["planPath"] == os.path.realpath(sys.argv[2])' "$status_file" "$linked_parent/${status_plan##*/}" && pass || fail 'symlinked plan parent publishes its true canonical path'
+test "$(stat -c '%a' "$status_file" 2>/dev/null || stat -f '%Lp' "$status_file")" = 600 && pass || fail 'status signal uses restrictive permissions'
+old_status_inode=$(stat -c '%i' "$status_file" 2>/dev/null || stat -f '%i' "$status_file")
+status_reason='resync\backslash'
+expect_ok env GESTALT_MOBILE_ORG_PLAN_STATUS_FILE="$status_file" "$helper" signal "$status_plan" "$status_reason"
+new_status_inode=$(stat -c '%i' "$status_file" 2>/dev/null || stat -f '%i' "$status_file")
+test "$old_status_inode" != "$new_status_inode" && pass || fail 'status signal atomically replaces the prior document'
+python3 -c 'import json, os, sys; document=json.load(open(sys.argv[1], encoding="utf-8")); assert document["reason"] == sys.argv[2] and document["planPath"] == os.path.realpath(sys.argv[3])' "$status_file" "$status_reason" "$status_plan" && pass || fail 'repeated signal JSON round-trips backslashes and replaces the complete document'
+ln -s "$status_dir/redirected.json" "$status_dir/symlink.json"
+expect_fail env GESTALT_MOBILE_ORG_PLAN_STATUS_FILE="$status_dir/symlink.json" "$helper" signal "$status_plan" hostile
+expect_contains "$tmp/err" 'status file must not be a symlink'
+test ! -e "$status_dir/redirected.json" && pass || fail 'symlink status destination cannot redirect writes'
+unsafe_status_dir="$tmp/unsafe-status-dir"
+mkdir -m 777 "$unsafe_status_dir"
+expect_fail env GESTALT_MOBILE_ORG_PLAN_STATUS_FILE="$unsafe_status_dir/status.json" "$helper" signal "$status_plan" unsafe
+expect_contains "$tmp/err" 'unsafe status file directory'
+interrupt_bin="$tmp/status-interrupt-bin"
+mkdir -m 700 "$interrupt_bin"
+printf '#!/bin/sh\nkill -TERM "$PPID"\nexit 1\n' >"$interrupt_bin/mv"
+chmod +x "$interrupt_bin/mv"
+expect_fail env PATH="$interrupt_bin:$PATH" GESTALT_MOBILE_ORG_PLAN_STATUS_FILE="$status_file" "$helper" signal "$status_plan" interrupted
+test -z "$(find "$status_dir" -maxdepth 1 -name '.status.json.tmp.*' -print -quit)" && pass || fail 'interrupted signal cleans its status temporary file'
+test -f "$status_file" && pass || fail 'interrupted signal preserves the prior complete status file'
+rm -rf "$interrupt_bin"
+chmod 700 "$unsafe_status_dir"
+rm -rf "$unsafe_status_dir"
+
+copy valid-minimal.org implicit-status.org
+expect_ok env GESTALT_MOBILE_ORG_PLAN_STATUS_FILE="$status_file" "$helper" set "$tmp/implicit-status.org" first-outcome WIP
+python3 -c 'import json, sys; assert json.load(open(sys.argv[1], encoding="utf-8"))["reason"] == "set:first-outcome:WIP"' "$status_file" && pass || fail 'successful set publishes its stable target reason'
+copy valid-minimal.org implicit-warning.org
+expect_ok env GESTALT_MOBILE_ORG_PLAN_STATUS_FILE="$status_dir/missing/status.json" "$helper" set "$tmp/implicit-warning.org" first-outcome WIP
+expect_contains "$tmp/err" 'warning: plan status not published'
+expect_contains "$tmp/implicit-warning.org" '* WIP [#A] First outcome'
+
+lifecycle_plan="$tmp/lifecycle.org"
+copy valid-minimal.org lifecycle.org
+expect_ok env GESTALT_MOBILE_ORG_PLAN_STATUS_FILE="$status_file" "$helper" signal "$lifecycle_plan" supervision-start
+expect_ok env GESTALT_MOBILE_ORG_PLAN_STATUS_FILE="$status_file" "$helper" set "$lifecycle_plan" first-outcome WIP
+expect_ok env GESTALT_MOBILE_ORG_PLAN_STATUS_FILE="$status_file" "$helper" l2 "$lifecycle_plan" first-task WIP
+python3 -c 'import json, sys; assert json.load(open(sys.argv[1], encoding="utf-8"))["reason"] == "l2:first-task:WIP"' "$status_file" && pass || fail 'L2 WIP publishes exactly one L2 lifecycle reason'
+expect_ok env GESTALT_MOBILE_ORG_PLAN_STATUS_FILE="$status_file" "$helper" l2 "$lifecycle_plan" first-task DONE
+expect_ok env GESTALT_MOBILE_ORG_PLAN_STATUS_FILE="$status_file" "$helper" set "$lifecycle_plan" first-outcome DONE
+expect_ok env GESTALT_MOBILE_ORG_PLAN_STATUS_FILE="$status_file" "$helper" review "$lifecycle_plan" first-outcome REVIEWED
+python3 -c 'import json, sys; assert json.load(open(sys.argv[1], encoding="utf-8"))["reason"] == "review:first-outcome:REVIEWED"' "$status_file" && pass || fail 'review publishes its stable target reason'
+expect_ok env GESTALT_MOBILE_ORG_PLAN_STATUS_FILE="$status_file" "$helper" review "$lifecycle_plan" first-outcome UNREVIEWED
+expect_ok env GESTALT_MOBILE_ORG_PLAN_STATUS_FILE="$status_file" "$helper" review "$lifecycle_plan" first-outcome REVIEWED
+expect_ok env GESTALT_MOBILE_ORG_PLAN_STATUS_FILE="$status_file" "$helper" set "$lifecycle_plan" first-outcome WIP --force
+python3 -c 'import json, sys; assert json.load(open(sys.argv[1], encoding="utf-8"))["reason"] == "set:first-outcome:WIP"' "$status_file" && pass || fail 'reopen after review publishes after the durable state reset'
+status_before=$(cksum "$status_file")
+copy valid-minimal.org malformed-status.org
+sed 's/^\* TODO /\* WAIT /' "$tmp/malformed-status.org" >"$tmp/changed" && mv "$tmp/changed" "$tmp/malformed-status.org"
+expect_fail env GESTALT_MOBILE_ORG_PLAN_STATUS_FILE="$status_file" "$helper" signal "$tmp/malformed-status.org" bad
+test "$status_before" = "$(cksum "$status_file")" && pass || fail 'malformed plans never advance the status document'
+expect_fail env GESTALT_MOBILE_ORG_PLAN_STATUS_FILE="$status_file" "$helper" l2 "$lifecycle_plan" missing WIP
+test "$status_before" = "$(cksum "$status_file")" && pass || fail 'unknown transition IDs never advance the status document'
+expect_ok "$helper" l2 "$lifecycle_plan" 'First task'
+test ! -e "$tmp/status-without-publish.json" && pass || fail 'read-only L2 selection does not publish'
+expect_contains "$skill" '`org-plan signal PLAN supervision-start`'
+expect_contains "$skill" '`org-plan set PLAN L1_ID WIP|DONE`'
+expect_contains "$skill" '`org-plan l2 PLAN L2_ID WIP|DONE`'
+expect_contains "$skill" 'direct TODO keyword or property edits are'
+expect_contains "$skill" '`org-plan signal PLAN resync`'
+expect_contains "$supervision_dir/org-plan-supervisor.toml" 'org-plan signal PLAN supervision-start'
+expect_contains "$supervision_dir/org-plan-supervisor.toml" 'direct TODO keyword or property edits are forbidden'
+expect_contains "$supervision_dir/org-plan-supervisor.toml" 'org-plan l2 PLAN L2_ID WIP|DONE'
+expect_contains "$supervision_dir/org-plan-executor.toml" 'org-plan set PLAN L1_ID WIP|DONE'
+expect_contains "$supervision_dir/org-plan-executor.toml" 'org-plan signal PLAN resync'
+expect_contains "$encoded_dir/encoded-executor.toml" 'Status publication is optional when GESTALT_MOBILE_ORG_PLAN_STATUS_FILE is absent.'
+
 if [ "$failures" -ne 0 ]; then printf '%s passed, %s failed\n' "$passes" "$failures"; exit 1; fi
 printf '%s passed\n' "$passes"
