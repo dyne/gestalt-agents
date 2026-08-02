@@ -42,33 +42,35 @@ ownership, or change Org Plan state.
 
 ## 🎮 Quick setup
 
-### Codex specific install as marketplace
+### Requirements
 
 Gestalt setup requires Node.js 22.5 or newer and npm. It uses Bun for dependency
-installation when a working Bun executable is available.
+installation when a working Bun executable is available. Building context-mode
+also requires network access, `python3`, `make`, and a C/C++ compiler.
+
+### Fresh Codex install
 
 Add our plugin marketplace `dyne-gestalt-agents`:
-```
+
+```sh
 codex plugin marketplace add dyne/gestalt-agents
 codex plugin marketplace list
 ```
 
 The second command prints the marketplace checkout path. Run the setup script
 from that directory; it installs both plugins and prepares context-mode before
-Codex can launch its MCP server:
+Codex can launch its MCP server. Then generate the two current Org Plan agent
+profiles:
 
-```
+```sh
 cd <MARKETPLACE_ROOT>
 ./gestalt-setup.sh
+plugins/gestalt/skills/org-plan/scripts/org-plan prepare-supervision
 ```
 
-Update to latest version:
-```
-codex plugin marketplace upgrade dyne/gestalt-agents
-```
+Add this configuration to `~/.codex/config.toml`:
 
-Make sure to add the following configuration directive to `~/.codex/config.toml`:
-```
+```toml
 [agents]
 max_depth = 1
 
@@ -77,29 +79,64 @@ plugin_hooks = true
 hooks = true
 ```
 
+Restart Codex, verify the effective installation, and run `ctx-doctor` in a new
+session:
+
+```sh
+codex plugin list --marketplace dyne-gestalt-agents --json
+```
+
+### Update an existing install
+
+Refreshing a marketplace does not run its setup script or regenerate agent
+profiles. Upgrade the checkout, locate its current root, rerun setup, and
+overwrite the generated reviewer and executor profiles:
+
+```sh
+codex plugin marketplace upgrade dyne-gestalt-agents
+codex plugin marketplace list
+cd <MARKETPLACE_ROOT>
+./gestalt-setup.sh
+plugins/gestalt/skills/org-plan/scripts/org-plan prepare-supervision
+```
+
+When updating an installation from before v0.11.0, replace any old
+`[agents] max_depth = 2` setting with `max_depth = 1`. The former architecture
+also generated `~/.codex/agents/org-plan-supervisor.toml`; remove that file if
+it is the old Gestalt-generated profile. It is no longer used, and leaving it
+installed makes the obsolete intermediate-supervisor role available to Codex.
+If you may have customized it, move it outside `~/.codex/agents/` instead of
+deleting it.
+
+```sh
+rm -- "$HOME/.codex/agents/org-plan-supervisor.toml"
+```
+
+Very old manually wired context-mode installations may also have a standalone
+`[mcp_servers.context-mode]` block or user-level context-mode hook commands.
+Remove only those legacy entries: the current plugin registers its MCP server
+and discovers its hooks itself. Keep the two feature flags shown above.
+
+Restart Codex after the update and run the same `codex plugin list` and
+`ctx-doctor` checks used for a fresh install. If context-mode reports
+`CONTEXT_MODE_NOT_PREPARED`, rerun `./gestalt-setup.sh --force` and check the
+runtime and native build prerequisites.
+
+### Runtime preparation details
+
 This marketplace keeps generated JavaScript bundles out of Git. The setup
 script installs locked build dependencies and compiles the exact installed
-context-mode cache. It requires network access and a native build toolchain
-(`python3`, `make`, and a C/C++ compiler). Normal Codex MCP and hook startup is
-side-effect free: it verifies the prepared manifest and either launches the
-bundle or exits quickly with `CONTEXT_MODE_NOT_PREPARED`.
+context-mode cache. Normal Codex MCP and hook startup is side-effect free: it
+verifies the prepared manifest and either launches the bundle or exits quickly
+with `CONTEXT_MODE_NOT_PREPARED`.
 
 Run `./gestalt-setup.sh` again after a marketplace upgrade. Use
 `./gestalt-setup.sh --prepare-only` to prepare a source checkout without
 installing plugins, and `--force` to replace an invalid prepared runtime.
 
-Restart Codex after installation or configuration changes. The plugin
-manifest registers the MCP server, and Codex discovers the plugin hooks at its
-standard path. Do not add duplicate MCP or hook configuration. Verify the
-effective installation with:
-
-```
-codex plugin list --marketplace dyne-gestalt-agents --json
-```
-
-Then start a fresh Codex session and ask it to run `ctx-doctor`. If startup
-fails, rerun `gestalt-setup.sh`, check the runtime and build prerequisites, and
-confirm that another context-mode marketplace variant is not also enabled.
+Do not add duplicate MCP or hook configuration. If startup still fails after
+forced preparation, confirm that another context-mode marketplace variant is
+not also enabled.
 
 ## 🧪 Testing (only for developers of this repo)
 

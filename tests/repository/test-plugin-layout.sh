@@ -116,6 +116,17 @@ for contract in (
 ):
     assert contract in readme, f"README lacks context-mode contract: {contract}"
 
+for upgrade_contract in (
+    "codex plugin marketplace upgrade dyne-gestalt-agents",
+    "plugins/gestalt/skills/org-plan/scripts/org-plan prepare-supervision",
+    "~/.codex/agents/org-plan-supervisor.toml",
+    'rm -- "$HOME/.codex/agents/org-plan-supervisor.toml"',
+    "max_depth = 2",
+    "max_depth = 1",
+    "./gestalt-setup.sh --force",
+):
+    assert upgrade_contract in readme, f"README lacks upgrade contract: {upgrade_contract}"
+
 context_skill = (plugin / "skills" / "context-mode" / "SKILL.md").read_text()
 for contract in (
     "## Org Plan execution",
