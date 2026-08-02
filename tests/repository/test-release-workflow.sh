@@ -6,7 +6,10 @@ tmp=$(mktemp -d "${TMPDIR:-/tmp}/release-workflow-test.XXXXXX")
 trap 'rm -rf "$tmp"' EXIT HUP INT TERM
 ruby -ryaml -rjson -e 'File.write(ARGV[1], JSON.generate(YAML.safe_load_file(ARGV[0], aliases: false)))' \
   "$root/.github/workflows/release.yml" "$tmp/workflow.json"
-python3 - "$root/.github/workflows/release.yml" "$tmp/workflow.json" <<'PY'
+ruby -ryaml -rjson -e 'File.write(ARGV[1], JSON.generate(YAML.safe_load_file(ARGV[0], aliases: false)))' \
+  "$root/.github/workflows/test.yml" "$tmp/test-workflow.json"
+python3 - "$root/.github/workflows/release.yml" "$tmp/workflow.json" \
+  "$root/.github/workflows/test.yml" "$tmp/test-workflow.json" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -14,17 +17,25 @@ from pathlib import Path
 path = Path(sys.argv[1])
 source = path.read_text()
 workflow = json.loads(Path(sys.argv[2]).read_text())
+test_source = Path(sys.argv[3]).read_text()
+test_workflow = json.loads(Path(sys.argv[4]).read_text())
 trigger = workflow.get("on", workflow.get("true"))
+test_trigger = test_workflow.get("on", test_workflow.get("true"))
 
 assert workflow["name"] == "Release"
 assert trigger == {"push": {"branches": ["main"]}}
-assert workflow["permissions"] == {"contents": "write"}
+assert workflow["permissions"] == {"contents": "read"}
 assert workflow["concurrency"] == {
     "group": "release-${{ github.repository }}",
     "cancel-in-progress": False,
 }
 
-steps = workflow["jobs"]["release"]["steps"]
+assert workflow["jobs"]["test"] == {"uses": "./.github/workflows/test.yml"}
+release_job = workflow["jobs"]["release"]
+assert release_job["needs"] == "test"
+assert release_job["permissions"] == {"contents": "write"}
+
+steps = release_job["steps"]
 checkout = next(step for step in steps if step.get("uses") == "actions/checkout@v4")
 assert checkout["with"]["fetch-depth"] == 0
 
@@ -50,9 +61,10 @@ assert "tag=v0.1.0" in release["run"]
 assert "version=0.1.0" in release["run"]
 assert "major|minor|patch) should_release=true" in release["run"]
 assert "none) should_release=false" in release["run"]
-assert 'echo "tag=$tag" >>"$GITHUB_OUTPUT"' in release["run"]
-assert 'echo "version=$version" >>"$GITHUB_OUTPUT"' in release["run"]
-assert 'echo "should_release=$should_release" >>"$GITHUB_OUTPUT"' in release["run"]
+assert "printf 'tag=%s\\n' \"$tag\"" in release["run"]
+assert "printf 'version=%s\\n' \"$version\"" in release["run"]
+assert "printf 'should_release=%s\\n' \"$should_release\"" in release["run"]
+assert release["run"].count('>>"$GITHUB_OUTPUT"') == 1
 
 synchronize = next(
     step for step in steps if step.get("name") == "Synchronize plugin manifests"
@@ -80,6 +92,38 @@ assert "chore" not in semver["with"]["minorList"]
 assert "chore" not in semver["with"]["patchList"]
 assert "GITHUB_TOKEN pushes do not recursively trigger" in source
 assert "Protected main" in source
+
+assert test_workflow["name"] == "Test"
+assert test_trigger == {
+    "workflow_call": None,
+    "push": {"branches-ignore": ["main"]},
+    "pull_request": None,
+}
+assert test_workflow["permissions"] == {"contents": "read"}
+matrix_job = test_workflow["jobs"]["test"]
+assert matrix_job["runs-on"] == "${{ matrix.os }}"
+assert matrix_job["strategy"] == {
+    "fail-fast": False,
+    "matrix": {"os": ["ubuntu-latest", "macos-latest"]},
+}
+matrix_steps = matrix_job["steps"]
+node = next(step for step in matrix_steps if step.get("uses") == "actions/setup-node@v4")
+go = next(step for step in matrix_steps if step.get("uses") == "actions/setup-go@v5")
+bun = next(step for step in matrix_steps if step.get("uses") == "oven-sh/setup-bun@v2")
+assert node["with"]["node-version"] == "22.12.0"
+assert go["if"] == "runner.os == 'Linux'"
+assert go["with"]["go-version"] == "1.24.0"
+assert bun["with"]["bun-version"] == "1.3.14"
+codex = next(step for step in matrix_steps if step.get("name") == "Install current Codex CLI")
+assert codex["run"] == "npm install --global @openai/codex@latest"
+assert any(step.get("if") == "runner.os == 'Linux'" and "shellcheck" in step.get("run", "") for step in matrix_steps)
+assert any(step.get("if") == "runner.os == 'macOS'" and "coreutils" in step.get("run", "") for step in matrix_steps)
+actionlint = next(step for step in matrix_steps if step.get("name") == "Validate GitHub Actions workflows")
+assert actionlint["if"] == "runner.os == 'Linux'"
+assert "actionlint@v1.7.7" in actionlint["run"]
+validation = next(step for step in matrix_steps if step.get("name") == "Run complete validation")
+assert validation["run"] == "bash tests/ci.sh"
+assert "tests/run.sh" not in test_source
 PY
 
 printf 'release workflow contract is valid\n'

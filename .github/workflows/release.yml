@@ -6,7 +6,7 @@ on:
       - main
 
 permissions:
-  contents: write
+  contents: read
 
 # GITHUB_TOKEN pushes do not recursively trigger this workflow. Protected main
 # must allow GitHub Actions to write; an atomic push rejects both branch and tag
@@ -16,8 +16,14 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  test:
+    uses: ./.github/workflows/test.yml
+
   release:
+    needs: test
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
         with:
@@ -78,9 +84,11 @@ jobs:
           fi
           [[ "$tag" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]
           [[ "$version" == "${tag#v}" ]]
-          echo "tag=$tag" >>"$GITHUB_OUTPUT"
-          echo "version=$version" >>"$GITHUB_OUTPUT"
-          echo "should_release=$should_release" >>"$GITHUB_OUTPUT"
+          {
+            printf 'tag=%s\n' "$tag"
+            printf 'version=%s\n' "$version"
+            printf 'should_release=%s\n' "$should_release"
+          } >>"$GITHUB_OUTPUT"
 
       - name: Synchronize plugin manifests
         if: steps.release.outputs.should_release == 'true'

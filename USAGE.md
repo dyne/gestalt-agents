@@ -146,10 +146,10 @@ declare a custom `hooks` field.
 
 ## Maintainer verification
 
-Run the complete repository suite before publishing:
+Run the same complete validation used by CI before publishing:
 
 ```sh
-bash tests/run.sh
+bash tests/ci.sh
 git diff --check
 ```
 
@@ -166,4 +166,7 @@ Startup coverage verifies that:
 
 The full suite also validates plugin layout, marketplace metadata, Org Plan
 state transitions and generated profiles, ShellCheck results, context-mode
-integrity, and nested MCP startup.
+integrity, its Codex-focused Vitest suite, and nested MCP startup. GitHub runs
+the canonical command on Linux and macOS with Node.js 22.12.0 and verifies both
+plugins through the current Codex CLI's real marketplace installation path. A
+push to `main` can enter the release job only after both validation jobs pass.

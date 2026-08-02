@@ -103,15 +103,18 @@ confirm that another context-mode marketplace variant is not also enabled.
 
 ## 🧪 Testing (only for developers of this repo)
 
-Run the complete repository test suite before publishing changes:
+Run the same complete validation used by CI before publishing changes:
 
 ```
-bash tests/run.sh
+bash tests/ci.sh
 ```
 
-The suite validates repository/Gestalt contracts, context-mode provenance,
-skill discovery, nested MCP startup, shell syntax, release versioning, and
-release-workflow contracts.
+The validation covers repository and Gestalt contracts, plugin and skill
+ingestion, context-mode integrity and Codex-focused tests, skill discovery,
+nested MCP startup, shell linting, release versioning, and release-workflow
+contracts. It also installs both plugins through the current Codex CLI in an
+isolated home. GitHub runs it on Linux and macOS with Node.js 22.12.0. The
+release job starts only after both operating-system jobs pass.
 
 
 # 📃 Plan
