@@ -181,3 +181,16 @@ integrity, its Codex-focused Vitest suite, and nested MCP startup. GitHub runs
 the canonical command on Linux and macOS with Node.js 22.12.0 and verifies both
 plugins through the current Codex CLI's real marketplace installation path. A
 push to `main` can enter the release job only after both validation jobs pass.
+
+## Release versioning
+
+The repository release line starts at `v2.0.0` and is calculated by
+`ietf-tools/semver-action@v1` from conventional commits. Existing `v0.x` tags
+remain as historical releases but are excluded from the new calculation
+baseline. The Gestalt manifest, context-mode manifest and runtime package use
+the same repository release version; context-mode's imported upstream version
+remains recorded separately in `UPSTREAM.md`. Once `v2.0.0` exists, `feat` and
+`feature` commits bump the minor version; `fix`, `bugfix`, `perf`, `refactor`,
+`test`, and `tests` bump the patch version; and a conventional-commit
+breaking-change marker bumps the major version. Other commit types do not
+create a release.

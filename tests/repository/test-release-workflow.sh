@@ -40,7 +40,9 @@ checkout = next(step for step in steps if step.get("uses") == "actions/checkout@
 assert checkout["with"]["fetch-depth"] == 0
 
 baseline = next(step for step in steps if step.get("id") == "baseline")
-assert "^v(0|[1-9][0-9]*)" in baseline["run"]
+release_tag_filter = r"^v([2-9]|[1-9][0-9]+)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$"
+assert release_tag_filter in baseline["run"]
+assert "^v(0|[1-9][0-9]*)" not in baseline["run"]
 assert "has_tag=false" in baseline["run"]
 
 semver = next(step for step in steps if step.get("id") == "semver")
@@ -52,13 +54,17 @@ assert semver["with"]["majorList"] == ""
 assert semver["with"]["minorList"] == "feat, feature"
 assert semver["with"]["patchList"] == "fix, bugfix, perf, refactor, test, tests"
 assert semver["with"]["skipInvalidTags"] is True
+assert semver["with"]["tagFilter"] == release_tag_filter
+assert semver["with"]["maxTagsToFetch"] == 100
 assert semver["with"]["noNewCommitBehavior"] == "current"
 assert semver["with"]["noVersionBumpBehavior"] == "current"
 
 release = next(step for step in steps if step.get("id") == "release")
 assert release["env"]["NEXT_VERSION"] == "${{ steps.semver.outputs.nextStrict }}"
-assert "tag=v0.1.0" in release["run"]
-assert "version=0.1.0" in release["run"]
+assert "tag=v2.0.0" in release["run"]
+assert "version=2.0.0" in release["run"]
+assert release_tag_filter in release["run"]
+assert "tag=v0.1.0" not in release["run"]
 assert "major|minor|patch) should_release=true" in release["run"]
 assert "none) should_release=false" in release["run"]
 assert "printf 'tag=%s\\n' \"$tag\"" in release["run"]
@@ -80,9 +86,19 @@ assert synchronize["if"] == release_guard
 assert commit["if"] == release_guard
 assert publish["if"] == release_guard
 assert 'scripts/set-plugin-version.py "$VERSION"' in synchronize["run"]
-assert 'json.loads(manifest.read_text())["version"] == version' in synchronize["run"]
+for versioned_path in (
+    "plugins/gestalt/.codex-plugin/plugin.json",
+    "plugins/context-mode/.codex-plugin/plugin.json",
+    "plugins/context-mode/package.json",
+):
+    assert versioned_path in synchronize["run"]
+assert "Downstream package version" in synchronize["run"]
+assert "tests/plugins/context-mode/test-upstream-vendor.sh" in synchronize["run"]
 assert "git config user.name github-actions[bot]" in commit["run"]
-assert "git diff --quiet -- plugins/gestalt/.codex-plugin/plugin.json" in commit["run"]
+assert "release_paths=(" in commit["run"]
+assert 'git diff --quiet -- "${release_paths[@]}"' in commit["run"]
+assert 'git add -- "${release_paths[@]}"' in commit["run"]
+assert "context-mode-codex-hardening-4b1348d.sha256" in commit["run"]
 assert 'git commit -m "chore(release): $TAG [skip ci]"' in commit["run"]
 assert 'git tag "$TAG" HEAD' in publish["run"]
 assert 'git push --atomic origin HEAD:main "refs/tags/$TAG"' in publish["run"]

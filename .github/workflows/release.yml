@@ -35,7 +35,7 @@ jobs:
         run: |
           set -euo pipefail
           latest_tag=$(git tag --list --sort=-version:refname |
-            grep -E '^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$' |
+            grep -E '^v([2-9]|[1-9][0-9]+)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$' |
             head -n 1 || true)
           if [[ -n "$latest_tag" ]]; then
             echo "has_tag=true" >>"$GITHUB_OUTPUT"
@@ -54,7 +54,7 @@ jobs:
           minorList: feat, feature
           patchList: fix, bugfix, perf, refactor, test, tests
           skipInvalidTags: true
-          tagFilter: '^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$'
+          tagFilter: '^v([2-9]|[1-9][0-9]+)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$'
           maxTagsToFetch: 100
           noNewCommitBehavior: current
           noVersionBumpBehavior: current
@@ -70,8 +70,8 @@ jobs:
         run: |
           set -euo pipefail
           if [[ "$HAS_TAG" == false ]]; then
-            tag=v0.1.0
-            version=0.1.0
+            tag=v2.0.0
+            version=2.0.0
             should_release=true
           else
             tag=$NEXT_TAG
@@ -82,7 +82,7 @@ jobs:
               *) echo "Unexpected semver bump: $BUMP" >&2; exit 1 ;;
             esac
           fi
-          [[ "$tag" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]
+          [[ "$tag" =~ ^v([2-9]|[1-9][0-9]+)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]
           [[ "$version" == "${tag#v}" ]]
           {
             printf 'tag=%s\n' "$tag"
@@ -103,9 +103,17 @@ jobs:
           from pathlib import Path
 
           version = sys.argv[1]
-          manifest = Path("plugins/gestalt/.codex-plugin/plugin.json")
-          assert json.loads(manifest.read_text())["version"] == version, manifest
+          versioned_json = (
+              Path("plugins/gestalt/.codex-plugin/plugin.json"),
+              Path("plugins/context-mode/.codex-plugin/plugin.json"),
+              Path("plugins/context-mode/package.json"),
+          )
+          for path in versioned_json:
+              assert json.loads(path.read_text())["version"] == version, path
+          provenance = Path("plugins/context-mode/UPSTREAM.md").read_text()
+          assert f"- Downstream package version: `{version}`" in provenance
           PY
+          bash tests/plugins/context-mode/test-upstream-vendor.sh
 
       - name: Commit synchronized plugin versions
         if: steps.release.outputs.should_release == 'true'
@@ -115,10 +123,17 @@ jobs:
           set -euo pipefail
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          if git diff --quiet -- plugins/gestalt/.codex-plugin/plugin.json; then
-            echo "Plugin manifests already match $TAG"
+          release_paths=(
+            plugins/gestalt/.codex-plugin/plugin.json
+            plugins/context-mode/.codex-plugin/plugin.json
+            plugins/context-mode/package.json
+            plugins/context-mode/UPSTREAM.md
+            tests/plugins/context-mode/fixtures/context-mode-codex-hardening-4b1348d.sha256
+          )
+          if git diff --quiet -- "${release_paths[@]}"; then
+            echo "Plugin versions already match $TAG"
           else
-            git add plugins/*/.codex-plugin/plugin.json
+            git add -- "${release_paths[@]}"
             git commit -m "chore(release): $TAG [skip ci]"
           fi
 
