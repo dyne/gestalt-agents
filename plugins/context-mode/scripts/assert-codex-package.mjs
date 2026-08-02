@@ -8,7 +8,7 @@ const failures = [];
 const required = [
   ".codex-plugin/plugin.json",
   ".mcp.json",
-  "hooks/codex-hooks.json",
+  "hooks/hooks.json",
   "start.mjs",
   "scripts/prepare-runtime.mjs",
   "scripts/runtime-preflight.mjs",

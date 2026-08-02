@@ -90,9 +90,9 @@ Run `./gestalt-setup.sh` again after a marketplace upgrade. Use
 installing plugins, and `--force` to replace an invalid prepared runtime.
 
 Restart Codex after installation or configuration changes. The plugin
-manifest registers the MCP server and hooks, so do not add a duplicate
-`[mcp_servers.context-mode]` entry. Verify the effective installation
-with:
+manifest registers the MCP server, and Codex discovers the plugin hooks at its
+standard path. Do not add duplicate MCP or hook configuration. Verify the
+effective installation with:
 
 ```
 codex plugin list --marketplace dyne-gestalt-agents --json

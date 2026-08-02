@@ -91,14 +91,25 @@ describe(".codex-plugin/plugin.json", () => {
     expect(manifest.mcpServers).toBe("./.mcp.json");
   });
 
+  it("uses Codex's default hook discovery instead of a manifest override", () => {
+    expect(manifest).not.toHaveProperty("hooks");
+  });
+
+  it("provides complete install-surface metadata", () => {
+    const ui = manifest.interface as Record<string, unknown>;
+    expect(ui.longDescription).toBeTypeOf("string");
+    expect(ui.capabilities).toEqual(expect.arrayContaining([expect.any(String)]));
+    expect(ui.defaultPrompt).toEqual(expect.arrayContaining([expect.any(String)]));
+  });
+
   it("version matches package.json", () => {
     expect(manifest.version).toBe(pkg.version);
   });
 });
 
-describe("hooks/codex-hooks.json", () => {
-  const hooksPath = resolve(REPO_ROOT, "hooks/codex-hooks.json");
-  const hooks = readJson("hooks/codex-hooks.json") as {
+describe("hooks/hooks.json", () => {
+  const hooksPath = resolve(REPO_ROOT, "hooks/hooks.json");
+  const hooks = readJson("hooks/hooks.json") as {
     hooks: Record<string, Array<{ hooks: Array<{ command: string }> }>>;
   };
 

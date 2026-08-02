@@ -20,11 +20,19 @@
     "context7"
   ],
   "mcpServers": "./.mcp.json",
-  "hooks": "./hooks/codex-hooks.json",
   "interface": {
     "displayName": "context-mode",
     "shortDescription": "Sandboxed output analysis and FTS5 indexed search",
+    "longDescription": "Index and search large command output, inspect fetched content, and preserve session context through a bundled Codex MCP server.",
     "developerName": "Mert Koseoğlu",
-    "category": "Productivity"
+    "category": "Productivity",
+    "capabilities": [
+      "Indexed output search",
+      "Session continuity"
+    ],
+    "defaultPrompt": [
+      "Use context-mode to inspect large command output without flooding this conversation.",
+      "Use context-mode to search indexed output and recover relevant session context."
+    ]
   }
 }
