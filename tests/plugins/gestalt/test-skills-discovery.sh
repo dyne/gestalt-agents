@@ -32,4 +32,4 @@ assert all(count == 1 for count in counts.values()), (
 )
 PY
 
-printf 'npx skills discovers vendored superpowers skills\n'
+printf 'npx skills discovers Gestalt workflow skills\n'

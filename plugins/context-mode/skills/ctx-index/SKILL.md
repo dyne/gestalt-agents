@@ -1,46 +1,18 @@
 ---
 name: ctx-index
-description: |
-  Index a local file or directory into context-mode's persistent FTS5 knowledge base
-  so future ctx_search calls can retrieve focused snippets without rereading raw files.
-  Trigger: /context-mode:ctx-index
-user-invocable: true
+description: Index a local file or directory into context-mode's FTS5 knowledge base for focused later retrieval. Trigger when the user invokes ctx-index or wants persistent search over project files without rereading raw content.
 ---
 
 # Context Mode Index
 
-Index local project content for later search.
+1. Use the provided path. Ask only when no path is given and the intended root
+   cannot be inferred safely.
+2. Call `ctx_index` with `path`, a descriptive `source`, and conservative
+   bounds. Do not send large inline `content`.
+3. Exclude dependency directories, build output, generated files, and secrets.
+4. Ask before raising `maxFiles` above 500.
+5. Report the source label, indexed file or section count, and an example
+   `ctx_search` call scoped to that source.
 
-## Instructions
-
-1. Prefer the `ctx_index` MCP tool when it is available.
-2. Ask for a path only if the user did not provide one and the current project root is ambiguous.
-3. Use `path`, not large inline `content`, so file bytes do not enter the conversation.
-4. For repository indexing, pass conservative bounds and a clear source label:
-
-```javascript
-ctx_index({
-  path: ".",
-  source: "project:<name>",
-  maxDepth: 5,
-  maxFiles: 200
-})
-```
-
-5. If MCP tools are unavailable, fall back to the CLI:
-
-```bash
-context-mode index . --source project:<name>
-```
-
-6. Report the indexed source label, file count or section count, and the matching search command:
-
-```javascript
-ctx_search({ source: "project:<name>", queries: ["..."] })
-```
-
-## Safety
-
-- Do not index dependency directories, build outputs, secrets, or generated artifacts.
-- Prefer `--exclude` or `exclude` for project-specific noisy paths.
-- For broad repos, ask the user before raising `maxFiles` above 500.
+For a repository, start with `maxDepth: 5` and `maxFiles: 200`. If the MCP tool
+is unavailable, run `context-mode index <path> --source <label>`.
