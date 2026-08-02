@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import re
@@ -37,12 +38,31 @@ def prepare_updates(root: Path, version: str) -> list[tuple[Path, str, int]]:
         raise ValueError(f"invalid strict semantic version: {version}")
 
     owned = root / "plugins" / "gestalt" / ".codex-plugin" / "plugin.json"
-    manifests = [owned] if owned.exists() else sorted((root / "plugins").glob("*/.codex-plugin/plugin.json"))
+    context_root = root / "plugins" / "context-mode"
+    context_manifest = context_root / ".codex-plugin" / "plugin.json"
+    context_package = context_root / "package.json"
+    context_provenance = context_root / "UPSTREAM.md"
+    checksum_fixture = (
+        root
+        / "tests"
+        / "plugins"
+        / "context-mode"
+        / "fixtures"
+        / "context-mode-codex-hardening-4b1348d.sha256"
+    )
+    repository_layout = owned.exists()
+    manifests = (
+        [owned, context_manifest, context_package]
+        if repository_layout
+        else sorted((root / "plugins").glob("*/.codex-plugin/plugin.json"))
+    )
     manifests = [path for path in manifests if path.is_file() and not path.is_symlink()]
-    if not manifests:
+    expected_manifest_count = 3 if repository_layout else 1
+    if len(manifests) < expected_manifest_count:
         raise ValueError("no Dyne-owned plugin manifests found")
 
-    updates = []
+    updates: list[tuple[Path, str, int]] = []
+    context_replacements: dict[str, bytes] = {}
     for path in manifests:
         try:
             manifest = json.loads(path.read_text(encoding="utf-8"))
@@ -53,6 +73,55 @@ def prepare_updates(root: Path, version: str) -> list[tuple[Path, str, int]]:
         manifest["version"] = version
         serialized = json.dumps(manifest, indent=2, ensure_ascii=False) + "\n"
         updates.append((path, serialized, stat.S_IMODE(path.stat().st_mode)))
+        if repository_layout and path.is_relative_to(context_root):
+            context_replacements[str(path.relative_to(context_root))] = serialized.encode()
+
+    if repository_layout:
+        try:
+            provenance = context_provenance.read_text(encoding="utf-8")
+        except OSError as error:
+            raise ValueError(f"cannot read {context_provenance}: {error}") from error
+        provenance, replacements = re.subn(
+            r"(?m)^- Downstream package version: `[^`]+`$",
+            f"- Downstream package version: `{version}`",
+            provenance,
+        )
+        if replacements != 1:
+            raise ValueError(f"expected one downstream package version in {context_provenance}")
+        updates.append(
+            (context_provenance, provenance, stat.S_IMODE(context_provenance.stat().st_mode))
+        )
+        context_replacements["UPSTREAM.md"] = provenance.encode()
+
+        try:
+            fixture_lines = checksum_fixture.read_text(encoding="utf-8").splitlines()
+        except OSError as error:
+            raise ValueError(f"cannot read {checksum_fixture}: {error}") from error
+        fixture_targets = set(context_replacements)
+        fixture_seen: set[str] = set()
+        rewritten_fixture: list[str] = []
+        for line in fixture_lines:
+            try:
+                mode, remainder = line.split(" ", 1)
+                _, relative = remainder.split("  ", 1)
+            except ValueError as error:
+                raise ValueError(f"malformed checksum fixture line: {line}") from error
+            replacement = context_replacements.get(relative)
+            if replacement is not None:
+                digest = hashlib.sha256(replacement).hexdigest()
+                line = f"{mode} {digest}  {relative}"
+                fixture_seen.add(relative)
+            rewritten_fixture.append(line)
+        if fixture_seen != fixture_targets:
+            missing = sorted(fixture_targets - fixture_seen)
+            raise ValueError(f"checksum fixture is missing versioned paths: {missing}")
+        updates.append(
+            (
+                checksum_fixture,
+                "\n".join(rewritten_fixture) + "\n",
+                stat.S_IMODE(checksum_fixture.stat().st_mode),
+            )
+        )
     return updates
 
 

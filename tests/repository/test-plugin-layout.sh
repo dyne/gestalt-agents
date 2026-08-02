@@ -43,6 +43,13 @@ manifests = {
 }
 assert set(manifests) == {"gestalt", "context-mode"}, f"unexpected plugin manifests: {sorted(manifests)}"
 assert all(manifest["name"] == name for name, manifest in manifests.items())
+assert manifests["gestalt"]["version"] == manifests["context-mode"]["version"], (
+    "marketplace plugin versions must stay synchronized"
+)
+context_package = json.loads((root / "plugins/context-mode/package.json").read_text())
+assert context_package["version"] == manifests["gestalt"]["version"], (
+    "context-mode runtime and marketplace versions must stay synchronized"
+)
 assert "skills" not in manifests["context-mode"], "context-mode skills must be owned by Gestalt"
 for name, manifest in manifests.items():
     assert re.fullmatch(r"(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)(?:-[0-9A-Za-z.-]+)?", manifest["version"]), (

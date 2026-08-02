@@ -132,6 +132,13 @@ contracts. It also installs both plugins through the current Codex CLI in an
 isolated home. GitHub runs it on Linux and macOS with Node.js 22.12.0. The
 release job starts only after both operating-system jobs pass.
 
+Releases use conventional commits with `ietf-tools/semver-action@v1`. The
+stable release line starts at `v2.0.0`; historical `v0.x` tags are excluded
+from future version calculations. Each release assigns the same version to the
+Gestalt plugin and the adapted context-mode plugin/runtime. `feat` advances the
+minor version, supported fix-oriented commit types advance the patch version,
+and breaking changes advance the major version.
+
 # 📃 Plan
 
 Each L1 starts unreviewed. After implementation and test gates make it

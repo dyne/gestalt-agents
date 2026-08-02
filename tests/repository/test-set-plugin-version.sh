@@ -38,6 +38,65 @@ assert all(
 )
 PY
 
+release_repository="$tmp/release-layout"
+mkdir -p \
+  "$release_repository/plugins/gestalt/.codex-plugin" \
+  "$release_repository/plugins/context-mode/.codex-plugin" \
+  "$release_repository/tests/plugins/context-mode/fixtures"
+printf '{"name":"gestalt","version":"0.12.3"}\n' \
+  >"$release_repository/plugins/gestalt/.codex-plugin/plugin.json"
+printf '{"name":"context-mode","version":"1.0.169-dyne.3"}\n' \
+  >"$release_repository/plugins/context-mode/.codex-plugin/plugin.json"
+printf '{"name":"context-mode","version":"1.0.169-dyne.3","private":true}\n' \
+  >"$release_repository/plugins/context-mode/package.json"
+printf '%s\n' \
+  '- Upstream package version: `1.0.169`' \
+  '- Downstream package version: `1.0.169-dyne.3`' \
+  >"$release_repository/plugins/context-mode/UPSTREAM.md"
+python3 - "$release_repository" <<'PY'
+import hashlib
+import sys
+from pathlib import Path
+
+root = Path(sys.argv[1])
+context = root / "plugins/context-mode"
+fixture = root / "tests/plugins/context-mode/fixtures/context-mode-codex-hardening-4b1348d.sha256"
+paths = (".codex-plugin/plugin.json", "package.json", "UPSTREAM.md")
+fixture.write_text("".join(
+    f"0644 {hashlib.sha256((context / relative).read_bytes()).hexdigest()}  {relative}\n"
+    for relative in paths
+))
+PY
+
+release_output=$(python3 "$updater" 2.4.6 "$release_repository")
+case $release_output in
+  *plugins/gestalt/.codex-plugin/plugin.json*plugins/context-mode/.codex-plugin/plugin.json*plugins/context-mode/package.json*plugins/context-mode/UPSTREAM.md*context-mode-codex-hardening-4b1348d.sha256*version=2.4.6*) ;;
+  *) printf 'unexpected release-layout output: %s\n' "$release_output" >&2; exit 1 ;;
+esac
+python3 - "$release_repository" <<'PY'
+import hashlib
+import json
+import sys
+from pathlib import Path
+
+root = Path(sys.argv[1])
+context = root / "plugins/context-mode"
+for path in (
+    root / "plugins/gestalt/.codex-plugin/plugin.json",
+    context / ".codex-plugin/plugin.json",
+    context / "package.json",
+):
+    assert json.loads(path.read_text())["version"] == "2.4.6", path
+provenance = (context / "UPSTREAM.md").read_text()
+assert '- Upstream package version: `1.0.169`' in provenance
+assert '- Downstream package version: `2.4.6`' in provenance
+fixture = root / "tests/plugins/context-mode/fixtures/context-mode-codex-hardening-4b1348d.sha256"
+for line in fixture.read_text().splitlines():
+    _, remainder = line.split(" ", 1)
+    digest, relative = remainder.split("  ", 1)
+    assert hashlib.sha256((context / relative).read_bytes()).hexdigest() == digest, relative
+PY
+
 for invalid in v1.2.3 1.2 01.2.3 1.2.3-rc.1; do
   if python3 "$updater" "$invalid" "$repository" >"$tmp/out" 2>"$tmp/err"; then
     printf 'invalid version unexpectedly succeeded: %s\n' "$invalid" >&2
