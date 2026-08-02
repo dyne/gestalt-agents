@@ -13,9 +13,7 @@
  * exports via the bundle so the JS hooks and the TS server cannot drift
  * again — the same drift that produced rounds 5 and 6 of case-fold fixes.
  *
- * Bundle-first / build-fallback resolution mirrors the pattern in
- * `session-loaders.mjs` for marketplace installs that ship `build/`
- * artifacts instead of pre-built bundles.
+ * Prepared Codex installs always provide the bundle before hooks can run.
  */
 
 import { join, dirname } from "node:path";
@@ -31,14 +29,8 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 async function loadSessionDbModule() {
-  // Bundle is co-located with this file in published installs.
   const bundlePath = join(__dirname, "session-db.bundle.mjs");
-  if (existsSync(bundlePath)) {
-    return await import(pathToFileURL(bundlePath).href);
-  }
-  // Marketplace fallback: build/session/db.js when bundles are absent.
-  const buildPath = join(__dirname, "..", "build", "session", "db.js");
-  return await import(pathToFileURL(buildPath).href);
+  return await import(pathToFileURL(bundlePath).href);
 }
 
 const _sessionDb = await loadSessionDbModule();
