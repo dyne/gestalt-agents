@@ -25,6 +25,7 @@ bash -n "$script"
 help=$(bash "$script" --help)
 assert_contains "$help" "--prepare-only" "help documents prepare-only"
 assert_contains "$help" "--dry-run" "help documents dry-run"
+assert_contains "$help" "--extra-skills" "help documents optional extra skills"
 output=$(bash "$script" --prepare-only --dry-run)
 assert_contains "$output" "install-runtime.mjs" "prepare-only invokes the external runtime installer"
 assert_contains "$output" "context-mode external runtime is prepared" "prepare-only reports success"
@@ -37,6 +38,16 @@ assert_contains "$output" "$tmp/.codex-gestalt" "dry-run uses the isolated defau
 assert_contains "$output" "prepare-supervision" "dry-run prepares supervision profiles"
 assert_contains "$output" "org-plan-supervisor.toml" "dry-run removes the retired supervisor profile"
 assert_absent "$tmp/.codex-gestalt" "dry-run does not create the Codex home"
+
+extra_output=$(env -u CODEX_HOME HOME="$tmp" bash "$script" --dry-run --extra-skills)
+assert_contains "$extra_output" "install_extra_skills" \
+  "extra-skills opt-in schedules the integrated installer"
+assert_absent "$tmp/.gestalt" "dry-run does not install extra skills"
+
+if bash "$script" --prepare-only --extra-skills >"$tmp/incompatible.out" 2>&1; then
+  printf 'FAIL: prepare-only accepted the extra-skills installation option\n' >&2
+  exit 1
+fi
 
 configured="$tmp/configured marketplace"
 mkdir -p "$configured" "$tmp/bin"
@@ -57,10 +68,12 @@ exit 99
 SH
 chmod +x "$configured/gestalt-setup.sh" "$tmp/bin/codex"
 configured_real=$(CDPATH='' cd -- "$configured" && pwd -P)
-delegated=$(CODEX_HOME="$tmp/delegated-home" PATH="$tmp/bin:$PATH" bash "$script" --force)
+delegated=$(CODEX_HOME="$tmp/delegated-home" PATH="$tmp/bin:$PATH" \
+  bash "$script" --force --extra-skills)
 assert_contains "$delegated" "continuing from configured marketplace $configured_real" \
   "setup delegates to the canonical configured marketplace"
-assert_contains "$delegated" "delegated home=$tmp_real/delegated-home args=<--force>" \
+assert_contains "$delegated" \
+  "delegated home=$tmp_real/delegated-home args=<--force><--extra-skills>" \
   "setup preserves Codex home and arguments while delegating"
 
 printf 'gestalt setup script is valid\n'

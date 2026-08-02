@@ -10,10 +10,11 @@ setup_args=("$@")
 prepare_only=false
 force=false
 dry_run=false
+extra_skills=false
 
 usage() {
   cat <<'EOF'
-Usage: ./gestalt-setup.sh [--prepare-only] [--force] [--dry-run]
+Usage: ./gestalt-setup.sh [--prepare-only] [--force] [--dry-run] [--extra-skills]
 
 Install a prepared context-mode runtime under ${GESTALT_HOME:-$HOME/.gestalt},
 then install context-mode and Gestalt from this marketplace. The managed Codex
@@ -22,6 +23,7 @@ home defaults to ~/.codex-gestalt. Run again after a marketplace upgrade.
   --prepare-only  Install and verify the external runtime without changing Codex.
   --force         Reinstall dependencies and rebuild prepared artifacts.
   --dry-run       Print mutating commands without running them.
+  --extra-skills  Install the curated extra skill set under GESTALT_HOME.
   -h, --help      Show this help.
 EOF
 }
@@ -41,16 +43,114 @@ run() {
   "$@"
 }
 
+install_extra_skills() (
+  local codex_skills_root=$1 skills_root skill_dir skill_link
+
+  command -v npx >/dev/null 2>&1 || die "npx is required for --extra-skills"
+  skills_root=${GESTALT_HOME:-${HOME:?HOME is required}/.gestalt}
+  [[ $skills_root == /* ]] || die "GESTALT_HOME must be an absolute path: $skills_root"
+  [[ $skills_root != / ]] || die "refusing unsafe GESTALT_HOME: $skills_root"
+  mkdir -p -- "$skills_root"
+  skills_root=$(CDPATH='' cd -- "$skills_root" && pwd -P) ||
+    die "cannot resolve GESTALT_HOME: $skills_root"
+
+  add_extra_skills() (
+    cd -- "$skills_root"
+    npx skills add "$@" -a codex -y
+  )
+
+  printf 'gestalt-setup: installing curated extra skills under %s\n' "$skills_root"
+  add_extra_skills https://github.com/openai/skills \
+    --skill cli-creator \
+    --skill cloudflare-deploy \
+    --skill gh-address-comments \
+    --skill gh-fix-ci \
+    --skill jupyter-notebook \
+    --skill playwright \
+    --skill playwright-interactive \
+    --skill screenshot \
+    --skill security-best-practices \
+    --skill security-ownership-map \
+    --skill security-threat-model \
+    --skill winui-app
+  add_extra_skills mohitmishra786/low-level-dev-skills \
+    --skill cmake \
+    --skill gdb \
+    --skill llvm \
+    --skill make \
+    --skill meson \
+    --skill static-analysis \
+    --skill conan-vcpkg
+  add_extra_skills samber/cc-skills-golang \
+    --skill golang-code-style \
+    --skill golang-design-patterns \
+    --skill golang-error-handling \
+    --skill golang-performance \
+    --skill golang-security \
+    --skill golang-testing
+  add_extra_skills wshobson/agents \
+    --skill bash-defensive-patterns \
+    --skill modern-javascript-patterns \
+    --skill nodejs-backend-patterns \
+    --skill shellcheck-configuration \
+    --skill typescript-advanced-types
+  add_extra_skills github/awesome-copilot \
+    --skill playwright-automation-fill-in-form \
+    --skill playwright-explore-website \
+    --skill playwright-generate-test
+  add_extra_skills membranedev/application-skills \
+    --skill chrome-extensions \
+    --skill find-skills
+  add_extra_skills anthropics/skills --skill docx --skill pdf
+  add_extra_skills antfu/skills --skill vite --skill vitepress
+  add_extra_skills trailofbits/skills@crypto-protocol-diagram
+  add_extra_skills affaan-m/everything-claude-code@hexagonal-architecture
+  add_extra_skills alphaonedev/openclaw-graph@smart-contracts
+  add_extra_skills bahayonghang/academic-writing-skills@bib-search-citation
+  add_extra_skills ccheney/robust-skills@clean-ddd-hexagonal
+  add_extra_skills googlechrome/modern-web-guidance@modern-web-guidance
+  add_extra_skills luwill/research-skills@research-proposal
+  add_extra_skills marimo-team/skills@wasm-compatibility
+  add_extra_skills mengbo/mengbo-skills@pandoc-docx
+  add_extra_skills microsoft/playwright-cli@playwright-cli
+  add_extra_skills mindrally/skills@htmx
+  add_extra_skills mryll/skills@vertical-slice-architecture
+  add_extra_skills poemswe/co-researcher@academic-writing
+  add_extra_skills sickn33/antigravity-awesome-skills \
+    --skill bash-linux --skill cpp-pro
+  add_extra_skills sveltejs/ai-tools@svelte-code-writer
+  add_extra_skills terrylica/cc-skills@pandoc-pdf-generation
+  add_extra_skills wondelai/skills@domain-driven-design
+
+  mkdir -p -- "$codex_skills_root"
+  shopt -s nullglob
+  for skill_dir in "$skills_root/.agents/skills"/*; do
+    [[ -d $skill_dir ]] || continue
+    skill_link="$codex_skills_root/${skill_dir##*/}"
+    if [[ -e $skill_link || -L $skill_link ]]; then
+      printf 'gestalt-setup: keeping existing Codex skill entry %s\n' "$skill_link"
+      continue
+    fi
+    ln -s -- "$skill_dir" "$skill_link"
+  done
+  printf 'gestalt-setup: curated extra skills installed under %s\n' "$skills_root"
+)
+
 while (($#)); do
   case $1 in
     --prepare-only) prepare_only=true ;;
     --force) force=true ;;
     --dry-run) dry_run=true ;;
+    --extra-skills) extra_skills=true ;;
     -h|--help) usage; exit 0 ;;
     *) die "unknown option: $1" ;;
   esac
   shift
 done
+
+if "$prepare_only" && "$extra_skills"; then
+  die "--extra-skills cannot be combined with --prepare-only"
+fi
 
 [[ -f $marketplace_file ]] || die "marketplace manifest not found: $marketplace_file"
 [[ -f $context_source/scripts/install-runtime.mjs ]] || die "context-mode runtime installer not found"
@@ -142,6 +242,10 @@ fi
 
 run codex plugin add "context-mode@$marketplace_name"
 run codex plugin add "gestalt@$marketplace_name"
+
+if "$extra_skills"; then
+  run install_extra_skills "$codex_root/skills"
+fi
 
 if ! "$dry_run"; then
   codex plugin list --marketplace "$marketplace_name" --json >/dev/null
