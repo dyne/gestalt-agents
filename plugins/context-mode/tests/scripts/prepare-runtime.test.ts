@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, symlinkSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 
 const ROOT = resolve(__dirname, "..", "..");
@@ -33,5 +35,25 @@ describe("explicit runtime preparation", () => {
     expect(installer).toContain("getRuntimeRoot");
     expect(installer).toContain("publishRuntime");
     expect(installer).toContain("renameSync(stage, target)");
+  });
+
+  it("runs its CLI body when invoked through a symlinked plugin path", () => {
+    const fixture = mkdtempSync(resolve(tmpdir(), "context-mode-symlink-"));
+    try {
+      const linkedPlugin = resolve(fixture, "context-mode");
+      symlinkSync(ROOT, linkedPlugin, "dir");
+      const result = spawnSync(
+        process.execPath,
+        [resolve(linkedPlugin, "scripts", "install-runtime.mjs"), "--check"],
+        {
+          encoding: "utf8",
+          env: { ...process.env, GESTALT_HOME: resolve(fixture, "missing-runtime") },
+        },
+      );
+      expect(result.status).toBe(1);
+      expect(result.stderr).toContain("external runtime is not prepared");
+    } finally {
+      rmSync(fixture, { recursive: true, force: true });
+    }
   });
 });

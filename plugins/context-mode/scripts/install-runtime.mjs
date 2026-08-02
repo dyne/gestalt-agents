@@ -5,6 +5,7 @@ import {
   existsSync,
   mkdirSync,
   readFileSync,
+  realpathSync,
   renameSync,
   rmSync,
   statSync,
@@ -123,7 +124,10 @@ export async function installRuntime(sourceRoot = SOURCE_ROOT, { force = false }
   throw new Error(`timed out waiting for runtime installation lock: ${lockDir}`);
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+if (
+  process.argv[1] &&
+  realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url))
+) {
   const target = getRuntimeRoot(SOURCE_ROOT);
   if (process.argv.includes("--check")) {
     const result = verifyPreparedRuntime(target);
