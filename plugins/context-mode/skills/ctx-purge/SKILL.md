@@ -1,49 +1,23 @@
 ---
 name: ctx-purge
-description: |
-  Purge the context-mode knowledge base. Permanently deletes all indexed content
-  and resets session stats. This is destructive and cannot be undone.
-  Trigger: /context-mode:ctx-purge
-user-invocable: true
+description: Permanently delete context-mode data for one session or an entire project. Trigger only when the user invokes ctx-purge or explicitly asks to wipe indexed content, session records, events, or context-mode statistics.
 ---
 
 # Context Mode Purge
 
-Permanently deletes session data for this project. Two scopes are supported (issue #520):
+Choose an explicit scope before deleting anything:
 
-- **Project scope** (`scope: "project"`): wipes EVERYTHING — knowledge base, all session DB rows for every session, events markdown, and stats.
-- **Session scope** (`sessionId: "<id>"` or `scope: "session"`): wipes ONLY the matching session's rows + FTS5 chunks. Sibling sessions, project stats, and the FTS5 store file are preserved.
+| Scope | Required call | Deleted | Preserved |
+|---|---|---|---|
+| One session | `ctx_purge({confirm: true, sessionId: "<id>"})` | matching session rows and FTS5 chunks | sibling sessions, project statistics, store file |
+| Project | `ctx_purge({confirm: true, scope: "project"})` | all indexed content, all session rows, events, and statistics | nothing in the project's context-mode store |
 
-## Instructions
+1. If session scope is requested without an ID, ask for the session ID.
+2. Before project scope, name every category that will be deleted and obtain
+   explicit confirmation for that scope.
+3. Never combine `sessionId` with `scope: "project"`.
+4. Call `ctx_purge` only after the required choice and confirmation.
+5. Report exactly what the tool deleted and what it preserved.
 
-1. **Decide the scope first** with the user:
-   - "Wipe just one session?" → ask for the `sessionId`.
-   - "Wipe the whole project?" → confirm scope:'project' (this is the destructive, irreversible default).
-2. **Warn the user about scope:'project'**. Everything will be deleted:
-   - FTS5 knowledge base (all indexed content from `ctx_index`, `ctx_fetch_and_index`, `ctx_batch_execute`)
-   - Session events DB (analytics, metadata, resume snapshots) for ALL sessions in the project
-   - Session events markdown file
-   - In-memory session stats + persisted stats file
-3. Call the `mcp__context-mode__ctx_purge` MCP tool with the chosen parameters:
-   - Scoped: `{ confirm: true, sessionId: "<id>" }` — implies scope:'session'.
-   - Project: `{ confirm: true, scope: "project" }` — explicit destructive form.
-   - Bare `{ confirm: true }` still works but emits a deprecation warning. Prefer the explicit forms.
-4. Report the result to the user — the response lists exactly what was deleted and (for scoped purges) confirms that other sessions and project stats were preserved.
-
-## Schema rules
-
-- `confirm: true` is always required.
-- `sessionId` and `scope: "project"` together is REJECTED as ambiguous (the sessionId implies session scope; combining with project scope contradicts intent).
-- `scope: "session"` without `sessionId` throws — sessionId is required.
-
-## When to Use
-
-- **Scoped (per-session)**: scratch acceptance scenarios, drill replays, isolating a polluted session without losing the main working session's stats.
-- **Project**: KB contains stale or incorrect content polluting search results, switching between unrelated projects in the same session, completely fresh start.
-
-## Important
-
-- `ctx_purge` is the **only** way to delete session data. No other mechanism exists.
-- `ctx_stats` is read-only — shows statistics only.
-- `/clear` and `/compact` do NOT affect any context-mode data.
-- There is no undo. Re-index content if you need it again.
+There is no undo. `/clear`, `/compact`, and `ctx_stats` do not delete stored
+context-mode data.
