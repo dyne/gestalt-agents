@@ -13,68 +13,72 @@
 
 This methodology is based on Emacs org-mode and concepts by Ludwig Wittgenstein
 
-### 📖 More info on [dyne.org/gestalt-agents](https://dyne.org/gestalt) <!-- omit in toc -->
+### 📖 More info on [dyne.org/gestalt](https://dyne.org/gestalt) <!-- omit in toc -->
 
-***
 
-<div id="toc">
+## Org-mode plan and development
 
-### 🚩 Table of Contents  <!-- omit in toc -->
-- [🎮 Quick setup](#-quick-setup)
-- [🧪 Testing](#-testing)
-- [💼 License](#-license)
+This method optimizes on token usage and quality of code by leveraging
+org-mode as planning format and context-mode as token saving memory
+system. It adopts a light multi-agent setup to keep the workflow and
+avoid stall. The prepared agents default to:
 
-</div>
+```text
+director (depth 0, org-plan-reviewer, Sol or Terra, read-only)
+└── supervisor (depth 1, org-plan-supervisor, Luna)
+    └── executor (depth 2, org-plan-executor, Terra, only code writer)
+```
 
+The executor reports only to the supervisor, a fresh one is respawned
+for each L1 planned item so expensive context compaction is often not
+needed. The supervisor sends review requests upward to the
+director. This keeps the root active with at most two subagents below
+it: the supervisor and its executor. Evidence flows upward as concise
+summaries; raw test and inspection logs stay outside conversational
+context. The root gives brief user-facing updates such as `L1 2/5 —
+Validate release metadata: in review`.
 
 ## 🎮 Quick setup
 
 ### Codex specific install as marketplace
 
+Gestalt requires either Bun or Node.js 22.5 or newer.
+
 Add our plugin marketplace `dyne-gestalt-agents`:
 ```
 codex plugin marketplace add dyne/gestalt-agents
 codex plugin add gestalt@dyne-gestalt-agents
-# Optional: install the independently vendored context-mode plugin.
-codex plugin add context-mode@dyne-gestalt-agents
+```
+
+Update to latest version:
+```
+codex plugin marketplace upgrade dyne/gestalt-agents
 ```
 
 Make sure to add the following configuration directive to `~/.codex/config.toml`:
 ```
 [agents]
 max_depth = 2
-```
 
-The Gestalt workflow plugin is shown as **org-plan** under `/plugins`.
-
-#### Context-mode provenance and updates
-
-`context-mode@dyne-gestalt-agents` is optional and remains Elastic-2.0; it is
-not relicensed under Gestalt. Its pinned upstream provenance and fork note are
-recorded in [`vendor/context-mode/UPSTREAM.md`](vendor/context-mode/UPSTREAM.md),
-and its bundled license is [`plugins/context-mode/LICENSE`](plugins/context-mode/LICENSE).
-Do not install it alongside the official `context-mode@context-mode` source.
-
-Context-mode requires either Bun or Node.js 22.5 or newer. On Linux, Bun is
-preferred for the SQLite runtime. This marketplace keeps generated JavaScript
-bundles out of Git: the first MCP or Codex hook start installs locked build
-dependencies and compiles them in the plugin cache, so allow 5–30 seconds plus
-network access and a native build toolchain (`python3`, `make`, and a C/C++
-compiler). An atomic build lock makes concurrent solo/subagent starts share one
-build; later starts use the generated cache. The builder allows up to three
-minutes on a slow network. If Codex times out first, restart the session: the
-next process recovers an abandoned build lock and resumes from cached downloads.
-
-Context-mode needs these Codex settings:
-```
 [features]
 plugin_hooks = true
 hooks = true
 ```
 
-Restart Codex after installation or configuration changes. The plugin manifest
-registers the MCP server and hooks, so do not add a duplicate
-`[mcp_servers.context-mode]` entry. Verify the effective installation with:
+This marketplace keeps generated JavaScript bundles out of Git: the
+first MCP or Codex hook start installs locked build dependencies and
+compiles them in the plugin cache, so allow 5–30 seconds plus network
+access and a native build toolchain (`python3`, `make`, and a C/C++
+compiler). An atomic build lock makes concurrent solo/subagent starts
+share one build; later starts use the generated cache. The builder
+allows up to three minutes on a slow network. If Codex times out
+first, restart the session: the next process recovers an abandoned
+build lock and resumes from cached downloads.
+
+Restart Codex after installation or configuration changes. The plugin
+manifest registers the MCP server and hooks, so do not add a duplicate
+`[mcp_servers.context-mode]` entry. Verify the effective installation
+with:
 
 ```
 codex plugin list --marketplace dyne-gestalt-agents --json
@@ -85,17 +89,7 @@ fails, first check the runtime prerequisite, first-start network/build access,
 the two feature flags above, and whether another context-mode marketplace
 variant is enabled.
 
-For every Org Plan, each active Codex role loads `$context-mode:context-mode` as
-a mandatory baseline while normal editing tools retain ownership of file
-changes. In supervised execution, the executor derives concise evidence with
-context-mode, the supervisor forwards only conclusions and gate results, and
-the director reviews those summaries. Context-mode transports evidence; it does not spawn agents.
-It does not change Org Plan ownership or belong in an L1's declared `:SKILLS:`
-contract.
-
-Refresh the vendor only through `scripts/vendor-context-mode <upstream-checkout> <pinned-commit>`, then regenerate and run the checksum guard. Gestalt releases update only the Gestalt manifest; context-mode keeps its upstream version.
-
-## 🧪 Testing
+## 🧪 Testing (only for developers of this repo)
 
 Run the complete repository test suite before publishing changes:
 
@@ -107,37 +101,23 @@ The suite validates repository/Gestalt contracts, context-mode provenance,
 skill discovery, nested MCP startup, shell syntax, release versioning, and
 release-workflow contracts.
 
-## Org Plan supervised execution
 
-The root director is also the read-only reviewer. Launch it with the prepared
-`org-plan-reviewer` profile when possible; an already-running root keeps its
-current model and adopts the same contract. The prepared profiles default to:
+# 📃 Plan
 
-```text
-director/reviewer (depth 0, org-plan-reviewer, Sol, read-only)
-└── supervisor (depth 1, org-plan-supervisor, Luna)
-    └── executor (depth 2, org-plan-executor, Terra, only code writer)
-```
+Each L1 starts unreviewed. After implementation and test gates make it
+DONE, the director/reviewer audits only requested DONE + UNREVIEWED
+milestones. Accepted L1s remain reviewed as the plan grows, so later
+refinements review only new or materially changed L1s. Final
+acceptance still requires a current full-suite pass and clean intended
+scope.
 
-The executor reports only to the supervisor. The supervisor sends review
-requests upward to the director/reviewer and never spawns a reviewer. This keeps
-the root active with at most two subagents below it: the supervisor and its
-executor. Evidence flows upward as concise summaries; raw test and inspection
-logs stay outside conversational context. The root gives brief user-facing
-updates such as `L1 2/5 — Validate release metadata: in review`.
-
-Each L1 starts unreviewed. After implementation and test gates make it DONE, the
-director/reviewer audits only requested DONE + UNREVIEWED milestones. Accepted
-L1s remain reviewed as the plan grows, so later refinements review only new or
-materially changed L1s. Final acceptance still requires a current full-suite
-pass and clean intended scope.
-
-Each L1 also declares a non-empty `:SKILLS:` property containing exact `$skill`
-references selected from the planner's complete available-skill catalog. Do not
-list `$context-mode:context-mode`; it is an implicit baseline for every role. A
-fresh executor loads that baseline plus exactly the declared task-specific list
-before inspecting or implementing the L1 and stops without edits when either is
-unavailable.
+Each L1 also declares a non-empty `:SKILLS:` property containing exact
+`$skill` references selected from the planner's complete
+available-skill catalog. Do not list `$context-mode:context-mode`; it
+is an implicit baseline for every role. A fresh executor loads that
+baseline plus exactly the declared task-specific list before
+inspecting or implementing the L1 and stops without edits when either
+is unavailable.
 
 ## 💼 License
 
@@ -145,8 +125,16 @@ Copyright (C) 2025-2026 Dyne.org foundation
 
 Designed and written by Denis "[Jaromil](https://jaromil.dyne.org/)" Roio.
 
-This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
 
-This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more details.
+This program is distributed in the hope that it will be useful, but
+WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+Affero General Public License for more details.
 
-You should have received a copy of the GNU Affero General Public License along with this program. If not, see https://www.gnu.org/licenses/.
+You should have received a copy of the GNU Affero General Public
+License along with this program. If not, see
+https://www.gnu.org/licenses/.
