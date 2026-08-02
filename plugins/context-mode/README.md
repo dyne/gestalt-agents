@@ -43,8 +43,9 @@ It never installs, compiles, repairs, or rewrites files. An incomplete runtime
 exits with code 78 and `CONTEXT_MODE_NOT_PREPARED` so the failure is immediate
 instead of timing out during the MCP handshake.
 
-The Codex plugin manifest registers both `.mcp.json` and
-`hooks/codex-hooks.json`; do not add a duplicate MCP configuration manually.
+The plugin manifest registers `.mcp.json`, while Codex discovers lifecycle
+hooks from the conventional `hooks/hooks.json` path. Do not add duplicate MCP
+or hook configuration manually.
 
 ## Development
 

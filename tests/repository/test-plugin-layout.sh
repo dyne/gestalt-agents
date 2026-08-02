@@ -48,6 +48,13 @@ for name, manifest in manifests.items():
     assert re.fullmatch(r"(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)(?:-[0-9A-Za-z.-]+)?", manifest["version"]), (
         f"{name} version is not SemVer: {manifest['version']}"
     )
+context_interface = manifests["context-mode"]["interface"]
+assert "hooks" not in manifests["context-mode"], "default hook discovery needs no override"
+for key in ("longDescription", "capabilities", "defaultPrompt"):
+    assert context_interface.get(key), f"context-mode interface metadata is missing: {key}"
+assert (root / "plugins" / "context-mode" / "hooks" / "hooks.json").is_file(), (
+    "context-mode default hooks manifest is missing"
+)
 
 actual_skills = {
     path.parent.name
@@ -104,7 +111,7 @@ for contract in (
     "side-effect free",
     "codex plugin list --marketplace dyne-gestalt-agents --json",
     "ctx-doctor",
-    "do not add a duplicate",
+    "Do not add duplicate MCP or hook configuration",
     "Context-mode transports evidence; it does not spawn agents",
 ):
     assert contract in readme, f"README lacks context-mode contract: {contract}"
