@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 import "./platform.mjs";
 import "../suppress-stderr.mjs";
-import "../ensure-deps.mjs";
 /**
  * Codex CLI Stop hook — record turn-end state for continuity.
  *
@@ -56,16 +55,12 @@ function findCodexRollout(sessionId) {
 }
 
 /**
- * Load the codex usage extractor (build/adapters/codex/usage.js), mirroring the
- * loadModule build-path fallback in session-loaders. Returns null if the module
- * is absent (e.g. pre-build dev tree) so the hook degrades gracefully.
+ * Load the prepared Codex usage extractor bundle. Returns null if it is absent
+ * so the hook can still record turn completion without usage data.
  */
 async function loadCodexUsage() {
   try {
-    const pluginRoot = join(HOOK_DIR, "..", "..");
-    const candidates = [
-      join(pluginRoot, "build", "adapters", "codex", "usage.js"),
-    ];
+    const candidates = [join(HOOK_DIR, "..", "codex-usage.bundle.mjs")];
     for (const p of candidates) {
       if (existsSync(p)) return await import(pathToFileURL(p).href);
     }

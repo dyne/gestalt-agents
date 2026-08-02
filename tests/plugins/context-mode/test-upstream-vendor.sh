@@ -37,13 +37,18 @@ generated = {
     "hooks/session-extract.bundle.mjs",
     "hooks/session-attribution.bundle.mjs",
     "hooks/session-snapshot.bundle.mjs",
+    "hooks/codex-usage.bundle.mjs",
 }
 for directory, names, files in os.walk(vendor, followlinks=False):
-    names[:] = [name for name in names if name != "node_modules"]
+    names[:] = [
+        name for name in names
+        if name not in {"node_modules", "build"}
+        and not name.startswith(".context-mode-prepare")
+    ]
     for name in files:
         path = Path(directory, name)
         relative = str(path.relative_to(vendor))
-        if relative in generated:
+        if relative in generated or relative == ".context-mode-prepared.json":
             continue
         metadata = path.lstat()
         assert not stat.S_ISLNK(metadata.st_mode), f"vendored symlink is forbidden: {relative}"
@@ -55,8 +60,6 @@ assert actual == expected, (
     f"extra={sorted(actual.keys() - expected.keys())[:5]}, "
     f"changed={[key for key in actual.keys() & expected.keys() if actual[key] != expected[key]][:5]}"
 )
-assert len(actual) == 605, f"expected 605 source vendor files, found {len(actual)}"
-assert sum(mode == 0o755 for mode, _ in actual.values()) == 13, "unexpected executable file count"
 print("context-mode upstream vendor integrity is valid")
 PY
 

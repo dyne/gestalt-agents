@@ -1,5 +1,9 @@
 node_modules/
 build/
+.context-mode-prepared.json
+.context-mode-prepare.lock/
+.context-mode-prepare.recovery.lock/
+.context-mode-prepare-tmp/
 packages/*/dist/
 *.tsbuildinfo
 .DS_Store
@@ -11,8 +15,10 @@ cli.bundle.mjs
 package-lock.json
 hooks/session-extract.bundle.mjs
 hooks/session-snapshot.bundle.mjs
+hooks/session-attribution.bundle.mjs
 hooks/session-db.bundle.mjs
 hooks/security.bundle.mjs
+hooks/codex-usage.bundle.mjs
 gh-cli-cache/
 tasks/
 .playwright-mcp/
@@ -21,17 +27,10 @@ context-mode-guidance-*/
 .claude/worktrees/
 
 # `.mcp.json` is the canonical Codex plugin companion manifest. It is tracked
-# and shipped with a relative `./start.mjs` path because Codex does not expand
-# plugin-root placeholders. The Claude contributor template remains
-# `.mcp.json.example` and deliberately uses `${CLAUDE_PLUGIN_ROOT}` instead.
+# with a relative `./start.mjs` path because Codex resolves `cwd` to the plugin
+# root and does not expand plugin-root placeholders.
 .mcp.json
 !.mcp.json
-# Exception: the GitHub Copilot CLI plugin bundle ships its OWN .mcp.json (a
-# Copilot plugin discovers MCP from a `.mcp.json` in its root — real marketplace
-# plugins do the same). It is the plugin's config, NOT the repo-root dev file the
-# rule above guards, so un-ignore exactly this one path. It pins
-# CONTEXT_MODE_PLATFORM=copilot-cli so the server self-identifies as Copilot.
-!configs/copilot-cli/.mcp.json
 .claude-worktrees/
 .vibetree/
 .cw/

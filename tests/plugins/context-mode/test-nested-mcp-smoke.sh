@@ -4,7 +4,8 @@ set -euo pipefail
 root=$(CDPATH= cd -- "$(dirname -- "$0")/../../.." && pwd)
 tmp=$(mktemp -d "${TMPDIR:-/tmp}/context-mode-nested-smoke.XXXXXX")
 trap 'rm -rf "$tmp"' EXIT HUP INT TERM
-plugin="$tmp/cache/dyne-gestalt-agents/context-mode/1.0.169"
+version=$(node -p "require('$root/plugins/context-mode/package.json').version")
+plugin="$tmp/cache/dyne-gestalt-agents/context-mode/$version"
 mkdir -p "$(dirname -- "$plugin")" "$tmp/codex-home"
 mkdir -p "$plugin"
 tar -C "$root/plugins/context-mode" \
@@ -13,38 +14,23 @@ tar -C "$root/plugins/context-mode" \
   --exclude='*.bundle.mjs' \
   -cf - . | tar -C "$plugin" -xf -
 
-# Codex/marketplace installers may normalize the unrelated Claude manifest to
-# an absolute cache path. First-use compilation must not run source-release
-# assertions against that installed-state rewrite.
-python3 - "$plugin" <<'PY'
-import json
-import sys
-from pathlib import Path
-
-plugin = Path(sys.argv[1])
-manifest = plugin / ".claude-plugin" / "plugin.json"
-payload = json.loads(manifest.read_text())
-payload["mcpServers"]["context-mode"]["args"][0] = str(plugin / "start.mjs")
-manifest.write_text(json.dumps(payload, indent=2) + "\n")
-PY
-
 command -v bun >/dev/null
 test ! -e "$plugin/node_modules"
 test ! -e "$plugin/server.bundle.mjs"
-mkdir -p "$plugin/.context-mode-source-build.lock"
-printf '%s\n' 99999999 >"$plugin/.context-mode-source-build.lock/owner.pid"
-(cd "$plugin" && node -e 'import("./scripts/ensure-source-build.mjs")') &
+mkdir -p "$plugin/.context-mode-prepare.lock"
+printf '%s\n' 99999999 >"$plugin/.context-mode-prepare.lock/owner.pid"
+(cd "$plugin" && node scripts/prepare-runtime.mjs) &
 builder_one=$!
-(cd "$plugin" && node -e 'import("./scripts/ensure-source-build.mjs")') &
+(cd "$plugin" && node scripts/prepare-runtime.mjs) &
 builder_two=$!
 wait "$builder_one"
 wait "$builder_two"
 test -f "$plugin/server.bundle.mjs"
 test -f "$plugin/hooks/security.bundle.mjs"
 test -f "$plugin/hooks/session-attribution.bundle.mjs"
-test ! -e "$plugin/.context-mode-source-build.lock"
-test ! -e "$plugin/.context-mode-source-build.recovery.lock"
-test ! -e "$plugin/.context-mode-source-build-tmp"
+test ! -e "$plugin/.context-mode-prepare.lock"
+test ! -e "$plugin/.context-mode-prepare.recovery.lock"
+test ! -e "$plugin/.context-mode-prepare-tmp"
 
 output=$(timeout 20s bash -c 'cd "$2"
   printf "%s\n%s\n" \

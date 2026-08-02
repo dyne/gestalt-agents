@@ -91,7 +91,7 @@ describe(".codex-plugin/plugin.json", () => {
     expect(manifest.mcpServers).toBe("./.mcp.json");
   });
 
-  it("version matches package.json (kept in lockstep by version-sync)", () => {
+  it("version matches package.json", () => {
     expect(manifest.version).toBe(pkg.version);
   });
 });

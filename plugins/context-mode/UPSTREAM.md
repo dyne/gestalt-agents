@@ -1,33 +1,37 @@
-# context-mode vendor provenance
+# context-mode origin and downstream changes
 
-- Repository: https://github.com/mksglu/context-mode
-- Branch provenance: `codex-hardening`
-- Pinned commit: `4b1348d4bba530d26cfc73181a0c2f263923e334`
+- Upstream repository: https://github.com/mksglu/context-mode
+- Upstream branch: `codex-hardening`
+- Imported commit: `4b1348d4bba530d26cfc73181a0c2f263923e334`
 - Describe: `v1.0.169-56-g4b1348d`
-- Package version: `1.0.169`
+- Upstream package version: `1.0.169`
+- Downstream package version: `1.0.169-dyne.1`
 - License: Elastic-2.0
 - Import date: 2026-07-22
 
-`plugins/context-mode/` is a forked export of that Git object. It is not a
-working-tree copy: local modifications, untracked files, dependency caches, and
-build output are excluded. Generated `*.bundle.mjs` artifacts are intentionally
-omitted from this source vendor and compiled in the installed plugin cache on
-first use. The fork changes eight upstream files:
+This is an attributed Codex-focused adaptation, not an exact copy. The
+repository checksum fixture records the adapted source files, executable modes,
+and contents while excluding generated dependencies and build artifacts.
 
-- `tests/setup-home.ts` forces `CODEX_HOME` into the test suite's temporary home
-  so Codex adapter tests never touch a host configuration directory.
-- `skills/context-mode/SKILL.md` documents the evidence-flow and session-boundary
-  contract for solo and supervised Gestalt Org Plans.
-- `tests/session-hooks-smoke.test.ts` binds `CODEX_HOME` to its temporary fake
-  home so Codex hook smoke tests cannot read or write host configuration state.
-- `tests/scripts/asymmetric-drift-assert.test.ts` accepts both array and
-  package-keyed-object JSON shapes emitted by supported npm versions.
-- `scripts/ensure-source-build.mjs`, `start.mjs`,
-  `hooks/codex/platform.mjs`, and `package.json` provide and package a locked,
-  concurrent-safe first-use build path shared by the MCP server and every Codex
-  hook. The startup and build selectors probe Bun before using it, falling back
-  to Node when a discovered Bun executable is unusable.
+## Downstream changes
 
-Repository-specific provenance, integrity fixtures, and tests remain outside
-the vendored tree. Refresh it only with
-`scripts/vendor-context-mode <local-upstream-checkout> 4b1348d4bba530d26cfc73181a0c2f263923e334`.
+- Retains only Codex plugin manifests, configuration, hook entrypoints, and
+  user-facing documentation. Other host packaging, configuration, hook
+  wrappers, website content, and release automation are omitted.
+- Replaces the self-healing first-run launcher with a small `start.mjs` that
+  performs a read-only artifact preflight and starts `server.bundle.mjs`.
+- Adds `scripts/prepare-runtime.mjs` for explicit locked dependency install,
+  type-checking, bundle creation, validation, and preparation-manifest creation.
+- Uses `gestalt-setup.sh` to prepare the installed Codex cache before its first
+  MCP handshake. Codex hook entrypoints never build or repair the package.
+- Rewrites the eight distributed skills as concise routing and command
+  contracts with observable inputs, outputs, and mutation boundaries.
+- Keeps the upstream TypeScript adapter registry for now because server and CLI
+  compilation share it. It is implementation residue, not a supported-host
+  promise; extracting a Codex-only core is a separate architectural change.
+
+## Updating context-mode
+
+Import a reviewed upstream revision, reapply the Codex-only changes above,
+choose a distinct downstream package version, regenerate the checksum fixture,
+and run `bash tests/run.sh` plus `git diff --check`.

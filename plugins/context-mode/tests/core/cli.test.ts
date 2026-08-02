@@ -162,24 +162,24 @@ describe("cli.bundle.mjs — marketplace install support", () => {
     expect(skill).toContain("cli.bundle.mjs");
     expect(skill).toContain("build/cli.js");
     // Fallback pattern: try bundle first, then build
-    expect(skill).toMatch(/CLI=.*cli\.bundle\.mjs.*\[ ! -f.*\].*build\/cli\.js/);
+    expect(skill).toMatch(/CLI=.*cli\.bundle\.mjs[\s\S]*\[ -f[\s\S]*build\/cli\.js/);
   });
 
   it("ctx-doctor skill uses cli.bundle.mjs with fallback", () => {
     const skill = readFileSync(resolve(ROOT, "skills", "ctx-doctor", "SKILL.md"), "utf-8");
     expect(skill).toContain("cli.bundle.mjs");
     expect(skill).toContain("build/cli.js");
-    expect(skill).toMatch(/CLI=.*cli\.bundle\.mjs.*\[ ! -f.*\].*build\/cli\.js/);
+    expect(skill).toMatch(/CLI=.*cli\.bundle\.mjs[\s\S]*\[ -f[\s\S]*build\/cli\.js/);
   });
 
-  it("ctx-index and ctx-search skills expose slash-style triggers", () => {
+  it("ctx-index and ctx-search use supported frontmatter and retain CLI fallbacks", () => {
     const indexSkill = readFileSync(resolve(ROOT, "skills", "ctx-index", "SKILL.md"), "utf-8");
     const searchSkill = readFileSync(resolve(ROOT, "skills", "ctx-search", "SKILL.md"), "utf-8");
-    expect(indexSkill).toContain("Trigger: /context-mode:ctx-index");
-    expect(indexSkill).toContain("user-invocable: true");
+    expect(indexSkill).toContain("Trigger when the user invokes ctx-index");
+    expect(indexSkill).not.toContain("user-invocable:");
     expect(indexSkill).toContain("context-mode index");
-    expect(searchSkill).toContain("Trigger: /context-mode:ctx-search");
-    expect(searchSkill).toContain("user-invocable: true");
+    expect(searchSkill).toContain("Trigger when the user invokes ctx-search");
+    expect(searchSkill).not.toContain("user-invocable:");
     expect(searchSkill).toContain("context-mode search");
   });
 
@@ -266,7 +266,11 @@ describe(".mcp.json — MCP server config", () => {
     // rewrites the on-disk plugin.json to absolute paths on Windows after
     // postinstall (#378 — MSYS path mangling). The marketplace assertion
     // is about what we SHIP, not about what local install scripts mutate.
-    const committed = execSync("git show HEAD:.claude-plugin/plugin.json", {
+    const prefix = execSync("git rev-parse --show-prefix", {
+      cwd: ROOT,
+      encoding: "utf-8",
+    }).trim();
+    const committed = execSync(`git show HEAD:${prefix}.claude-plugin/plugin.json`, {
       cwd: ROOT,
       encoding: "utf-8",
     });
@@ -2555,10 +2559,9 @@ describe("SKILL.md prefers MCP tool over Bash", () => {
     const skill = readFileSync(resolve(ROOT, "skills", "ctx-doctor", "SKILL.md"), "utf-8");
     // Must mention the MCP tool
     expect(skill).toContain("ctx_doctor");
-    expect(skill).toContain("MCP tool");
     // MCP tool instruction must appear BEFORE the Bash fallback
     const mcpIdx = skill.indexOf("ctx_doctor");
-    const fallbackIdx = skill.indexOf("Fallback");
+    const fallbackIdx = skill.indexOf("If the MCP call fails");
     expect(mcpIdx).toBeGreaterThan(-1);
     expect(fallbackIdx).toBeGreaterThan(-1);
     expect(mcpIdx).toBeLessThan(fallbackIdx);
@@ -2568,10 +2571,9 @@ describe("SKILL.md prefers MCP tool over Bash", () => {
     const skill = readFileSync(resolve(ROOT, "skills", "ctx-upgrade", "SKILL.md"), "utf-8");
     // Must mention the MCP tool
     expect(skill).toContain("ctx_upgrade");
-    expect(skill).toContain("MCP tool");
     // MCP tool instruction must appear BEFORE the Bash fallback
     const mcpIdx = skill.indexOf("ctx_upgrade");
-    const fallbackIdx = skill.indexOf("Fallback");
+    const fallbackIdx = skill.indexOf("If `ctx_upgrade` is unavailable");
     expect(mcpIdx).toBeGreaterThan(-1);
     expect(fallbackIdx).toBeGreaterThan(-1);
     expect(mcpIdx).toBeLessThan(fallbackIdx);

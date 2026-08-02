@@ -1,76 +1,70 @@
-/**
- * start.mjs MCP-boot non-blocking contract — closes #634.
- *
- * Before #634, `start.mjs` invoked `execSync("npm install …")` synchronously
- * for the three pure-JS runtime deps consumed only by `ctx_fetch_and_index`
- * (`turndown`, `turndown-plugin-gfm`, `@mixmark-io/domino`). Plugin
- * distributions that bypass `npm install` — most notably codex's marketplace,
- * which git-clones into `~/.codex/plugins/cache/<pkg>/` with no
- * `node_modules/` — paid the full cold-install cost on every MCP boot
- * (~15–25s end-to-end). Codex enforces a 30s `startup_timeout_sec` per MCP
- * server (codex-rs/config/src/mcp_types.rs RawMcpServerConfig), so any host
- * where prewarm + DNS already eats a few seconds tipped over and the MCP
- * child was dropped with:
- *
- *   MCP client for `context-mode` timed out after 30 seconds.
- *
- * The fix detaches those installs so they run in the background while the
- * MCP `initialize` handshake proceeds. This test pins both halves of the
- * contract so a future revert can't silently re-introduce the timeout.
- */
-
-import { describe, it, expect } from "vitest";
-import { readFileSync } from "node:fs";
+import { describe, expect, it } from "vitest";
+import {
+  copyFileSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { resolve } from "node:path";
+import { spawnSync } from "node:child_process";
+import { tmpdir } from "node:os";
 
-const REPO_ROOT = resolve(__dirname, "..", "..");
-const START_MJS = readFileSync(resolve(REPO_ROOT, "start.mjs"), "utf8");
+const ROOT = resolve(__dirname, "..", "..");
+const source = readFileSync(resolve(ROOT, "start.mjs"), "utf8");
+const preflight = readFileSync(
+  resolve(ROOT, "scripts", "runtime-preflight.mjs"),
+  "utf8",
+);
 
-describe("start.mjs MCP boot path", () => {
-  it("does NOT synchronously `execSync(\"npm install …\")` the fetch-and-index deps on the MCP boot path", () => {
-    // The three packages are referenced by `ctx_fetch_and_index`'s
-    // sandboxed subprocess via `require.resolve()` and are NOT needed for
-    // the MCP `initialize` handshake. Pin the boot path: the slice of
-    // start.mjs from `./hooks/ensure-deps.mjs` (last sync step the boot
-    // is allowed to block on) through the `server.bundle.mjs` import (point
-    // where MCP can answer `initialize`) must not contain any synchronous
-    // `execSync(... npm install ...)`. The dev-mode fallback block lower
-    // in the file (only reachable when `server.bundle.mjs` is missing — a
-    // condition that never holds for shipped/marketplace plugin installs)
-    // is excluded from this scope.
-    const bootStart = START_MJS.indexOf('./hooks/ensure-deps.mjs');
-    const bootEnd = START_MJS.indexOf('"./server.bundle.mjs"');
-    expect(bootStart, "boot anchor (`./hooks/ensure-deps.mjs`) missing").toBeGreaterThan(0);
-    expect(bootEnd, "boot anchor (`./server.bundle.mjs`) missing").toBeGreaterThan(bootStart);
-    // Strip line + block comments so this assertion can't be tripped by
-    // documentation that legitimately mentions the old `execSync("npm
-    // install …")` pattern in a comment explaining the fix.
-    const stripped = START_MJS
-      .slice(bootStart, bootEnd)
-      .replace(/\/\*[\s\S]*?\*\//g, "")
-      .replace(/(^|[^:])\/\/[^\n]*/g, "$1");
-
-    expect(
-      stripped,
-      "start.mjs must not call `execSync(\"npm install\")` between ensure-deps and server.bundle import — see #634",
-    ).not.toMatch(/execSync\([^)]{0,200}npm\s+install/);
+describe("prepared MCP launcher", () => {
+  it("contains no install, build, repair, or detached child-process path", () => {
+    expect(source).not.toMatch(/ensure-source-build|ensure-deps\.mjs/);
+    expect(source).not.toMatch(/\bexec(?:File)?Sync\b|\bspawn\s*\(/);
+    expect(source).not.toMatch(/npm\s+(?:install|rebuild|run)|npx\s+tsc/);
+    expect(source).not.toMatch(/writeFileSync|mkdirSync|rmSync|unlinkSync|symlinkSync/);
+    expect(source).not.toContain("prepare-runtime.mjs");
+    expect(preflight).not.toMatch(/node:child_process|writeFileSync|mkdirSync|rmSync/);
   });
 
-  it("installs the fetch-and-index deps in the background via `spawn(..., { detached, unref })`", () => {
-    // Positive assertion — the detached spawn path is what keeps boot
-    // fast for codex marketplace installs (no `node_modules/`).
-    expect(START_MJS).toMatch(/spawn\(\s*NPM_BIN/);
-    expect(START_MJS).toMatch(/detached:\s*true/);
-    expect(START_MJS).toMatch(/\.unref\(\)/);
+  it("fails fast when required prepared files are absent", () => {
+    expect(source).toContain("CONTEXT_MODE_NOT_PREPARED");
+    expect(source).toContain("gestalt-setup.sh");
+    expect(source).toContain("server.bundle.mjs");
+  });
 
-    // The three packages must still be enumerated — dropping one would
-    // mean `ctx_fetch_and_index` silently breaks on codex/marketplace
-    // installs with no recovery path.
-    for (const pkg of ["turndown", "turndown-plugin-gfm", "@mixmark-io/domino"]) {
-      expect(
-        START_MJS,
-        `start.mjs must still kick off a background \`npm install ${pkg}\``,
-      ).toContain(`"${pkg}"`);
+  it("imports the prepared bundle only after preflight", () => {
+    const check = source.indexOf("CONTEXT_MODE_NOT_PREPARED");
+    const serverImport = source.indexOf('import("./server.bundle.mjs")');
+    expect(check).toBeGreaterThan(0);
+    expect(serverImport).toBeGreaterThan(check);
+  });
+
+  it("exits quickly and predictably when the prepared manifest is absent", () => {
+    const fixture = mkdtempSync(resolve(tmpdir(), "context-mode-preflight-"));
+    try {
+      mkdirSync(resolve(fixture, "scripts"));
+      copyFileSync(resolve(ROOT, "start.mjs"), resolve(fixture, "start.mjs"));
+      copyFileSync(
+        resolve(ROOT, "scripts", "runtime-preflight.mjs"),
+        resolve(fixture, "scripts", "runtime-preflight.mjs"),
+      );
+      writeFileSync(resolve(fixture, "package.json"), '{"version":"test"}\n');
+
+      const started = Date.now();
+      const result = spawnSync(process.execPath, [resolve(fixture, "start.mjs")], {
+        cwd: fixture,
+        encoding: "utf8",
+        timeout: 2_000,
+      });
+
+      expect(result.status).toBe(78);
+      expect(result.stderr).toContain("CONTEXT_MODE_NOT_PREPARED");
+      expect(result.stderr).toContain("gestalt-setup.sh");
+      expect(Date.now() - started).toBeLessThan(2_000);
+    } finally {
+      rmSync(fixture, { recursive: true, force: true });
     }
   });
 });

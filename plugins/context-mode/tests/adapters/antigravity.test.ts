@@ -412,11 +412,9 @@ describe("configs/antigravity-cli — agy plugin bundle", () => {
     expect(existsSync(skillPath)).toBe(true);
     const skill = readFileSync(skillPath, "utf-8");
     expect(skill).toContain("name: context-mode");
-    expect(skill).toContain("context-mode/ctx_execute_file");
-    expect(skill).toContain("There is no separate `ctx_read` tool");
-    expect(skill).toContain("When the user asks \"what context-mode tools are available\"");
-    expect(skill).toContain("Do not list `~/.gemini/antigravity-cli/mcp/context-mode`");
-    expect(skill).toContain("Never print `FILE_CONTENT` wholesale");
+    expect(skill).toContain("Use tools exposed as `context-mode/<tool>`");
+    expect(skill).toContain("Do not inspect cached MCP schema files");
+    expect(skill).toContain("`FILE_CONTENT` wholesale unless the user explicitly requests");
     for (const tool of [
       "ctx_execute",
       "ctx_execute_file",
@@ -430,7 +428,7 @@ describe("configs/antigravity-cli — agy plugin bundle", () => {
       "ctx_purge",
       "ctx_insight",
     ]) {
-      expect(skill).toContain(`context-mode/${tool}`);
+      expect(skill).toContain(`\`${tool}\``);
     }
   });
 
