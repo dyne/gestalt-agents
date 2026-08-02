@@ -96,7 +96,6 @@ assert "Protected main" in source
 assert test_workflow["name"] == "Test"
 assert test_trigger == {
     "workflow_call": None,
-    "push": {"branches-ignore": ["main"]},
     "pull_request": None,
 }
 assert test_workflow["permissions"] == {"contents": "read"}
