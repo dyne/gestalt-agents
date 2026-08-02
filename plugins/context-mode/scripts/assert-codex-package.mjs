@@ -9,7 +9,6 @@ const required = [
   ".codex-plugin/plugin.json",
   ".mcp.json",
   "hooks/codex-hooks.json",
-  "skills/context-mode/SKILL.md",
   "start.mjs",
   "scripts/prepare-runtime.mjs",
   "scripts/runtime-preflight.mjs",

@@ -1,62 +1,11 @@
 {
   "name": "context-mode",
   "version": "1.0.169-dyne.1",
+  "private": true,
   "type": "module",
   "description": "Codex MCP plugin for sandboxed output analysis, FTS5 search, and session continuity.",
   "author": "Mert Koseoğlu",
   "license": "Elastic-2.0",
-  "keywords": [
-    "mcp",
-    "model-context-protocol",
-    "codex",
-    "context-window",
-    "sandbox",
-    "code-execution",
-    "fts5",
-    "bm25"
-  ],
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/mksglu/context-mode"
-  },
-  "homepage": "https://github.com/mksglu/context-mode#readme",
-  "bugs": "https://github.com/mksglu/context-mode/issues",
-  "exports": {
-    "./cli": "./cli.bundle.mjs"
-  },
-  "bin": {
-    "context-mode": "./cli.bundle.mjs"
-  },
-  "files": [
-    "hooks/codex",
-    "hooks/core",
-    "hooks/codex-hooks.json",
-    "hooks/platform-bridge.mjs",
-    "hooks/routing-block.mjs",
-    "hooks/session-directive.mjs",
-    "hooks/session-helpers.mjs",
-    "hooks/session-loaders.mjs",
-    "hooks/suppress-stderr.mjs",
-    "hooks/security.bundle.mjs",
-    "hooks/session-db.bundle.mjs",
-    "hooks/session-extract.bundle.mjs",
-    "hooks/session-attribution.bundle.mjs",
-    "hooks/session-snapshot.bundle.mjs",
-    "hooks/codex-usage.bundle.mjs",
-    "configs/codex",
-    "server.bundle.mjs",
-    "cli.bundle.mjs",
-    "skills",
-    ".codex-plugin",
-    ".mcp.json",
-    "start.mjs",
-    "scripts/prepare-runtime.mjs",
-    "scripts/runtime-preflight.mjs",
-    "scripts/assert-bundle.mjs",
-    "scripts/assert-codex-package.mjs",
-    "README.md",
-    "LICENSE"
-  ],
   "scripts": {
     "build": "tsc --noEmit && npm run bundle && npm run assert-bundle && npm run assert-codex-package",
     "prepare:codex": "node scripts/prepare-runtime.mjs --force",
@@ -64,7 +13,6 @@
     "assert-bundle": "node scripts/assert-bundle.mjs server.bundle.mjs cli.bundle.mjs hooks/session-extract.bundle.mjs hooks/session-snapshot.bundle.mjs hooks/session-attribution.bundle.mjs hooks/session-db.bundle.mjs hooks/security.bundle.mjs hooks/codex-usage.bundle.mjs",
     "assert-codex-package": "node scripts/assert-codex-package.mjs",
     "bundle": "esbuild src/server.ts --bundle --platform=node --target=node18 --format=esm --outfile=server.bundle.mjs --external:better-sqlite3 --external:turndown --external:turndown-plugin-gfm --external:@mixmark-io/domino --minify && esbuild src/cli.ts --bundle --platform=node --target=node18 --format=esm --outfile=cli.bundle.mjs --external:better-sqlite3 --minify && esbuild src/session/extract.ts --bundle --platform=node --target=node18 --format=esm --outfile=hooks/session-extract.bundle.mjs --minify && esbuild src/session/snapshot.ts --bundle --platform=node --target=node18 --format=esm --outfile=hooks/session-snapshot.bundle.mjs --minify && esbuild src/session/project-attribution.ts --bundle --platform=node --target=node18 --format=esm --outfile=hooks/session-attribution.bundle.mjs --minify && esbuild src/session/db.ts --bundle --platform=node --target=node18 --format=esm --outfile=hooks/session-db.bundle.mjs --external:better-sqlite3 --minify && esbuild src/security.ts --bundle --platform=node --target=node18 --format=esm --outfile=hooks/security.bundle.mjs --minify && esbuild src/adapters/codex/usage.ts --bundle --platform=node --target=node18 --format=esm --outfile=hooks/codex-usage.bundle.mjs --minify",
-    "prepublishOnly": "npm run build",
     "dev": "npx tsx src/server.ts",
     "setup": "npx tsx src/cli.ts setup",
     "doctor": "npx tsx src/cli.ts doctor",

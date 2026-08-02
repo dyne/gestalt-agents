@@ -24,8 +24,8 @@ and contents while excluding generated dependencies and build artifacts.
   type-checking, bundle creation, validation, and preparation-manifest creation.
 - Uses `gestalt-setup.sh` to prepare the installed Codex cache before its first
   MCP handshake. Codex hook entrypoints never build or repair the package.
-- Rewrites the eight distributed skills as concise routing and command
-  contracts with observable inputs, outputs, and mutation boundaries.
+- Moves the eight rewritten routing and command skills into the Gestalt plugin,
+  giving Codex one provider for skill listing and enable/disable controls.
 - Keeps the upstream TypeScript adapter registry for now because server and CLI
   compilation share it. It is implementation residue, not a supported-host
   promise; extracting a Codex-only core is a separate architectural change.

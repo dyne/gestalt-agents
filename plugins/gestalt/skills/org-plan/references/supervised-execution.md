@@ -30,7 +30,7 @@ director/reviewer (depth 0, read-only)
    executor, confirm closure, and resolve the next milestone with
    `org-plan describe`.
 4. Launch a fresh executor with `fork_turns=none` for exactly that L1.
-5. The executor loads `$context-mode:context-mode`, verifies every declared L1
+5. The executor loads `$gestalt:context-mode`, verifies every declared L1
    skill is available, then loads exactly those declared skills before any
    repository inspection or edit. Missing skills block without edits.
 
