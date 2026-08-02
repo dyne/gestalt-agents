@@ -1,5 +1,14 @@
 #!/usr/bin/env bash
-set -euo pipefail
+set -Eeuo pipefail
+
+report_error() {
+  local status=$? line=$1 command=$2
+  printf 'nested MCP smoke failed at line %s (exit %s): %s\n' \
+    "$line" "$status" "$command" >&2
+  return "$status"
+}
+
+trap 'report_error "$LINENO" "$BASH_COMMAND"' ERR
 
 root=$(CDPATH= cd -- "$(dirname -- "$0")/../../.." && pwd)
 tmp=$(mktemp -d "${TMPDIR:-/tmp}/context-mode-nested-smoke.XXXXXX")
