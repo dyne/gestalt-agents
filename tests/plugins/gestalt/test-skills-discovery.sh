@@ -17,6 +17,14 @@ import re
 import sys
 
 expected = {
+    "context-mode",
+    "ctx-doctor",
+    "ctx-index",
+    "ctx-insight",
+    "ctx-purge",
+    "ctx-search",
+    "ctx-stats",
+    "ctx-upgrade",
     "development-testing",
     "org-plan",
     "systematic-debugging",
@@ -32,4 +40,4 @@ assert all(count == 1 for count in counts.values()), (
 )
 PY
 
-printf 'npx skills discovers Gestalt workflow skills\n'
+printf 'npx skills discovers all Gestalt-provided skills\n'

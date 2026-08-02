@@ -41,11 +41,10 @@ After setup, restart Codex and run `ctx-doctor`. Do not add a duplicate
 
 ## Audit scope
 
-The audit initially covered all 16 repository `SKILL.md` files. The Codex-only
-package now distributes 13:
-
-- five Gestalt workflow skills;
-- eight context-mode routing and command skills.
+The audit initially covered all 16 repository `SKILL.md` files. The Gestalt
+plugin now distributes all 13 Codex skills: five development workflows and
+eight context-mode routing and command skills. Codex therefore labels and
+enables or disables them under the same `(gestalt)` provider.
 
 The three host-specific or maintainer-only copies were removed with the
 non-Codex packaging surfaces.
@@ -74,8 +73,9 @@ change with substantially more regression risk.
 | Codex first launch could install dependencies and build TypeScript before the MCP handshake. | `.mcp.json` now selects the minimal `start.mjs`; compilation happens only in explicit preparation. |
 | Codex hooks imported the same first-use builder and could race the MCP server. | Codex hook entrypoints no longer import dependency or source-build healers. |
 | A launcher importing the preparation module would still expose child-process and write code on its dependency path. | Runtime verification is isolated in `runtime-preflight.mjs`, which has read-only imports only. |
-| The plugin shipped manifests, configs, hooks, skills, documentation, and release assets for unrelated hosts. | The downstream package now exposes only Codex surfaces; shared upstream adapter code remains only where compilation still depends on it. |
-| Gestalt carried an external-vendor identity, pinned checksum fixture, provenance file, and vendor test for skills that are now maintained here. | Those mechanisms and their terminology were removed; the five Gestalt skills are ordinary first-party plugin content. |
+| The context-mode runtime plugin shipped manifests, configs, hooks, skills, documentation, and release assets for unrelated hosts. | It now exposes only Codex MCP and hook surfaces. Its eight skills are owned by Gestalt so Codex presents one skill provider; shared upstream adapter code remains only where compilation still depends on it. |
+| The package still advertised an npm publication surface that Codex installation does not use. | `package.json` is now a private dependency and build manifest; `.npmignore`, package exports, executable mappings, file allowlists, and publication lifecycle metadata were removed. |
+| Gestalt carried an external-vendor identity, pinned checksum fixture, provenance file, and vendor test for skills that are now maintained here. | Those mechanisms and their terminology were removed; all 13 Gestalt skills are ordinary first-party plugin content. |
 | Source-only downstream adaptations used the unchanged upstream package version. | The downstream package uses `1.0.169-dyne.1`; `UPSTREAM.md` distinguishes upstream and packaging versions. |
 | A test that read stdin (notably `npx`) could consume the runner's process-substitution stream and silently skip later tests. | Each test now receives `/dev/null` on stdin, and the runner contract covers an stdin-consuming child. |
 

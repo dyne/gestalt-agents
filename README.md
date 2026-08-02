@@ -126,7 +126,7 @@ scope.
 
 Each L1 also declares a non-empty `:SKILLS:` property containing exact
 `$skill` references selected from the planner's complete
-available-skill catalog. Do not list `$context-mode:context-mode`; it
+available-skill catalog. Do not list `$gestalt:context-mode`; it
 is an implicit baseline for every role. A fresh executor loads that
 baseline plus exactly the declared task-specific list before
 inspecting or implementing the L1 and stops without edits when either

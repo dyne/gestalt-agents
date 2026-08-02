@@ -7,10 +7,12 @@ This downstream package exposes context-mode as a Codex plugin. It provides:
 - URL fetching into the index;
 - session statistics, snapshots, and continuity hooks.
 
-The package intentionally ships only Codex manifests, configuration, hooks,
-and skills. The upstream TypeScript core still contains shared adapter code;
-removing it requires a separate refactor because the server and CLI import the
-shared adapter registry during compilation.
+The package intentionally ships only Codex MCP manifests, configuration, and
+hooks. User-facing context-mode skills belong to the sibling Gestalt plugin so
+Codex lists and toggles them under `(gestalt)`. The upstream TypeScript core
+still contains shared adapter code; removing it requires a separate refactor
+because the server and CLI import the shared adapter registry during
+compilation.
 
 ## Install
 

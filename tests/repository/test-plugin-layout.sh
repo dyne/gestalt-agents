@@ -12,6 +12,14 @@ from pathlib import Path
 root = Path(sys.argv[1])
 plugin = root / "plugins" / "gestalt"
 expected_skills = {
+    "context-mode",
+    "ctx-doctor",
+    "ctx-index",
+    "ctx-insight",
+    "ctx-purge",
+    "ctx-search",
+    "ctx-stats",
+    "ctx-upgrade",
     "org-plan",
     "systematic-debugging",
     "development-testing",
@@ -35,6 +43,7 @@ manifests = {
 }
 assert set(manifests) == {"gestalt", "context-mode"}, f"unexpected plugin manifests: {sorted(manifests)}"
 assert all(manifest["name"] == name for name, manifest in manifests.items())
+assert "skills" not in manifests["context-mode"], "context-mode skills must be owned by Gestalt"
 for name, manifest in manifests.items():
     assert re.fullmatch(r"(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)(?:-[0-9A-Za-z.-]+)?", manifest["version"]), (
         f"{name} version is not SemVer: {manifest['version']}"
@@ -45,6 +54,20 @@ actual_skills = {
     for path in (plugin / "skills").glob("*/SKILL.md")
 }
 assert actual_skills == expected_skills
+assert not (root / "plugins" / "context-mode" / "skills").exists(), (
+    "context-mode must not carry a second skill provider"
+)
+
+context_package = json.loads((root / "plugins" / "context-mode" / "package.json").read_text())
+assert context_package.get("private") is True, "context-mode must not be publishable to npm"
+for key in ("bin", "exports", "files"):
+    assert key not in context_package, f"npm publication field remains: {key}"
+assert "prepublishOnly" not in context_package.get("scripts", {}), (
+    "npm publication lifecycle remains"
+)
+assert not (root / "plugins" / "context-mode" / ".npmignore").exists(), (
+    "npm publication ignore file remains"
+)
 
 marketplace = json.loads((root / ".agents" / "plugins" / "marketplace.json").read_text())
 assert marketplace["name"] == "dyne-gestalt-agents"
@@ -86,14 +109,14 @@ for contract in (
 ):
     assert contract in readme, f"README lacks context-mode contract: {contract}"
 
-context_skill = (root / "plugins" / "context-mode" / "skills" / "context-mode" / "SKILL.md").read_text()
+context_skill = (plugin / "skills" / "context-mode" / "SKILL.md").read_text()
 for contract in (
     "## Org Plan execution",
     "Context-mode transports evidence; it does not spawn agents",
     "In solo execution",
     "In supervised execution",
     "every agent session as an independent context",
-    "Do not add `$context-mode:context-mode`",
+    "Do not add `$gestalt:context-mode`",
 ):
     assert contract in context_skill, f"context-mode skill lacks Org Plan contract: {contract}"
 

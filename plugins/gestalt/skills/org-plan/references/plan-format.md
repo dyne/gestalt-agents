@@ -28,7 +28,7 @@ Every L1 property drawer contains exactly:
 ```
 
 The skills list is non-empty, whitespace-separated, exact, and task-specific.
-Never include `$context-mode:context-mode`; execution loads it as an implicit
+Never include `$gestalt:context-mode`; execution loads it as an implicit
 baseline.
 
 Every L1 body contains:

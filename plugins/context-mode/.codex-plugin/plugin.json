@@ -21,7 +21,6 @@
   ],
   "mcpServers": "./.mcp.json",
   "hooks": "./hooks/codex-hooks.json",
-  "skills": "./skills/",
   "interface": {
     "displayName": "context-mode",
     "shortDescription": "Sandboxed output analysis and FTS5 indexed search",

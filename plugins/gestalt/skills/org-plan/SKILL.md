@@ -28,7 +28,7 @@ changes. Use its `--help` output for exact arguments.
    `:REVIEW_STATUS:` property. New L1s start `UNREVIEWED`; L2s have neither.
 2. Select L1 skills from the complete available catalog. Use exact `$skill`
    references and the smallest sufficient task-specific set.
-3. `$context-mode:context-mode` is an implicit execution baseline. Never put it
+3. `$gestalt:context-mode` is an implicit execution baseline. Never put it
    in `:SKILLS:`. Every executor loads it plus exactly the declared L1 skills
    before repository inspection or implementation, and stops without edits if
    any required skill is unavailable.
