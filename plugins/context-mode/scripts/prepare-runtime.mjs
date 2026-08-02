@@ -6,6 +6,7 @@ import {
   existsSync,
   mkdirSync,
   readFileSync,
+  realpathSync,
   rmSync,
   statSync,
   writeFileSync,
@@ -195,7 +196,10 @@ export async function prepareRuntime(pluginRoot = DEFAULT_PLUGIN_ROOT, { force =
   throw new Error(`timed out waiting for preparation lock: ${lockDir}`);
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+if (
+  process.argv[1] &&
+  realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url))
+) {
   const checkOnly = process.argv.includes("--check");
   const force = process.argv.includes("--force");
   if (checkOnly) {

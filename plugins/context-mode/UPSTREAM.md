@@ -25,7 +25,9 @@ and contents while excluding generated dependencies and build artifacts.
   type-checking, bundle creation, validation, and preparation-manifest creation.
 - Adds an atomic external-runtime installer under
   `${GESTALT_HOME:-$HOME/.gestalt}`, isolated by platform, architecture, and
-  Node ABI. This avoids dependence on Codex's replaceable plugin cache.
+  Node ABI. It canonicalizes CLI entrypoint paths so symlinked marketplace or
+  temporary directories still run preparation. This avoids dependence on
+  Codex's replaceable plugin cache.
 - Routes Codex hooks through a cache-local launcher into the external runtime.
   MCP and hook entrypoints never build or repair the package.
 - Moves the eight rewritten routing and command skills into the Gestalt plugin,
