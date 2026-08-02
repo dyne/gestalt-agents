@@ -22,13 +22,15 @@ From the `dyne-gestalt-agents` marketplace checkout, run:
 ./gestalt-setup.sh
 ```
 
-The setup command installs both marketplace plugins, installs locked
-context-mode dependencies in the installed cache, type-checks the TypeScript,
-builds the runtime bundles, and writes a SHA-256 preparation manifest. It
+The setup command installs both marketplace plugins and creates a versioned
+runtime under `${GESTALT_HOME:-$HOME/.gestalt}`. It installs locked dependencies,
+type-checks the TypeScript, builds the runtime bundles, verifies the native
+SQLite binding, and writes a SHA-256 preparation manifest. It
 requires Node.js 22.5 or newer, npm, network access, and a native toolchain for
-`better-sqlite3`.
+`better-sqlite3`. Set `CONTEXT_MODE_PACKAGE_MANAGER=npm` or `bun` to override
+automatic dependency-installer selection.
 
-Run setup again after an upgrade. Use `--prepare-only` for the source checkout,
+Run setup again after an upgrade. Use `--prepare-only` for only the external runtime,
 `--force` to rebuild, or `--dry-run` to inspect mutations.
 
 ## Startup contract
@@ -36,12 +38,14 @@ Run setup again after an upgrade. Use `--prepare-only` for the source checkout,
 Codex starts `node ./start.mjs`. The launcher only:
 
 1. records the project directory and selects the Codex platform;
-2. verifies the prepared artifact manifest;
-3. imports `server.bundle.mjs`.
+2. resolves the external runtime from its version and the current Node ABI;
+3. verifies the prepared artifact manifest;
+4. imports the external `server.bundle.mjs`.
 
 It never installs, compiles, repairs, or rewrites files. An incomplete runtime
 exits with code 78 and `CONTEXT_MODE_NOT_PREPARED` so the failure is immediate
-instead of timing out during the MCP handshake.
+instead of timing out during the MCP handshake. Codex may replace its plugin
+cache without affecting the prepared runtime.
 
 The plugin manifest registers `.mcp.json`, while Codex discovers lifecycle
 hooks from the conventional `hooks/hooks.json` path. Do not add duplicate MCP

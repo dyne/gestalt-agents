@@ -8,7 +8,8 @@ and the `context-mode` runtime plugin.
 Context-mode requires Node.js 22.5 or newer, npm, network access during setup,
 and the native toolchain needed by `better-sqlite3` (`python3`, `make`, and a
 C/C++ compiler). A working Bun installation is used for dependencies when
-available.
+available. Set `CONTEXT_MODE_PACKAGE_MANAGER=npm` or `bun` to override automatic
+selection during setup.
 
 ```sh
 export CODEX_HOME="$HOME/.codex-gestalt"
@@ -22,15 +23,16 @@ When setup is launched from another checkout, it automatically continues from
 the marketplace snapshot configured in `~/.codex-gestalt`.
 
 Marketplace installation does not run the setup script automatically. The
-script installs both plugins, prepares the exact installed context-mode cache,
-verifies its artifact manifest, generates the reviewer and executor profiles,
-and removes the retired supervisor profile. It does not create, validate, or
-rewrite `config.toml`. Run setup again after a marketplace upgrade.
+script installs both plugins, prepares a stable context-mode runtime under
+`${GESTALT_HOME:-$HOME/.gestalt}`, verifies its artifact manifest, generates the
+reviewer and executor profiles, and removes the retired supervisor profile. It
+does not create, validate, or rewrite `config.toml`. Run setup again after a
+marketplace upgrade.
 
 Useful modes:
 
 ```sh
-./gestalt-setup.sh --prepare-only  # prepare this source tree only
+./gestalt-setup.sh --prepare-only  # install only the external runtime
 ./gestalt-setup.sh --force         # reinstall dependencies and rebuild
 ./gestalt-setup.sh --dry-run       # print mutations without running them
 ```
@@ -110,35 +112,44 @@ registry, or writes generated files. Startup follows this path:
 
 ```text
 Codex MCP start
-  -> start.mjs
+  -> start.mjs in the replaceable Codex plugin cache
+  -> resolve version + platform + architecture + Node ABI
   -> runtime-preflight.mjs (read only)
-  -> server.bundle.mjs
+  -> ~/.gestalt/runtime/context-mode/<version>/<target>/server.bundle.mjs
 ```
 
 `runtime-preflight.mjs` verifies the package version and SHA-256 artifact
-manifest. An incomplete cache exits with code 78,
+manifest, including the native `better-sqlite3` binding. An incomplete external
+runtime exits with code 78,
 `CONTEXT_MODE_NOT_PREPARED`, the invalid paths, and the setup command.
 
 Preparation is explicit:
 
 ```text
 gestalt-setup.sh
-  -> codex plugin add
-  -> prepare-runtime.mjs in the installed cache
+  -> install-runtime.mjs
+     -> copy source into a versioned external staging directory
      -> locked dependency install
      -> TypeScript check and bundle build
      -> bundle assertions
      -> versioned SHA-256 manifest
+     -> atomic publication under ~/.gestalt
+  -> codex plugin add
 ```
 
-The setup lock only prevents concurrent preparation from corrupting the cache;
-MCP and hook startup do not acquire it. The manifest covers the server, CLI,
-and hook bundles plus runtime dependency metadata.
+Runtime directories use the package version and
+`<platform>-<architecture>-node-<modules ABI>` as their identity. They survive
+Codex plugin-cache replacement and can be shared by profiles running the same
+Node ABI. `GESTALT_HOME` must be absolute when set. The setup lock prevents
+concurrent installers from publishing a partial runtime; MCP and hook startup
+are read-only and do not acquire it. Codex hooks use a cache-local launcher that
+loads their implementations from the same external runtime.
 
 `package.json` is a private dependency and build manifest. Codex marketplace
 installation does not use npm publication metadata or npm lifecycle scripts.
 The repository-level setup script is the required pre-flight because Codex has
-no marketplace install-build hook and generated bundles are not committed.
+no marketplace install-build hook, generated bundles are not committed, and
+Codex may rematerialize its plugin cache when a session starts.
 
 The context-mode plugin exposes only its Codex MCP and hook surfaces. Hooks use
 Codex's auto-discovered `hooks/hooks.json` path, so the plugin manifest does not
@@ -159,7 +170,7 @@ Startup coverage verifies that:
    write path;
 2. an incomplete runtime fails quickly with the stable diagnostic;
 3. explicit preparation is concurrency-safe and produces a valid MCP
-   `initialize` and `tools/list` exchange;
+   `initialize` and `tools/list` exchange after the plugin cache is recreated;
 4. Codex hooks do not invoke preparation;
 5. plugin manifests, runtime artifacts, skill metadata, and skill discovery
    remain consistent.
