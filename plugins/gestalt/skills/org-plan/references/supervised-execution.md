@@ -16,8 +16,8 @@ director (depth 0, org-plan-reviewer, Sol or Terra, read-only root)
 - Recommended profiles are `org-plan-reviewer` (Sol) for a newly launched root
   and `org-plan-executor` (Terra). An already-running root keeps its selected
   model while adopting the combined director/reviewer/supervisor contract.
-- Codex must permit `[agents] max_depth = 1`. Stop when direct spawning is
-  unavailable; do not edit user configuration.
+- Codex V1 agent depth defaults to one, which permits this direct spawn. Stop
+  when direct spawning is unavailable; do not edit user configuration.
 
 ## Start supervision
 

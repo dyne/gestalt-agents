@@ -9,7 +9,6 @@ org_plan="$script_dir/plugins/gestalt/skills/org-plan/scripts/org-plan"
 prepare_only=false
 force=false
 dry_run=false
-config_tmp=''
 
 usage() {
   cat <<'EOF'
@@ -30,14 +29,6 @@ die() {
   printf 'gestalt-setup: %s\n' "$*" >&2
   exit 1
 }
-
-cleanup() {
-  if [[ -n $config_tmp && -e $config_tmp ]]; then
-    rm -f -- "$config_tmp"
-  fi
-}
-
-trap cleanup EXIT
 
 run() {
   if "$dry_run"; then
@@ -65,9 +56,6 @@ done
 [[ -x $org_plan ]] || die "Org Plan helper is not executable: $org_plan"
 command -v node >/dev/null 2>&1 || die "Node.js 22.5 or newer is required"
 command -v npm >/dev/null 2>&1 || die "npm is required to build context-mode"
-command -v python3 >/dev/null 2>&1 || die "Python 3.11 or newer is required"
-python3 -c 'import tomllib' >/dev/null 2>&1 ||
-  die "Python 3.11 or newer with tomllib is required"
 
 node_version=$(node -p 'process.versions.node')
 node_major=${node_version%%.*}
@@ -118,61 +106,6 @@ fi
 
 export CODEX_HOME=$codex_root
 agents_dir="$codex_root/agents"
-config_file="$codex_root/config.toml"
-
-if "$dry_run"; then
-  printf 'DRY-RUN: create %q if absent; otherwise validate required Gestalt settings\n' "$config_file"
-elif [[ -e $config_file ]]; then
-  [[ -f $config_file ]] || die "Codex configuration is not a regular file: $config_file"
-  if ! python3 - "$config_file" <<'PY'
-import sys
-import tomllib
-from pathlib import Path
-
-path = Path(sys.argv[1])
-try:
-    with path.open("rb") as handle:
-        config = tomllib.load(handle)
-except (OSError, tomllib.TOMLDecodeError) as error:
-    print(f"gestalt-setup: cannot parse existing configuration {path}: {error}", file=sys.stderr)
-    raise SystemExit(1)
-
-requirements = (
-    (("agents", "max_depth"), 1, "[agents] max_depth = 1"),
-    (("features", "plugin_hooks"), True, "[features] plugin_hooks = true"),
-    (("features", "hooks"), True, "[features] hooks = true"),
-)
-for keys, expected, rendered in requirements:
-    value = config
-    for key in keys:
-        if not isinstance(value, dict) or key not in value:
-            print(f"gestalt-setup: missing required setting in {path}: {rendered}", file=sys.stderr)
-            raise SystemExit(1)
-        value = value[key]
-    if type(value) is not type(expected) or value != expected:
-        print(
-            f"gestalt-setup: required setting differs in {path}: {rendered} (found {value!r})",
-            file=sys.stderr,
-        )
-        raise SystemExit(1)
-PY
-  then
-    die "existing Codex configuration was left unchanged; correct it and rerun setup"
-  fi
-else
-  config_tmp=$(mktemp "$codex_root/.config.toml.XXXXXX") ||
-    die "cannot create temporary configuration in $codex_root"
-  {
-    printf '[agents]\n'
-    printf 'max_depth = 1\n\n'
-    printf '[features]\n'
-    printf 'plugin_hooks = true\n'
-    printf 'hooks = true\n'
-  } >"$config_tmp"
-  chmod 600 "$config_tmp"
-  mv -f -- "$config_tmp" "$config_file"
-  config_tmp=''
-fi
 
 if "$dry_run"; then
   run codex plugin marketplace add "$script_dir"
@@ -220,5 +153,5 @@ run "$org_plan" prepare-supervision --agents-dir "$agents_dir"
 run rm -f -- "$agents_dir/org-plan-supervisor.toml"
 
 printf 'gestalt-setup: installed prepared plugins from %s\n' "$marketplace_name"
-printf 'gestalt-setup: configured Codex home %s\n' "$codex_root"
+printf 'gestalt-setup: installed into Codex home %s\n' "$codex_root"
 printf 'gestalt-setup: restart that Codex profile and run ctx-doctor in a new session\n'

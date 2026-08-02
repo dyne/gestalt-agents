@@ -69,22 +69,11 @@ cd <MARKETPLACE_ROOT>
 
 The script defaults `CODEX_HOME` to `~/.codex-gestalt`, installs both plugins,
 prepares context-mode, generates `org-plan-reviewer` and `org-plan-executor`,
-and removes the retired `org-plan-supervisor`. If
-`~/.codex-gestalt/config.toml` does not exist, setup creates it with:
-
-```toml
-[agents]
-max_depth = 1
-
-[features]
-plugin_hooks = true
-hooks = true
-```
-
-If the config already exists, setup preserves it and checks those three
-settings. It stops with the exact missing or conflicting setting instead of
-rewriting unrelated configuration. Codex may add its own plugin registration
-records while installing the two plugins.
+and removes the retired `org-plan-supervisor`. It does not create, validate, or
+rewrite `config.toml`; `codex plugin add` only records the installed plugins.
+Current Codex already defaults the V1 agent depth to one and enables stable
+lifecycle hooks. The former `features.plugin_hooks` flag has been removed, so
+Gestalt needs no configuration override.
 
 Start or restart Codex with that home, verify the effective installation, and
 run `ctx-doctor` in a new session:
@@ -108,9 +97,9 @@ cd <MARKETPLACE_ROOT>
 ./gestalt-setup.sh
 ```
 
-Before updating an older profile, change any former `max_depth = 2` setting to
-`1`; setup reports it but does not edit an existing config. Setup regenerates
-the reviewer and executor profiles and deletes the obsolete
+If an older profile explicitly sets `agents.max_depth = 2`, remove that override
+or change it to `1`. Setup regenerates the reviewer and executor profiles and
+deletes the obsolete
 `~/.codex-gestalt/agents/org-plan-supervisor.toml` automatically.
 
 Restart Codex after the update and run the same `codex plugin list` and
@@ -128,7 +117,7 @@ with `CONTEXT_MODE_NOT_PREPARED`.
 
 Run `./gestalt-setup.sh` again after a marketplace upgrade. Use
 `./gestalt-setup.sh --prepare-only` to prepare a source checkout without
-installing plugins or changing the managed Codex home, and `--force` to replace
+installing plugins or changing the isolated Codex home, and `--force` to replace
 an invalid prepared runtime. Set `CODEX_HOME` explicitly only to test or install
 an additional isolated Gestalt profile.
 

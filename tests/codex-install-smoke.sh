@@ -8,7 +8,7 @@ trap 'rm -rf "$codex_home"' EXIT HUP INT TERM
 CODEX_HOME="$codex_home" codex plugin marketplace add "$root" >/dev/null
 mkdir -p "$codex_home/agents"
 printf 'legacy supervisor\n' >"$codex_home/agents/org-plan-supervisor.toml"
-printf 'approval_policy = "never"\n\n[agents]\nmax_depth = 1\n\n[features]\nplugin_hooks = true\nhooks = true\n' >"$codex_home/config.toml"
+printf 'approval_policy = "never"\n' >"$codex_home/config.toml"
 CODEX_HOME="$codex_home" bash "$root/gestalt-setup.sh" >/dev/null
 CODEX_HOME="$codex_home" codex plugin list \
   --marketplace dyne-gestalt-agents --json >"$codex_home/plugins.json"
@@ -16,7 +16,6 @@ CODEX_HOME="$codex_home" codex plugin list \
 python3 - "$codex_home/plugins.json" "$codex_home" <<'PY'
 import json
 import sys
-import tomllib
 from pathlib import Path
 
 payload = json.loads(Path(sys.argv[1]).read_text())
@@ -35,11 +34,7 @@ assert (context_mode / ".context-mode-prepared.json").is_file()
 assert (codex_home / "agents/org-plan-reviewer.toml").is_file()
 assert (codex_home / "agents/org-plan-executor.toml").is_file()
 assert not (codex_home / "agents/org-plan-supervisor.toml").exists()
-config = tomllib.loads((codex_home / "config.toml").read_text())
-assert config["agents"]["max_depth"] == 1
-assert config["features"]["plugin_hooks"] is True
-assert config["features"]["hooks"] is True
-assert config["approval_policy"] == "never"
+assert 'approval_policy = "never"' in (codex_home / "config.toml").read_text()
 PY
 
 printf 'Codex marketplace installation smoke test passed\n'

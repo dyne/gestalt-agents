@@ -121,8 +121,9 @@ for upgrade_contract in (
     'export CODEX_HOME="$HOME/.codex-gestalt"',
     "generates `org-plan-reviewer` and `org-plan-executor`",
     "~/.codex-gestalt/agents/org-plan-supervisor.toml",
-    "max_depth = 2",
-    "max_depth = 1",
+    "agents.max_depth = 2",
+    "does not create, validate, or",
+    "features.plugin_hooks",
     "./gestalt-setup.sh --force",
 ):
     assert upgrade_contract in readme, f"README lacks upgrade contract: {upgrade_contract}"

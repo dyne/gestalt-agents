@@ -21,9 +21,8 @@ cd <MARKETPLACE_ROOT>
 Marketplace installation does not run the setup script automatically. The
 script installs both plugins, prepares the exact installed context-mode cache,
 verifies its artifact manifest, generates the reviewer and executor profiles,
-and removes the retired supervisor profile. It creates the isolated profile's
-configuration when absent; an existing config is preserved and validated. Run
-setup again after a marketplace upgrade.
+and removes the retired supervisor profile. It does not create, validate, or
+rewrite `config.toml`. Run setup again after a marketplace upgrade.
 
 Useful modes:
 
@@ -33,19 +32,10 @@ Useful modes:
 ./gestalt-setup.sh --dry-run       # print mutations without running them
 ```
 
-On a new profile, the script creates `~/.codex-gestalt/config.toml` as:
-
-```toml
-[agents]
-max_depth = 1
-
-[features]
-plugin_hooks = true
-hooks = true
-```
-
-When the file already exists, setup checks these settings without replacing
-the file or unrelated configuration.
+No configuration override is required: current Codex defaults V1 agent depth
+to one and enables stable lifecycle hooks. The former `features.plugin_hooks`
+flag has been removed. An older explicit `agents.max_depth = 2` override should
+be removed or changed to `1`.
 
 Start Codex with `CODEX_HOME="$HOME/.codex-gestalt"` after setup or
 configuration changes. The plugin manifest registers the MCP server, and Codex
