@@ -108,12 +108,9 @@ assert matrix_job["strategy"] == {
 matrix_steps = matrix_job["steps"]
 checkout = next(step for step in matrix_steps if step.get("uses") == "actions/checkout@v7")
 node = next(step for step in matrix_steps if step.get("uses") == "actions/setup-node@v7")
-go = next(step for step in matrix_steps if step.get("uses") == "actions/setup-go@v7")
 bun = next(step for step in matrix_steps if step.get("uses") == "oven-sh/setup-bun@v2")
 assert node["with"]["node-version"] == "22.12.0"
-assert go["if"] == "runner.os == 'Linux'"
-assert go["with"]["go-version"] == "1.25.0"
-assert go["with"]["cache"] is False
+assert not any(step.get("uses", "").startswith("actions/setup-go@") for step in matrix_steps)
 assert bun["with"]["bun-version"] == "1.3.14"
 codex = next(step for step in matrix_steps if step.get("name") == "Install current Codex CLI")
 assert codex["run"] == "npm install --global @openai/codex@latest"
@@ -126,7 +123,13 @@ assert any(
 )
 actionlint = next(step for step in matrix_steps if step.get("name") == "Validate GitHub Actions workflows")
 assert actionlint["if"] == "runner.os == 'Linux'"
-assert "actionlint@v1.7.12" in actionlint["run"]
+assert actionlint["env"] == {
+    "ACTIONLINT_VERSION": "1.7.12",
+    "ACTIONLINT_SHA256": "8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8",
+}
+assert "rhysd/actionlint/releases/download" in actionlint["run"]
+assert "sha256sum --check --strict" in actionlint["run"]
+assert "go install" not in actionlint["run"]
 validation = next(step for step in matrix_steps if step.get("name") == "Run complete validation")
 assert validation["run"] == "bash tests/ci.sh"
 assert "tests/run.sh" not in test_source
