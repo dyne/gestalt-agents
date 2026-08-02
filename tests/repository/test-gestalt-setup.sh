@@ -26,6 +26,7 @@ help=$(bash "$script" --help)
 assert_contains "$help" "--prepare-only" "help documents prepare-only"
 assert_contains "$help" "--dry-run" "help documents dry-run"
 assert_contains "$help" "--extra-skills" "help documents optional extra skills"
+assert_contains "$help" "--extra-skills-only" "help documents standalone extra skills"
 output=$(bash "$script" --prepare-only --dry-run)
 assert_contains "$output" "install-runtime.mjs" "prepare-only invokes the external runtime installer"
 assert_contains "$output" "context-mode external runtime is prepared" "prepare-only reports success"
@@ -44,8 +45,26 @@ assert_contains "$extra_output" "install_extra_skills" \
   "extra-skills opt-in schedules the integrated installer"
 assert_absent "$tmp/.gestalt" "dry-run does not install extra skills"
 
+standalone_output=$(env -u CODEX_HOME HOME="$tmp" \
+  bash "$script" --dry-run --extra-skills-only)
+assert_contains "$standalone_output" "install_extra_skills" \
+  "standalone mode schedules the integrated installer"
+assert_contains "$standalone_output" "standalone curated extra-skills operation complete" \
+  "standalone mode reports completion"
+if [[ $standalone_output == *"install-runtime.mjs"* ||
+      $standalone_output == *"codex plugin"* ||
+      $standalone_output == *"prepare-supervision"* ]]; then
+  printf 'FAIL: standalone extra-skills mode scheduled normal setup\n%s\n' \
+    "$standalone_output" >&2
+  exit 1
+fi
+
 if bash "$script" --prepare-only --extra-skills >"$tmp/incompatible.out" 2>&1; then
   printf 'FAIL: prepare-only accepted the extra-skills installation option\n' >&2
+  exit 1
+fi
+if bash "$script" --force --extra-skills-only >"$tmp/only-incompatible.out" 2>&1; then
+  printf 'FAIL: extra-skills-only accepted a normal setup option\n' >&2
   exit 1
 fi
 

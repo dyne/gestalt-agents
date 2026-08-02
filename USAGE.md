@@ -36,6 +36,7 @@ Useful modes:
 ./gestalt-setup.sh --force         # reinstall dependencies and rebuild
 ./gestalt-setup.sh --dry-run       # print mutations without running them
 ./gestalt-setup.sh --extra-skills  # opt into curated third-party Codex skills
+./gestalt-setup.sh --extra-skills-only  # update only the curated skill set
 ```
 
 The curated list is maintained directly in the marketplace's
@@ -44,6 +45,8 @@ and lock metadata remain under `${GESTALT_HOME:-$HOME/.gestalt}` rather than
 the normal global skills directory. Setup exposes them through per-skill links
 in `CODEX_HOME/skills` and preserves entries that already exist there.
 `--extra-skills` cannot be combined with `--prepare-only`.
+`--extra-skills-only` skips runtime preparation, marketplace registration,
+plugin installation, and profile generation.
 
 No configuration override is required: current Codex defaults V1 agent depth
 to one and enables stable lifecycle hooks. The former `features.plugin_hooks`
