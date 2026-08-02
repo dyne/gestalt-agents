@@ -112,7 +112,8 @@ go = next(step for step in matrix_steps if step.get("uses") == "actions/setup-go
 bun = next(step for step in matrix_steps if step.get("uses") == "oven-sh/setup-bun@v2")
 assert node["with"]["node-version"] == "22.12.0"
 assert go["if"] == "runner.os == 'Linux'"
-assert go["with"]["go-version"] == "1.24.0"
+assert go["with"]["go-version"] == "1.25.0"
+assert go["with"]["cache"] is False
 assert bun["with"]["bun-version"] == "1.3.14"
 codex = next(step for step in matrix_steps if step.get("name") == "Install current Codex CLI")
 assert codex["run"] == "npm install --global @openai/codex@latest"
