@@ -5,12 +5,13 @@ Read this reference completely before launching supervised roles.
 ## Roles and ownership
 
 ```text
-director/reviewer/supervisor (depth 0, read-only root)
+director (depth 0, org-plan-reviewer, Sol or Terra, read-only root)
 └── executor (depth 1, only code writer)
 ```
 
-- The root owns user communication, directly launches each executor, enforces
-  evidence gates, and returns ACCEPT or REJECT for DONE + UNREVIEWED L1s.
+- The root director also owns supervisor and reviewer duties. It owns user
+  communication, directly launches each executor, enforces evidence gates, and
+  returns ACCEPT or REJECT for DONE + UNREVIEWED L1s.
 - The executor writes code for one L1 and reports only to the root.
 - Recommended profiles are `org-plan-reviewer` (Sol) for a newly launched root
   and `org-plan-executor` (Terra). An already-running root keeps its selected
