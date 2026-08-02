@@ -53,14 +53,14 @@ Gestalt uses an isolated Codex home at `~/.codex-gestalt`. Add the marketplace
 to that profile and locate its checkout:
 
 ```sh
-export CODEX_HOME="$HOME/.codex-gestalt"
+export CODEX_HOME="$HOME/.codex-gestalt" && mkdir -p "$CODEX_HOME"
 codex plugin marketplace add dyne/gestalt-agents
 "$CODEX_HOME/.tmp/marketplaces/dyne-gestalt-agents/gestalt-setup.sh"
 ```
 
 You may change 'add' to 'upgrade' in the middle of the second line.
 
-If you use `codex-profile` then add `alias gestalt='codex-profile cli gestalt'`.
+If you use `codex-profile` then add `alias gestalt='codex-profile cli gestalt'` else invoke `CODEX_HOME="$HOME/.codex-gestalt" codex`.
 
 
 ### Developer's installl
