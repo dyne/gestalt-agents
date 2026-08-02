@@ -5,7 +5,7 @@
 - Imported commit: `4b1348d4bba530d26cfc73181a0c2f263923e334`
 - Describe: `v1.0.169-56-g4b1348d`
 - Upstream package version: `1.0.169`
-- Downstream package version: `1.0.169-dyne.1`
+- Downstream package version: `1.0.169-dyne.2`
 - License: Elastic-2.0
 - Import date: 2026-07-22
 
@@ -19,11 +19,15 @@ and contents while excluding generated dependencies and build artifacts.
   user-facing documentation. Other host packaging, configuration, hook
   wrappers, website content, and release automation are omitted.
 - Replaces the self-healing first-run launcher with a small `start.mjs` that
-  performs a read-only artifact preflight and starts `server.bundle.mjs`.
+  resolves a versioned external runtime, performs a read-only artifact
+  preflight, and starts its `server.bundle.mjs`.
 - Adds `scripts/prepare-runtime.mjs` for explicit locked dependency install,
   type-checking, bundle creation, validation, and preparation-manifest creation.
-- Uses `gestalt-setup.sh` to prepare the installed Codex cache before its first
-  MCP handshake. Codex hook entrypoints never build or repair the package.
+- Adds an atomic external-runtime installer under
+  `${GESTALT_HOME:-$HOME/.gestalt}`, isolated by platform, architecture, and
+  Node ABI. This avoids dependence on Codex's replaceable plugin cache.
+- Routes Codex hooks through a cache-local launcher into the external runtime.
+  MCP and hook entrypoints never build or repair the package.
 - Moves the eight rewritten routing and command skills into the Gestalt plugin,
   giving Codex one provider for skill listing and enable/disable controls.
 - Keeps the upstream TypeScript adapter registry for now because server and CLI

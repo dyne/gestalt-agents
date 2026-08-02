@@ -117,25 +117,25 @@ describe("hooks/hooks.json", () => {
     expect(existsSync(hooksPath)).toBe(true);
   });
 
-  it("uses simple plugin-root hook script commands", () => {
+  it("routes every hook through the external-runtime launcher", () => {
     for (const groups of Object.values(hooks.hooks)) {
       const command = groups[0]?.hooks[0]?.command ?? "";
-      expect(command).toContain('node "${PLUGIN_ROOT}/hooks/codex/');
+      expect(command).toMatch(/^node "\$\{PLUGIN_ROOT\}\/hooks\/runtime-hook\.mjs" [a-z]+$/);
     }
   });
 
-  it("sets CONTEXT_MODE_PLATFORM=codex in hook wrapper modules", () => {
-    const platformSource = readFileSync(resolve(REPO_ROOT, "hooks/codex/platform.mjs"), "utf8");
+  it("sets CONTEXT_MODE_PLATFORM=codex in the runtime hook launcher", () => {
+    const platformSource = readFileSync(resolve(REPO_ROOT, "hooks/runtime-hook.mjs"), "utf8");
     expect(platformSource).toContain('process.env.CONTEXT_MODE_PLATFORM = "codex";');
 
     for (const groups of Object.values(hooks.hooks)) {
       const command = groups[0]?.hooks[0]?.command ?? "";
-      const match = command.match(/\$\{PLUGIN_ROOT\}\/(hooks\/codex\/[^"]+\.mjs)/);
-      expect(match, `expected codex hook script path in ${command}`).not.toBeNull();
+      const runtimeMatch = command.match(/\$\{PLUGIN_ROOT\}\/(hooks\/runtime-hook\.mjs)/);
+      expect(runtimeMatch, `expected runtime hook script path in ${command}`).not.toBeNull();
 
-      const hookSource = readFileSync(resolve(REPO_ROOT, match![1]), "utf8");
-      const platformImport = hookSource.indexOf('import "./platform.mjs";');
-      const firstSharedImport = hookSource.indexOf('import "../');
+      const hookSource = readFileSync(resolve(REPO_ROOT, runtimeMatch![1]), "utf8");
+      const platformImport = hookSource.indexOf('process.env.CONTEXT_MODE_PLATFORM = "codex";');
+      const firstSharedImport = hookSource.indexOf("await import");
       expect(platformImport).toBeGreaterThanOrEqual(0);
       expect(firstSharedImport).toBeGreaterThan(platformImport);
     }

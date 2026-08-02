@@ -6,6 +6,7 @@ const MANIFEST = ".context-mode-prepared.json";
 
 export const REQUIRED_FILES = [
   "start.mjs",
+  join("scripts", "runtime-location.mjs"),
   join("scripts", "runtime-preflight.mjs"),
   "server.bundle.mjs",
   "cli.bundle.mjs",
@@ -16,6 +17,7 @@ export const REQUIRED_FILES = [
   join("hooks", "session-snapshot.bundle.mjs"),
   join("hooks", "codex-usage.bundle.mjs"),
   join("node_modules", "better-sqlite3", "package.json"),
+  join("node_modules", "better-sqlite3", "build", "Release", "better_sqlite3.node"),
   join("node_modules", "turndown", "package.json"),
   join("node_modules", "turndown-plugin-gfm", "package.json"),
   join("node_modules", "@mixmark-io", "domino", "package.json"),
@@ -32,7 +34,10 @@ export function verifyPreparedRuntime(pluginRoot) {
   } catch {
     return { ok: false, problems: [MANIFEST] };
   }
-  if (manifest.schemaVersion !== 1) problems.push(`${MANIFEST}:schema`);
+  if (manifest.schemaVersion !== 2) problems.push(`${MANIFEST}:schema`);
+  if (manifest.nodeModulesAbi !== process.versions.modules) problems.push(`${MANIFEST}:node-abi`);
+  if (manifest.platform !== process.platform) problems.push(`${MANIFEST}:platform`);
+  if (manifest.arch !== process.arch) problems.push(`${MANIFEST}:arch`);
 
   let packageVersion = "unknown";
   try {
