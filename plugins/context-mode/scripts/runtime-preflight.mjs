@@ -6,6 +6,7 @@ const MANIFEST = ".context-mode-prepared.json";
 
 export const REQUIRED_FILES = [
   "start.mjs",
+  join("scripts", "codex-profile.mjs"),
   join("scripts", "runtime-location.mjs"),
   join("scripts", "runtime-preflight.mjs"),
   "server.bundle.mjs",

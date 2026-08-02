@@ -92,6 +92,55 @@ describe("runtime version reporting", () => {
   });
 });
 
+describe("Bun runtime liveness", () => {
+  afterEach(() => {
+    vi.resetModules();
+    vi.doUnmock("node:child_process");
+    vi.doUnmock("node:fs");
+  });
+
+  test.runIf(process.platform !== "win32")(
+    "falls back to Node when a discovered Bun shim cannot run",
+    async () => {
+      const fakeHome = "/fake/home/broken-bun";
+      const fakeBun = `${fakeHome}/.bun/bin/bun`;
+      const originalHome = process.env.HOME;
+      process.env.HOME = fakeHome;
+      try {
+        const execSync = vi.fn((command: string) => {
+          if (command === "command -v bun") return `${fakeBun}\n`;
+          if (command.startsWith("command -v ")) throw new Error("not found");
+          throw new Error(`unexpected command: ${command}`);
+        });
+        const execFileSync = vi.fn((command: string, args: string[]) => {
+          if (command === fakeBun && args[0] === "--version") {
+            throw new Error("Bun's postinstall script was not run");
+          }
+          throw new Error(`unexpected executable: ${command}`);
+        });
+        vi.doMock("node:child_process", () => ({ execSync, execFileSync }));
+        vi.doMock("node:fs", async () => {
+          const actual = await vi.importActual<typeof import("node:fs")>("node:fs");
+          return {
+            ...actual,
+            existsSync: (path: string | URL) =>
+              String(path) === fakeBun || String(path) === process.execPath,
+          };
+        });
+
+        const { detectRuntimes } = await import("../src/runtime.js");
+        const runtimes = detectRuntimes();
+
+        expect(runtimes.javascript).toBe(process.execPath);
+        expect(runtimes.typescript).toBeNull();
+      } finally {
+        if (originalHome === undefined) delete process.env.HOME;
+        else process.env.HOME = originalHome;
+      }
+    },
+  );
+});
+
 describe("SHELL env var override", () => {
   let tmpDir: string;
   let allowlistedShell: string;

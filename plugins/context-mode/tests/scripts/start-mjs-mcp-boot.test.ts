@@ -55,6 +55,10 @@ describe("prepared MCP launcher", () => {
         resolve(ROOT, "scripts", "runtime-location.mjs"),
         resolve(fixture, "scripts", "runtime-location.mjs"),
       );
+      copyFileSync(
+        resolve(ROOT, "scripts", "codex-profile.mjs"),
+        resolve(fixture, "scripts", "codex-profile.mjs"),
+      );
       writeFileSync(resolve(fixture, "package.json"), '{"version":"test"}\n');
 
       const started = Date.now();

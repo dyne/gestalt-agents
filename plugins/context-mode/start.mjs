@@ -1,12 +1,14 @@
 #!/usr/bin/env node
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { ensureCodexHome } from "./scripts/codex-profile.mjs";
 import { getRuntimeRoot } from "./scripts/runtime-location.mjs";
 import { verifyPreparedRuntime } from "./scripts/runtime-preflight.mjs";
 
 const pluginRoot = dirname(fileURLToPath(import.meta.url));
 const projectDir = process.cwd();
 
+ensureCodexHome(pluginRoot);
 process.env.CONTEXT_MODE_PLATFORM = "codex";
 process.env.CONTEXT_MODE_PROJECT_DIR ??= projectDir;
 process.env.CLAUDE_PROJECT_DIR ??= projectDir; // shared storage compatibility
