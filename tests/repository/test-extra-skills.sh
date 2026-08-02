@@ -15,6 +15,7 @@ mkdir -p "$tmp/bin" "$tmp/home"
 
 cat >"$tmp/bin/node" <<'SH'
 #!/usr/bin/env bash
+if [[ -n ${UNEXPECTED_SETUP_LOG:-} ]]; then printf 'node\n' >>"$UNEXPECTED_SETUP_LOG"; fi
 case ${1:-} in
   -p) printf '22.12.0\n' ;;
   -e) printf 'dyne-gestalt-agents' ;;
@@ -22,10 +23,12 @@ esac
 SH
 cat >"$tmp/bin/npm" <<'SH'
 #!/usr/bin/env bash
+if [[ -n ${UNEXPECTED_SETUP_LOG:-} ]]; then printf 'npm\n' >>"$UNEXPECTED_SETUP_LOG"; fi
 exit 0
 SH
 cat >"$tmp/bin/codex" <<'SH'
 #!/usr/bin/env bash
+if [[ -n ${UNEXPECTED_SETUP_LOG:-} ]]; then printf 'codex\n' >>"$UNEXPECTED_SETUP_LOG"; fi
 if [[ $* == 'plugin marketplace list' ]]; then
   printf 'Marketplace  Path\n'
 fi
@@ -65,6 +68,23 @@ while IFS= read -r call; do
     fail "global scope escaped GESTALT_HOME: $call"
 done <"$log"
 [[ $call_count -eq 25 ]] || fail "expected 25 repository installs, found $call_count"
+
+standalone_gestalt="$tmp/standalone gestalt"
+standalone_codex="$tmp/standalone codex"
+standalone_log="$tmp/standalone-npx.log"
+unexpected_setup_log="$tmp/unexpected-setup.log"
+standalone_output=$(CODEX_HOME="$standalone_codex" GESTALT_HOME="$standalone_gestalt" \
+  HOME="$tmp/home" NPX_LOG="$standalone_log" \
+  UNEXPECTED_SETUP_LOG="$unexpected_setup_log" PATH="$tmp/bin:$PATH" \
+  bash "$setup" --extra-skills-only)
+[[ $standalone_output == *"standalone curated extra-skills operation complete"* ]] ||
+  fail "standalone mode did not report completion"
+[[ ! -e $unexpected_setup_log ]] ||
+  fail "standalone mode invoked normal setup tools: $(<"$unexpected_setup_log")"
+[[ $(wc -l <"$standalone_log") -eq 25 ]] ||
+  fail "standalone mode did not run all curated repository installs"
+[[ -L $standalone_codex/skills/mock-skill ]] ||
+  fail "standalone mode did not expose managed skills in CODEX_HOME"
 
 if GESTALT_HOME=relative HOME="$tmp/home" PATH="$tmp/bin:$PATH" \
   bash "$setup" --extra-skills >"$tmp/relative.out" 2>"$tmp/relative.err"; then
