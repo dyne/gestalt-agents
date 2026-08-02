@@ -37,7 +37,7 @@ upward as concise summaries; raw test and inspection logs stay outside
 conversational context. The root gives brief user-facing updates such as
 `L1 2/5 — Validate release metadata: in review`.
 
-Context-mode is used to transport evidence.
+Context-mode transports evidence; it does not spawn agents.
 
 ## 🎮 Quick setup
 
@@ -70,12 +70,16 @@ different marketplace snapshot configured, the script continues from that
 snapshot automatically and preserves its arguments.
 
 The script defaults `CODEX_HOME` to `~/.codex-gestalt`, installs both plugins,
-prepares context-mode, generates `org-plan-reviewer` and `org-plan-executor`,
-and removes the retired `org-plan-supervisor`. It does not create, validate, or
-rewrite `config.toml`; `codex plugin add` only records the installed plugins.
+and prepares context-mode under `~/.gestalt`. Setup generates `org-plan-reviewer` and `org-plan-executor`,
+then removes the obsolete
+`~/.codex-gestalt/agents/org-plan-supervisor.toml`. It does not create,
+validate, or rewrite `config.toml`; `codex plugin add` only records the installed
+plugins.
 Current Codex already defaults the V1 agent depth to one and enables stable
 lifecycle hooks. The former `features.plugin_hooks` flag has been removed, so
-Gestalt needs no configuration override.
+Gestalt needs no configuration override. On an older installation, remove an
+`agents.max_depth = 2` override; setup does not create, validate, or rewrite
+Codex configuration.
 
 Start or restart Codex with that home, verify the effective installation, and
 run `ctx-doctor` in a new session:
@@ -89,14 +93,29 @@ codex
 ### Runtime preparation details
 
 Run `./gestalt-setup.sh` again after a marketplace upgrade. Use
-`./gestalt-setup.sh --prepare-only` to prepare a source checkout without
+`./gestalt-setup.sh --prepare-only` to install the external runtime without
 installing plugins or changing the isolated Codex home, and `--force` to replace
-an invalid prepared runtime. Set `CODEX_HOME` explicitly only to test or install
-an additional isolated Gestalt profile.
+an invalid prepared runtime. Runtime versions are isolated by operating system,
+CPU architecture, and Node ABI under
+`${GESTALT_HOME:-$HOME/.gestalt}/runtime/context-mode/`. Set `CODEX_HOME`
+explicitly only to test or install an additional isolated Gestalt profile.
+Use `./gestalt-setup.sh --force` to rebuild and atomically replace that runtime.
+
+Marketplace installation does not execute setup automatically. On an existing
+installation, upgrade the marketplace and rerun its setup script:
+
+```sh
+export CODEX_HOME="$HOME/.codex-gestalt"
+codex plugin marketplace upgrade dyne-gestalt-agents
+"$CODEX_HOME/.tmp/marketplaces/dyne-gestalt-agents/gestalt-setup.sh"
+```
 
 Do not add duplicate MCP or hook configuration. If startup still fails after
 forced preparation, confirm that another context-mode marketplace variant is
-not also enabled.
+not also enabled. `CONTEXT_MODE_NOT_PREPARED` identifies a missing, incompatible,
+or damaged external runtime; rerun setup with `--force` and restart Codex. MCP
+and hook startup are side-effect free: only setup installs, builds, or repairs
+the external runtime.
 
 ## 🧪 Testing (only for developers of this repo)
 
