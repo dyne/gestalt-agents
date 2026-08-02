@@ -24,13 +24,14 @@ system. It adopts a light multi-agent setup to keep the workflow and
 avoid stall. The prepared agents default to:
 
 ```text
-director/reviewer/supervisor (depth 0, org-plan-reviewer, Sol or Terra, read-only)
+director (depth 0, org-plan-reviewer, Sol or Terra, read-only)
 └── executor (depth 1, org-plan-executor, Terra, only code writer)
 ```
 
-The root directly launches one fresh executor for each L1, supervises its
-evidence gates, and reviews its uncommitted result. Rejected work returns to the
-same executor; accepted work is committed once before that executor closes.
+The root director also performs the supervisor and reviewer duties. It directly
+launches one fresh executor for each L1, supervises its evidence gates, and
+reviews its uncommitted result. Rejected work returns to the same executor;
+accepted work is committed once before that executor closes.
 This keeps the root active with only one subagent below it. Evidence flows
 upward as concise summaries; raw test and inspection logs stay outside
 conversational context. The root gives brief user-facing updates such as
