@@ -36,7 +36,7 @@ assert release_job["needs"] == "test"
 assert release_job["permissions"] == {"contents": "write"}
 
 steps = release_job["steps"]
-checkout = next(step for step in steps if step.get("uses") == "actions/checkout@v4")
+checkout = next(step for step in steps if step.get("uses") == "actions/checkout@v7")
 assert checkout["with"]["fetch-depth"] == 0
 
 baseline = next(step for step in steps if step.get("id") == "baseline")
@@ -106,8 +106,9 @@ assert matrix_job["strategy"] == {
     "matrix": {"os": ["ubuntu-latest", "macos-latest"]},
 }
 matrix_steps = matrix_job["steps"]
-node = next(step for step in matrix_steps if step.get("uses") == "actions/setup-node@v4")
-go = next(step for step in matrix_steps if step.get("uses") == "actions/setup-go@v5")
+checkout = next(step for step in matrix_steps if step.get("uses") == "actions/checkout@v7")
+node = next(step for step in matrix_steps if step.get("uses") == "actions/setup-node@v7")
+go = next(step for step in matrix_steps if step.get("uses") == "actions/setup-go@v7")
 bun = next(step for step in matrix_steps if step.get("uses") == "oven-sh/setup-bun@v2")
 assert node["with"]["node-version"] == "22.12.0"
 assert go["if"] == "runner.os == 'Linux'"
@@ -124,7 +125,7 @@ assert any(
 )
 actionlint = next(step for step in matrix_steps if step.get("name") == "Validate GitHub Actions workflows")
 assert actionlint["if"] == "runner.os == 'Linux'"
-assert "actionlint@v1.7.7" in actionlint["run"]
+assert "actionlint@v1.7.12" in actionlint["run"]
 validation = next(step for step in matrix_steps if step.get("name") == "Run complete validation")
 assert validation["run"] == "bash tests/ci.sh"
 assert "tests/run.sh" not in test_source
