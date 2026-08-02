@@ -6,6 +6,7 @@ script_dir=$(CDPATH='' cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
 marketplace_file="$script_dir/.agents/plugins/marketplace.json"
 context_source="$script_dir/plugins/context-mode"
 org_plan="$script_dir/plugins/gestalt/skills/org-plan/scripts/org-plan"
+setup_args=("$@")
 prepare_only=false
 force=false
 dry_run=false
@@ -117,7 +118,11 @@ else
     configured_root=$(CDPATH='' cd -- "$configured_root" 2>/dev/null && pwd -P) ||
       die "configured marketplace root is unreadable: $configured_root"
     if [[ $configured_root != "$script_dir" ]]; then
-      die "marketplace '$marketplace_name' points to $configured_root; run $configured_root/gestalt-setup.sh instead"
+      configured_setup="$configured_root/gestalt-setup.sh"
+      [[ -f $configured_setup ]] ||
+        die "configured marketplace setup script is missing: $configured_setup"
+      printf 'gestalt-setup: continuing from configured marketplace %s\n' "$configured_root"
+      exec bash "$configured_setup" "${setup_args[@]}"
     fi
   else
     run codex plugin marketplace add "$script_dir"

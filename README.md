@@ -67,6 +67,10 @@ cd <MARKETPLACE_ROOT>
 ./gestalt-setup.sh
 ```
 
+You may also run `gestalt-setup.sh` from a development checkout. If Codex has a
+different marketplace snapshot configured, the script continues from that
+snapshot automatically and preserves its arguments.
+
 The script defaults `CODEX_HOME` to `~/.codex-gestalt`, installs both plugins,
 prepares context-mode, generates `org-plan-reviewer` and `org-plan-executor`,
 and removes the retired `org-plan-supervisor`. It does not create, validate, or

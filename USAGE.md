@@ -18,6 +18,9 @@ cd <MARKETPLACE_ROOT>
 ./gestalt-setup.sh
 ```
 
+When setup is launched from another checkout, it automatically continues from
+the marketplace snapshot configured in `~/.codex-gestalt`.
+
 Marketplace installation does not run the setup script automatically. The
 script installs both plugins, prepares the exact installed context-mode cache,
 verifies its artifact manifest, generates the reviewer and executor profiles,
