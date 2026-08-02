@@ -37,8 +37,7 @@ upward as concise summaries; raw test and inspection logs stay outside
 conversational context. The root gives brief user-facing updates such as
 `L1 2/5 — Validate release metadata: in review`.
 
-Context-mode transports evidence; it does not spawn agents, grant write
-ownership, or change Org Plan state.
+Context-mode is used to transport evidence.
 
 ## 🎮 Quick setup
 
@@ -56,16 +55,15 @@ to that profile and locate its checkout:
 ```sh
 export CODEX_HOME="$HOME/.codex-gestalt"
 codex plugin marketplace add dyne/gestalt-agents
-codex plugin marketplace list
+"$CODEX_HOME/.tmp/marketplaces/dyne-gestalt-agents/gestalt-setup.sh"
 ```
 
-The second command prints the marketplace checkout path. From that directory,
-one setup command completes the installation:
+You may change 'add' to 'upgrade' in the middle of the second line.
 
-```sh
-cd <MARKETPLACE_ROOT>
-./gestalt-setup.sh
-```
+If you use `codex-profile` then add `alias gestalt='codex-profile cli gestalt'`.
+
+
+### Developer's installl
 
 You may also run `gestalt-setup.sh` from a development checkout. If Codex has a
 different marketplace snapshot configured, the script continues from that
@@ -88,36 +86,7 @@ codex plugin list --marketplace dyne-gestalt-agents --json
 codex
 ```
 
-### Update an existing install
-
-Refreshing a marketplace does not run its setup script. Upgrade the isolated
-profile's checkout, locate its current root, and rerun setup:
-
-```sh
-export CODEX_HOME="$HOME/.codex-gestalt"
-codex plugin marketplace upgrade dyne-gestalt-agents
-codex plugin marketplace list
-cd <MARKETPLACE_ROOT>
-./gestalt-setup.sh
-```
-
-If an older profile explicitly sets `agents.max_depth = 2`, remove that override
-or change it to `1`. Setup regenerates the reviewer and executor profiles and
-deletes the obsolete
-`~/.codex-gestalt/agents/org-plan-supervisor.toml` automatically.
-
-Restart Codex after the update and run the same `codex plugin list` and
-`ctx-doctor` checks used for a fresh install. If context-mode reports
-`CONTEXT_MODE_NOT_PREPARED`, rerun `./gestalt-setup.sh --force` and check the
-runtime and native build prerequisites.
-
 ### Runtime preparation details
-
-This marketplace keeps generated JavaScript bundles out of Git. The setup
-script installs locked build dependencies and compiles the exact installed
-context-mode cache. Normal Codex MCP and hook startup is side-effect free: it
-verifies the prepared manifest and either launches the bundle or exits quickly
-with `CONTEXT_MODE_NOT_PREPARED`.
 
 Run `./gestalt-setup.sh` again after a marketplace upgrade. Use
 `./gestalt-setup.sh --prepare-only` to prepare a source checkout without
@@ -143,7 +112,6 @@ nested MCP startup, shell linting, release versioning, and release-workflow
 contracts. It also installs both plugins through the current Codex CLI in an
 isolated home. GitHub runs it on Linux and macOS with Node.js 22.12.0. The
 release job starts only after both operating-system jobs pass.
-
 
 # 📃 Plan
 
