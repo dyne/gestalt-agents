@@ -1,14 +1,16 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+root=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)
 
 run_group() {
   local owner=$1 directory=$2 test_file
 
   while IFS= read -r -d '' test_file; do
     printf '[%s] %s\n' "$owner" "${test_file#"$root/"}"
-    bash "$test_file"
+    # A child such as `npx` may read stdin. Keep it from consuming the
+    # process-substitution stream that enumerates the remaining tests.
+    bash "$test_file" </dev/null
   done < <(find "$directory" -maxdepth 1 -type f -name 'test-*.sh' -print0 | sort -z)
 }
 

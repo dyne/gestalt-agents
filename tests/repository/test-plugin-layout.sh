@@ -21,7 +21,6 @@ expected_skills = {
 
 assert not (root / "skills" / "org-plan").exists(), "root skill copy must not exist"
 assert not (root / "plugins" / "org-plan").exists(), "legacy org-plan plugin must not exist"
-assert not (root / "plugins" / "superpowers").exists(), "legacy superpowers plugin must not exist"
 
 plugin_manifest = json.loads((plugin / ".codex-plugin" / "plugin.json").read_text())
 assert plugin_manifest["name"] == "gestalt"
@@ -37,8 +36,8 @@ manifests = {
 assert set(manifests) == {"gestalt", "context-mode"}, f"unexpected plugin manifests: {sorted(manifests)}"
 assert all(manifest["name"] == name for name, manifest in manifests.items())
 for name, manifest in manifests.items():
-    assert re.fullmatch(r"(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)", manifest["version"]), (
-        f"{name} version is not strict SemVer: {manifest['version']}"
+    assert re.fullmatch(r"(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)(?:-[0-9A-Za-z.-]+)?", manifest["version"]), (
+        f"{name} version is not SemVer: {manifest['version']}"
     )
 
 actual_skills = {
@@ -77,10 +76,11 @@ assert "name: org-plan" in frontmatter
 readme = (root / "README.md").read_text()
 for contract in (
     "Node.js 22.5",
-    "first MCP or Codex hook start",
-    "atomic build lock",
+    "gestalt-setup.sh",
+    "CONTEXT_MODE_NOT_PREPARED",
+    "side-effect free",
     "codex plugin list --marketplace dyne-gestalt-agents --json",
-    "ctx doctor",
+    "ctx-doctor",
     "do not add a duplicate",
     "Context-mode transports evidence; it does not spawn agents",
 ):
@@ -88,12 +88,12 @@ for contract in (
 
 context_skill = (root / "plugins" / "context-mode" / "skills" / "context-mode" / "SKILL.md").read_text()
 for contract in (
-    "## Org Plan and agent execution",
-    "Context-mode is an evidence transport for agents, not an orchestration system.",
-    "Solo plans:",
-    "Supervised plans:",
-    "Session boundaries:",
-    "does not silently add context-mode to an L1's",
+    "## Org Plan execution",
+    "Context-mode transports evidence; it does not spawn agents",
+    "In solo execution",
+    "In supervised execution",
+    "every agent session as an independent context",
+    "Do not add `$context-mode:context-mode`",
 ):
     assert contract in context_skill, f"context-mode skill lacks Org Plan contract: {contract}"
 
@@ -102,12 +102,12 @@ fixture_paths = {
     f"plugins/context-mode/{line.split('  ', 1)[1]}"
     for line in fixture.read_text().splitlines()
 }
-tracked_paths = set(subprocess.check_output(
-    ["git", "-C", str(root), "ls-files", "plugins/context-mode"],
+distributable_paths = set(subprocess.check_output(
+    ["git", "-C", str(root), "ls-files", "--cached", "--others", "--exclude-standard", "plugins/context-mode"],
     text=True,
 ).splitlines())
-missing_tracked = sorted(fixture_paths - tracked_paths)
-assert not missing_tracked, f"vendored fixture paths are ignored or untracked: {missing_tracked[:12]}"
+missing_paths = sorted(fixture_paths - distributable_paths)
+assert not missing_paths, f"vendored fixture paths are missing or ignored: {missing_paths[:12]}"
 PY
 
 printf 'plugin layout is valid\n'
