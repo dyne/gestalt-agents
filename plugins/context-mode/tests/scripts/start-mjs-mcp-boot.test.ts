@@ -32,11 +32,12 @@ describe("prepared MCP launcher", () => {
     expect(source).toContain("CONTEXT_MODE_NOT_PREPARED");
     expect(source).toContain("gestalt-setup.sh");
     expect(source).toContain("server.bundle.mjs");
+    expect(source).toContain("getRuntimeRoot");
   });
 
   it("imports the prepared bundle only after preflight", () => {
     const check = source.indexOf("CONTEXT_MODE_NOT_PREPARED");
-    const serverImport = source.indexOf('import("./server.bundle.mjs")');
+    const serverImport = source.indexOf('pathToFileURL(join(runtimeRoot, "server.bundle.mjs"))');
     expect(check).toBeGreaterThan(0);
     expect(serverImport).toBeGreaterThan(check);
   });
@@ -50,11 +51,16 @@ describe("prepared MCP launcher", () => {
         resolve(ROOT, "scripts", "runtime-preflight.mjs"),
         resolve(fixture, "scripts", "runtime-preflight.mjs"),
       );
+      copyFileSync(
+        resolve(ROOT, "scripts", "runtime-location.mjs"),
+        resolve(fixture, "scripts", "runtime-location.mjs"),
+      );
       writeFileSync(resolve(fixture, "package.json"), '{"version":"test"}\n');
 
       const started = Date.now();
       const result = spawnSync(process.execPath, [resolve(fixture, "start.mjs")], {
         cwd: fixture,
+        env: { ...process.env, GESTALT_HOME: resolve(fixture, "gestalt-home") },
         encoding: "utf8",
         timeout: 2_000,
       });

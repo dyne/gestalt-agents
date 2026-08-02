@@ -11,6 +11,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { homedir } from "node:os";
+import { createRequire } from "node:module";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
@@ -27,6 +28,11 @@ const STALE_LOCK_MS = 300_000;
 
 const delay = (ms) => new Promise((done) => setTimeout(done, ms));
 function findBun() {
+  const selection = process.env.CONTEXT_MODE_PACKAGE_MANAGER ?? "auto";
+  if (!new Set(["auto", "bun", "npm"]).has(selection)) {
+    throw new Error(`CONTEXT_MODE_PACKAGE_MANAGER must be auto, bun, or npm; found ${selection}`);
+  }
+  if (selection === "npm") return null;
   if (typeof globalThis.Bun !== "undefined") return process.execPath;
   const candidates = [
     process.env.BUN_INSTALL ? join(process.env.BUN_INSTALL, "bin", "bun") : null,
@@ -34,7 +40,7 @@ function findBun() {
     "/usr/local/bin/bun",
     "/usr/bin/bun",
   ].filter(Boolean);
-  return candidates.find((candidate) => {
+  const bun = candidates.find((candidate) => {
     if (!existsSync(candidate)) return false;
     try {
       execFileSync(candidate, ["--version"], {
@@ -47,6 +53,10 @@ function findBun() {
       return false;
     }
   }) ?? null;
+  if (selection === "bun" && !bun) {
+    throw new Error("CONTEXT_MODE_PACKAGE_MANAGER=bun but no working Bun executable was found");
+  }
+  return bun;
 }
 
 function run(pluginRoot, tempDir, command, args, timeout = WAIT_TIMEOUT_MS) {
@@ -90,6 +100,13 @@ function buildRuntimeArtifacts(pluginRoot, tempDir) {
   run(pluginRoot, tempDir, npm, ["run", "assert-bundle", "--silent"]);
 }
 
+function verifyNativeDependencies(pluginRoot) {
+  const require = createRequire(join(pluginRoot, "package.json"));
+  const Database = require("better-sqlite3");
+  const database = new Database(":memory:");
+  database.close();
+}
+
 function writeManifest(pluginRoot) {
   const packageVersion = JSON.parse(readFileSync(join(pluginRoot, "package.json"), "utf8")).version;
   const files = {};
@@ -101,10 +118,13 @@ function writeManifest(pluginRoot) {
   writeFileSync(
     join(pluginRoot, MANIFEST),
     JSON.stringify({
-      schemaVersion: 1,
+      schemaVersion: 2,
       packageVersion,
       preparedAt: new Date().toISOString(),
       node: process.versions.node,
+      nodeModulesAbi: process.versions.modules,
+      platform: process.platform,
+      arch: process.arch,
       bun: process.versions.bun ?? null,
       files,
     }, null, 2) + "\n",
@@ -157,6 +177,7 @@ export async function prepareRuntime(pluginRoot = DEFAULT_PLUGIN_ROOT, { force =
       try {
         if (force || !verifyPreparedRuntime(pluginRoot).ok) {
           buildRuntimeArtifacts(pluginRoot, tempDir);
+          verifyNativeDependencies(pluginRoot);
           writeManifest(pluginRoot);
         }
       } finally {

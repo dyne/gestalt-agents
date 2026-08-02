@@ -11,7 +11,10 @@ const required = [
   "hooks/hooks.json",
   "start.mjs",
   "scripts/prepare-runtime.mjs",
+  "scripts/install-runtime.mjs",
+  "scripts/runtime-location.mjs",
   "scripts/runtime-preflight.mjs",
+  "hooks/runtime-hook.mjs",
 ];
 
 for (const relative of required) {

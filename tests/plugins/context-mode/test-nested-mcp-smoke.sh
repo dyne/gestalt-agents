@@ -6,37 +6,49 @@ tmp=$(mktemp -d "${TMPDIR:-/tmp}/context-mode-nested-smoke.XXXXXX")
 trap 'rm -rf "$tmp"' EXIT HUP INT TERM
 version=$(node -p "require('$root/plugins/context-mode/package.json').version")
 plugin="$tmp/cache/dyne-gestalt-agents/context-mode/$version"
+gestalt_home="$tmp/gestalt-home"
 mkdir -p "$(dirname -- "$plugin")" "$tmp/codex-home"
 mkdir -p "$plugin"
 tar -C "$root/plugins/context-mode" \
   --exclude=node_modules \
   --exclude=build \
+  --exclude=.context-mode-prepared.json \
+  --exclude='.context-mode-prepare*' \
   --exclude='*.bundle.mjs' \
   -cf - . | tar -C "$plugin" -xf -
 
-command -v bun >/dev/null
 test ! -e "$plugin/node_modules"
 test ! -e "$plugin/server.bundle.mjs"
-mkdir -p "$plugin/.context-mode-prepare.lock"
-printf '%s\n' 99999999 >"$plugin/.context-mode-prepare.lock/owner.pid"
-(cd "$plugin" && node scripts/prepare-runtime.mjs) &
+GESTALT_HOME="$gestalt_home" node "$plugin/scripts/install-runtime.mjs" &
 builder_one=$!
-(cd "$plugin" && node scripts/prepare-runtime.mjs) &
+GESTALT_HOME="$gestalt_home" node "$plugin/scripts/install-runtime.mjs" &
 builder_two=$!
 wait "$builder_one"
 wait "$builder_two"
-test -f "$plugin/server.bundle.mjs"
-test -f "$plugin/hooks/security.bundle.mjs"
-test -f "$plugin/hooks/session-attribution.bundle.mjs"
-test ! -e "$plugin/.context-mode-prepare.lock"
-test ! -e "$plugin/.context-mode-prepare.recovery.lock"
-test ! -e "$plugin/.context-mode-prepare-tmp"
+runtime=$(GESTALT_HOME="$gestalt_home" node -e "import('./plugins/context-mode/scripts/runtime-location.mjs').then(({getRuntimeRoot}) => process.stdout.write(getRuntimeRoot(process.argv[1])))" "$plugin")
+test -f "$runtime/server.bundle.mjs"
+test -f "$runtime/hooks/security.bundle.mjs"
+test -f "$runtime/hooks/session-attribution.bundle.mjs"
+test -f "$runtime/node_modules/better-sqlite3/build/Release/better_sqlite3.node"
+test ! -e "$runtime.install.lock"
+
+# Recreate the replaceable plugin cache after preparation. Startup must still
+# use the external runtime and require no generated cache files.
+rm -rf "$plugin"
+mkdir -p "$plugin"
+tar -C "$root/plugins/context-mode" \
+  --exclude=node_modules \
+  --exclude=build \
+  --exclude=.context-mode-prepared.json \
+  --exclude='.context-mode-prepare*' \
+  --exclude='*.bundle.mjs' \
+  -cf - . | tar -C "$plugin" -xf -
 
 output=$(timeout 20s bash -c 'cd "$2"
   printf "%s\n%s\n" \
   "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{\"protocolVersion\":\"2025-03-26\",\"capabilities\":{},\"clientInfo\":{\"name\":\"nested-smoke\",\"version\":\"1\"}}}" \
   "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/list\",\"params\":{}}" | \
-  CONTEXT_MODE_PLATFORM=codex CODEX_HOME="$1" node start.mjs' _ "$tmp/codex-home" "$plugin" 2>&1 || true)
+  CONTEXT_MODE_PLATFORM=codex CODEX_HOME="$1" GESTALT_HOME="$3" node start.mjs' _ "$tmp/codex-home" "$plugin" "$gestalt_home" 2>&1 || true)
 
 python3 - "$output" "$plugin" <<'PY'
 import json
@@ -51,6 +63,18 @@ assert {"ctx_execute", "ctx_search", "ctx_doctor"} <= {tool["name"] for tool in 
 plugin = Path(sys.argv[2])
 assert (plugin / "hooks/codex/pretooluse.mjs").is_file()
 assert (plugin / "hooks/codex/sessionstart.mjs").is_file()
+assert not (plugin / ".context-mode-prepared.json").exists()
+assert not (plugin / "node_modules").exists()
+PY
+
+hook_output=$(printf '%s\n' '{"source":"startup","session_id":"nested-smoke","cwd":"/tmp"}' |
+  CODEX_HOME="$tmp/codex-home" GESTALT_HOME="$gestalt_home" node "$plugin/hooks/runtime-hook.mjs" sessionstart)
+python3 - "$hook_output" <<'PY'
+import json
+import sys
+
+payload = json.loads(sys.argv[1])
+assert payload["hookSpecificOutput"]["hookEventName"] == "SessionStart", payload
 PY
 
 test -z "$(find "$tmp/codex-home" -mindepth 1 -maxdepth 1 -name 'hooks.json' -print -quit)"

@@ -9,8 +9,8 @@ help=$(bash "$script" --help)
 [[ $help == *"--prepare-only"* ]]
 [[ $help == *"--dry-run"* ]]
 output=$(bash "$script" --prepare-only --dry-run)
-[[ $output == *"prepare-runtime.mjs"* ]]
-[[ $output == *"context-mode source is prepared"* ]]
+[[ $output == *"install-runtime.mjs"* ]]
+[[ $output == *"context-mode external runtime is prepared"* ]]
 
 tmp=$(mktemp -d "${TMPDIR:-/tmp}/gestalt-setup-test.XXXXXX")
 trap 'rm -rf "$tmp"' EXIT HUP INT TERM

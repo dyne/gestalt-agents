@@ -1,6 +1,6 @@
 {
   "name": "context-mode",
-  "version": "1.0.169-dyne.1",
+  "version": "1.0.169-dyne.2",
   "private": true,
   "type": "module",
   "description": "Codex MCP plugin for sandboxed output analysis, FTS5 search, and session continuity.",
@@ -9,6 +9,7 @@
   "scripts": {
     "build": "tsc --noEmit && npm run bundle && npm run assert-bundle && npm run assert-codex-package",
     "prepare:codex": "node scripts/prepare-runtime.mjs --force",
+    "install:codex-runtime": "node scripts/install-runtime.mjs",
     "check:prepared": "node scripts/prepare-runtime.mjs --check",
     "assert-bundle": "node scripts/assert-bundle.mjs server.bundle.mjs cli.bundle.mjs hooks/session-extract.bundle.mjs hooks/session-snapshot.bundle.mjs hooks/session-attribution.bundle.mjs hooks/session-db.bundle.mjs hooks/security.bundle.mjs hooks/codex-usage.bundle.mjs",
     "assert-codex-package": "node scripts/assert-codex-package.mjs",
@@ -18,7 +19,7 @@
     "doctor": "npx tsx src/cli.ts doctor",
     "typecheck": "tsc --noEmit",
     "pretest": "npm run build",
-    "test": "vitest run tests/plugins/codex-manifest.test.ts tests/scripts/prepare-runtime.test.ts tests/scripts/start-mjs-mcp-boot.test.ts tests/adapters/codex.test.ts tests/adapters/codex-usage.test.ts tests/adapters/codex-invocation-context.test.ts tests/adapters/codex-external-mcp-routing.test.ts tests/hooks/codex-goal-compact.test.ts tests/hooks/codex-sessionstart-rule-capture.test.ts",
+    "test": "vitest run tests/plugins/codex-manifest.test.ts tests/scripts/prepare-runtime.test.ts tests/scripts/runtime-location.test.ts tests/scripts/start-mjs-mcp-boot.test.ts tests/adapters/codex.test.ts tests/adapters/codex-usage.test.ts tests/adapters/codex-invocation-context.test.ts tests/adapters/codex-external-mcp-routing.test.ts tests/hooks/codex-goal-compact.test.ts tests/hooks/codex-sessionstart-rule-capture.test.ts",
     "test:watch": "vitest",
     "benchmark": "npx tsx tests/benchmark.ts",
     "test:use-cases": "npx tsx tests/use-cases.ts",
@@ -47,5 +48,9 @@
   "packageManager": "pnpm@10.23.0+sha512.21c4e5698002ade97e4efe8b8b4a89a8de3c85a37919f957e7a0f30f38fbc5bbdd05980ffe29179b2fb6e6e691242e098d945d1601772cad0fef5fb6411e2a4b",
   "engines": {
     "node": ">=22.5.0"
+  },
+  "allowScripts": {
+    "better-sqlite3": true,
+    "esbuild": true
   }
 }

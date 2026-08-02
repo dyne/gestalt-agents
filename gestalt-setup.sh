@@ -15,11 +15,11 @@ usage() {
   cat <<'EOF'
 Usage: ./gestalt-setup.sh [--prepare-only] [--force] [--dry-run]
 
-Build context-mode before Codex starts it, then install context-mode and Gestalt
-from this marketplace. The managed Codex home defaults to ~/.codex-gestalt.
-Run again after a marketplace upgrade.
+Install a prepared context-mode runtime under ${GESTALT_HOME:-$HOME/.gestalt},
+then install context-mode and Gestalt from this marketplace. The managed Codex
+home defaults to ~/.codex-gestalt. Run again after a marketplace upgrade.
 
-  --prepare-only  Build and verify the source plugin without changing Codex.
+  --prepare-only  Install and verify the external runtime without changing Codex.
   --force         Reinstall dependencies and rebuild prepared artifacts.
   --dry-run       Print mutating commands without running them.
   -h, --help      Show this help.
@@ -53,7 +53,7 @@ while (($#)); do
 done
 
 [[ -f $marketplace_file ]] || die "marketplace manifest not found: $marketplace_file"
-[[ -f $context_source/scripts/prepare-runtime.mjs ]] || die "context-mode preparer not found"
+[[ -f $context_source/scripts/install-runtime.mjs ]] || die "context-mode runtime installer not found"
 [[ -x $org_plan ]] || die "Org Plan helper is not executable: $org_plan"
 command -v node >/dev/null 2>&1 || die "Node.js 22.5 or newer is required"
 command -v npm >/dev/null 2>&1 || die "npm is required to build context-mode"
@@ -74,15 +74,15 @@ marketplace_name=$(node -e '
 ' "$marketplace_file") || die "cannot read marketplace name"
 
 if "$prepare_only"; then
-  prepare_args=(node "$context_source/scripts/prepare-runtime.mjs")
+  prepare_args=(node "$context_source/scripts/install-runtime.mjs")
   if "$force"; then prepare_args+=(--force); fi
   run "${prepare_args[@]}"
   if "$dry_run"; then
-    printf 'DRY-RUN: node %q --check\n' "$context_source/scripts/prepare-runtime.mjs"
+    printf 'DRY-RUN: node %q --check\n' "$context_source/scripts/install-runtime.mjs"
   else
-    node "$context_source/scripts/prepare-runtime.mjs" --check
+    node "$context_source/scripts/install-runtime.mjs" --check
   fi
-  printf 'gestalt-setup: context-mode source is prepared\n'
+  printf 'gestalt-setup: context-mode external runtime is prepared\n'
   exit 0
 fi
 
@@ -129,34 +129,27 @@ else
   fi
 fi
 
+runtime_install=(node "$context_source/scripts/install-runtime.mjs")
+if "$force"; then runtime_install+=(--force); fi
+if "$dry_run"; then
+  printf 'DRY-RUN:'
+  printf ' %q' "${runtime_install[@]}"
+  printf '\n'
+else
+  "${runtime_install[@]}"
+  node "$context_source/scripts/install-runtime.mjs" --check
+fi
+
 run codex plugin add "context-mode@$marketplace_name"
 run codex plugin add "gestalt@$marketplace_name"
 
-context_version=$(node -e '
-  const fs = require("node:fs");
-  const value = JSON.parse(fs.readFileSync(process.argv[1], "utf8")).version;
-  if (typeof value !== "string" || !value) process.exit(1);
-  process.stdout.write(value);
-' "$context_source/.codex-plugin/plugin.json") || die "cannot read context-mode version"
-
-installed_context="$codex_root/plugins/cache/$marketplace_name/context-mode/$context_version"
-installed_prepare=(node "$installed_context/scripts/prepare-runtime.mjs")
-if "$force"; then installed_prepare+=(--force); fi
-if "$dry_run"; then
-  printf 'DRY-RUN:'
-  printf ' %q' "${installed_prepare[@]}"
-  printf '\n'
-else
-  [[ -f $installed_context/scripts/prepare-runtime.mjs ]] ||
-    die "installed context-mode cache not found: $installed_context"
-  "${installed_prepare[@]}"
-  node "$installed_context/scripts/prepare-runtime.mjs" --check
+if ! "$dry_run"; then
   codex plugin list --marketplace "$marketplace_name" --json >/dev/null
 fi
 
 run "$org_plan" prepare-supervision --agents-dir "$agents_dir"
 run rm -f -- "$agents_dir/org-plan-supervisor.toml"
 
-printf 'gestalt-setup: installed prepared plugins from %s\n' "$marketplace_name"
+printf 'gestalt-setup: installed plugins and external runtime from %s\n' "$marketplace_name"
 printf 'gestalt-setup: installed into Codex home %s\n' "$codex_root"
 printf 'gestalt-setup: restart that Codex profile and run ctx-doctor in a new session\n'
