@@ -116,7 +116,12 @@ assert bun["with"]["bun-version"] == "1.3.14"
 codex = next(step for step in matrix_steps if step.get("name") == "Install current Codex CLI")
 assert codex["run"] == "npm install --global @openai/codex@latest"
 assert any(step.get("if") == "runner.os == 'Linux'" and "shellcheck" in step.get("run", "") for step in matrix_steps)
-assert any(step.get("if") == "runner.os == 'macOS'" and "coreutils" in step.get("run", "") for step in matrix_steps)
+assert any(
+    step.get("if") == "runner.os == 'macOS'"
+    and "coreutils" in step.get("run", "")
+    and "gnu-sed" in step.get("run", "")
+    for step in matrix_steps
+)
 actionlint = next(step for step in matrix_steps if step.get("name") == "Validate GitHub Actions workflows")
 assert actionlint["if"] == "runner.os == 'Linux'"
 assert "actionlint@v1.7.7" in actionlint["run"]

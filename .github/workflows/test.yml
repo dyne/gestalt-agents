@@ -41,9 +41,12 @@ jobs:
       - name: Install macOS shell tools
         if: runner.os == 'macOS'
         run: |
-          brew install bash coreutils shellcheck
-          echo "$(brew --prefix bash)/bin" >>"$GITHUB_PATH"
-          echo "$(brew --prefix coreutils)/libexec/gnubin" >>"$GITHUB_PATH"
+          brew install bash coreutils gnu-sed shellcheck
+          {
+            echo "$(brew --prefix bash)/bin"
+            echo "$(brew --prefix coreutils)/libexec/gnubin"
+            echo "$(brew --prefix gnu-sed)/libexec/gnubin"
+          } >>"$GITHUB_PATH"
       - name: Validate GitHub Actions workflows
         if: runner.os == 'Linux'
         run: |
