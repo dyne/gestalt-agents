@@ -24,19 +24,17 @@ system. It adopts a light multi-agent setup to keep the workflow and
 avoid stall. The prepared agents default to:
 
 ```text
-director (depth 0, org-plan-reviewer, Sol or Terra, read-only)
-└── supervisor (depth 1, org-plan-supervisor, Luna)
-    └── executor (depth 2, org-plan-executor, Terra, only code writer)
+director/reviewer/supervisor (depth 0, org-plan-reviewer, Sol or Terra, read-only)
+└── executor (depth 1, org-plan-executor, Terra, only code writer)
 ```
 
-The executor reports only to the supervisor, a fresh one is respawned
-for each L1 planned item so expensive context compaction is often not
-needed. The supervisor sends review requests upward to the
-director. This keeps the root active with at most two subagents below
-it: the supervisor and its executor. Evidence flows upward as concise
-summaries; raw test and inspection logs stay outside conversational
-context. The root gives brief user-facing updates such as `L1 2/5 —
-Validate release metadata: in review`.
+The root directly launches one fresh executor for each L1, supervises its
+evidence gates, and reviews its uncommitted result. Rejected work returns to the
+same executor; accepted work is committed once before that executor closes.
+This keeps the root active with only one subagent below it. Evidence flows
+upward as concise summaries; raw test and inspection logs stay outside
+conversational context. The root gives brief user-facing updates such as
+`L1 2/5 — Validate release metadata: in review`.
 
 Context-mode transports evidence; it does not spawn agents, grant write
 ownership, or change Org Plan state.
@@ -71,7 +69,7 @@ codex plugin marketplace upgrade dyne/gestalt-agents
 Make sure to add the following configuration directive to `~/.codex/config.toml`:
 ```
 [agents]
-max_depth = 2
+max_depth = 1
 
 [features]
 plugin_hooks = true

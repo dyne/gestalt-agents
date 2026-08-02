@@ -1,6 +1,6 @@
 ---
 name: org-plan
-description: Create or execute implementation plans stored as Org files with ordered L1/L2 milestones, exact skill assignments, durable review status, helper-driven state transitions, and optional director/supervisor/executor execution. Use for multi-step work that needs inspectable scope, evidence gates, incremental review, and one conventional commit per accepted L1.
+description: Create or execute implementation plans stored as Org files with ordered L1/L2 milestones, exact skill assignments, durable review status, helper-driven state transitions, and optional root-directed subagent execution. Use for multi-step work that needs inspectable scope, evidence gates, incremental review, and one conventional commit per accepted L1.
 ---
 
 # Org Plan
@@ -13,8 +13,8 @@ fresh lesser-reasoning executor to complete from the plan and repository alone.
 - **Authoring:** create or revise an Org plan. Read
   [Plan format](references/plan-format.md) and
   [CLI state machine](references/cli-state.md).
-- **Supervised execution:** use a director, one supervisor, and one fresh
-  executor per L1. Read
+- **Supervised execution:** the root directs, supervises, and reviews one fresh
+  depth-one executor per L1. Read
   [Supervised execution](references/supervised-execution.md) before spawning.
 - **Manual execution:** use the loop below when supervised roles are unavailable
   or the user explicitly requests manual work.

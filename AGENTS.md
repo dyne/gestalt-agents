@@ -2,13 +2,13 @@
 
 ## Org Plan supervised workflow invariants
 
-- The director/reviewer is depth zero in the user's initial Codex conversation.
-  Its recommended read-only `org-plan-reviewer` launch profile defaults to Sol;
-  an already-running root keeps its CLI-selected model. The depth-one supervisor
-  defaults to Luna and reports only to the director. The depth-two executor
-  defaults to Terra, is the only code writer, and reports only to the supervisor.
-  The supervisor never spawns a reviewer; it requests each review upward from
-  the director/reviewer.
+- The depth-zero root combines director, reviewer, and supervisor duties in the
+  user's initial Codex conversation. Its recommended read-only
+  `org-plan-reviewer` launch profile defaults to Sol; an already-running root
+  keeps its CLI-selected model. The root directly launches exactly one fresh
+  depth-one `org-plan-executor` per L1. The executor defaults to Terra, is the
+  only code writer, and reports only to the root. Do not create an intermediate
+  supervisor or a separate reviewer.
 - Every L1 must have exactly one non-empty `:SKILLS:` property and exactly one
   `:REVIEW_STATUS:` property, initially `UNREVIEWED`; L2s must have neither.
   `:SKILLS:` is a whitespace-separated list of exact `$skill` references chosen
@@ -26,10 +26,9 @@
   The reviewer
   skips already REVIEWED milestones, so appended refinement L1s do not trigger
   repeat audits of accepted work.
-- Keep one writer active. The supervisor delegates implementation and corrective
-  edits only to the executor; the director/reviewer is read-only. Executor
-  evidence and complete review requests reach the director through concise
-  supervisor summaries.
+- Keep one writer active. The read-only root delegates implementation and
+  corrective edits only to the active executor. Executor evidence and review
+  requests go directly to the root as concise structured summaries.
 - Run potentially large inspections, tests, and log processing through an
   available context-preserving execution path. If none is available, capture
   output outside conversational context and report only the command, exit
@@ -44,11 +43,11 @@
   and Goal/Why; later mentions may use the position and title alone. Lead the
   first commit mention with its conventional subject and purpose; IDs and hashes
   are supplemental. Machine assignments retain exact IDs and commit ranges.
-- Routine L1 review is an agent-to-agent gate: the director independently
-  returns ACCEPT or REJECT from the supervisor's evidence and the supervisor
-  continues. Do not ask the user for progress decisions or review approval;
+- Routine L1 review is an agent-to-agent gate: the root independently inspects
+  the executor's evidence and returns ACCEPT or REJECT directly to that
+  executor. Do not ask the user for progress decisions or review approval;
   request user input only for material ambiguity or an unavailable prerequisite.
-- Final acceptance requires the supervisor to verify a current full-suite pass
+- Final acceptance requires the root to verify a current full-suite pass
   and clean intended scope. It does not repeat reviewer audits for REVIEWED L1s.
 
 ## Vendoring skills for Codex and `npx skills`
