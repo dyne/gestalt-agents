@@ -1,6 +1,6 @@
 {
   "name": "context-mode",
-  "version": "1.0.169-dyne.2",
+  "version": "1.0.169-dyne.3",
   "description": "MCP server for sandboxed output analysis, FTS5 indexed search, and session continuity across compactions.",
   "author": {
     "name": "Mert Koseoğlu",

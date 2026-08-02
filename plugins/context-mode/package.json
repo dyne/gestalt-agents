@@ -1,6 +1,6 @@
 {
   "name": "context-mode",
-  "version": "1.0.169-dyne.2",
+  "version": "1.0.169-dyne.3",
   "private": true,
   "type": "module",
   "description": "Codex MCP plugin for sandboxed output analysis, FTS5 search, and session continuity.",

@@ -127,11 +127,20 @@ function runnableExists(cmd: string): boolean {
 }
 
 function bunExists(): boolean {
-  if (commandExists("bun")) return true;
-  for (const p of bunFallbackPaths()) {
-    if (existsSync(p)) return true;
+  const present = commandExists("bun") || bunFallbackPaths().some((path) => existsSync(path));
+  if (!present) return false;
+
+  const bun = bunCommand();
+  try {
+    if (isWindows && bun === "bun") {
+      execSync(`"${bun}" --version`, { stdio: "pipe", timeout: 5000 });
+    } else {
+      execFileSync(bun, ["--version"], { stdio: "pipe", timeout: isWindows ? 5000 : 1500 });
+    }
+    return true;
+  } catch {
+    return false;
   }
-  return false;
 }
 
 function bunCommand(): string {

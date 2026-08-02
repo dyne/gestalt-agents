@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { dirname, join } from "node:path";
 import { pathToFileURL, fileURLToPath } from "node:url";
+import { ensureCodexHome } from "../scripts/codex-profile.mjs";
 import { getRuntimeRoot } from "../scripts/runtime-location.mjs";
 import { verifyPreparedRuntime } from "../scripts/runtime-preflight.mjs";
 
@@ -20,6 +21,7 @@ if (!allowed.has(hook)) {
   process.exit(64);
 }
 
+ensureCodexHome(pluginRoot);
 const runtimeRoot = getRuntimeRoot(pluginRoot);
 const prepared = verifyPreparedRuntime(runtimeRoot);
 if (!prepared.ok) {

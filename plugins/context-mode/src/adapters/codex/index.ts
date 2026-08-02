@@ -163,7 +163,7 @@ export function probeCodexCliVersion(runCommand: CodexVersionRunner = execFileSy
 
 export function parseCodexContextModePluginRoot(raw: string): string | null {
   for (const line of raw.split(/\r?\n/)) {
-    const match = line.match(/^\s*context-mode@context-mode\s+installed,\s+enabled\s+\S+\s+(.+?)\s*$/);
+    const match = line.match(/^\s*context-mode@\S+\s+installed,\s+enabled\s+\S+\s+(.+?)\s*$/);
     if (match?.[1]) return match[1].trim();
   }
   return null;
@@ -192,14 +192,25 @@ function hasCodexHooksFeature(raw: string): boolean {
   return features !== null && /^\s*hooks\s*=\s*true\s*(?:#.*)?$/mi.test(features);
 }
 
+function hasCodexHooksDisabled(raw: string): boolean {
+  const features = getTomlSection(raw, "features");
+  return features !== null && /^\s*hooks\s*=\s*false\s*(?:#.*)?$/mi.test(features);
+}
+
 function hasDeprecatedCodexHooksFeature(raw: string): boolean {
   const features = getTomlSection(raw, "features");
   return features !== null && /^\s*codex_hooks\s*=\s*true\s*(?:#.*)?$/mi.test(features);
 }
 
 function hasCodexPluginEnabled(raw: string): boolean {
-  const plugin = getTomlSection(raw, 'plugins."context-mode@context-mode"');
-  return plugin !== null && /^\s*enabled\s*=\s*true\s*(?:#.*)?$/mi.test(plugin);
+  const sections = raw.matchAll(/^\s*\[plugins\."context-mode@[^"\]]+"\]\s*(?:#.*)?$/gmi);
+  for (const section of sections) {
+    const name = section[0]?.match(/\[([^\]]+)\]/)?.[1];
+    if (!name) continue;
+    const plugin = getTomlSection(raw, name);
+    if (plugin !== null && /^\s*enabled\s*=\s*true\s*(?:#.*)?$/mi.test(plugin)) return true;
+  }
+  return false;
 }
 
 function hasStandaloneContextModeMcp(raw: string): boolean {
@@ -594,24 +605,29 @@ export class CodexAdapter extends BaseAdapter implements HookAdapter {
       settingsRaw = readFileSync(this.getSettingsPath(), "utf-8");
       settingsReadable = true;
       const enabled = hasCodexHooksFeature(settingsRaw);
+      const disabled = hasCodexHooksDisabled(settingsRaw);
       const deprecatedOnly = !enabled && hasDeprecatedCodexHooksFeature(settingsRaw);
 
       results.push({
         check: "Codex hooks feature flag",
-        status: enabled ? "pass" : "fail",
-        message: enabled
+        status: disabled ? "fail" : "pass",
+        message: disabled
+          ? `[features].hooks is explicitly disabled in ${this.getSettingsPath()}`
+          : enabled
           ? `[features].hooks enabled in ${this.getSettingsPath()}`
           : deprecatedOnly
-            ? `[features].codex_hooks is deprecated; [features].hooks is missing in ${this.getSettingsPath()}`
-            : `[features].hooks missing from ${this.getSettingsPath()}`,
-        ...(enabled ? {} : { fix: "context-mode upgrade" }),
+            ? `[features].codex_hooks is deprecated; stable hooks use the enabled Codex default`
+            : `Stable hooks use the enabled Codex default; no [features].hooks override is required`,
+        ...(disabled ? { fix: "Remove the hooks = false override or run context-mode upgrade" } : {}),
       });
     } catch {
       results.push({
         check: "Codex hooks feature flag",
-        status: "warn",
-        message: `Could not read ${this.getSettingsPath()}`,
-        fix: "context-mode upgrade",
+        status: existsSync(this.getSettingsPath()) ? "warn" : "pass",
+        message: existsSync(this.getSettingsPath())
+          ? `Could not read ${this.getSettingsPath()}`
+          : `Stable hooks use the enabled Codex default; ${this.getSettingsPath()} is absent`,
+        ...(existsSync(this.getSettingsPath()) ? { fix: "Check config.toml permissions" } : {}),
       });
     }
 

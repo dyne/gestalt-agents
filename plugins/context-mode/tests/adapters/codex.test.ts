@@ -15,11 +15,11 @@ function writeCodexPluginManifest(pluginRoot: string): void {
   }, null, 2), "utf-8");
 }
 
-function pluginEnabledSettings(extra = ""): string {
+function pluginEnabledSettings(extra = "", marketplace = "context-mode"): string {
   return `[features]
 hooks = true
 
-[plugins."context-mode@context-mode"]
+[plugins."context-mode@${marketplace}"]
 enabled = true
 
 ${extra}`;
@@ -345,6 +345,12 @@ describe("CodexAdapter", () => {
     it("parses the context-mode runtime root from `codex plugin list` output", () => {
       const pluginRoot = join(homedir(), ".codex", ".tmp", "marketplaces", "context-mode");
       expect(parseCodexContextModePluginRoot(pluginListOutput(pluginRoot))).toBe(pluginRoot);
+    });
+
+    it("parses context-mode installed from a third-party marketplace", () => {
+      const pluginRoot = "/home/test/.codex/plugins/cache/dyne-gestalt-agents/context-mode/1.0.169-dyne.3";
+      const output = `context-mode@dyne-gestalt-agents  installed, enabled  1.0.169-dyne.3  ${pluginRoot}`;
+      expect(parseCodexContextModePluginRoot(output)).toBe(pluginRoot);
     });
 
     it("returns null when context-mode is not installed in `codex plugin list` output", () => {
@@ -769,6 +775,35 @@ trusted_hash = "sha256:stale"
 
       expect(results.some((result) => result.check === "Hooks config" && result.status === "fail")).toBe(false);
       expect(results.some((result) => result.check === "Stop hook" && result.status === "pass")).toBe(true);
+    });
+
+    it("accepts plugin hooks from a third-party marketplace without a hooks feature override", () => {
+      const pluginRoot = join(codexDir, "plugin-root");
+      adapter = new CodexAdapter({
+        codexPluginListRunner: () =>
+          `context-mode@dyne-gestalt-agents  installed, enabled  1.0.169-dyne.3  ${pluginRoot}`,
+      });
+      writeCodexPluginManifest(pluginRoot);
+      writeFileSync(
+        join(codexDir, "config.toml"),
+        pluginEnabledSettings("", "dyne-gestalt-agents").replace("[features]\nhooks = true\n\n", ""),
+        "utf-8",
+      );
+
+      const results = adapter.validateHooks(pluginRoot);
+
+      expect(results.some((result) => result.status === "fail")).toBe(false);
+      expect(results.some((result) => result.check === "Stop hook" && result.status === "pass")).toBe(true);
+      expect(results.find((result) => result.check === "Codex hooks feature flag")?.message)
+        .toContain("Stable hooks use the enabled Codex default");
+    });
+
+    it("fails when stable Codex hooks are explicitly disabled", () => {
+      writeFileSync(join(codexDir, "config.toml"), "[features]\nhooks = false\n", "utf-8");
+
+      const results = adapter.validateHooks("/ignored/plugin/root");
+
+      expect(results.find((result) => result.check === "Codex hooks feature flag")?.status).toBe("fail");
     });
 
     it("uses the Codex plugin manager runtime root instead of failing on a stale doctor root", () => {
