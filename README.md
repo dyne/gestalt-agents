@@ -38,16 +38,29 @@ summaries; raw test and inspection logs stay outside conversational
 context. The root gives brief user-facing updates such as `L1 2/5 —
 Validate release metadata: in review`.
 
+Context-mode transports evidence; it does not spawn agents, grant write
+ownership, or change Org Plan state.
+
 ## 🎮 Quick setup
 
 ### Codex specific install as marketplace
 
-Gestalt requires either Bun or Node.js 22.5 or newer.
+Gestalt setup requires Node.js 22.5 or newer and npm. It uses Bun for dependency
+installation when a working Bun executable is available.
 
 Add our plugin marketplace `dyne-gestalt-agents`:
 ```
 codex plugin marketplace add dyne/gestalt-agents
-codex plugin add gestalt@dyne-gestalt-agents
+codex plugin marketplace list
+```
+
+The second command prints the marketplace checkout path. Run the setup script
+from that directory; it installs both plugins and prepares context-mode before
+Codex can launch its MCP server:
+
+```
+cd <MARKETPLACE_ROOT>
+./gestalt-setup.sh
 ```
 
 Update to latest version:
@@ -65,15 +78,16 @@ plugin_hooks = true
 hooks = true
 ```
 
-This marketplace keeps generated JavaScript bundles out of Git: the
-first MCP or Codex hook start installs locked build dependencies and
-compiles them in the plugin cache, so allow 5–30 seconds plus network
-access and a native build toolchain (`python3`, `make`, and a C/C++
-compiler). An atomic build lock makes concurrent solo/subagent starts
-share one build; later starts use the generated cache. The builder
-allows up to three minutes on a slow network. If Codex times out
-first, restart the session: the next process recovers an abandoned
-build lock and resumes from cached downloads.
+This marketplace keeps generated JavaScript bundles out of Git. The setup
+script installs locked build dependencies and compiles the exact installed
+context-mode cache. It requires network access and a native build toolchain
+(`python3`, `make`, and a C/C++ compiler). Normal Codex MCP and hook startup is
+side-effect free: it verifies the prepared manifest and either launches the
+bundle or exits quickly with `CONTEXT_MODE_NOT_PREPARED`.
+
+Run `./gestalt-setup.sh` again after a marketplace upgrade. Use
+`./gestalt-setup.sh --prepare-only` to prepare a source checkout without
+installing plugins, and `--force` to replace an invalid prepared runtime.
 
 Restart Codex after installation or configuration changes. The plugin
 manifest registers the MCP server and hooks, so do not add a duplicate
@@ -84,10 +98,9 @@ with:
 codex plugin list --marketplace dyne-gestalt-agents --json
 ```
 
-Then start a fresh Codex session and ask it to run `ctx doctor`. If startup
-fails, first check the runtime prerequisite, first-start network/build access,
-the two feature flags above, and whether another context-mode marketplace
-variant is enabled.
+Then start a fresh Codex session and ask it to run `ctx-doctor`. If startup
+fails, rerun `gestalt-setup.sh`, check the runtime and build prerequisites, and
+confirm that another context-mode marketplace variant is not also enabled.
 
 ## 🧪 Testing (only for developers of this repo)
 

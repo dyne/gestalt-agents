@@ -17,7 +17,7 @@ write_test() {
 }
 
 write_test "$fixture_root/tests/repository/test-b.sh" 'printf repo-b'
-write_test "$fixture_root/tests/repository/test-a.sh" 'printf repo-a'
+write_test "$fixture_root/tests/repository/test-a.sh" 'read -r _ || true; printf repo-a'
 write_test "$fixture_root/tests/plugins/gestalt/test-a.sh" 'printf gestalt-a'
 write_test "$fixture_root/tests/plugins/context-mode/test-a.sh" 'printf context-a'
 
