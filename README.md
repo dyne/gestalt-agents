@@ -50,25 +50,27 @@ also requires network access, `python3`, `make`, and a C/C++ compiler.
 
 ### Fresh Codex install
 
-Add our plugin marketplace `dyne-gestalt-agents`:
+Gestalt uses an isolated Codex home at `~/.codex-gestalt`. Add the marketplace
+to that profile and locate its checkout:
 
 ```sh
+export CODEX_HOME="$HOME/.codex-gestalt"
 codex plugin marketplace add dyne/gestalt-agents
 codex plugin marketplace list
 ```
 
-The second command prints the marketplace checkout path. Run the setup script
-from that directory; it installs both plugins and prepares context-mode before
-Codex can launch its MCP server. Then generate the two current Org Plan agent
-profiles:
+The second command prints the marketplace checkout path. From that directory,
+one setup command completes the installation:
 
 ```sh
 cd <MARKETPLACE_ROOT>
 ./gestalt-setup.sh
-plugins/gestalt/skills/org-plan/scripts/org-plan prepare-supervision
 ```
 
-Add this configuration to `~/.codex/config.toml`:
+The script defaults `CODEX_HOME` to `~/.codex-gestalt`, installs both plugins,
+prepares context-mode, generates `org-plan-reviewer` and `org-plan-executor`,
+and removes the retired `org-plan-supervisor`. If
+`~/.codex-gestalt/config.toml` does not exist, setup creates it with:
 
 ```toml
 [agents]
@@ -79,43 +81,37 @@ plugin_hooks = true
 hooks = true
 ```
 
-Restart Codex, verify the effective installation, and run `ctx-doctor` in a new
-session:
+If the config already exists, setup preserves it and checks those three
+settings. It stops with the exact missing or conflicting setting instead of
+rewriting unrelated configuration. Codex may add its own plugin registration
+records while installing the two plugins.
+
+Start or restart Codex with that home, verify the effective installation, and
+run `ctx-doctor` in a new session:
 
 ```sh
+export CODEX_HOME="$HOME/.codex-gestalt"
 codex plugin list --marketplace dyne-gestalt-agents --json
+codex
 ```
 
 ### Update an existing install
 
-Refreshing a marketplace does not run its setup script or regenerate agent
-profiles. Upgrade the checkout, locate its current root, rerun setup, and
-overwrite the generated reviewer and executor profiles:
+Refreshing a marketplace does not run its setup script. Upgrade the isolated
+profile's checkout, locate its current root, and rerun setup:
 
 ```sh
+export CODEX_HOME="$HOME/.codex-gestalt"
 codex plugin marketplace upgrade dyne-gestalt-agents
 codex plugin marketplace list
 cd <MARKETPLACE_ROOT>
 ./gestalt-setup.sh
-plugins/gestalt/skills/org-plan/scripts/org-plan prepare-supervision
 ```
 
-When updating an installation from before v0.11.0, replace any old
-`[agents] max_depth = 2` setting with `max_depth = 1`. The former architecture
-also generated `~/.codex/agents/org-plan-supervisor.toml`; remove that file if
-it is the old Gestalt-generated profile. It is no longer used, and leaving it
-installed makes the obsolete intermediate-supervisor role available to Codex.
-If you may have customized it, move it outside `~/.codex/agents/` instead of
-deleting it.
-
-```sh
-rm -- "$HOME/.codex/agents/org-plan-supervisor.toml"
-```
-
-Very old manually wired context-mode installations may also have a standalone
-`[mcp_servers.context-mode]` block or user-level context-mode hook commands.
-Remove only those legacy entries: the current plugin registers its MCP server
-and discovers its hooks itself. Keep the two feature flags shown above.
+Before updating an older profile, change any former `max_depth = 2` setting to
+`1`; setup reports it but does not edit an existing config. Setup regenerates
+the reviewer and executor profiles and deletes the obsolete
+`~/.codex-gestalt/agents/org-plan-supervisor.toml` automatically.
 
 Restart Codex after the update and run the same `codex plugin list` and
 `ctx-doctor` checks used for a fresh install. If context-mode reports
@@ -132,7 +128,9 @@ with `CONTEXT_MODE_NOT_PREPARED`.
 
 Run `./gestalt-setup.sh` again after a marketplace upgrade. Use
 `./gestalt-setup.sh --prepare-only` to prepare a source checkout without
-installing plugins, and `--force` to replace an invalid prepared runtime.
+installing plugins or changing the managed Codex home, and `--force` to replace
+an invalid prepared runtime. Set `CODEX_HOME` explicitly only to test or install
+an additional isolated Gestalt profile.
 
 Do not add duplicate MCP or hook configuration. If startup still fails after
 forced preparation, confirm that another context-mode marketplace variant is

@@ -11,6 +11,7 @@ C/C++ compiler). A working Bun installation is used for dependencies when
 available.
 
 ```sh
+export CODEX_HOME="$HOME/.codex-gestalt"
 codex plugin marketplace add dyne/gestalt-agents
 codex plugin marketplace list
 cd <MARKETPLACE_ROOT>
@@ -19,8 +20,10 @@ cd <MARKETPLACE_ROOT>
 
 Marketplace installation does not run the setup script automatically. The
 script installs both plugins, prepares the exact installed context-mode cache,
-verifies its artifact manifest, and checks the effective Codex installation.
-Run it again after a marketplace upgrade.
+verifies its artifact manifest, generates the reviewer and executor profiles,
+and removes the retired supervisor profile. It creates the isolated profile's
+configuration when absent; an existing config is preserved and validated. Run
+setup again after a marketplace upgrade.
 
 Useful modes:
 
@@ -30,7 +33,7 @@ Useful modes:
 ./gestalt-setup.sh --dry-run       # print mutations without running them
 ```
 
-Add the required Codex configuration:
+On a new profile, the script creates `~/.codex-gestalt/config.toml` as:
 
 ```toml
 [agents]
@@ -41,9 +44,13 @@ plugin_hooks = true
 hooks = true
 ```
 
-Restart Codex after setup or configuration changes. The plugin manifest
-registers the MCP server, and Codex discovers the hooks from
-`hooks/hooks.json`. Do not add duplicate MCP or hook configuration.
+When the file already exists, setup checks these settings without replacing
+the file or unrelated configuration.
+
+Start Codex with `CODEX_HOME="$HOME/.codex-gestalt"` after setup or
+configuration changes. The plugin manifest registers the MCP server, and Codex
+discovers the hooks from `hooks/hooks.json`. Do not add duplicate MCP or hook
+configuration.
 
 Verify the installation with:
 

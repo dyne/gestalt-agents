@@ -118,9 +118,9 @@ for contract in (
 
 for upgrade_contract in (
     "codex plugin marketplace upgrade dyne-gestalt-agents",
-    "plugins/gestalt/skills/org-plan/scripts/org-plan prepare-supervision",
-    "~/.codex/agents/org-plan-supervisor.toml",
-    'rm -- "$HOME/.codex/agents/org-plan-supervisor.toml"',
+    'export CODEX_HOME="$HOME/.codex-gestalt"',
+    "generates `org-plan-reviewer` and `org-plan-executor`",
+    "~/.codex-gestalt/agents/org-plan-supervisor.toml",
     "max_depth = 2",
     "max_depth = 1",
     "./gestalt-setup.sh --force",
