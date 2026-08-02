@@ -14,7 +14,7 @@ describe("Codex profile resolution", () => {
       "cache",
       "dyne-gestalt-agents",
       "context-mode",
-      "1.0.169-dyne.3",
+      "1.0.169-dyne.4",
     );
 
     expect(inferCodexHomeFromPluginRoot(pluginRoot)).toBe(codexHome);

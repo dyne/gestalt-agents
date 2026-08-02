@@ -2215,6 +2215,8 @@ describe("ctx_upgrade tool: inline fallback for missing CLI", () => {
     expect(serverSrc).toContain("parseCodexContextModePluginRoot");
     expect(serverSrc).toContain("function resolveCodexRuntimePluginRoot");
     expect(serverSrc).toContain("function getRuntimeAwarePackageRoot");
+    expect(serverSrc).toContain('existsSync(resolve(runtimeRoot, "hooks", "hooks.json"))');
+    expect(serverSrc).not.toContain('existsSync(resolve(runtimeRoot, ".codex-plugin", "hooks.json"))');
 
     const helperBody = serverSrc.slice(
       serverSrc.indexOf("function getRuntimeAwarePackageRoot"),

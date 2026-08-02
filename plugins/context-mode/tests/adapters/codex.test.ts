@@ -8,11 +8,16 @@ import { CodexAdapter, parseCodexContextModePluginRoot, probeCodexCliVersion } f
 import { resolveSessionDbPath, SessionDB } from "../../src/session/db.js";
 
 function writeCodexPluginManifest(pluginRoot: string): void {
-  const pluginDir = join(pluginRoot, ".codex-plugin");
-  mkdirSync(pluginDir, { recursive: true });
-  writeFileSync(join(pluginDir, "hooks.json"), JSON.stringify({
+  const hooksDir = join(pluginRoot, "hooks");
+  mkdirSync(hooksDir, { recursive: true });
+  writeFileSync(join(hooksDir, "hooks.json"), JSON.stringify({
     hooks: new CodexAdapter().generateHookConfig(pluginRoot),
   }, null, 2), "utf-8");
+}
+
+function writePluginPackage(pluginRoot: string, version: string): void {
+  mkdirSync(pluginRoot, { recursive: true });
+  writeFileSync(join(pluginRoot, "package.json"), JSON.stringify({ version }), "utf-8");
 }
 
 function pluginEnabledSettings(extra = "", marketplace = "context-mode"): string {
@@ -348,8 +353,8 @@ describe("CodexAdapter", () => {
     });
 
     it("parses context-mode installed from a third-party marketplace", () => {
-      const pluginRoot = "/home/test/.codex/plugins/cache/dyne-gestalt-agents/context-mode/1.0.169-dyne.3";
-      const output = `context-mode@dyne-gestalt-agents  installed, enabled  1.0.169-dyne.3  ${pluginRoot}`;
+      const pluginRoot = "/home/test/.codex/plugins/cache/dyne-gestalt-agents/context-mode/1.0.169-dyne.4";
+      const output = `context-mode@dyne-gestalt-agents  installed, enabled  1.0.169-dyne.4  ${pluginRoot}`;
       expect(parseCodexContextModePluginRoot(output)).toBe(pluginRoot);
     });
 
@@ -781,7 +786,7 @@ trusted_hash = "sha256:stale"
       const pluginRoot = join(codexDir, "plugin-root");
       adapter = new CodexAdapter({
         codexPluginListRunner: () =>
-          `context-mode@dyne-gestalt-agents  installed, enabled  1.0.169-dyne.3  ${pluginRoot}`,
+          `context-mode@dyne-gestalt-agents  installed, enabled  1.0.169-dyne.4  ${pluginRoot}`,
       });
       writeCodexPluginManifest(pluginRoot);
       writeFileSync(
@@ -796,6 +801,31 @@ trusted_hash = "sha256:stale"
       expect(results.some((result) => result.check === "Stop hook" && result.status === "pass")).toBe(true);
       expect(results.find((result) => result.check === "Codex hooks feature flag")?.message)
         .toContain("Stable hooks use the enabled Codex default");
+    });
+
+    it("accepts a matching external runtime and marketplace plugin root", () => {
+      const externalRoot = join(codexDir, "external-runtime");
+      const marketplaceRoot = join(codexDir, ".tmp", "marketplaces", "dyne-gestalt-agents", "plugins", "context-mode");
+      adapter = new CodexAdapter({
+        codexPluginListRunner: () =>
+          `context-mode@dyne-gestalt-agents  installed, enabled  1.0.169-dyne.4  ${marketplaceRoot}`,
+      });
+      for (const root of [externalRoot, marketplaceRoot]) {
+        writeCodexPluginManifest(root);
+        writePluginPackage(root, "1.0.169-dyne.4");
+      }
+      writeFileSync(
+        join(codexDir, "config.toml"),
+        pluginEnabledSettings("", "dyne-gestalt-agents").replace("[features]\nhooks = true\n\n", ""),
+        "utf-8",
+      );
+
+      const results = adapter.validateHooks(externalRoot);
+
+      expect(results.find((result) => result.check === "Codex plugin root")?.status).toBe("pass");
+      expect(results.some((result) => result.status === "fail")).toBe(false);
+      expect(results.some((result) => result.check === "Stop hook" && result.status === "pass")).toBe(true);
+      expect(results.some((result) => result.check === "Hooks config")).toBe(false);
     });
 
     it("fails when stable Codex hooks are explicitly disabled", () => {
@@ -838,7 +868,7 @@ trusted_hash = "sha256:stale"
 
       const pluginHooks = results.find((result) => result.check === "Codex plugin hooks");
       expect(pluginHooks?.status).toBe("fail");
-      expect(pluginHooks?.message).toContain(join(runtimeRoot, ".codex-plugin", "hooks.json"));
+      expect(pluginHooks?.message).toContain(join(runtimeRoot, "hooks", "hooks.json"));
     });
 
     it("warns when plugin mode still has standalone npx MCP registration", () => {

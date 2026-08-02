@@ -101,7 +101,7 @@ function resolveCodexRuntimePluginRoot(fallbackRoot: string): string {
       });
     if (probe.status !== 0) return fallbackRoot;
     const runtimeRoot = parseCodexContextModePluginRoot(String(probe.stdout));
-    if (runtimeRoot && existsSync(resolve(runtimeRoot, ".codex-plugin", "hooks.json"))) {
+    if (runtimeRoot && existsSync(resolve(runtimeRoot, "hooks", "hooks.json"))) {
       return runtimeRoot;
     }
   } catch {

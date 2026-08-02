@@ -659,7 +659,7 @@ export class CodexAdapter extends BaseAdapter implements HookAdapter {
       results.push({
         check: "Codex plugin hooks",
         status: "fail",
-        message: `context-mode Codex plugin is enabled, but ${join(expectedRoot, ".codex-plugin", "hooks.json")} is missing`,
+        message: `context-mode Codex plugin is enabled, but ${join(expectedRoot, "hooks", "hooks.json")} is missing`,
         fix: "Reinstall or upgrade the context-mode Codex plugin",
       });
     }
@@ -1069,7 +1069,16 @@ export class CodexAdapter extends BaseAdapter implements HookAdapter {
   }
 
   private hasCodexPluginHookManifest(pluginRoot: string): boolean {
-    return existsSync(join(pluginRoot, ".codex-plugin", "hooks.json"));
+    return existsSync(join(pluginRoot, "hooks", "hooks.json"));
+  }
+
+  private getPluginPackageVersion(pluginRoot: string): string | null {
+    try {
+      const value = JSON.parse(readFileSync(join(pluginRoot, "package.json"), "utf-8")).version;
+      return typeof value === "string" && value.length > 0 ? value : null;
+    } catch {
+      return null;
+    }
   }
 
   private getCodexPluginHookStatus(
@@ -1084,8 +1093,11 @@ export class CodexAdapter extends BaseAdapter implements HookAdapter {
     const runtimeManifestAvailable = runtimeRoot
       ? this.hasCodexPluginHookManifest(runtimeRoot)
       : false;
+    const configuredVersion = this.getPluginPackageVersion(configuredRoot);
+    const runtimeVersion = runtimeRoot ? this.getPluginPackageVersion(runtimeRoot) : null;
     const rootMismatch = runtimeRoot
       ? !this.samePath(configuredRoot, runtimeRoot)
+        && (!configuredVersion || !runtimeVersion || configuredVersion !== runtimeVersion)
       : false;
 
     const hooksAvailable = enabled && (

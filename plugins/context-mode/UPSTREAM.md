@@ -5,7 +5,7 @@
 - Imported commit: `4b1348d4bba530d26cfc73181a0c2f263923e334`
 - Describe: `v1.0.169-56-g4b1348d`
 - Upstream package version: `1.0.169`
-- Downstream package version: `1.0.169-dyne.3`
+- Downstream package version: `1.0.169-dyne.4`
 - License: Elastic-2.0
 - Import date: 2026-07-22
 
@@ -31,6 +31,8 @@ and contents while excluding generated dependencies and build artifacts.
 - Routes Codex hooks through a cache-local launcher into the external runtime.
 - Treats Codex stable hooks as enabled when no explicit feature override exists,
   and recognizes the context-mode plugin under any Codex marketplace name.
+- Validates plugin-provided hooks at Codex's conventional `hooks/hooks.json`
+  path and accepts version-matched external-runtime and marketplace roots.
 - Rejects Bun commands that exist on disk or PATH but fail a version probe,
   preventing broken package-manager shims from being selected for execution.
 - Recovers a missing `CODEX_HOME` from Codex's installed plugin-cache path so
