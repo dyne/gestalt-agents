@@ -81,6 +81,12 @@ Gestalt needs no configuration override. On an older installation, remove an
 `agents.max_depth = 2` override; setup does not create, validate, or rewrite
 Codex configuration.
 
+Pass `--extra-skills` to opt into the marketplace's curated third-party skill
+set. This uses `npx skills` in project scope and keeps its canonical skill
+payloads and lock metadata under `${GESTALT_HOME:-$HOME/.gestalt}`, then links
+each non-conflicting entry into `CODEX_HOME/skills`. The option requires network
+access and is intentionally disabled during normal setup.
+
 Start or restart Codex with that home, verify the effective installation, and
 run `ctx-doctor` in a new session:
 
