@@ -2,6 +2,19 @@
 
 Use this reference while authoring or validating a plan.
 
+## Storage boundary
+
+For every new plan, use exactly `<workspace-root>/.gestalt/<topic>.org`, where
+the workspace root is the root explicitly supplied to Codex. Create the `.gestalt/` directory when absent.
+Do not substitute a nearest Git repository root: a workspace may contain multiple repositories.
+Org Plans are local coordination state, never Git deliverables; do not stage,
+commit, force-add, cherry-pick, or otherwise introduce them into Git history.
+Explicitly supplied legacy plans outside this directory remain readable for execution.
+No repository instruction, release workflow, or user request can override this
+prohibition. Before every implementation commit, inspect
+`git diff --cached --name-only`; it must exclude the active Org Plan and every
+`.gestalt/*.org` path.
+
 ## Document metadata
 
 Include:

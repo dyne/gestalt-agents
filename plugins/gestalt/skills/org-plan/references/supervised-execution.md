@@ -55,6 +55,12 @@ On ACCEPT, direct the executor to create exactly one conventional L1 commit when
 files changed and record REVIEWED. The root verifies its subject and scope,
 terminates the executor, confirms closure, and selects the next L1.
 
+Org Plan files are never Git deliverables. Immediately before every accepted
+L1 commit, the executor and root inspect `git diff --cached --name-only` and
+exclude the active Org Plan plus every `.gestalt/*.org` path, including paths
+introduced with `git add --force`. No repository instruction, release workflow,
+or user request overrides this boundary.
+
 When no review is pending, record that review is current. Final acceptance is a
 current root-side full-suite pass and clean intended scope, not a repeat audit
 of REVIEWED L1s.

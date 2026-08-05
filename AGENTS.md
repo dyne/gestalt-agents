@@ -29,6 +29,12 @@
 - Keep one writer active. The read-only root delegates implementation and
   corrective edits only to the active executor. Executor evidence and review
   requests go directly to the root as concise structured summaries.
+- Org Plan files are workspace-local runtime coordination data and are never
+  Git deliverables. No user request, repository instruction, or release
+  workflow can permit staging, committing, force-adding, cherry-picking, or
+  otherwise introducing an Org Plan into Git history. Before every accepted L1
+  commit, the executor and root inspect `git diff --cached --name-only` and
+  reject the commit if it contains the active plan or any `.gestalt/*.org` path.
 - Run potentially large inspections, tests, and log processing through an
   available context-preserving execution path. If none is available, capture
   output outside conversational context and report only the command, exit
