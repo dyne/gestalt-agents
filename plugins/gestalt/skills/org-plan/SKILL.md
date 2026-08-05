@@ -35,8 +35,8 @@ changes. Use its `--help` output for exact arguments.
 4. Use helper commands for TODO and review transitions; do not hand-edit them
    during execution.
    After each successful `authoring-start`, `supervision-start`, `set`, `l2`,
-   `review`, or external `resync`, the active root reads `org-plan projection
-   PLAN` and makes the host-owned `update_plan` call with its `plan` array,
+   `review`, or external `resync`, the active root reads `org-plan projection PLAN`
+   and makes the host-owned `update_plan` call with its `plan` array,
    reporting its companion explanation separately. This is a best-effort UI
    projection only: tool unavailability warns without rolling back or changing
    the authoritative Org state.

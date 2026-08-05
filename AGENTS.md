@@ -27,8 +27,8 @@
   skips already REVIEWED milestones, so appended refinement L1s do not trigger
   repeat audits of accepted work.
 - After every successful `authoring-start`, `supervision-start`, `set`, `l2`,
-  `review`, or external `resync`, the active root runs `org-plan projection
-  PLAN` and calls host `update_plan` with its exact ordered plan items, while
+  `review`, or external `resync`, the active root runs `org-plan projection PLAN`
+  and calls host `update_plan` with its exact ordered plan items, while
   reporting the companion explanation separately. This is a
   best-effort UI projection only: a missing or failed host tool warns once,
   never changes or rolls back Org state, and is retried at the next lifecycle
