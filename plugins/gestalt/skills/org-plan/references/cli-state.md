@@ -7,6 +7,7 @@ state.
 |---|---|
 | Validate plan | `org-plan validate PLAN` |
 | Describe stable title, Goal/Why, position, and L1 Skills | `org-plan describe PLAN ID` |
+| Emit the read-only native Codex plan projection | `org-plan projection PLAN` |
 | Select implementation work | `org-plan next PLAN implement` |
 | Select first DONE + UNREVIEWED L1 | `org-plan next PLAN review` |
 | Transition L1 | `org-plan set PLAN L1_ID WIP\|DONE` |
@@ -18,6 +19,26 @@ state.
 | Resync after external plan correction | `org-plan signal PLAN resync` |
 
 Signals are safe no-ops when Gestalt Mobile status integration is absent.
+
+## Native Codex plan projection
+
+`org-plan projection PLAN` validates and emits a read-only JSON document with
+a companion `explanation` plus ordered `plan` items ready for the host-owned
+`update_plan` tool. Current Codex tool items accept only `step` and `status`,
+so the root passes the exact `plan` array and reports the companion explanation
+as status context. Its item statuses use tool spelling: `pending`,
+`in_progress`, and `completed` (not app-server notification spelling
+`inProgress`). It projects only L1s: `TODO` is pending, `WIP` is in progress,
+`DONE + UNREVIEWED` is in progress with “Awaiting review”, and `DONE +
+REVIEWED` is completed. The Org file remains authoritative.
+
+After every successful `authoring-start`, `supervision-start`, `set`, `l2`,
+`review`, or external `resync`, the active root runs `org-plan projection PLAN`
+and invokes host `update_plan` with its exact ordered plan items, reporting the
+companion explanation separately.
+This second action is best effort: if the host tool is absent or errors, warn
+once concisely, preserve the valid Org mutation, and retry only at the next
+lifecycle boundary. Bash helpers and MCP code never invoke `update_plan`.
 
 ## Legal progression
 

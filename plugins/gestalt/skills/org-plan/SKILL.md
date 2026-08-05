@@ -34,6 +34,12 @@ changes. Use its `--help` output for exact arguments.
    any required skill is unavailable.
 4. Use helper commands for TODO and review transitions; do not hand-edit them
    during execution.
+   After each successful `authoring-start`, `supervision-start`, `set`, `l2`,
+   `review`, or external `resync`, the active root reads `org-plan projection
+   PLAN` and makes the host-owned `update_plan` call with its `plan` array,
+   reporting its companion explanation separately. This is a best-effort UI
+   projection only: tool unavailability warns without rolling back or changing
+   the authoritative Org state.
 5. Keep one writer. L2 changes remain uncommitted through L1 review.
 6. Review only DONE + UNREVIEWED L1s. A REJECT returns corrections to the same
    L1 writer. REVIEWED is valid only after explicit reviewer acceptance.
@@ -88,6 +94,10 @@ changes. Use its `--help` output for exact arguments.
    `.gestalt/*.org` path, even if a force-add was attempted; otherwise unstage
    those paths and do not commit them. Then record REVIEWED.
 8. Continue until every L1 and L2 is DONE and every L1 is REVIEWED.
+
+The root performs the native projection after every successful lifecycle
+boundary named above; executors only report their successful helper mutation.
+Never ask Bash, an MCP server, or a generated profile to invoke `update_plan`.
 
 Stop only for an unavailable required skill, a material ambiguity not resolved
 by the plan and repository, or an unavailable execution prerequisite. Update
