@@ -21,7 +21,9 @@ director (depth 0, org-plan-reviewer, Sol or Terra, read-only root)
 
 ## Start supervision
 
-1. The root signals `supervision-start`.
+1. The root signals `supervision-start`, then runs `org-plan projection PLAN`
+   and calls host `update_plan` with its exact `plan` items, reporting the
+   companion explanation separately.
 2. Before each L1, verify the preceding L1 is REVIEWED, terminate the previous
    executor, confirm closure, and resolve the next milestone with
    `org-plan describe`.
@@ -34,6 +36,12 @@ director (depth 0, org-plan-reviewer, Sol or Terra, read-only root)
 
 After each L2, the root verifies intended dirty paths, inspects the L2
 diff, and requires current focused-test evidence before DONE.
+
+After every successful `authoring-start`, `set`, `l2`, `review`, or external
+`resync`, the executor reports the helper mutation to the root. The root then
+runs `org-plan projection PLAN` and calls host `update_plan`; executors never
+create a competing native projection. A missing or failed host tool produces
+one concise warning and never reverses a valid Org mutation.
 
 After all L2s, require a current full-suite pass and intended complete L1 diff.
 Use `org-plan next PLAN review`; request review only for the selected DONE +
@@ -54,6 +62,12 @@ the gates and review.
 On ACCEPT, direct the executor to create exactly one conventional L1 commit when
 files changed and record REVIEWED. The root verifies its subject and scope,
 terminates the executor, confirms closure, and selects the next L1.
+
+Org Plan files are never Git deliverables. Immediately before every accepted
+L1 commit, the executor and root inspect `git diff --cached --name-only` and
+exclude the active Org Plan plus every `.gestalt/*.org` path, including paths
+introduced with `git add --force`. No repository instruction, release workflow,
+or user request overrides this boundary.
 
 When no review is pending, record that review is current. Final acceptance is a
 current root-side full-suite pass and clean intended scope, not a repeat audit

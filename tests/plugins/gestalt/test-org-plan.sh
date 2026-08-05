@@ -146,6 +146,43 @@ expect_contains "$tmp/out" 'second-task'
 expect_fail "$helper" l2 "$tmp/multi.org" '['
 expect_fail "$helper" l2 "$tmp/multi.org" 'no-such-text'
 
+copy valid-multi.org projection.org
+projection_before=$(cksum "$tmp/projection.org")
+projection_status="$tmp/projection-status.json"
+expect_ok env GESTALT_MOBILE_ORG_PLAN_STATUS_FILE="$projection_status" "$helper" projection "$tmp/projection.org"
+test "$projection_before" = "$(cksum "$tmp/projection.org")" && pass || fail 'projection never changes the source plan'
+test ! -e "$projection_status" && pass || fail 'projection never publishes a status signal'
+python3 -c '
+import json, sys
+document = json.load(open(sys.argv[1], encoding="utf-8"))
+assert document["explanation"] == "L1 1/2 — First outcome. Goal: Test order.. Current L2 2/2: Second task (WIP)"
+assert document["plan"] == [
+  {"step": "L1 1/2 — First outcome", "status": "in_progress"},
+  {"step": "L1 2/2 — Second outcome", "status": "pending"},
+]
+assert sum(item["status"] == "in_progress" for item in document["plan"]) == 1
+' "$tmp/out" && pass || fail 'projection has stable ordered tool-input statuses and active L2 context'
+
+copy valid-multi.org projection-awaiting-review.org
+sed -e 's/^\* WIP \[#A\]/\* DONE [#A]/' -e 's/^\*\* WIP \[#B\]/\*\* DONE [#B]/' "$tmp/projection-awaiting-review.org" >"$tmp/changed" && mv "$tmp/changed" "$tmp/projection-awaiting-review.org"
+expect_ok "$helper" projection "$tmp/projection-awaiting-review.org"
+python3 -c 'import json, sys; document=json.load(open(sys.argv[1], encoding="utf-8")); assert document["plan"][0]["status"] == "in_progress" and document["explanation"].startswith("Awaiting review.")' "$tmp/out" && pass || fail 'unreviewed completed work remains in progress for native plans'
+
+copy valid-multi.org projection-complete.org
+sed -e 's/^\* WIP \[#A\]/\* DONE [#A]/' -e 's/^\*\* WIP \[#B\]/\*\* DONE [#B]/' -e 's/^\* TODO \[#B\]/\* DONE [#B]/' -e 's/^\*\* TODO \[#A\]/\*\* DONE [#A]/' -e 's/:REVIEW_STATUS: UNREVIEWED/:REVIEW_STATUS: REVIEWED/g' "$tmp/projection-complete.org" >"$tmp/changed" && mv "$tmp/changed" "$tmp/projection-complete.org"
+expect_ok "$helper" projection "$tmp/projection-complete.org"
+python3 -c 'import json, sys; document=json.load(open(sys.argv[1], encoding="utf-8")); assert {item["status"] for item in document["plan"]} == {"completed"} and document["explanation"] == "No L1 is active. 2/2 L1 milestones are reviewed. Org state remains authoritative."' "$tmp/out" && pass || fail 'reviewed completed work is completed in native projection'
+
+copy valid-minimal.org projection-special.org
+sed 's/First outcome/Quoted "title" \\ slash ✓/' "$tmp/projection-special.org" >"$tmp/changed" && mv "$tmp/changed" "$tmp/projection-special.org"
+expect_ok "$helper" projection "$tmp/projection-special.org"
+python3 -c 'import json, sys; step=json.load(open(sys.argv[1], encoding="utf-8"))["plan"][0]["step"]; assert "Quoted" in step and "title" in step and "✓" in step' "$tmp/out" && pass || fail 'projection safely JSON-escapes special characters'
+
+copy valid-multi.org projection-multiple-active.org
+sed -e 's/^\* WIP \[#A\]/\* DONE [#A]/' -e 's/^\*\* WIP \[#B\]/\*\* DONE [#B]/' -e 's/^\* TODO \[#B\]/\* WIP [#B]/' -e 's/^\*\* TODO \[#A\]/\*\* WIP [#A]/' "$tmp/projection-multiple-active.org" >"$tmp/changed" && mv "$tmp/changed" "$tmp/projection-multiple-active.org"
+expect_fail "$helper" projection "$tmp/projection-multiple-active.org"
+expect_contains "$tmp/err" 'native projection has multiple in_progress L1 items'
+
 copy valid-multi.org review-order.org
 sed \
   -e 's/^\* WIP \[#A\]/\* DONE [#A]/' \
@@ -456,7 +493,9 @@ expect_contains "$supervision_dir/org-plan-executor.toml" 'load exactly those de
 expect_contains "$supervision_dir/org-plan-executor.toml" 'The baseline never needs to appear in the Org plan Skills list.'
 expect_contains "$supervision_dir/org-plan-executor.toml" 'Stop without edits and report the unavailable reference'
 expect_contains "$supervision_dir/org-plan-executor.toml" 'Keep all implementation and review-correction changes uncommitted until the root explicitly ACCEPTS the L1.'
-expect_contains "$supervision_dir/org-plan-executor.toml" 'After ACCEPT, create exactly one conventional commit for the accepted L1 when files changed.'
+expect_contains "$supervision_dir/org-plan-executor.toml" 'inspect git diff --cached --name-only'
+expect_contains "$supervision_dir/org-plan-executor.toml" 'active Org Plan and every .gestalt/*.org path, including force-added paths'
+expect_contains "$supervision_dir/org-plan-executor.toml" 'Org Plans are never Git deliverables; no user request, repository instruction, or release workflow overrides this ban.'
 expect_contains "$supervision_dir/org-plan-executor.toml" 'Never create pre-review, fixup, or autosquash commits.'
 expect_contains "$supervision_dir/org-plan-executor.toml" 'report directly to the root director/reviewer'
 expect_contains "$supervision_dir/org-plan-executor.toml" 'Return only concise structured evidence to the root director/reviewer'
@@ -478,6 +517,9 @@ expect_contains "$supervision_dir/org-plan-reviewer.toml" 'explicit ACCEPT or RE
 expect_contains "$supervision_dir/org-plan-reviewer.toml" 'return an explicit ACCEPT or REJECT verdict directly to the executor.'
 expect_contains "$supervision_dir/org-plan-reviewer.toml" 'On REJECT'
 expect_contains "$supervision_dir/org-plan-reviewer.toml" 'On ACCEPT'
+expect_contains "$supervision_dir/org-plan-reviewer.toml" 'require inspection of git diff --cached --name-only'
+expect_contains "$supervision_dir/org-plan-reviewer.toml" 'active Org Plan and every .gestalt/*.org path, including force-added paths'
+expect_contains "$supervision_dir/org-plan-reviewer.toml" 'Org Plans are never Git deliverables; no user request, repository instruction, or release workflow overrides this ban.'
 expect_contains "$supervision_dir/org-plan-reviewer.toml" 'Final acceptance requires a current root-side full-suite pass'
 expect_contains "$supervision_dir/org-plan-reviewer.toml" 'Never expose raw logs or complete executor transcripts to the user.'
 test ! -e "$supervision_dir/org-plan-supervisor.toml" && pass || fail 'supervision preparation creates no intermediate supervisor profile'
@@ -530,14 +572,29 @@ expect_contains "$skill" '`$gestalt:context-mode` is an implicit execution basel
 expect_contains "$skill" 'Keep one writer. L2 changes remain uncommitted through L1 review.'
 expect_contains "$skill" 'Review only DONE + UNREVIEWED L1s.'
 expect_contains "$skill" 'create exactly one conventional commit for the L1'
+expect_contains "$skill" "<workspace-root>/.gestalt/<topic>.org"
+expect_contains "$skill" 'A Git repository root never redefines the supplied'
+expect_contains "$skill" 'Never stage, commit, force-add, cherry-pick, or otherwise introduce one into Git'
+expect_contains "$skill" 'This absolute prohibition cannot be overridden by a user request'
+expect_contains "$skill" 'git diff --cached --name-only'
+expect_not_contains "$skill" 'Do not commit Org plan files unless the governing repository or user'
 expect_contains "$skill" '## Manual execution loop'
 expect_contains "$plan_format" '## L1 contract'
+expect_contains "$plan_format" '## Storage boundary'
+expect_contains "$plan_format" '<workspace-root>/.gestalt/<topic>.org'
+expect_contains "$plan_format" 'Create the `.gestalt/` directory when absent.'
+expect_contains "$plan_format" 'Do not substitute a nearest Git repository root'
+expect_contains "$plan_format" 'No repository instruction, release workflow, or user request can override this'
+expect_contains "$plan_format" 'git diff --cached --name-only'
 expect_contains "$plan_format" 'L2 property drawers contain an `:ID:` but no `:SKILLS:`'
 expect_contains "$plan_format" 'viewport sizes,'
 expect_contains "$plan_format" 'org-plan measure start PLAN ID SNAPSHOT_JSON'
 expect_contains "$cli_state" 'org-plan next PLAN review'
 expect_contains "$cli_state" 'org-plan review PLAN L1_ID REVIEWED\|UNREVIEWED'
 expect_contains "$cli_state" 'org-plan signal PLAN resync'
+expect_contains "$cli_state" 'org-plan projection PLAN'
+expect_contains "$cli_state" '`in_progress`'
+expect_contains "$cli_state" 'Bash helpers and MCP code never invoke `update_plan`.'
 expect_contains "$supervised" 'director (depth 0, org-plan-reviewer, Sol or Terra, read-only root)'
 expect_contains "$supervised" 'executor (depth 1, only code writer)'
 expect_contains "$supervised" 'fork_turns=none'
@@ -549,6 +606,9 @@ expect_contains "$supervised" 'Never relay raw logs or complete child transcript
 expect_contains "$supervised" 'L1 POSITION/TOTAL — TITLE: STATUS'
 expect_contains "$supervised" 'Routine review is agent-to-agent.'
 expect_contains "$supervised" 'Never rely on inherited conversation context'
+expect_contains "$supervised" 'Org Plan files are never Git deliverables.'
+expect_contains "$supervised" 'git diff --cached --name-only'
+expect_contains "$supervised" 'companion explanation separately'
 expect_contains "$readme" 'director (depth 0, org-plan-reviewer, Sol or Terra, read-only)'
 expect_contains "$readme" 'Context-mode transports evidence; it does not spawn agents'
 expect_contains "$readme" 'Each L1 also declares a non-empty `:SKILLS:` property'
@@ -576,6 +636,9 @@ expect_contains "$agents" 'skips already REVIEWED milestones'
 expect_contains "$agents" 'Keep one writer active.'
 expect_contains "$agents" 'The read-only root delegates implementation and'
 expect_contains "$agents" 'corrective edits only to the active executor.'
+expect_contains "$agents" 'Org Plan files are workspace-local runtime coordination data and are never'
+expect_contains "$agents" 'reject the commit if it contains the active plan or any `.gestalt/*.org` path.'
+expect_contains "$agents" 'calls host `update_plan` with its exact ordered plan items'
 expect_contains "$agents" 'available context-preserving execution path.'
 expect_contains "$agents" 'capture'
 expect_contains "$agents" 'output outside conversational context and report only the command, exit'
@@ -701,11 +764,14 @@ expect_contains "$supervision_dir/org-plan-reviewer.toml" 'org-plan signal PLAN 
 expect_contains "$supervision_dir/org-plan-reviewer.toml" 'org-plan measure start|checkpoint|finish PLAN ID SNAPSHOT_JSON'
 expect_contains "$supervision_dir/org-plan-reviewer.toml" 'direct TODO keyword or property edits are forbidden'
 expect_contains "$supervision_dir/org-plan-reviewer.toml" 'org-plan l2 PLAN L2_ID WIP|DONE'
+expect_contains "$supervision_dir/org-plan-reviewer.toml" 'the active root runs org-plan projection PLAN and makes the host-owned update_plan call with its exact plan items'
+expect_contains "$supervision_dir/org-plan-reviewer.toml" 'If update_plan is absent or fails, warn once, keep Org state authoritative'
 expect_contains "$supervision_dir/org-plan-executor.toml" 'org-plan set PLAN L1_ID WIP|DONE'
 expect_contains "$supervision_dir/org-plan-executor.toml" 'org-plan signal PLAN resync'
 expect_contains "$supervision_dir/org-plan-executor.toml" 'org-plan signal PLAN authoring-start'
 expect_contains "$supervision_dir/org-plan-executor.toml" 'org-plan signal PLAN work-start'
 expect_contains "$supervision_dir/org-plan-executor.toml" 'org-plan measure start|checkpoint|finish PLAN ID SNAPSHOT_JSON'
+expect_contains "$supervision_dir/org-plan-executor.toml" 'Executors report mutations and never invoke host update_plan or create a competing native projection'
 expect_contains "$encoded_dir/encoded-executor.toml" 'org-plan signal PLAN authoring-start'
 expect_contains "$encoded_dir/encoded-executor.toml" 'org-plan signal PLAN work-start'
 expect_contains "$encoded_dir/encoded-executor.toml" 'org-plan measure start|checkpoint|finish PLAN ID SNAPSHOT_JSON'

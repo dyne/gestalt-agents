@@ -110,6 +110,19 @@ for entry in marketplace["plugins"]:
 frontmatter = (plugin / "skills" / "org-plan" / "SKILL.md").read_text().split("---", 2)[1]
 assert "name: org-plan" in frontmatter
 
+org_plan_skill = (plugin / "skills" / "org-plan" / "SKILL.md").read_text()
+for contract in (
+    "<workspace-root>/.gestalt/<topic>.org",
+    "A Git repository root never redefines the supplied",
+    "Never stage, commit, force-add, cherry-pick, or otherwise introduce one into Git",
+    "This absolute prohibition cannot be overridden by a user request",
+    "git diff --cached --name-only",
+):
+    assert contract in org_plan_skill, f"org-plan skill lacks workspace-local contract: {contract}"
+assert "Do not commit Org plan files unless the governing repository or user" not in org_plan_skill, (
+    "org-plan skill retains the permissive plan-commit exception"
+)
+
 readme = (root / "README.md").read_text()
 for contract in (
     "Node.js 22.5",
