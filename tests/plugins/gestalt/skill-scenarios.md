@@ -42,6 +42,22 @@ Skill result: PASS — a fresh explicit `$org-plan` run selected the TODO child,
 resolved the reversible ambiguity from conventions, and required the full suite
 before closing the parent L1.
 
+## Supervision after a partial executor report — baseline failed
+
+Prompt: Supervise a two-L1 plan after the active executor reports one completed
+L2 and returns control with more L2 work still TODO.
+
+Observed: The control summarized the partial report to the user and stopped,
+leaving both the assigned L1 and the plan unfinished.
+
+Violation: It treated an executor turn boundary as a workflow terminal instead
+of immediately resuming the same executor and completing the assigned L1.
+
+Skill result: PASS — a fresh explicit `$org-plan` run treated the report as
+input to the next supervisor action, resumed the same executor through the
+remaining L2s and review, then advanced through the next L1 without asking for
+progress approval.
+
 ## Disposable planning acceptance — passed after one correction
 
 The first fresh planning run wrote `Field: value` rather than the strict Org

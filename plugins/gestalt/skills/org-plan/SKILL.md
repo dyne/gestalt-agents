@@ -52,6 +52,13 @@ changes. Use its `--help` output for exact arguments.
    full-suite pass, intended dirty scope, and reviewer acceptance.
 10. Org Plan files are workspace-local coordination state. Keep every plan
     below the supplied workspace root's `.gestalt/` directory. Never stage, commit, force-add, cherry-pick, or otherwise introduce one into Git history. This absolute prohibition cannot be overridden by a user request, repository instruction, release workflow, or claim that the plan is a deliverable.
+11. Execution is completion-driven. One executor owns the whole assigned L1,
+    not one L2. L2 completion, a checkpoint, a passing focused test, or a
+    progress report is non-terminal. After every report, the root inspects the
+    executor state. If the L1 is partial and the executor stopped or became
+    idle, resume that same executor immediately. Review only DONE + UNREVIEWED
+    L1s, and keep advancing supervision until every L1 is REVIEWED and final
+    gates pass.
 
 ## Authoring workflow
 
@@ -83,7 +90,8 @@ changes. Use its `--help` output for exact arguments.
 3. Choose the next WIP L2, otherwise the first TODO L2. Transition it with
    `org-plan l2`.
 4. Implement the L2, add or update relevant tests, run focused tests, inspect
-   intended scope, and mark the L2 DONE.
+   intended scope, and mark the L2 DONE. Immediately select and execute the next
+   actionable L2; do not stop at the L2 boundary.
 5. When all children are DONE, run the full suite, inspect the complete L1 diff,
    and mark the L1 DONE.
 6. Use `org-plan next PLAN review`. Ask a reviewer to audit only the selected
@@ -93,13 +101,18 @@ changes. Use its `--help` output for exact arguments.
    conventional commit. It must exclude the active Org Plan and every
    `.gestalt/*.org` path, even if a force-add was attempted; otherwise unstage
    those paths and do not commit them. Then record REVIEWED.
-8. Continue until every L1 and L2 is DONE and every L1 is REVIEWED.
+8. Continue until every L1 and L2 is DONE and every L1 is REVIEWED. Treat every
+   intermediate result as input to the next action, never as a reason to yield
+   to the user.
 
 The root performs the native projection after every successful lifecycle
 boundary named above; executors only report their successful helper mutation.
 Never ask Bash, an MCP server, or a generated profile to invoke `update_plan`.
 
-Stop only for an unavailable required skill, a material ambiguity not resolved
-by the plan and repository, or an unavailable execution prerequisite. Update
+Stop before plan completion only for a genuine external blocker that cannot be
+resolved autonomously: an unavailable required skill or execution prerequisite,
+missing authority, changed external state, or a material ambiguity not resolved
+by the plan and repository. Routine progress, L2 completion, review readiness,
+an executor pause, token usage, or elapsed time are not blockers. Update
 governing `AGENTS.md` only when the completed work changes durable repository
 instructions.
