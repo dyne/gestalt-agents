@@ -37,6 +37,17 @@
 - Keep one writer active. The read-only root delegates implementation and
   corrective edits only to the active executor. Executor evidence and review
   requests go directly to the root as concise structured summaries.
+- Treat supervision as a completion loop, not a report relay. The executor owns
+  its whole assigned L1, not one L2, and continues across L2 completion,
+  checkpoints, tests, and progress updates until the L1 reaches its review
+  boundary. After every executor report, inspect the executor's current state.
+  If its L1 is partial and the executor stopped or became idle, resume that same
+  executor immediately. Otherwise take the next eligible lifecycle action:
+  review only a DONE + UNREVIEWED L1, finish an accepted L1, or launch the next
+  L1. Never turn a partial report into a final user response or wait for
+  progress approval. Stop only after the complete plan is accepted or when a
+  genuine external blocker remains that the root cannot resolve without user
+  input or changed external state.
 - Org Plan files are workspace-local runtime coordination data and are never
   Git deliverables. No user request, repository instruction, or release
   workflow can permit staging, committing, force-adding, cherry-picking, or

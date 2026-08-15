@@ -37,6 +37,14 @@ upward as concise summaries; raw test and inspection logs stay outside
 conversational context. The root gives brief user-facing updates such as
 `L1 2/5 — Validate release metadata: in review`.
 
+Supervision is completion-driven. An executor owns its entire L1 and continues
+across L2 boundaries. After every report, the root inspects executor state and
+immediately resumes the same executor when its L1 is partial and it stopped or
+became idle. It reviews only DONE + UNREVIEWED L1s and advances accepted work.
+Neither role yields merely for progress, time, or token usage. The root stops
+only when every plan L1 is REVIEWED and final gates pass, or when a genuine
+external blocker requires user input or changed external state.
+
 Context-mode transports evidence; it does not spawn agents.
 
 ## 🎮 Quick setup

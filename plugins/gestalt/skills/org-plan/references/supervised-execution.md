@@ -34,6 +34,24 @@ director (depth 0, org-plan-reviewer, Sol or Terra, read-only root)
 
 ## Evidence and review loop
 
+Supervision is a completion loop:
+
+- The executor owns the entire assigned L1. It continues from one L2 to the
+  next without returning a final report merely because an L2, checkpoint,
+  focused test, or progress update completed.
+- After every executor report, inspect the executor's current state. If the L1
+  is partial and the executor stopped or became idle, immediately resume that
+  same executor. If `org-plan next PLAN review` selects a DONE + UNREVIEWED L1,
+  review it immediately and return ACCEPT or REJECT. After acceptance, finish
+  its commit/review transition and launch the next L1. Never review an
+  ineligible L1.
+- A partial report, idle executor, self-described pause, token or elapsed-time
+  notice, or completed L2 is never a user-facing stopping condition. Use the
+  available follow-up or wait mechanism and keep supervision moving.
+- End successfully only when every L1 is DONE and REVIEWED and final gates pass.
+  Stop early only for a genuine external blocker that the root cannot resolve
+  without user input, new authority, or changed external state.
+
 After each L2, the root verifies intended dirty paths, inspects the L2
 diff, and requires current focused-test evidence before DONE.
 
@@ -57,7 +75,7 @@ UNREVIEWED L1. The request contains:
 The root independently returns structured findings plus explicit ACCEPT or
 REJECT. Skip already REVIEWED L1s. On REJECT, send the findings unchanged in
 substance to the same executor, which corrects the same uncommitted diff. Repeat
-the gates and review.
+the gates and review without pausing for user approval.
 
 On ACCEPT, direct the executor to create exactly one conventional L1 commit when
 files changed and record REVIEWED. The root verifies its subject and scope,
@@ -95,6 +113,8 @@ unavailable prerequisite, never for progress approval.
 Every executor assignment includes its one L1 and full L2 block, repository
 starting state, accepted prior outputs, allowed scope, required tests, exact
 skills, implicit context-mode baseline, helper-only transitions, one post-ACCEPT
-commit rule, preserved paths, and stop conditions.
+commit rule, preserved paths, completion-driven continuation, and genuine
+external-blocker stop conditions. It explicitly forbids treating an L2 boundary
+or partial report as completion of the assigned L1.
 
 Never rely on inherited conversation context or write “continue above.”
