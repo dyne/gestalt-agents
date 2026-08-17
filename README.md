@@ -89,6 +89,13 @@ Gestalt needs no configuration override. On an older installation, remove an
 `agents.max_depth = 2` override; setup does not create, validate, or rewrite
 Codex configuration.
 
+Setup also verifies the app-server's real `skills/list` response contains every
+enabled `$gestalt:<skill-name>` distributed by the installed release. Setup
+fails rather than reporting success when the session catalog disagrees with
+the plugin. The bundled Org Plan helper is copied to the stable
+`$CODEX_HOME/bin/org-plan` path on every setup or upgrade; launchers should add
+`$CODEX_HOME/bin` to `PATH`.
+
 Pass `--extra-skills` to opt into the marketplace's curated third-party skill
 set. This uses `npx skills` in project scope and keeps its canonical skill
 payloads and lock metadata under `${GESTALT_HOME:-$HOME/.gestalt}`, then links
@@ -102,6 +109,7 @@ run `ctx-doctor` in a new session:
 
 ```sh
 export CODEX_HOME="$HOME/.codex-gestalt"
+export PATH="$CODEX_HOME/bin:$PATH"
 codex plugin list --marketplace dyne-gestalt-agents --json
 codex
 ```

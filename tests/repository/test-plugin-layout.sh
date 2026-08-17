@@ -71,6 +71,9 @@ assert actual_skills == expected_skills
 assert not (root / "plugins" / "context-mode" / "skills").exists(), (
     "context-mode must not carry a second skill provider"
 )
+assert (root / "scripts" / "verify-gestalt-skill-catalog.mjs").is_file(), (
+    "real app-server skill catalog verifier is missing"
+)
 
 context_package = json.loads((root / "plugins" / "context-mode" / "package.json").read_text())
 assert context_package.get("private") is True, "context-mode must not be publishable to npm"

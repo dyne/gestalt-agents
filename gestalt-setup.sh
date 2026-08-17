@@ -6,6 +6,7 @@ script_dir=$(CDPATH='' cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
 marketplace_file="$script_dir/.agents/plugins/marketplace.json"
 context_source="$script_dir/plugins/context-mode"
 org_plan="$script_dir/plugins/gestalt/skills/org-plan/scripts/org-plan"
+catalog_verifier="$script_dir/scripts/verify-gestalt-skill-catalog.mjs"
 setup_args=("$@")
 prepare_only=false
 force=false
@@ -191,6 +192,7 @@ fi
 [[ -f $marketplace_file ]] || die "marketplace manifest not found: $marketplace_file"
 [[ -f $context_source/scripts/install-runtime.mjs ]] || die "context-mode runtime installer not found"
 [[ -x $org_plan ]] || die "Org Plan helper is not executable: $org_plan"
+[[ -f $catalog_verifier ]] || die "Gestalt skill catalog verifier is missing: $catalog_verifier"
 command -v node >/dev/null 2>&1 || die "Node.js 22.5 or newer is required"
 command -v npm >/dev/null 2>&1 || die "npm is required to build context-mode"
 
@@ -270,11 +272,19 @@ fi
 
 if ! "$dry_run"; then
   codex plugin list --marketplace "$marketplace_name" --json >/dev/null
+  node "$catalog_verifier" "$script_dir"
 fi
 
+run install -d -m 0755 -- "$codex_root/bin"
+run install -m 0755 -- "$org_plan" "$codex_root/bin/org-plan"
 run "$org_plan" prepare-supervision --agents-dir "$agents_dir"
 run rm -f -- "$agents_dir/org-plan-supervisor.toml"
 
 printf 'gestalt-setup: installed plugins and external runtime from %s\n' "$marketplace_name"
 printf 'gestalt-setup: installed into Codex home %s\n' "$codex_root"
+if "$dry_run"; then
+  printf 'gestalt-setup: scheduled Gestalt catalog verification and helper installation\n'
+else
+  printf 'gestalt-setup: verified every Gestalt skill and installed %s\n' "$codex_root/bin/org-plan"
+fi
 printf 'gestalt-setup: restart that Codex profile and run ctx-doctor in a new session\n'

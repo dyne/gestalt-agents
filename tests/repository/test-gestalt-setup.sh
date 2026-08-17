@@ -37,6 +37,8 @@ tmp_real=$(CDPATH='' cd -- "$tmp" && pwd -P)
 output=$(env -u CODEX_HOME HOME="$tmp" bash "$script" --dry-run)
 assert_contains "$output" "$tmp/.codex-gestalt" "dry-run uses the isolated default Codex home"
 assert_contains "$output" "prepare-supervision" "dry-run prepares supervision profiles"
+assert_contains "$output" "$tmp/.codex-gestalt/bin/org-plan" \
+  "dry-run installs the stable Org Plan helper"
 assert_contains "$output" "org-plan-supervisor.toml" "dry-run removes the retired supervisor profile"
 assert_absent "$tmp/.codex-gestalt" "dry-run does not create the Codex home"
 

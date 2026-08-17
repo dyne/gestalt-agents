@@ -49,8 +49,13 @@ for relative in ("node_modules", ".context-mode-prepared.json", "server.bundle.m
 assert (codex_home / "agents/org-plan-reviewer.toml").is_file()
 assert (codex_home / "agents/org-plan-executor.toml").is_file()
 assert not (codex_home / "agents/org-plan-supervisor.toml").exists()
+assert (codex_home / "bin/org-plan").is_file()
 assert 'approval_policy = "never"' in (codex_home / "config.toml").read_text()
 PY
+
+CODEX_HOME="$codex_home" node "$root/scripts/verify-gestalt-skill-catalog.mjs" "$root" \
+  >"$codex_home/skills-catalog.out"
+grep -F 'verified 13 enabled Gestalt skills in skills/list' "$codex_home/skills-catalog.out" >/dev/null
 
 context_version=$(node -p "JSON.parse(require('node:fs').readFileSync(process.argv[1], 'utf8')).installed.find(x => x.name === 'context-mode').version" "$codex_home/plugins.json")
 context_cache="$codex_home/plugins/cache/dyne-gestalt-agents/context-mode/$context_version"
