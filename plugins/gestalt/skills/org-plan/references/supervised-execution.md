@@ -32,6 +32,30 @@ director (depth 0, org-plan-reviewer, Sol or Terra, read-only root)
    skill is available, then loads exactly those declared skills before any
    repository inspection or edit. Missing skills block without edits.
 
+## Human-attention decision table
+
+`gestalt_org_plan_attention` is an optional mobile dynamic tool, not an
+`$org-plan` dependency. Its current schema version is 1. Exhaust safe,
+in-scope checks first. When a row below still prevents safe progress and the
+tool is available, call it before yielding with a bounded summary, concrete
+`requestedAction`, and the mapped `reason` and `resumeCondition`. When absent,
+report the ordinary blocker concisely and continue normal supervision rather
+than requiring the tool.
+
+| Genuine blocker after safe checks | `reason` | `resumeCondition` |
+| --- | --- | --- |
+| Material plan scope, goal, or work change requires approval. | `planChange` | `planRevision` |
+| An exhausted hard block requires external repair or an alternative. | `hardBlock` | `externalStateChanged` |
+| A required system capability or declared task skill is unavailable. | `missingDependency` | `dependencyInstalled` |
+| Missing authority, credentials, or permission prevents the work. | `permissionRequired` | `permissionGranted` |
+| Verified relevant external state changed. | `externalState` | `externalStateChanged` |
+| A material ambiguity remains after plan and repository evidence are exhausted. | `materialAmbiguity` | `userGuidance` |
+
+Never call the tool for L1/L2 progress, a child report, waiting on a live child,
+review readiness, a diagnosable or recoverable failing test, an ordinary merge
+conflict, token/context pressure, elapsed time, a checkpoint, or an idle
+executor. Resume the next legal supervision action in each of those cases.
+
 ## Evidence and review loop
 
 Supervision is a completion loop:

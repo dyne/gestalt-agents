@@ -22,6 +22,9 @@ fresh lesser-reasoning executor to complete from the plan and repository alone.
 The bundled `scripts/org-plan` helper validates plans and performs durable state
 changes. Use its `--help` output for exact arguments.
 
+For mobile interoperability, see the versioned
+[attention protocol](references/attention-protocol.md).
+
 ## Invariants
 
 1. Every L1 has exactly one non-empty `:SKILLS:` property and one
@@ -59,6 +62,31 @@ changes. Use its `--help` output for exact arguments.
     idle, resume that same executor immediately. Review only DONE + UNREVIEWED
     L1s, and keep advancing supervision until every L1 is REVIEWED and final
     gates pass.
+
+## Human-attention decision table
+
+`gestalt_org_plan_attention` is an optional, mobile-provided dynamic tool. It
+uses schema version 1 and is never an `$org-plan` dependency. First exhaust
+safe, in-scope checks. If a row applies and the tool is available, call it
+before yielding with a bounded summary, a concrete `requestedAction`, and the
+listed `reason` and `resumeCondition`. If it is unavailable, report the same
+normal blocker concisely and preserve the supervision loop; do not invent a
+tool dependency.
+
+| Only after safe checks, progress cannot continue because… | `reason` | `resumeCondition` |
+| --- | --- | --- |
+| A requested material scope, goal, or plan change needs approval. | `planChange` | `planRevision` |
+| An exhausted hard block needs an outside repair or alternative. | `hardBlock` | `externalStateChanged` |
+| A required system capability or declared task skill is unavailable. | `missingDependency` | `dependencyInstalled` |
+| Required authority, credentials, or permission is absent. | `permissionRequired` | `permissionGranted` |
+| Relevant external state changed after safe refresh or verification. | `externalState` | `externalStateChanged` |
+| A material ambiguity remains after the plan and repository evidence are exhausted. | `materialAmbiguity` | `userGuidance` |
+
+Do not escalate L1/L2 progress, a child report, waiting on a live child, review
+readiness, a diagnosable or recoverable failing test, an ordinary merge
+conflict, token or context pressure, elapsed time, checkpointing, or an idle
+executor. Those cases immediately continue through the existing legal
+lifecycle action.
 
 ## Authoring workflow
 

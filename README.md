@@ -47,6 +47,14 @@ external blocker requires user input or changed external state.
 
 Context-mode transports evidence; it does not spawn agents.
 
+### Optional mobile attention protocol
+
+Supervised roles may consume the mobile-managed, schema-v1
+`gestalt_org_plan_attention` dynamic tool for a genuine external blocker. It is
+optional: the Org Plan workflow remains fully usable without mobile or the
+tool. The versioned reason vocabulary and fail-closed compatibility rule live
+in the [attention protocol](plugins/gestalt/skills/org-plan/references/attention-protocol.md).
+
 ## 🎮 Quick setup
 
 ### Requirements

@@ -75,6 +75,27 @@
 - Final acceptance requires the root to verify a current full-suite pass
   and clean intended scope. It does not repeat reviewer audits for REVIEWED L1s.
 
+## Optional human-attention protocol
+
+`gestalt_org_plan_attention` is an optional mobile dynamic tool, not an
+`$org-plan` dependency. Its schema version is 1. After exhausting safe
+in-scope checks, roots and executors call it before yielding only for a genuine
+table-qualified blocker: a material plan change (`planChange`/`planRevision`),
+exhausted hard block (`hardBlock`/`externalStateChanged`), unavailable required
+dependency (`missingDependency`/`dependencyInstalled`), missing authority
+(`permissionRequired`/`permissionGranted`), changed external state
+(`externalState`/`externalStateChanged`), or unresolved material ambiguity
+(`materialAmbiguity`/`userGuidance`). Every call includes a bounded summary and
+a concrete requested action. If the tool is absent, report the ordinary blocker
+without treating it as a missing Org Plan dependency.
+
+A mobile autopilot checkpoint is synthetic control input: it never changes plan
+scope or review authority. On a checkpoint, either emit the table-qualified
+attention call or immediately resume the next legal Org Plan lifecycle action.
+Never escalate progress, child reports, waiting on a live child, review
+readiness, recoverable test failures, ordinary merge conflicts, token/context
+pressure, elapsed time, checkpoints, or executor idleness.
+
 ## Vendoring skills for Codex and `npx skills`
 
 Keep one canonical copy under
