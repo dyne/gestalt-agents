@@ -10,6 +10,10 @@ readme="$root/README.md"
 agents="$root/AGENTS.md"
 tmp=$(mktemp -d "${TMPDIR:-/tmp}/org-plan-test.XXXXXX")
 trap 'rm -rf "$tmp"' EXIT HUP INT TERM
+# Each status-publication case supplies its own endpoint. Do not let the
+# parent relay's optional publication configuration change which endpoint the
+# helper chooses while this test is exercising legacy file and directory mode.
+unset GESTALT_MOBILE_ORG_PLAN_STATUS_DIRECTORY GESTALT_MOBILE_ORG_PLAN_STATUS_FILE
 passes=0 failures=0
 
 pass() { passes=$((passes + 1)); }
