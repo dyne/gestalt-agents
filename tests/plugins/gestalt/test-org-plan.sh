@@ -29,6 +29,14 @@ copy() {
 
 copy valid-minimal.org plan.org
 expect_ok "$helper" validate "$tmp/plan.org"
+expect_ok "$helper" --help
+expect_contains "$tmp/out" 'usage: org-plan COMMAND [args]'
+expect_ok "$helper" signal --help
+expect_contains "$tmp/out" 'usage: org-plan signal PLAN [REASON]'
+expect_ok "$helper" prepare-supervision --help
+expect_contains "$tmp/out" 'setup-only: installs or refreshes supervised role profiles'
+test ! -e "$tmp/.codex/agents/org-plan-reviewer.toml" && pass || fail 'prepare-supervision help has no setup side effect'
+expect_status 2 "$helper"
 copy valid-multi.org multi.org
 sed '0,/:REVIEW_STATUS: UNREVIEWED/s//:REVIEW_STATUS: REVIEWED/' "$tmp/multi.org" >"$tmp/changed" && mv "$tmp/changed" "$tmp/multi.org"
 expect_ok "$helper" validate "$tmp/multi.org"
@@ -514,6 +522,10 @@ expect_not_contains "$supervision_dir/org-plan-executor.toml" 'sandbox_mode ='
 expect_contains "$supervision_dir/org-plan-reviewer.toml" 'model = "gpt-5.6-sol"'
 expect_contains "$supervision_dir/org-plan-reviewer.toml" 'sandbox_mode = "read-only"'
 expect_contains "$supervision_dir/org-plan-reviewer.toml" 'You are the depth-zero read-only director/reviewer/supervisor in the user conversation.'
+expect_contains "$supervision_dir/org-plan-reviewer.toml" 'Do not run prepare-supervision during ordinary supervised execution.'
+expect_contains "$supervision_dir/org-plan-reviewer.toml" 'Reuse the exact supplied plan path'
+expect_contains "$supervision_dir/org-plan-reviewer.toml" 'Do not rediscover it with find or rg'
+expect_contains "$supervision_dir/org-plan-reviewer.toml" 'Do not probe helper source or help before starting'
 expect_contains "$supervision_dir/org-plan-reviewer.toml" 'Before any work, load the mandatory $gestalt:context-mode baseline'
 expect_contains "$supervision_dir/org-plan-reviewer.toml" 'it never needs to appear in an Org plan SKILLS property.'
 expect_contains "$supervision_dir/org-plan-reviewer.toml" 'recommended root launch profile'
@@ -799,6 +811,11 @@ expect_contains "$plan_format" 'Checkpoint the active'
 expect_contains "$cli_state" '`org-plan set PLAN L1_ID WIP\|DONE`'
 expect_contains "$cli_state" '`org-plan l2 PLAN L2_ID WIP\|DONE`'
 expect_contains "$skill" 'Use helper commands for TODO and review transitions'
+expect_contains "$skill" 'Do not run `prepare-supervision` during ordinary supervision'
+expect_contains "$supervised" 'Reuse the exact supplied plan path'
+expect_contains "$supervised" 'Do not rediscover it with `find` or `rg`'
+expect_contains "$supervised" 'Do not probe helper source or help before starting'
+expect_contains "$agents" 'Do not run `prepare-supervision` during ordinary supervised execution'
 expect_contains "$cli_state" '`org-plan signal PLAN resync`'
 expect_contains "$supervision_dir/org-plan-reviewer.toml" 'org-plan signal PLAN supervision-start'
 expect_contains "$supervision_dir/org-plan-reviewer.toml" 'org-plan signal PLAN authoring-start'

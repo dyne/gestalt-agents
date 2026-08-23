@@ -21,7 +21,22 @@ director (depth 0, org-plan-reviewer, Sol or Terra, read-only root)
 
 ## Start supervision
 
-1. The root signals `supervision-start`, then runs `org-plan projection PLAN`
+Treat the loaded skill directory and the plan path supplied by the user, host,
+or authoring handoff as startup inputs. Reuse the exact supplied plan path.
+Do not rediscover it with `find` or `rg`, and do not substitute
+`REPOSITORY/.gestalt/` for `WORKSPACE/.gestalt/`. Resolve the helper once as
+`scripts/org-plan` beneath the loaded skill directory and verify that it is
+executable. Do not probe helper source or help before starting. If either input
+is absent, stop with that one missing prerequisite instead of trying speculative
+paths.
+
+`prepare-supervision` is setup-only: `gestalt-setup.sh` installs or refreshes
+the root and executor profiles. Do not run it during ordinary supervised
+execution. A root already running in the user conversation adopts this contract
+without reinstalling its own profile.
+
+1. Validate the exact plan once. The root then signals `supervision-start`,
+   runs `org-plan projection PLAN`,
    and calls host `update_plan` with its exact `plan` items, reporting the
    companion explanation separately.
 2. Before each L1, verify the preceding L1 is REVIEWED, terminate the previous
