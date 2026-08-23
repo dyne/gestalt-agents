@@ -10,13 +10,20 @@
     "materialAmbiguity"
   ],
   "resumeConditions": [
+    "userGuidance",
     "planRevision",
-    "externalStateChanged",
     "dependencyInstalled",
     "permissionGranted",
-    "externalStateChanged",
-    "userGuidance"
+    "externalStateChanged"
   ],
+  "reasonResumeConditions": {
+    "planChange": "planRevision",
+    "hardBlock": "externalStateChanged",
+    "missingDependency": "dependencyInstalled",
+    "permissionRequired": "permissionGranted",
+    "externalState": "externalStateChanged",
+    "materialAmbiguity": "userGuidance"
+  },
   "scenarios": [
     { "reason": "planChange", "positive": "material scope, goal, or plan change", "negative": "L1/L2 progress" },
     { "reason": "hardBlock", "positive": "exhausted hard block", "negative": "waiting on a live child" },
