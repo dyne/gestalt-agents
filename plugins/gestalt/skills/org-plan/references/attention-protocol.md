@@ -12,6 +12,12 @@ skill. Unknown future reason codes fail closed: do not infer a meaning or emit
 them; use the current table or report the ordinary blocker when the tool is
 absent.
 
+The exact schema-v1 pairs are `planChange/planRevision`,
+`hardBlock/externalStateChanged`, `missingDependency/dependencyInstalled`,
+`permissionRequired/permissionGranted`, `externalState/externalStateChanged`,
+and `materialAmbiguity/userGuidance`. Consumers fail closed on a mismatched
+pair even when each value belongs to its respective vocabulary.
+
 The dynamic tool is optional. When mobile does not expose it, supervised roles
 keep all existing helper, review, measurement, single-writer, projection, and
 continuation rules, and report genuine blockers normally. A mobile checkpoint
