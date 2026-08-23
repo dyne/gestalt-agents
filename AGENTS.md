@@ -2,6 +2,13 @@
 
 ## Org Plan supervised workflow invariants
 
+- Treat the loaded Org Plan skill directory and exact supplied plan path as
+  supervision inputs. Reuse them; do not search with `find` or `rg`, assume a
+  repository-local `.gestalt/`, inspect helper source, or probe help before the
+  first lifecycle command. Do not run `prepare-supervision` during ordinary supervised execution:
+  it is setup-only and `gestalt-setup.sh` owns profile
+  installation. If the helper or plan input is absent, report that single
+  prerequisite instead of trying speculative paths.
 - The depth-zero root combines director, reviewer, and supervisor duties in the
   user's initial Codex conversation. Its recommended read-only
   `org-plan-reviewer` launch profile defaults to Sol; an already-running root

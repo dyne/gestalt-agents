@@ -100,9 +100,6 @@ for profile_path in sys.argv[2:]:
         assert f"{reason}/{resume}" in profile
 PY
 
-if "$helper" --help >"$tmp/help" 2>&1; then
-  printf 'expected helper help invocation to retain its usage failure\n' >&2
-  exit 1
-fi
+"$helper" --help >"$tmp/help" 2>&1
 grep -F 'prepare-executor|prepare-supervision' "$tmp/help" >/dev/null
 printf 'org-plan attention contract is valid\n'

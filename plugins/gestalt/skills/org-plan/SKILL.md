@@ -20,7 +20,12 @@ fresh lesser-reasoning executor to complete from the plan and repository alone.
   or the user explicitly requests manual work.
 
 The bundled `scripts/org-plan` helper validates plans and performs durable state
-changes. Use its `--help` output for exact arguments.
+changes. `org-plan --help` and `org-plan COMMAND --help` return successful,
+side-effect-free usage. Do not run `prepare-supervision` during ordinary supervision:
+it is a setup/update command that installs role profiles, and
+`gestalt-setup.sh` already invokes it. When execution is supplied a plan path,
+reuse that exact path instead of searching for another plan or assuming the
+nearest repository owns `.gestalt/`.
 
 For mobile interoperability, see the versioned
 [attention protocol](references/attention-protocol.md).
