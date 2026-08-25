@@ -173,6 +173,8 @@ assert document["plan"] == [
   {"step": "L1 2/2 — Second outcome", "status": "pending"},
 ]
 assert sum(item["status"] == "in_progress" for item in document["plan"]) == 1
+assert all("Test order" not in item["step"] for item in document["plan"])
+assert all("Second task" not in item["step"] for item in document["plan"])
 ' "$tmp/out" && pass || fail 'projection has stable ordered tool-input statuses and active L2 context'
 
 copy valid-multi.org projection-awaiting-review.org
@@ -600,6 +602,17 @@ expect_contains "$skill" '## Choose a workflow'
 expect_contains "$skill" '[Plan format](references/plan-format.md)'
 expect_contains "$skill" '[CLI state machine](references/cli-state.md)'
 expect_contains "$skill" '[Supervised execution](references/supervised-execution.md)'
+expect_contains "$skill" 'Do not use for ordinary bounded single-session tasks.'
+expect_contains "$skill" "Use Codex's native planning surfaces when useful for small or medium,"
+expect_contains "$skill" 'Straightforward implementation tasks do not'
+expect_contains "$skill" 'require a persisted plan.'
+expect_contains "$skill" 'Select Org Plan only when the user explicitly requests it'
+expect_contains "$skill" 'execution across sessions or context compaction;'
+expect_contains "$skill" 'supervised subagent ownership;'
+expect_contains "$skill" 'mobile attention or supervision.'
+expect_contains "$skill" 'Once an Org workflow is active, its Org file and helper state machine are'
+expect_contains "$skill" 'authoritative. Continue projecting it to host `update_plan` for UI progress,'
+expect_contains "$skill" 'do not copy full Org milestone prose into them.'
 expect_contains "$skill" 'Every L1 has exactly one non-empty `:SKILLS:` property'
 expect_contains "$skill" '`$gestalt:context-mode` is an implicit execution baseline.'
 expect_contains "$skill" 'Keep one writer. L2 changes remain uncommitted through L1 review.'

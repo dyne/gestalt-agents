@@ -112,8 +112,22 @@ for entry in marketplace["plugins"]:
 
 frontmatter = (plugin / "skills" / "org-plan" / "SKILL.md").read_text().split("---", 2)[1]
 assert "name: org-plan" in frontmatter
+assert "Do not use for ordinary bounded single-session tasks." in frontmatter
 
 org_plan_skill = (plugin / "skills" / "org-plan" / "SKILL.md").read_text()
+for routing_contract in (
+    "Use Codex's native planning surfaces when useful for small or medium,",
+    "Straightforward implementation tasks do not",
+    "Select Org Plan only when the user explicitly requests it",
+    "execution across sessions or context compaction;",
+    "inspectable workspace-local durability;",
+    "L1/L2 milestone hierarchy or explicit skill assignment;",
+    "supervised subagent ownership;",
+    "review, accept, or reject transitions and evidence gates;",
+    "one commit per accepted milestone;",
+    "mobile attention or supervision.",
+):
+    assert routing_contract in org_plan_skill, f"org-plan skill lacks routing contract: {routing_contract}"
 for contract in (
     "<workspace-root>/.gestalt/<topic>.org",
     "A Git repository root never redefines the supplied",

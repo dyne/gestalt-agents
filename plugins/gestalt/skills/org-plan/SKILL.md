@@ -1,12 +1,34 @@
 ---
 name: org-plan
-description: Create or execute implementation plans stored as Org files with ordered L1/L2 milestones, exact skill assignments, durable review status, helper-driven state transitions, and optional root-directed subagent execution. Use for multi-step work that needs inspectable scope, evidence gates, incremental review, and one conventional commit per accepted L1.
+description: Create or execute durable Org implementation plans when explicitly requested or when work needs cross-session persistence, L1/L2 milestones, assigned skills or owners, supervised review and evidence gates, per-milestone commits, or mobile attention. Do not use for ordinary bounded single-session tasks.
 ---
 
 # Org Plan
 
 Prefer the simplest viable design. Make every milestone precise enough for a
 fresh lesser-reasoning executor to complete from the plan and repository alone.
+
+## Route planning work
+
+Use Codex's native planning surfaces when useful for small or medium,
+single-session, bounded work. Straightforward implementation tasks do not
+require a persisted plan.
+
+Select Org Plan only when the user explicitly requests it or the work genuinely
+needs at least one of these capabilities:
+
+- execution across sessions or context compaction;
+- inspectable workspace-local durability;
+- L1/L2 milestone hierarchy or explicit skill assignment;
+- supervised subagent ownership;
+- review, accept, or reject transitions and evidence gates;
+- one commit per accepted milestone;
+- mobile attention or supervision.
+
+Once an Org workflow is active, its Org file and helper state machine are
+authoritative. Continue projecting it to host `update_plan` for UI progress,
+but keep native plan entries to short position, title, and status information;
+do not copy full Org milestone prose into them.
 
 ## Choose a workflow
 
