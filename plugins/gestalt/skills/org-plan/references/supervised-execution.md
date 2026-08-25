@@ -19,6 +19,18 @@ director (depth 0, org-plan-reviewer, Sol or Terra, read-only root)
 - Codex V1 agent depth defaults to one, which permits this direct spawn. Stop
   when direct spawning is unavailable; do not edit user configuration.
 
+## Canonical positions and agent names
+
+Use one-based positions independently of mutable IDs and titles. L1 position
+`a` is `L<a>`; its L2 child position `b` is `L<a>.<b>`. Use these labels in
+assignments, reports, reviews, commits, and user updates. IDs remain the exact
+helper arguments.
+
+The collaboration API accepts lowercase letters, digits, and underscores in a
+task name. A dedicated position agent therefore uses `l<a>` or `l<a>_<b>` as
+its machine task name and is referred to as `L<a>` or `L<a>.<b>`. For example,
+L1 position 2 uses `l2`; its fifth L2 child uses `l2_5` and displays as `L2.5`.
+
 ## Start supervision
 
 Treat the loaded skill directory and the plan path supplied by the user, host,
@@ -42,7 +54,8 @@ without reinstalling its own profile.
 2. Before each L1, verify the preceding L1 is REVIEWED, terminate the previous
    executor, confirm closure, and resolve the next milestone with
    `org-plan describe`.
-3. Launch a fresh depth-one executor with `fork_turns=none` for exactly that L1.
+3. Launch a fresh depth-one executor with `fork_turns=none` for exactly that L1,
+   using task name `l<a>` for its canonical `L<a>` position.
 4. The executor loads `$gestalt:context-mode`, verifies every declared L1
    skill is available, then loads exactly those declared skills before any
    repository inspection or edit. Missing skills block without edits.
@@ -140,8 +153,8 @@ excerpt. Never relay raw logs or complete child transcripts upward.
 
 The root remains active and gives brief updates at supervision start and when an
 L1 starts, reaches review, is rejected, is accepted, or blocks. On first mention
-use `L1 POSITION/TOTAL — TITLE: STATUS` plus its Goal; later use position and
-title. On first commit mention, report the conventional subject and purpose;
+use `L<a>/TOTAL — TITLE: STATUS` plus its Goal; later use the same canonical
+position and title. On first commit mention, report the conventional subject and purpose;
 hashes are supplemental.
 
 Routine review is agent-to-agent. Ask the user only for a material ambiguity or
@@ -149,7 +162,8 @@ unavailable prerequisite, never for progress approval.
 
 ## Standalone assignments
 
-Every executor assignment includes its one L1 and full L2 block, repository
+Every executor assignment identifies canonical `L<a>` and uses task name
+`l<a>`. It includes its one L1 and full L2 block, repository
 starting state, accepted prior outputs, allowed scope, required tests, exact
 skills, implicit context-mode baseline, helper-only transitions, one post-ACCEPT
 commit rule, preserved paths, completion-driven continuation, and genuine

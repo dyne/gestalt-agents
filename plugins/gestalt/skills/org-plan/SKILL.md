@@ -32,6 +32,11 @@ For mobile interoperability, see the versioned
 
 ## Invariants
 
+Use one-based canonical position labels everywhere: L1 position `a` is `L<a>`
+and its L2 child position `b` is `L<a>.<b>`. IDs remain machine state keys. A
+subagent dedicated to a position uses collaboration-safe task name `l<a>` or
+`l<a>_<b>` and is referred to by its canonical label.
+
 1. Every L1 has exactly one non-empty `:SKILLS:` property and one
    `:REVIEW_STATUS:` property. New L1s start `UNREVIEWED`; L2s have neither.
 2. Select L1 skills from the complete available catalog. Use exact `$skill`

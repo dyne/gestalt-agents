@@ -16,6 +16,10 @@
   depth-one `org-plan-executor` per L1. The executor defaults to Terra, is the
   only code writer, and reports only to the root. Do not create an intermediate
   supervisor or a separate reviewer.
+- Use one-based canonical labels for every plan reference: L1 position `a` is
+  `L<a>` and its L2 child position `b` is `L<a>.<b>`. IDs remain helper
+  arguments. Name a dedicated collaboration agent `l<a>` or `l<a>_<b>` to
+  satisfy task-name syntax, and refer to it by the canonical uppercase label.
 - Every L1 must have exactly one non-empty `:SKILLS:` property and exactly one
   `:REVIEW_STATUS:` property, initially `UNREVIEWED`; L2s must have neither.
   `:SKILLS:` is a whitespace-separated list of exact `$skill` references chosen
@@ -70,7 +74,7 @@
   it automatically when unavailable.
 - Keep the root active and post brief human-facing status at supervision start
   and when an L1 starts, reaches review, is rejected, is accepted, or blocks.
-  Use `L1 POSITION/TOTAL — TITLE: STATUS` when possible. Resolve the first
+  Use `L<a>/TOTAL — TITLE: STATUS` when possible. Resolve the first
   milestone mention with `org-plan describe` and lead with its position, title,
   and Goal/Why; later mentions may use the position and title alone. Lead the
   first commit mention with its conventional subject and purpose; IDs and hashes
