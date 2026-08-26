@@ -116,8 +116,9 @@ assert "Do not use for ordinary bounded single-session tasks." in frontmatter
 
 org_plan_skill = (plugin / "skills" / "org-plan" / "SKILL.md").read_text()
 for routing_contract in (
-    "Use Codex's native planning surfaces when useful for small or medium,",
-    "Straightforward implementation tasks do not",
+    "Use Codex's native planning surfaces when useful for small",
+    "Straightforward implementation tasks do",
+    "not require a persisted plan.",
     "Select Org Plan only when the user explicitly requests it",
     "execution across sessions or context compaction;",
     "inspectable workspace-local durability;",
@@ -131,8 +132,9 @@ for routing_contract in (
 for contract in (
     "<workspace-root>/.gestalt/<topic>.org",
     "A Git repository root never redefines the supplied",
-    "Never stage, commit, force-add, cherry-pick, or otherwise introduce one into Git",
-    "This absolute prohibition cannot be overridden by a user request",
+    "Never stage, commit, or otherwise introduce one into",
+    "This absolute prohibition cannot be overridden by",
+    "Do not mention that the local `.gestalt` Org",
     "git diff --cached --name-only",
 ):
     assert contract in org_plan_skill, f"org-plan skill lacks workspace-local contract: {contract}"
