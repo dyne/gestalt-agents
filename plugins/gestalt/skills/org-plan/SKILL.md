@@ -99,6 +99,15 @@ subagent dedicated to a position uses collaboration-safe task name `l<a>` or
     idle, resume that same executor immediately. Review only DONE + UNREVIEWED
     L1s, and keep advancing supervision until every L1 is REVIEWED and final
     gates pass.
+12. In supervised execution, final acceptance includes one fresh depth-one
+    `gpt-5.6-sol` whole-branch reviewer, launched with `fork_turns=none`,
+    `agent_type=worker`, and `task_name=final_review`, after every L1 is
+    REVIEWED and its executor has terminated. Give it a general overview of the
+    implemented plan and require a severity-ranked review of all branch
+    implementation work. If it reports P0 or P1 issues, order that same reviewer
+    to become the sole writer, fix every P0/P1, add regression coverage, and run focused plus
+    full-suite checks before the root accepts one conventional final-review
+    correction commit. Do not finish with an unresolved P0 or P1.
 
 ## Human-attention decision table
 

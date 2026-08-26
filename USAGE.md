@@ -94,7 +94,10 @@ director (depth 0, org-plan-reviewer, Sol or Terra, read-only)
 The root director also performs the supervisor and reviewer duties. It remains
 active, communicates with the user, launches one fresh executor for each L1,
 checks evidence, and returns ACCEPT or REJECT directly to that executor. There
-is no intermediate supervisor and no separate reviewer subagent.
+is no intermediate supervisor and no separate routine L1 reviewer subagent.
+After every L1 is REVIEWED, one fresh `gpt-5.6-sol` subagent performs the
+required terminal whole-branch review and fixes any P0/P1 findings as the sole
+writer.
 
 The executor owns all implementation and corrective edits for its assigned L1.
 Rejected work stays uncommitted and returns to the same executor. After ACCEPT,

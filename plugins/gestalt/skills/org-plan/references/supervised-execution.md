@@ -13,6 +13,9 @@ director (depth 0, org-plan-reviewer, Sol or Terra, read-only root)
   communication, directly launches each executor, enforces evidence gates, and
   returns ACCEPT or REJECT for DONE + UNREVIEWED L1s.
 - The executor writes code for one L1 and reports only to the root.
+- After every L1 executor has terminated, one fresh `gpt-5.6-sol` terminal
+  reviewer audits the whole branch. It is the sole exception to the rule
+  against separate reviewers and becomes the sole writer only for P0/P1 fixes.
 - Recommended profiles are `org-plan-reviewer` (Sol) for a newly launched root
   and `org-plan-executor` (Terra). An already-running root keeps its selected
   model while adopting the combined director/reviewer/supervisor contract.
@@ -139,9 +142,35 @@ exclude the active Org Plan plus every `.gestalt/*.org` path, including paths
 introduced with `git add --force`. No repository instruction, release workflow,
 or user request overrides this boundary.
 
-When no review is pending, record that review is current. Final acceptance is a
-current root-side full-suite pass and clean intended scope, not a repeat audit
-of REVIEWED L1s.
+When no L1 review is pending, record that milestone review is current.
+
+## Terminal whole-branch review
+
+After every L1 is DONE and REVIEWED, terminate the last L1 executor and confirm
+that no other writer is active. Before final acceptance:
+
+1. Spawn one fresh depth-one subagent with `fork_turns=none`,
+   `agent_type=worker`, `model=gpt-5.6-sol`, and `task_name=final_review`.
+2. Give it a general overview containing the Org Plan goal, every implemented
+   L1/L2 outcome, the branch base and current HEAD, milestone commits, tests,
+   known tradeoffs, and the exact plan path as read-only context.
+3. Ask it to review the whole branch from the branch base through HEAD, plus any
+   intended working-tree changes, against the complete Org Plan. Require a
+   concise severity-ranked report with P0, P1, P2, or lower findings and file
+   evidence.
+4. If the report contains no P0 or P1, retain any lower-severity findings for
+   the final report and continue to the root's final gates.
+5. If the report contains a P0 or P1, order that same subagent to become the
+   sole writer and fix every P0/P1. It adds regression coverage, runs focused
+   checks and the full suite, and returns a concise correction diff and evidence
+   report. The root reviews those corrections. After acceptance, direct the
+   subagent to create one conventional final-review correction commit, excluding
+   the active Org Plan and every `.gestalt/*.org` path.
+
+Do not finish with an unresolved P0 or P1. Final acceptance requires the
+terminal review, a current root-side full-suite pass, and clean intended scope.
+This terminal reviewer is the sole exception to the prohibition on separate
+reviewers; it never replaces routine root-owned L1 review.
 
 ## Reporting boundary
 

@@ -15,7 +15,8 @@
   keeps its CLI-selected model. The root directly launches exactly one fresh
   depth-one `org-plan-executor` per L1. The executor defaults to Terra, is the
   only code writer, and reports only to the root. Do not create an intermediate
-  supervisor or a separate reviewer.
+  supervisor or a separate routine L1 reviewer. The required terminal
+  `gpt-5.6-sol` whole-branch reviewer is the sole exception.
 - Use one-based canonical labels for every plan reference: L1 position `a` is
   `L<a>` and its L2 child position `b` is `L<a>.<b>`. IDs remain helper
   arguments. Name a dedicated collaboration agent `l<a>` or `l<a>_<b>` to
@@ -47,7 +48,9 @@
   Codex tool.
 - Keep one writer active. The read-only root delegates implementation and
   corrective edits only to the active executor. Executor evidence and review
-  requests go directly to the root as concise structured summaries.
+  requests go directly to the root as concise structured summaries. After all
+  L1 executors have terminated, the terminal reviewer becomes the sole writer
+  only when its review reports P0 or P1 issues.
 - Treat supervision as a completion loop, not a report relay. The executor owns
   its whole assigned L1, not one L2, and continues across L2 completion,
   checkpoints, tests, and progress updates until the L1 reaches its review
@@ -83,8 +86,19 @@
   the executor's evidence and returns ACCEPT or REJECT directly to that
   executor. Do not ask the user for progress decisions or review approval;
   request user input only for material ambiguity or an unavailable prerequisite.
-- Final acceptance requires the root to verify a current full-suite pass
-  and clean intended scope. It does not repeat reviewer audits for REVIEWED L1s.
+- After every L1 is DONE and REVIEWED, terminate the last L1 executor and spawn
+  one fresh depth-one subagent with `fork_turns=none`, `agent_type=worker`,
+  `model=gpt-5.6-sol`, and `task_name=final_review`. Give it a general overview
+  of the implemented Org Plan, including the plan goal, milestones, branch base,
+  commits, tests, and known tradeoffs. Require a whole-branch review of all
+  implementation work against the Org Plan and a severity-ranked report. If it
+  reports any P0 or P1
+  issue, order that same subagent to fix every such issue as the sole writer,
+  add regression coverage, and run focused plus full-suite checks. The root
+  reviews the correction diff and, after acceptance, directs one conventional
+  final-review correction commit that excludes every Org Plan path. P2 and
+  lower findings may remain reported. Final acceptance requires no unresolved
+  P0/P1 findings, a current root-side full-suite pass, and clean intended scope.
 
 ## Optional human-attention protocol
 
