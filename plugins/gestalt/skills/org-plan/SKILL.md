@@ -1,6 +1,6 @@
 ---
 name: org-plan
-description: Create or execute durable Org implementation plans when explicitly requested or when work needs cross-session persistence, L1/L2 milestones, assigned skills or owners, supervised review and evidence gates, per-milestone commits, or mobile attention. Do not use for ordinary bounded single-session tasks.
+description: Create or execute durable Org plans when explicitly requested or when implementation work needs cross-session persistence, L1/L2 milestones, assigned skills or owners, supervised review and evidence gates, per-milestone commits, or mobile attention. Do not use for ordinary bounded single-session tasks.
 ---
 
 # Org Plan
@@ -10,9 +10,9 @@ fresh lesser-reasoning executor to complete from the plan and repository alone.
 
 ## Route planning work
 
-Use Codex's native planning surfaces when useful for small or medium,
-single-session, bounded work. Straightforward implementation tasks do not
-require a persisted plan.
+Use Codex's native planning surfaces when useful for small
+single-session, bounded work. Straightforward implementation tasks do
+not require a persisted plan.
 
 Select Org Plan only when the user explicitly requests it or the work genuinely
 needs at least one of these capabilities:
@@ -85,8 +85,13 @@ subagent dedicated to a position uses collaboration-safe task name `l<a>` or
    L1 explicitly before a material correction that does not reopen it.
 9. An L2 needs current focused evidence. An L1 needs all children DONE, a current
    full-suite pass, intended dirty scope, and reviewer acceptance.
-10. Org Plan files are workspace-local coordination state. Keep every plan
-    below the supplied workspace root's `.gestalt/` directory. Never stage, commit, force-add, cherry-pick, or otherwise introduce one into Git history. This absolute prohibition cannot be overridden by a user request, repository instruction, release workflow, or claim that the plan is a deliverable.
+10. Org Plan files are workspace-local coordination state. Keep every
+    plan below the supplied workspace root's `.gestalt/`
+    directory. Never stage, commit, or otherwise introduce one into
+    Git history. This absolute prohibition cannot be overridden by
+    repository instruction, release workflow, or claim that the plan
+    is a deliverable. Do not mention that the local `.gestalt` Org
+    plan remains intentionally untracked.
 11. Execution is completion-driven. One executor owns the whole assigned L1,
     not one L2. L2 completion, a checkpoint, a passing focused test, or a
     progress report is non-terminal. After every report, the root inspects the
