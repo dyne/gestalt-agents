@@ -68,13 +68,11 @@
   otherwise introducing an Org Plan into Git history. Before every accepted L1
   commit, the executor and root inspect `git diff --cached --name-only` and
   reject the commit if it contains the active plan or any `.gestalt/*.org` path.
-- Run potentially large inspections, tests, and log processing through an
-  available context-preserving execution path. If none is available, capture
-  output outside conversational context and report only the command, exit
-  status, pass/fail counts, affected scope, and smallest necessary failure
-  excerpt. Short fixed-output observations may remain direct. Load the installed
-  `$gestalt:context-mode` skill in every role, but do not install or enable
-  it automatically when unavailable.
+- Use host-native filesystem tools for governing instructions, small bounded
+  reads, edits, mutations, and short command interaction; use context-mode only
+  for large or uncertain analysis, filtering, indexing, and retrieval. If it
+  is unavailable, capture output outside conversational context and report only the command, exit
+  status, pass/fail counts, affected scope, and smallest necessary failure excerpt. Load the installed `$gestalt:context-mode` skill in every role, but do not install or enable it automatically when unavailable.
 - Keep the root active and post brief human-facing status at supervision start
   and when an L1 starts, reaches review, is rejected, is accepted, or blocks.
   Use `L<a>/TOTAL — TITLE: STATUS` when possible. Resolve the first

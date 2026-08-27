@@ -77,10 +77,12 @@ Gestalt-provided skills.
 
 Each skill has one canonical package under
 `plugins/gestalt/skills/<skill-name>/`. Cross-references use exact
-`$gestalt:<skill-name>` names. Context-mode routing selects the appropriate
-`ctx_*` operation; it does not grant permission to mutate files, install
-software, use the network, push changes, or perform another external side
-effect.
+`$gestalt:<skill-name>` names. Use Codex's available native filesystem tools
+for small reads, edits, mutations, and short command interaction; use
+context-mode `ctx_*` operations for large or uncertain analysis, filtering,
+indexing, and retrieval. Context-mode does not grant permission to mutate
+files, install software, use the network, push changes, or perform another
+external side effect.
 
 ## Org Plan execution
 
@@ -115,9 +117,10 @@ This creates `org-plan-reviewer` for a newly launched read-only root and
 the model selected by its Codex session while adopting the same director
 contract.
 
-Potentially large inspections and test output stay in context-mode or another
-context-preserving execution path. Executors report only commands, status,
-pass/fail counts, affected scope, and the smallest useful diagnostic excerpt.
+Potentially large or uncertain inspections and test output stay in
+context-mode or another context-preserving analysis path; short bounded
+filesystem work stays native. Executors report only commands, status, pass/fail
+counts, affected scope, and the smallest useful diagnostic excerpt.
 
 ## Context-mode runtime
 
