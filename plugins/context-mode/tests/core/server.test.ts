@@ -21,10 +21,11 @@ import {
   rmSync,
   readFileSync,
   existsSync,
+  statSync,
   symlinkSync,
 } from "node:fs";
 import { join, dirname, resolve } from "node:path";
-import { tmpdir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { createRequire } from "node:module";
 import { describe, test, expect, beforeAll, afterAll, afterEach } from "vitest";
@@ -45,7 +46,7 @@ import {
   StorageDirectoryError,
 } from "../../src/session/db.js";
 import { ROUTING_BLOCK } from "../../hooks/routing-block.mjs";
-import { sanitizeSchemaForStrictClients, resolveExecTimeout, AGY_DEFAULT_EXEC_TIMEOUT_MS, REGISTERED_CTX_TOOLS, MCP_TOOL_DESCRIPTION_BUDGET_BYTES } from "../../src/server.js";
+import { sanitizeSchemaForStrictClients, resolveExecTimeout, AGY_DEFAULT_EXEC_TIMEOUT_MS, REGISTERED_CTX_TOOLS, MCP_TOOL_DESCRIPTION_BUDGET_BYTES, getLegacyContentDir } from "../../src/server.js";
 import { stripJsonComments, parseJsonc } from "../../src/util/jsonc.js";
 import { resolveWorkspaceStateRoot } from "../../src/workspace-state.js";
 
@@ -81,6 +82,36 @@ describe("storage path resolution", () => {
     expect(resolveStatsStorageDir(() => "/must-not-be-used").path).toBe(join(root!, "sessions"));
     expect(ensureWritableStorageDir(resolveSessionStorageDir(() => "/must-not-be-used"))).toBe(join(root!, "sessions"));
     expect(existsSync(join(root!, "sessions"))).toBe(true);
+    if (process.platform !== "win32") {
+      expect(statSync(root!).mode & 0o777).toBe(0o700);
+      expect(statSync(join(root!, "sessions")).mode & 0o777).toBe(0o700);
+    }
+    rmSync(workspace, { recursive: true, force: true });
+  });
+
+  test("tightens permissions on an existing workspace state directory", () => {
+    if (process.platform === "win32") return;
+    const workspace = mkdtempSync(join(tmpdir(), "ctx-workspace-permissions-"));
+    const root = join(workspace, ".gestalt", "context-mode");
+    const sessions = join(root, "sessions");
+    mkdirSync(sessions, { recursive: true, mode: 0o755 });
+    chmodSync(root, 0o755);
+    chmodSync(sessions, 0o755);
+    process.env.CONTEXT_MODE_WORKSPACE = workspace;
+
+    ensureWritableStorageDir(resolveSessionStorageDir(() => "/must-not-be-used"));
+
+    expect(statSync(root).mode & 0o777).toBe(0o700);
+    expect(statSync(sessions).mode & 0o777).toBe(0o700);
+    rmSync(workspace, { recursive: true, force: true });
+  });
+
+  test("disables legacy home-global content access for a workspace session", () => {
+    const workspace = mkdtempSync(join(tmpdir(), "ctx-workspace-no-legacy-"));
+    process.env.CONTEXT_MODE_WORKSPACE = workspace;
+    expect(getLegacyContentDir()).toBeUndefined();
+    delete process.env.CONTEXT_MODE_WORKSPACE;
+    expect(getLegacyContentDir()).toBe(join(homedir(), ".context-mode", "content"));
     rmSync(workspace, { recursive: true, force: true });
   });
 

@@ -12,7 +12,7 @@ import type { SessionEvent } from "../types.js";
 import type { ProjectAttribution } from "./project-attribution.js";
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
-import { accessSync, constants, existsSync, mkdirSync, realpathSync, renameSync } from "node:fs";
+import { accessSync, chmodSync, constants, existsSync, mkdirSync, realpathSync, renameSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import { resolveWorkspaceStateRoot } from "../workspace-state.js";
@@ -251,7 +251,12 @@ export function ensureWritableStorageDir(dir: ResolvedStorageDir): string {
   if (cached === dir.path) return cached;
 
   try {
-    mkdirSync(dir.path, { recursive: true });
+    mkdirSync(dir.path, { recursive: true, mode: 0o700 });
+    if (resolveWorkspaceStateRoot() && process.platform !== "win32") {
+      chmodSync(dir.path, 0o700);
+      const workspaceStateRoot = resolveWorkspaceStateRoot();
+      if (workspaceStateRoot && existsSync(workspaceStateRoot)) chmodSync(workspaceStateRoot, 0o700);
+    }
     accessSync(dir.path, constants.W_OK);
     writableStorageCache.set(key, dir.path);
     return dir.path;

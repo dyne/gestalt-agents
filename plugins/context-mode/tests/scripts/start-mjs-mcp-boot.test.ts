@@ -5,6 +5,7 @@ import {
   mkdtempSync,
   readFileSync,
   rmSync,
+  symlinkSync,
   writeFileSync,
 } from "node:fs";
 import { resolve } from "node:path";
@@ -64,6 +65,30 @@ describe("prepared MCP launcher", () => {
       expect(result.status).toBe(78);
       expect(result.stderr).toContain("CONTEXT_MODE_NOT_PREPARED");
       expect(result.stderr).not.toContain("CONTEXT_MODE_WORKSPACE_REQUIRED");
+    } finally { rmSync(fixture, { recursive: true, force: true }); }
+  });
+
+  it("ignores transcript suffix collisions and symlinked session directories", () => {
+    if (process.platform === "win32") return;
+    const fixture = mkdtempSync(resolve(tmpdir(), "context-mode-codex-session-safe-"));
+    const codexHome = resolve(fixture, "codex-home");
+    const outside = resolve(fixture, "outside");
+    const wrongWorkspace = resolve(fixture, "wrong-workspace");
+    mkdirSync(resolve(codexHome, "sessions"), { recursive: true });
+    mkdirSync(outside);
+    mkdirSync(wrongWorkspace);
+    writeFileSync(resolve(codexHome, "sessions", "not-thread-1.jsonl"), JSON.stringify({ meta: { cwd: wrongWorkspace } }) + "\n");
+    writeFileSync(resolve(outside, "thread-1.jsonl"), JSON.stringify({ meta: { cwd: wrongWorkspace } }) + "\n");
+    symlinkSync(outside, resolve(codexHome, "sessions", "linked"));
+    try {
+      const result = spawnSync(process.execPath, [resolve(ROOT, "start.mjs")], {
+        cwd: ROOT,
+        env: { ...process.env, CONTEXT_MODE_WORKSPACE: "", CODEX_HOME: codexHome, CODEX_THREAD_ID: "thread-1" },
+        encoding: "utf8",
+        timeout: 2_000,
+      });
+      expect(result.status).toBe(78);
+      expect(result.stderr).toContain("CONTEXT_MODE_WORKSPACE_REQUIRED");
     } finally { rmSync(fixture, { recursive: true, force: true }); }
   });
 

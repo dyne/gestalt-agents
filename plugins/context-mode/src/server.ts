@@ -32,6 +32,7 @@ import {
 import { classifyNonZeroExit } from "./exit-classify.js";
 import { startLifecycleGuard, noteMcpActivity, noteRequestStart, noteRequestEnd, attachMcpActivityTap } from "./lifecycle.js";
 import { charSafePrefix } from "./truncate.js";
+import { resolveWorkspaceStateRoot } from "./workspace-state.js";
 import {
   describeStorageDirectorySource,
   ensureWritableStorageDir,
@@ -746,6 +747,12 @@ function getStorePath(): string {
   return resolveContentStorePath({ projectDir: getProjectDir(), contentDir: dir });
 }
 
+export function getLegacyContentDir(): string | undefined {
+  return resolveWorkspaceStateRoot()
+    ? undefined
+    : join(homedir(), ".context-mode", "content");
+}
+
 function getStore(): ContentStore {
   if (!_store) {
     // Content DB cleanup on fresh start is handled by SessionStart hook.
@@ -779,8 +786,8 @@ function getStore(): ContentStore {
       cleanupStaleContentDBs(contentDir, 14);
       _store.cleanupStaleSources(14);
       // Also clean legacy shared dir from before platform isolation
-      const legacyDir = join(homedir(), ".context-mode", "content");
-      if (existsSync(legacyDir)) cleanupStaleContentDBs(legacyDir, 0);
+      const legacyDir = getLegacyContentDir();
+      if (legacyDir && existsSync(legacyDir)) cleanupStaleContentDBs(legacyDir, 0);
     } catch { /* best-effort */ }
 
     // Also clean old PID-based DBs from migration
@@ -4616,7 +4623,7 @@ EXAMPLE: ctx_purge(confirm: true, scope: "project")`,
       sessionsDir: getSessionDir(),
       storePath: storePathForPurge,
       contentDir,
-      legacyContentDir: join(homedir(), ".context-mode", "content"),
+      legacyContentDir: getLegacyContentDir(),
       // hashProjectDirLegacy mirrors the deployed (≤ v1.0.111) raw-casing
       // hash that named files under ~/.context-mode/content/. Using the
       // legacy hash here is correct: that pre-pre-legacy directory was
