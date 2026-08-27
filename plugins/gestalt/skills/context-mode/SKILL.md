@@ -10,32 +10,49 @@ analysis.
 
 ## Routing contract
 
-1. Read selected `SKILL.md`, governing `AGENTS.md`, plugin manifests, and files
-   being edited with the host's native reader.
-2. Use native commands when their output is known to be small and bounded.
-3. Use context-mode when output may be large, is data-heavy, or needs repeated
-   filtering. If context-mode is unavailable, capture output outside the
-   conversation and report only the command, exit status, counts, and smallest
-   useful failure excerpt.
-4. Print derived findings, not raw datasets. Include exact paths, identifiers,
+Choose the host-native filesystem tool first when the operation reads or
+changes the workspace. Use context-mode only to analyze evidence that is large,
+uncertain, or needs filtering, indexing, or repeated retrieval.
+
+1. Use an available native `read_file` for small bounded reads and always for
+   governing `AGENTS.md`, selected `SKILL.md`, plugin manifests, and a file
+   before editing it. This is pre-edit inspection, not large-file analysis.
+2. Use native `create_file`, `edit_file`, or `apply_patch` for writes. Use
+   native `exec_command` for mutations and short, bounded command output;
+   use `write_stdin` only to continue a live native command session. Use
+   `view_image` to inspect a local image. Do not use shell write tricks when a
+   native editor is available.
+3. Do not invent aliases. Hosts may expose provider-prefixed names or a native
+   equivalent rather than these spellings; use only the capability actually
+   exposed by the current host.
+4. Use context-mode for large or uncertain evidence. If it is unavailable,
+   capture evidence outside the conversation and report only the command, exit
+   status, counts, and smallest useful failure excerpt.
+5. Print derived findings, not raw datasets. Include exact paths, identifiers,
    line numbers, values, and exit status needed to verify the conclusion.
-5. Use native edit tools for writes. Context-mode routing never authorizes a
-   mutation, deletion, install, push, network call, or external side effect.
+6. Context-mode never writes and never authorizes a mutation, deletion,
+   install, push, network call, or other external side effect.
 
 ## Tool selection
 
 | Need | Tool |
 |---|---|
-| Analyze command, API, test, build, or log output | `ctx_execute` |
-| Analyze one file without loading it into conversation | `ctx_execute_file` |
-| Run and summarize several independent commands | `ctx_batch_execute` |
-| Store a file or directory for later queries | `ctx_index` |
-| Query indexed content or session memory | `ctx_search` |
-| Fetch and index external documentation | `ctx_fetch_and_index` |
-| Inspect health, usage, or stored data | `ctx_doctor`, `ctx_stats`, `ctx_purge` |
+| Small bounded filesystem read, governing instruction, manifest, or file about to edit | available native `read_file` |
+| Create or edit a workspace file | available native `create_file`, `edit_file`, or `apply_patch` |
+| Mutation or short bounded command | native `exec_command` |
+| Continue a running native command | native `write_stdin` |
+| Inspect a local image | native `view_image` |
+| One uncertain or large command, API, test, build, or log analysis | `ctx_execute` |
+| One large file analysis without loading it in full | `ctx_execute_file` |
+| Several independent large inspections | `ctx_batch_execute` |
+| Durable local corpus for later retrieval | `ctx_index` |
+| Indexed follow-up or session-memory query | `ctx_search` |
+| External documentation to retrieve repeatedly | `ctx_fetch_and_index` |
+| Inspect context-mode health, usage, or stored data | `ctx_doctor`, `ctx_stats`, `ctx_purge` |
 
-Hosts may display generated prefixes around these short MCP tool names. Use the
-tool actually exposed by the current host.
+Context-mode MCP methods can appear with a generated provider prefix. The short
+names in this table describe their role; use the provider-prefixed method that
+the host exposes.
 
 ## Output rules
 
@@ -51,8 +68,10 @@ tool actually exposed by the current host.
 
 ## Files and browser output
 
-For a one-shot file question, use `ctx_execute_file`. For several follow-up
-questions, use `ctx_index(path)` once and query it with `ctx_search`.
+For a one-shot question about a large file that will not be loaded in full, use
+`ctx_execute_file`. For several follow-up questions, use `ctx_index(path)` once
+and query it with `ctx_search`. Read a small file or any file before editing it
+with the native reader instead.
 
 When a browser or another tool can save output to a file, always request a
 filename and process the saved file server-side:

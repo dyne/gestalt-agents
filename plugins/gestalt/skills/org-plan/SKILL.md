@@ -158,6 +158,11 @@ lifecycle action.
 
 ## Manual execution loop
 
+Use host-native filesystem tools for governing instructions, small bounded
+reads, edits, mutations, and short command interaction. Use context-mode only
+for large or uncertain analysis, filtering, indexing, and retrieval; it never
+writes or changes Org state.
+
 1. Confirm the assigned branch and choose the next WIP L1, otherwise the first
    TODO L1. Transition it with `org-plan set`.
 2. Load the implicit context-mode baseline and exactly the L1's declared skills.

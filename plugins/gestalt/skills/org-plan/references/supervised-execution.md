@@ -63,6 +63,11 @@ without reinstalling its own profile.
    skill is available, then loads exactly those declared skills before any
    repository inspection or edit. Missing skills block without edits.
 
+Both roles use host-native filesystem tools for governing instructions, small
+bounded reads, edits, mutations, and short command interaction. Context-mode
+is reserved for large or uncertain analysis, filtering, indexing, and retrieval;
+it never writes or changes Org state.
+
 ## Human-attention decision table
 
 `gestalt_org_plan_attention` is an optional mobile dynamic tool, not an
@@ -174,8 +179,9 @@ reviewers; it never replaces routine root-owned L1 review.
 
 ## Reporting boundary
 
-Potentially large inspections, tests, and logs use a context-preserving path in
-both roles.
+Potentially large or uncertain inspections, tests, and logs use context-mode or
+another context-preserving analysis path in both roles; small bounded filesystem
+work stays native.
 If unavailable, capture output outside the conversation and report only the
 command, exit status, pass/fail counts, affected scope, and smallest diagnostic
 excerpt. Never relay raw logs or complete child transcripts upward.

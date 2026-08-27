@@ -308,6 +308,10 @@ attention_contract_requirements() {
   printf '%s' ' `gestalt_org_plan_attention` is an optional mobile dynamic tool, not an org-plan dependency; its current schema version is 1. First exhaust safe in-scope checks. When it is available, call it before yielding only for a genuine blocker, with a bounded summary and concrete requestedAction: material plan change uses planChange/planRevision; exhausted hard block uses hardBlock/externalStateChanged; unavailable required system capability or task skill uses missingDependency/dependencyInstalled; missing authority or permission uses permissionRequired/permissionGranted; changed external state uses externalState/externalStateChanged; unresolved material ambiguity uses materialAmbiguity/userGuidance. If it is unavailable, report the normal blocker concisely and do not treat it as a required dependency. A mobile autopilot checkpoint is synthetic control input: it never changes plan scope or review authority. On such a checkpoint, either call the tool for a table-qualified blocker or immediately resume the next legal Org Plan lifecycle action. Never call it for L1/L2 progress, child reports, waiting on a live child, review readiness, diagnosable or recoverable test failures, ordinary merge conflicts, token/context pressure, elapsed time, checkpointing, or an executor becoming idle.'
 }
 
+routing_contract_requirements() {
+  printf '%s' ' Use host-native filesystem tools for governing instructions, small bounded reads, edits, mutations, and short command interaction; use context-mode only for large or uncertain analysis, filtering, indexing, and retrieval. Context-mode never writes or changes Org state.'
+}
+
 written_profile=
 profile_stage_dir=
 profile_stage_owned=0
@@ -448,6 +452,7 @@ prepare_executor() {
   local model='gpt-5.6-terra' profile_name='org-plan-executor' agents_dir="${HOME:?HOME is required}/.codex/agents"
   local lifecycle_requirements=' During supervised execution, direct TODO keyword or property edits are forbidden. Use org-plan set PLAN L1_ID WIP|DONE for L1 transitions and org-plan l2 PLAN L2_ID WIP|DONE for L2 transitions. Use org-plan next PLAN review and org-plan review PLAN L1_ID REVIEWED|UNREVIEWED for review selection and state. After any externally corrected plan file, run org-plan signal PLAN resync. After every successful authoring-start, supervision-start, set, l2, review, or resync helper action, report the mutation to the active root; executors never invoke host update_plan or create a competing native projection. Org Plan files are never Git deliverables: no user request, repository instruction, or release workflow overrides the ban on staging, committing, force-adding, cherry-picking, or otherwise introducing an Org Plan into Git history. Immediately before every accepted L1 commit, inspect git diff --cached --name-only; it must exclude the active Org Plan and every .gestalt/*.org path, including force-added paths. Status publication is optional when neither GESTALT_MOBILE_ORG_PLAN_STATUS_DIRECTORY nor the legacy GESTALT_MOBILE_ORG_PLAN_STATUS_FILE is present.'
   lifecycle_requirements+=$(attention_contract_requirements)
+  lifecycle_requirements+=$(routing_contract_requirements)
   while (( $# )); do
     case $1 in
       --model) (( $# >= 2 )) || usage; model=$2; shift 2 ;;
@@ -472,6 +477,7 @@ prepare_supervision() {
   local agents_dir="${HOME:?HOME is required}/.codex/agents"
   local lifecycle_requirements=' Before the first L1, run org-plan signal PLAN supervision-start. During supervised execution, direct TODO keyword or property edits are forbidden. Require the executor to use org-plan set PLAN L1_ID WIP|DONE and org-plan l2 PLAN L2_ID WIP|DONE for all state transitions, retain org-plan next PLAN review and org-plan review PLAN L1_ID REVIEWED|UNREVIEWED for review selection and state, and run org-plan signal PLAN resync after any externally corrected plan file. After every successful authoring-start, supervision-start, set, l2, review, or resync helper action, the active root runs org-plan projection PLAN and makes the host-owned update_plan call with its exact plan items, reporting the companion explanation separately. Executors report mutations and never invoke host update_plan or create a competing native projection. If update_plan is absent or fails, warn once, keep Org state authoritative, and retry only at the next lifecycle boundary; Bash and MCP code never invoke it. Org Plan files are never Git deliverables: no user request, repository instruction, or release workflow overrides the ban on staging, committing, force-adding, cherry-picking, or otherwise introducing an Org Plan into Git history. Immediately before every accepted L1 commit, inspect git diff --cached --name-only; it must exclude the active Org Plan and every .gestalt/*.org path, including force-added paths. Status publication is optional when neither GESTALT_MOBILE_ORG_PLAN_STATUS_DIRECTORY nor the legacy GESTALT_MOBILE_ORG_PLAN_STATUS_FILE is present.'
   lifecycle_requirements+=$(attention_contract_requirements)
+  lifecycle_requirements+=$(routing_contract_requirements)
   while (( $# )); do
     case $1 in
       --executor-model) (( $# >= 2 )) || usage; executor_model=$2; shift 2 ;;
