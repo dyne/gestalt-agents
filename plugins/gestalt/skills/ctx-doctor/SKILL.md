@@ -7,13 +7,11 @@ description: Diagnose context-mode runtime, dependency, hook, FTS5, plugin regis
 
 1. Call `ctx_doctor` and return its complete status report unchanged.
 2. Preserve its `[OK]`, `[FAIL]`, and `[WARN]` prefixes.
-3. If the MCP call fails, derive the plugin root by going two directories up
-   from this skill and run:
+3. If the MCP call fails, derive the Gestalt plugin root by going two
+   directories up from this skill and run its external-runtime bridge:
 
 ```sh
-CLI="<PLUGIN_ROOT>/cli.bundle.mjs"
-[ -f "$CLI" ] || CLI="<PLUGIN_ROOT>/build/cli.js"
-node "$CLI" doctor
+node "<PLUGIN_ROOT>/scripts/ctx-doctor.mjs"
 ```
 
 Report the fallback command, exit status, and complete diagnostic report.
