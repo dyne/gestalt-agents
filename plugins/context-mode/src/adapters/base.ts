@@ -39,6 +39,7 @@ import { join, resolve } from "node:path";
 import { accessSync, copyFileSync, constants, mkdirSync } from "node:fs";
 import { homedir } from "node:os";
 import { hashProjectDirCanonical } from "../session/db.js";
+import { resolveWorkspaceDataRoot } from "../workspace-state.js";
 
 /**
  * Universal storage-root override. Returns the resolved absolute path when
@@ -52,6 +53,12 @@ import { hashProjectDirCanonical } from "../session/db.js";
 export function resolveContextModeDataRoot(
   env: NodeJS.ProcessEnv = process.env,
 ): string | null {
+  // A Codex session supplies its canonical workspace before the MCP process
+  // starts.  This is deliberately stronger than the historical opt-in env
+  // override: mutable state must not silently fall back into CODEX_HOME or a
+  // home-global store.
+  const workspaceDataRoot = resolveWorkspaceDataRoot(env);
+  if (workspaceDataRoot) return workspaceDataRoot;
   const raw = env.CONTEXT_MODE_DATA_DIR;
   if (!raw || raw.trim() === "") return null;
   if (raw.startsWith("~")) {

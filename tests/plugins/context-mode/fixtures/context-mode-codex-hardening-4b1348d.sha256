@@ -60,7 +60,7 @@
 0644 ebb34d5bec28c08ebd360888be934de0308a55e8c39184ce760bb5969d2a6dc1  scripts/tier2-smoke/fixtures/search-corpus.txt
 0644 386e1227dc62ded02603a66cc9c49d5b1349922d282cc9eb5c6b1852feb467f1  src/adapters/antigravity-cli/index.ts
 0644 c358f06d6f6ef822cbd7d847671512d92e51560f6eddf02d57f800ab2d9ae40b  src/adapters/antigravity/index.ts
-0644 8de4768fd62588f6acfd3ca60fbded2b899192b0e017a308812c07b78ab1bfd2  src/adapters/base.ts
+0644 897da747ebcac8e37690f33a89c20c9fb2506ae8819b58b43b818dcabe893c04  src/adapters/base.ts
 0644 d5d5f0d920f0f0efaeedfc449453c27c5362ce9daebb2cd82d04b6c46bd6ef22  src/adapters/claude-code-base.ts
 0644 28b3c4460bc5435cd4f45ee3a7dd9fac0a83a9c8751b4b29a8a516c2f74a2963  src/adapters/claude-code/config.ts
 0644 52325b5494b8fd4922742174ee50cb242657de6fddfa5d4889af4b302cb7d464  src/adapters/claude-code/hooks.ts
@@ -135,7 +135,8 @@
 0644 769a68f66f879c6d442a441ca69f4d58f84a6442742bfc5d02ab5f3fc7103468  src/security.ts
 0644 da2441520c7dcb1a4e002110a1e66918d321414a9967c541323347c74e1bfb64  src/server.ts
 0644 e12df1a69f5fd07fc58ec6ff214229e51e84bee341df98eb1940a9dccd2c9d30  src/session/analytics.ts
-0644 1a1358a40acd676826a724f39c894b108bc32dd36a93185452bba43d80b0d93b  src/session/db.ts
+0644 7f22cc028e6c55a5e9bdbeebfd63a1f9027ab4d50bdc3b95f546917756977c5d  src/session/db.ts
+0644 92087e3d409d53dd512951e1a76ef15409259d94f9fb4ab09c1deb5e3a2d257e  src/workspace-state.ts
 0644 1c0be10e4bbd18427f0b137414c8828ef5d62200eb2084fc8a70068856fc3558  src/session/error-classifier.ts
 0644 f762e063398ff9e8e17278f0b810b033a94ea297934b7031616a5b51997c9c38  src/session/event-emit.ts
 0644 8af749c8f29a095774f88f8f2a14a007d028b559bd7c8ce4cf46a6c1300ec20e  src/session/extract.ts
@@ -158,7 +159,7 @@
 0644 3096479b6f70f378119cd50572617fcbb1b502679f008be68195e51bb3f4553b  src/util/plugin-cache-integrity.ts
 0644 5b04977eeb9fd408a090fb8c4b908356d03dd419e9f0a5cba7b2fcd9702d7a0a  src/util/project-dir.ts
 0644 4e53d1a7405579eaa0489faef19be96a623e3fedac003bf2bc25f2c773cf53cd  src/util/sibling-mcp.ts
-0755 0a3ff8ea17c7cc4081c11541990b1631ac2731f922e3379c57cdccb1f490b113  start.mjs
+0755 0373d8112d552b896eaeddcd8016e21abd1c85cffb51e51bd7c3d54fdae717e8  start.mjs
 0644 7d239b37d3cb5e923e2a5997dbba03031a11b64eace24f4708edf3f660822324  tests/adapters/antigravity.test.ts
 0644 a20187f4c4784a6ec1579bf2a1e8808a495d92311624252a5e1798e6a3c9e5f9  tests/adapters/base-adapter-memory.test.ts
 0644 45946fab11cbf8b711d58ecdf6d6a7d8f563d0c0e8c51e1e8fa5a80507e2314c  tests/adapters/claude-code-memory.test.ts
@@ -235,7 +236,7 @@
 0644 2b21a92e3e921002115cb580eac8e8c229dce7c324acd254bbe5c400892275c5  tests/core/search-project-filter.test.ts
 0644 0873486d636e7ae0e20123cf25f3cf82c4c030f7fd60f3e55bb17b1bf51c74e4  tests/core/search.test.ts
 0644 47fd26dc170d287c92bc321b99074280ea6709d6aadb8f60def685e6bd9ab3bb  tests/core/server-timeline-adapter.test.ts
-0644 12285a45c23addb5ae70c6e3f8c984d9d3b3155d8ee7f6d57bc273caa3592ede  tests/core/server.test.ts
+0644 6d0816951b8534cf9796350180d0df35ac0491af4250d46fcb2390f728606117  tests/core/server.test.ts
 0644 aa4f1f0442a76cbb49aec7f567f0c94e27a98cb2c1101e5be678d539dce6d589  tests/ecosystem-benchmark.ts
 0644 6a47e97766a5a4563e0be4402a1c889022c5bd92323442fc8cdacdbb594f1246  tests/executor.test.ts
 0644 223d4edb16a6b6c66e597af114210032ab47e3c40a2dd0bced89cb649344f57b  tests/executor/cwd-override.test.ts
@@ -322,7 +323,7 @@
 0644 3ca4f97139713a2a4370f22b6fd661785b46e7e219e496bd61021dafe0ba95b8  tests/scripts/assert-bundle.test.ts
 0644 91b13c536f9ab82395834c6e51da130bb587f46a25c34e79b20faa09746c8193  tests/scripts/prepare-runtime.test.ts
 0644 bba7cbf3f31424fadf80f0bfedff624d55580534e101a97c4fb3c824a3ee0b91  tests/scripts/runtime-location.test.ts
-0644 02307e908c0e78c6b15bcc952cf581d080aab38eaa3a58dbd56b2648dd93cd63  tests/scripts/start-mjs-mcp-boot.test.ts
+0644 54046ddd2f84265a12357afab2571eff9115358b7753406b67281ee4ba9a0da0  tests/scripts/start-mjs-mcp-boot.test.ts
 0644 56124f2d1ddbb33ba729a8abee09bebf5e94062e694f793bf5503e671f6f8e9e  tests/scripts/start-mjs-reexec-teardown-862.test.ts
 0644 1a234cea95768e5e777bb79f258963d3541e4608011a8c08392e1b65285e9193  tests/scripts/start-mjs-win-install-861.test.ts
 0644 5318341331c0d3e181d677ba71dc86e783b87658cc039d18dbea7b23d9040a0c  tests/scripts/version-sync.test.ts
