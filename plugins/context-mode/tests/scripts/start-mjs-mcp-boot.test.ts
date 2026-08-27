@@ -35,6 +35,38 @@ describe("prepared MCP launcher", () => {
     expect(source).toContain("getRuntimeRoot");
   });
 
+  it("requires the authoritative session workspace instead of inferring cwd", () => {
+    const result = spawnSync(process.execPath, [resolve(ROOT, "start.mjs")], {
+      cwd: ROOT,
+      env: { ...process.env, CONTEXT_MODE_WORKSPACE: "", CONTEXT_MODE_PROJECT_DIR: ROOT, CODEX_HOME: "", CODEX_THREAD_ID: "" },
+      encoding: "utf8",
+      timeout: 2_000,
+    });
+    expect(result.status).toBe(78);
+    expect(result.stderr).toContain("CONTEXT_MODE_WORKSPACE_REQUIRED");
+    expect(result.stderr).toContain("refusing to infer state from cwd");
+  });
+
+  it("recovers the workspace only from the matching bounded Codex session transcript", () => {
+    const fixture = mkdtempSync(resolve(tmpdir(), "context-mode-codex-session-"));
+    const codexHome = resolve(fixture, "codex-home");
+    const workspace = resolve(fixture, "workspace");
+    mkdirSync(resolve(codexHome, "sessions"), { recursive: true });
+    mkdirSync(workspace);
+    writeFileSync(resolve(codexHome, "sessions", "thread-1.jsonl"), JSON.stringify({ meta: { cwd: workspace } }) + "\n");
+    try {
+      const result = spawnSync(process.execPath, [resolve(ROOT, "start.mjs")], {
+        cwd: ROOT,
+        env: { ...process.env, CONTEXT_MODE_WORKSPACE: "", CODEX_HOME: codexHome, CODEX_THREAD_ID: "thread-1", GESTALT_HOME: resolve(fixture, "gestalt-home") },
+        encoding: "utf8",
+        timeout: 2_000,
+      });
+      expect(result.status).toBe(78);
+      expect(result.stderr).toContain("CONTEXT_MODE_NOT_PREPARED");
+      expect(result.stderr).not.toContain("CONTEXT_MODE_WORKSPACE_REQUIRED");
+    } finally { rmSync(fixture, { recursive: true, force: true }); }
+  });
+
   it("imports the prepared bundle only after preflight", () => {
     const check = source.indexOf("CONTEXT_MODE_NOT_PREPARED");
     const serverImport = source.indexOf('pathToFileURL(join(runtimeRoot, "server.bundle.mjs"))');
@@ -64,7 +96,7 @@ describe("prepared MCP launcher", () => {
       const started = Date.now();
       const result = spawnSync(process.execPath, [resolve(fixture, "start.mjs")], {
         cwd: fixture,
-        env: { ...process.env, GESTALT_HOME: resolve(fixture, "gestalt-home") },
+        env: { ...process.env, GESTALT_HOME: resolve(fixture, "gestalt-home"), CONTEXT_MODE_WORKSPACE: fixture },
         encoding: "utf8",
         timeout: 2_000,
       });

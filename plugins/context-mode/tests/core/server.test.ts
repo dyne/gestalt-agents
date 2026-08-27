@@ -21,6 +21,7 @@ import {
   rmSync,
   readFileSync,
   existsSync,
+  symlinkSync,
 } from "node:fs";
 import { join, dirname, resolve } from "node:path";
 import { tmpdir } from "node:os";
@@ -46,20 +47,54 @@ import {
 import { ROUTING_BLOCK } from "../../hooks/routing-block.mjs";
 import { sanitizeSchemaForStrictClients, resolveExecTimeout, AGY_DEFAULT_EXEC_TIMEOUT_MS, REGISTERED_CTX_TOOLS, MCP_TOOL_DESCRIPTION_BUDGET_BYTES } from "../../src/server.js";
 import { stripJsonComments, parseJsonc } from "../../src/util/jsonc.js";
+import { resolveWorkspaceStateRoot } from "../../src/workspace-state.js";
 
 // ─── Shared setup ───────────────────────────────────────────────────────────
 const runtimes = detectRuntimes();
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const STORAGE_ENV_KEY = "CONTEXT_MODE_DIR";
 const savedStorageEnv = process.env[STORAGE_ENV_KEY];
+const savedWorkspaceEnv = process.env.CONTEXT_MODE_WORKSPACE;
+const savedProjectEnv = process.env.CONTEXT_MODE_PROJECT_DIR;
 
 afterEach(() => {
   if (savedStorageEnv === undefined) delete process.env[STORAGE_ENV_KEY];
   else process.env[STORAGE_ENV_KEY] = savedStorageEnv;
+  if (savedWorkspaceEnv === undefined) delete process.env.CONTEXT_MODE_WORKSPACE;
+  else process.env.CONTEXT_MODE_WORKSPACE = savedWorkspaceEnv;
+  if (savedProjectEnv === undefined) delete process.env.CONTEXT_MODE_PROJECT_DIR;
+  else process.env.CONTEXT_MODE_PROJECT_DIR = savedProjectEnv;
   clearStorageDirectoryCheckCacheForTests();
 });
 
 describe("storage path resolution", () => {
+  test("roots Codex state in the canonical workspace, including spaces and non-ASCII", () => {
+    const workspace = mkdtempSync(join(tmpdir(), "ctx workspace café "));
+    process.env.CONTEXT_MODE_WORKSPACE = workspace;
+    delete process.env.CONTEXT_MODE_PROJECT_DIR;
+    delete process.env[STORAGE_ENV_KEY];
+
+    const root = resolveWorkspaceStateRoot();
+    expect(root).toBe(join(resolve(workspace), ".gestalt", "context-mode"));
+    expect(resolveSessionStorageDir(() => "/must-not-be-used").path).toBe(join(root!, "sessions"));
+    expect(resolveContentStorageDir(() => "/must-not-be-used").path).toBe(join(root!, "content"));
+    expect(resolveStatsStorageDir(() => "/must-not-be-used").path).toBe(join(root!, "sessions"));
+    expect(ensureWritableStorageDir(resolveSessionStorageDir(() => "/must-not-be-used"))).toBe(join(root!, "sessions"));
+    expect(existsSync(join(root!, "sessions"))).toBe(true);
+    rmSync(workspace, { recursive: true, force: true });
+  });
+
+  test("rejects a workspace root and symlinked state directory", () => {
+    expect(() => resolveWorkspaceStateRoot({ CONTEXT_MODE_WORKSPACE: resolve("/") })).toThrow("must not be a filesystem root");
+    if (process.platform === "win32") return;
+    const workspace = mkdtempSync(join(tmpdir(), "ctx-workspace-link-"));
+    const outside = mkdtempSync(join(tmpdir(), "ctx-outside-"));
+    symlinkSync(outside, join(workspace, ".gestalt"));
+    expect(() => resolveWorkspaceStateRoot({ CONTEXT_MODE_WORKSPACE: workspace })).toThrow(/symlink/);
+    rmSync(workspace, { recursive: true, force: true });
+    rmSync(outside, { recursive: true, force: true });
+  });
+
   test("uses adapter defaults when no storage override is set", () => {
     delete process.env[STORAGE_ENV_KEY];
 

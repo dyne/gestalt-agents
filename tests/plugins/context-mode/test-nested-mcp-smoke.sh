@@ -16,7 +16,7 @@ trap 'rm -rf "$tmp"' EXIT HUP INT TERM
 version=$(node -p "require('$root/plugins/context-mode/package.json').version")
 plugin="$tmp/cache/dyne-gestalt-agents/context-mode/$version"
 gestalt_home="$tmp/gestalt-home"
-mkdir -p "$(dirname -- "$plugin")" "$tmp/codex-home"
+mkdir -p "$(dirname -- "$plugin")" "$tmp/codex-home" "$tmp/workspace"
 mkdir -p "$plugin"
 tar -C "$root/plugins/context-mode" \
   --exclude=node_modules \
@@ -57,7 +57,7 @@ output=$(timeout 20s bash -c 'cd "$2"
   printf "%s\n%s\n" \
   "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{\"protocolVersion\":\"2025-03-26\",\"capabilities\":{},\"clientInfo\":{\"name\":\"nested-smoke\",\"version\":\"1\"}}}" \
   "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/list\",\"params\":{}}" | \
-  CONTEXT_MODE_PLATFORM=codex CODEX_HOME="$1" GESTALT_HOME="$3" node start.mjs' _ "$tmp/codex-home" "$plugin" "$gestalt_home" 2>&1 || true)
+  CONTEXT_MODE_PLATFORM=codex CONTEXT_MODE_WORKSPACE="$4" CODEX_HOME="$1" GESTALT_HOME="$3" node start.mjs' _ "$tmp/codex-home" "$plugin" "$gestalt_home" "$tmp/workspace" 2>&1 || true)
 
 python3 - "$output" "$plugin" <<'PY'
 import json

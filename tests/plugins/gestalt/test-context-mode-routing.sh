@@ -3,6 +3,7 @@ set -euo pipefail
 
 root=$(CDPATH= cd -- "$(dirname -- "$0")/../../.." && pwd)
 skill="$root/plugins/gestalt/skills/context-mode/SKILL.md"
+profiles="$root/plugins/gestalt/skills/org-plan/scripts/org-plan"
 passes=0
 
 expect() {
@@ -33,5 +34,15 @@ expect 'Do not invent aliases.'
 expect 'Do not print an entire JSON object, file, page,'
 expect 'Context-mode never writes and never authorizes a mutation'
 expect 'Do not use shell write tricks when a'
+
+# Generated supervised roles inherit the same bounded-provider contract:
+# provider prefixes are host-specific and an unavailable prerequisite stops
+# rather than attempting installation or inventing a replacement tool.
+expect 'provider-prefixed method'
+grep -F -- 'stop with that single missing prerequisite' "$profiles" >/dev/null || {
+  printf 'missing supervised missing-prerequisite contract\n' >&2
+  exit 1
+}
+passes=$((passes + 1))
 
 printf 'context-mode routing scenarios passed: %s\n' "$passes"

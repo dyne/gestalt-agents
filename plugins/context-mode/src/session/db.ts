@@ -15,6 +15,7 @@ import { execFileSync } from "node:child_process";
 import { accessSync, constants, existsSync, mkdirSync, realpathSync, renameSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, isAbsolute, join, resolve } from "node:path";
+import { resolveWorkspaceStateRoot } from "../workspace-state.js";
 
 // ─────────────────────────────────────────────────────────
 // Storage root resolution
@@ -124,6 +125,14 @@ function invalidStorageOverride(kind: StorageDirectoryKind, path: string, detail
 }
 
 function storageOverrideRoot(kind: StorageDirectoryKind): OverrideRoot {
+  const workspaceRoot = resolveWorkspaceStateRoot();
+  if (workspaceRoot) {
+    const configured = process.env[STORAGE_ROOT_ENV]?.trim();
+    if (configured && resolve(configured) !== workspaceRoot) {
+      throw invalidStorageOverride(kind, configured, `${STORAGE_ROOT_ENV} must equal the canonical workspace state root.`);
+    }
+    return { kind: "override", root: workspaceRoot };
+  }
   const raw = process.env[STORAGE_ROOT_ENV];
   if (raw === undefined) return { kind: "unset" };
 
