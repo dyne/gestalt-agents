@@ -62,6 +62,13 @@ for key in ("longDescription", "capabilities", "defaultPrompt"):
 assert (root / "plugins" / "context-mode" / "hooks" / "hooks.json").is_file(), (
     "context-mode default hooks manifest is missing"
 )
+assert (plugin / "scripts" / "ctx-doctor.mjs").is_file(), (
+    "ctx-doctor external-runtime bridge is missing"
+)
+doctor_skill = (plugin / "skills" / "ctx-doctor" / "SKILL.md").read_text()
+assert "<PLUGIN_ROOT>/scripts/ctx-doctor.mjs" in doctor_skill, (
+    "ctx-doctor fallback does not use the external-runtime bridge"
+)
 
 actual_skills = {
     path.parent.name
