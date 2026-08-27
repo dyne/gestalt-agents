@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
-import { existsSync, lstatSync, realpathSync, readdirSync, statSync, openSync, readSync, closeSync } from "node:fs";
+import { existsSync, lstatSync, realpathSync, readdirSync, openSync, readSync, closeSync } from "node:fs";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { ensureCodexHome } from "./scripts/codex-profile.mjs";
 import { getRuntimeRoot } from "./scripts/runtime-location.mjs";
@@ -32,7 +32,10 @@ function resolveCodexSessionWorkspace() {
   const codexHome = process.env.CODEX_HOME;
   if (!threadId || !codexHome) return null;
   const sessions = join(codexHome, "sessions");
+  const escapedThreadId = threadId.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const rolloutName = new RegExp(`^rollout-.+-${escapedThreadId}\\.jsonl$`);
   const stack = [[sessions, 0]];
+  const matches = [];
   let seen = 0;
   while (stack.length > 0 && seen < 10_000) {
     const [dir, depth] = stack.pop();
@@ -42,9 +45,15 @@ function resolveCodexSessionWorkspace() {
       if (++seen > 10_000) break;
       const file = join(dir, name);
       let stat;
-      try { stat = statSync(file); } catch { continue; }
+      try { stat = lstatSync(file); } catch { continue; }
+      if (stat.isSymbolicLink()) continue;
       if (stat.isDirectory() && depth < 4) { stack.push([file, depth + 1]); continue; }
-      if (!stat.isFile() || !name.endsWith(`${threadId}.jsonl`)) continue;
+      if (!stat.isFile() || (name !== `${threadId}.jsonl` && !rolloutName.test(name))) continue;
+      matches.push(file);
+    }
+  }
+  matches.sort();
+  for (const file of matches) {
       let fd;
       try {
         const buffer = Buffer.alloc(1024 * 1024);
@@ -57,7 +66,6 @@ function resolveCodexSessionWorkspace() {
         }
       } catch { /* malformed or transient transcript: bounded failure below */
       } finally { if (fd !== undefined) try { closeSync(fd); } catch {} }
-    }
   }
   return null;
 }
