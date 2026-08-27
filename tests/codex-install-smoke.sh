@@ -4,7 +4,8 @@ set -Eeuo pipefail
 root=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)
 codex_home=$(mktemp -d "$root/.codex-marketplace-smoke.XXXXXX")
 gestalt_home=$(mktemp -d "$root/.gestalt-runtime-smoke.XXXXXX")
-trap 'rm -rf "$codex_home" "$gestalt_home"' EXIT HUP INT TERM
+workspace=$(mktemp -d "$root/.context-mode-workspace-smoke.XXXXXX")
+trap 'rm -rf "$codex_home" "$gestalt_home" "$workspace"' EXIT HUP INT TERM
 
 CODEX_HOME="$codex_home" codex plugin marketplace add "$root" >/dev/null
 mkdir -p "$codex_home/agents"
@@ -60,7 +61,8 @@ grep -F 'verified 13 enabled Gestalt skills in skills/list' "$codex_home/skills-
 context_version=$(node -p "JSON.parse(require('node:fs').readFileSync(process.argv[1], 'utf8')).installed.find(x => x.name === 'context-mode').version" "$codex_home/plugins.json")
 context_cache="$codex_home/plugins/cache/dyne-gestalt-agents/context-mode/$context_version"
 printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"codex-install-smoke","version":"1"}}}' |
-  timeout 20s env CODEX_HOME="$codex_home" GESTALT_HOME="$gestalt_home" node "$context_cache/start.mjs" >"$codex_home/mcp.out"
+  timeout 20s env CODEX_HOME="$codex_home" GESTALT_HOME="$gestalt_home" CONTEXT_MODE_WORKSPACE="$workspace" \
+    node "$context_cache/start.mjs" >"$codex_home/mcp.out"
 python3 - "$codex_home/mcp.out" <<'PY'
 import json
 import sys
