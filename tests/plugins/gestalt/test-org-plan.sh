@@ -33,6 +33,10 @@ expect_ok "$helper" --help
 expect_contains "$tmp/out" 'usage: org-plan COMMAND [args]'
 expect_ok "$helper" signal --help
 expect_contains "$tmp/out" 'usage: org-plan signal PLAN [REASON]'
+expect_ok "$helper" supervision-start --help
+expect_contains "$tmp/out" 'usage: org-plan supervision-start PLAN'
+expect_ok "$helper" status --help
+expect_contains "$tmp/out" 'usage: org-plan status PLAN'
 expect_ok "$helper" prepare-supervision --help
 expect_contains "$tmp/out" 'setup-only: installs or refreshes supervised role profiles'
 test ! -e "$tmp/.codex/agents/org-plan-reviewer.toml" && pass || fail 'prepare-supervision help has no setup side effect'
@@ -153,6 +157,9 @@ printf '%s\n' \
   'L1 REVIEWED=1' \
   'L1 UNREVIEWED=1' >"$tmp/expected-summary"
 cmp -s "$tmp/expected-summary" "$tmp/out" && pass || fail 'summary preserves execution-state line order before review counts'
+cp "$tmp/out" "$tmp/summary-output"
+expect_ok "$helper" status "$tmp/multi.org"
+cmp -s "$tmp/summary-output" "$tmp/out" && pass || fail 'status is a read-only compatibility alias for summary'
 expect_ok "$helper" l2 "$tmp/multi.org" 'Second task|Run tests'
 expect_contains "$tmp/out" 'second-task'
 expect_fail "$helper" l2 "$tmp/multi.org" '['
@@ -196,6 +203,9 @@ copy valid-multi.org projection-multiple-active.org
 sed -e 's/^\* WIP \[#A\]/\* DONE [#A]/' -e 's/^\*\* WIP \[#B\]/\*\* DONE [#B]/' -e 's/^\* TODO \[#B\]/\* WIP [#B]/' -e 's/^\*\* TODO \[#A\]/\*\* WIP [#A]/' "$tmp/projection-multiple-active.org" >"$tmp/changed" && mv "$tmp/changed" "$tmp/projection-multiple-active.org"
 expect_fail "$helper" projection "$tmp/projection-multiple-active.org"
 expect_contains "$tmp/err" 'native projection has multiple in_progress L1 items'
+expect_contains "$tmp/err" 'L1 1 first-outcome (DONE + UNREVIEWED)'
+expect_contains "$tmp/err" 'L1 2 second-outcome (WIP)'
+expect_contains "$tmp/err" 'review the earlier DONE + UNREVIEWED L1 before continuing the later WIP L1'
 
 copy valid-multi.org review-order.org
 sed \
@@ -756,6 +766,8 @@ assert document["reason"] == "supervision-start"
 assert set(document) == {"schemaVersion", "planPath", "reason", "updatedAt"}
 datetime.datetime.fromisoformat(document["updatedAt"].replace("Z", "+00:00"))
 ' "$status_file" "$status_plan" && pass || fail 'signal writes the versioned canonical JSON envelope'
+expect_ok env GESTALT_MOBILE_ORG_PLAN_STATUS_FILE="$status_file" "$helper" supervision-start "$status_plan"
+python3 -c 'import json, sys; assert json.load(open(sys.argv[1], encoding="utf-8"))["reason"] == "supervision-start"' "$status_file" && pass || fail 'supervision-start is a compatibility alias for the lifecycle signal'
 expect_ok env GESTALT_MOBILE_ORG_PLAN_STATUS_FILE="$status_file" "$helper" signal "$status_plan" authoring-start
 python3 -c 'import json, sys; assert json.load(open(sys.argv[1], encoding="utf-8"))["reason"] == "authoring-start"' "$status_file" && pass || fail 'authoring-start preserves its Plan-tab signal reason'
 expect_ok env GESTALT_MOBILE_ORG_PLAN_STATUS_FILE="$status_file" "$helper" signal "$status_plan" work-start
@@ -844,10 +856,12 @@ expect_contains "$skill" 'Use helper commands for TODO and review transitions'
 expect_contains "$skill" 'Do not run `prepare-supervision` during ordinary supervision'
 expect_contains "$supervised" 'Reuse the exact supplied plan path'
 expect_contains "$supervised" 'Do not rediscover it with `find` or `rg`'
+expect_contains "$supervised" 'The first tool call reads this skill completely and performs no other command'
 expect_contains "$supervised" 'Do not probe helper source or help before starting'
 expect_contains "$agents" 'Do not run `prepare-supervision` during ordinary supervised execution'
 expect_contains "$cli_state" '`org-plan signal PLAN resync`'
 expect_contains "$supervision_dir/org-plan-reviewer.toml" 'org-plan signal PLAN supervision-start'
+expect_contains "$supervision_dir/org-plan-reviewer.toml" 'The first tool call reads the org-plan skill completely and performs no other command'
 expect_contains "$supervision_dir/org-plan-reviewer.toml" 'org-plan signal PLAN authoring-start'
 expect_contains "$supervision_dir/org-plan-reviewer.toml" 'org-plan signal PLAN work-start'
 expect_contains "$supervision_dir/org-plan-reviewer.toml" 'org-plan measure start|checkpoint|finish PLAN ID SNAPSHOT_JSON'

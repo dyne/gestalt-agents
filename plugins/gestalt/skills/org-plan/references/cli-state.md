@@ -19,6 +19,9 @@ state.
 | Resync after external plan correction | `org-plan signal PLAN resync` |
 
 Signals are safe no-ops when Gestalt Mobile status integration is absent.
+For startup compatibility, `org-plan supervision-start PLAN` is an exact alias
+for the supervision signal, and `org-plan status PLAN` is a read-only alias for
+`org-plan summary PLAN`.
 
 ## Native Codex plan projection
 

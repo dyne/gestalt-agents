@@ -7,7 +7,7 @@ show_help() {
   # shellcheck disable=SC2016
   printf '%s\n' \
     'usage: org-plan COMMAND [args]' \
-    'commands: validate|next|summary|describe|projection|review|l2|measure|set|signal|prepare-executor|prepare-supervision' \
+    'commands: validate|next|summary|status|describe|projection|review|l2|measure|set|signal|supervision-start|prepare-executor|prepare-supervision' \
     'run `org-plan COMMAND --help` for exact command arguments'
 }
 show_command_help() {
@@ -15,6 +15,7 @@ show_command_help() {
     validate) printf 'usage: org-plan validate PLAN\n' ;;
     next) printf 'usage: org-plan next PLAN {l1|l2|review}\n' ;;
     summary) printf 'usage: org-plan summary PLAN\n' ;;
+    status) printf 'usage: org-plan status PLAN\n' ;;
     describe) printf 'usage: org-plan describe PLAN ID\n' ;;
     projection) printf 'usage: org-plan projection PLAN\n' ;;
     review) printf 'usage: org-plan review PLAN L1_ID {REVIEWED|UNREVIEWED}\n' ;;
@@ -22,6 +23,7 @@ show_command_help() {
     measure) printf 'usage: org-plan measure {start|checkpoint|finish} PLAN ID SNAPSHOT_JSON\n' ;;
     set) printf 'usage: org-plan set PLAN L1_ID {TODO|WIP|DONE} [--force]\n' ;;
     signal) printf 'usage: org-plan signal PLAN [REASON]\n' ;;
+    supervision-start) printf 'usage: org-plan supervision-start PLAN\n' ;;
     prepare-executor)
       printf '%s\n' \
         'usage: org-plan prepare-executor [--model MODEL] [--agents-dir DIR] [--profile-name NAME]' \
@@ -168,15 +170,20 @@ bounded_text() {
 
 projection() {
   local i j position=0 total=0 reviewed=0 active=0 active_index=-1 active_position=0 status title goal current_l2='' explanation l2_position l2_total
+  local l1_position=0 active_details='' active_state
   for ((i=0; i<count; i++)); do (( levels[$i] == 1 )) && total=$((total + 1)); done
   for ((i=0; i<count; i++)); do
     (( levels[$i] == 1 )) || continue
+    l1_position=$((l1_position + 1))
     [[ ${states[$i]} == DONE && ${review_status[$i]} == REVIEWED ]] && reviewed=$((reviewed + 1))
     if [[ ${states[$i]} == WIP || (${states[$i]} == DONE && ${review_status[$i]} == UNREVIEWED) ]]; then
       active=$((active + 1)); active_index=$i
+      active_state=${states[$i]}
+      [[ $active_state != DONE ]] || active_state='DONE + UNREVIEWED'
+      active_details+="${active_details:+; }L1 $l1_position ${ids[$i]} ($active_state)"
     fi
   done
-  (( active <= 1 )) || die 'native projection has multiple in_progress L1 items'
+  (( active <= 1 )) || die "native projection has multiple in_progress L1 items: $active_details; review the earlier DONE + UNREVIEWED L1 before continuing the later WIP L1"
   if (( active_index >= 0 )); then
     for ((i=0; i<count; i++)); do (( levels[$i] == 1 && i <= active_index )) && active_position=$((active_position + 1)); done
     goal=${field_value[$active_index:Goal]:-${field_value[$active_index:Why]:-}}
@@ -309,7 +316,7 @@ attention_contract_requirements() {
 }
 
 routing_contract_requirements() {
-  printf '%s' ' Use host-native filesystem tools for governing instructions, small bounded reads, edits, mutations, and short command interaction; use context-mode only for large or uncertain analysis, filtering, indexing, and retrieval. Context-mode never writes or changes Org state.'
+  printf '%s' ' The first tool call reads the org-plan skill completely and performs no other command; only after that standalone read returns may you inspect other guidance, the plan, or repository state. Use host-native filesystem tools for governing instructions, small bounded reads, edits, mutations, and short command interaction; use context-mode only for large or uncertain analysis, filtering, indexing, and retrieval. Context-mode never writes or changes Org state.'
 }
 
 written_profile=
@@ -552,7 +559,7 @@ case $cmd in
       l2) p=$(active_l1) || exit 1; for ((i=0;i<count;i++)); do (( levels[$i] == 2 && parents[$i] == p )) && [[ ${states[$i]} == WIP ]] && { print_item "$i"; exit; }; done; for ((i=0;i<count;i++)); do (( levels[$i] == 2 && parents[$i] == p )) && [[ ${states[$i]} == TODO ]] && { print_item "$i"; exit; }; done; exit 1 ;;
       review) for ((i=0;i<count;i++)); do (( levels[$i] == 1 )) && [[ ${states[$i]} == DONE && ${review_status[$i]} == UNREVIEWED ]] && { print_item "$i"; exit; }; done; exit 1 ;;
       *) usage;; esac ;;
-  summary)
+  summary|status)
     [ $# = 1 ] || usage; parse "$1"
     for s in TODO WIP DONE; do n=0; for ((i=0;i<count;i++)); do (( levels[i] == 1 )) && [[ ${states[i]} == "$s" ]] && n=$((n+1)); done; printf 'L1 %s=%s\n' "$s" "$n"; done
     for s in TODO WIP DONE; do n=0; for ((i=0;i<count;i++)); do (( levels[i] == 2 )) && [[ ${states[i]} == "$s" ]] && n=$((n+1)); done; printf 'L2 %s=%s\n' "$s" "$n"; done
@@ -622,5 +629,10 @@ case $cmd in
     original=$1; parse "$original"
     publish_plan_status "$original" "${2:-signal}" || exit 1
     printf 'signal=published plan=%s reason=%s\n' "$(encode_record_value "$(canonical_plan_path "$original")")" "$(encode_record_value "${2:-signal}")" ;;
+  supervision-start)
+    [ $# = 1 ] || usage
+    original=$1; parse "$original"
+    publish_plan_status "$original" supervision-start || exit 1
+    printf 'signal=published plan=%s reason=supervision-start\n' "$(encode_record_value "$(canonical_plan_path "$original")")" ;;
   *) usage ;;
 esac
