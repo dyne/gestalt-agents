@@ -36,6 +36,11 @@ L1 position 2 uses `l2`; its fifth L2 child uses `l2_5` and displays as `L2.5`.
 
 ## Start supervision
 
+The first tool call reads this skill completely and performs no other command.
+Only after that standalone read returns may the root inspect guidance, the plan,
+or repository state. This keeps discovery from running before the governing
+startup contract has been loaded.
+
 Treat the loaded skill directory and the plan path supplied by the user, host,
 or authoring handoff as startup inputs. Reuse the exact supplied plan path.
 Do not rediscover it with `find` or `rg`, and do not substitute
