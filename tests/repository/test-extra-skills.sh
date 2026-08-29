@@ -13,15 +13,19 @@ tmp=$(mktemp -d "${TMPDIR:-/tmp}/extra-skills-test.XXXXXX")
 tmp=$(CDPATH='' cd -- "$tmp" && pwd -P)
 trap 'rm -rf "$tmp"' EXIT HUP INT TERM
 mkdir -p "$tmp/bin" "$tmp/home"
+TEST_REAL_NODE=$(command -v node)
+[[ $TEST_REAL_NODE == /* && -x $TEST_REAL_NODE ]] ||
+  fail "cannot resolve the real Node.js executable"
+export TEST_REAL_NODE
 
 cat >"$tmp/bin/node" <<'SH'
 #!/usr/bin/env bash
 if [[ -n ${UNEXPECTED_SETUP_LOG:-} ]]; then printf 'node\n' >>"$UNEXPECTED_SETUP_LOG"; fi
 case ${1:-} in
   -p) printf '22.12.0\n' ;;
-  -e) exec /usr/bin/node "$@" ;;
+  -e) exec "$TEST_REAL_NODE" "$@" ;;
   *install-runtime.mjs) mkdir -p "$GESTALT_HOME" ;;
-  *configure-codex.mjs) exec /usr/bin/node "$@" ;;
+  *configure-codex.mjs) exec "$TEST_REAL_NODE" "$@" ;;
 esac
 SH
 cat >"$tmp/bin/npm" <<'SH'
