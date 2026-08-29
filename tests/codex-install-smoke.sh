@@ -9,7 +9,7 @@ trap 'rm -rf "$codex_home" "$gestalt_home" "$workspace"' EXIT HUP INT TERM
 
 CODEX_HOME="$codex_home" codex plugin marketplace add "$root" >/dev/null
 mkdir -p "$codex_home/agents"
-printf 'legacy supervisor\n' >"$codex_home/agents/org-plan-supervisor.toml"
+printf 'developer_instructions = "legacy supervisor"\n' >"$codex_home/agents/org-plan-supervisor.toml"
 printf 'approval_policy = "never"\n' >"$codex_home/config.toml"
 CODEX_HOME="$codex_home" GESTALT_HOME="$gestalt_home" CONTEXT_MODE_PACKAGE_MANAGER=npm \
   bash "$root/gestalt-setup.sh" >/dev/null
@@ -24,7 +24,9 @@ from pathlib import Path
 payload = json.loads(Path(sys.argv[1]).read_text())
 installed = {item["name"]: item for item in payload["installed"]}
 assert set(installed) == {"gestalt", "context-mode"}, installed
-assert all(item["installed"] and item["enabled"] for item in installed.values())
+assert all(item["installed"] for item in installed.values())
+assert installed["gestalt"]["enabled"]
+assert not installed["context-mode"]["enabled"]
 assert all(item["marketplaceName"] == "dyne-gestalt-agents" for item in installed.values())
 
 codex_home = Path(sys.argv[2])
@@ -51,7 +53,20 @@ assert (codex_home / "agents/org-plan-reviewer.toml").is_file()
 assert (codex_home / "agents/org-plan-executor.toml").is_file()
 assert not (codex_home / "agents/org-plan-supervisor.toml").exists()
 assert (codex_home / "bin/org-plan").is_file()
-assert 'approval_policy = "never"' in (codex_home / "config.toml").read_text()
+config = (codex_home / "config.toml").read_text()
+assert 'approval_policy = "never"' in config
+assert "[features]\nhooks = true" in config
+assert "[mcp_servers.context-mode]" in config
+assert "required = true" in config
+assert '[plugins."context-mode@dyne-gestalt-agents"]\nenabled = false' in config
+assert (codex_home / "bin/context-mode-mcp.mjs").is_file()
+assert (codex_home / "bin/context-mode-hook.mjs").is_file()
+hooks = json.loads((codex_home / "hooks.json").read_text())
+assert set(hooks["hooks"]) == {
+    "PreToolUse", "PostToolUse", "SessionStart", "PreCompact", "UserPromptSubmit", "Stop"
+}
+for entries in hooks["hooks"].values():
+    assert any("context-mode-hook.mjs" in hook["command"] for entry in entries for hook in entry["hooks"])
 PY
 
 CODEX_HOME="$codex_home" node "$root/scripts/verify-gestalt-skill-catalog.mjs" "$root" \
@@ -74,5 +89,23 @@ assert any(
     for item in messages
 ), messages
 PY
+
+CODEX_HOME="$codex_home" GESTALT_HOME="$gestalt_home" \
+  node "$root/tests/helpers/assert-codex-mcp-tools.mjs" "$workspace" \
+    ctx_execute ctx_execute_file ctx_batch_execute ctx_index ctx_search
+
+before=$(sha256sum \
+  "$codex_home/config.toml" \
+  "$codex_home/hooks.json" \
+  "$codex_home/bin/context-mode-mcp.mjs" \
+  "$codex_home/bin/context-mode-hook.mjs")
+CODEX_HOME="$codex_home" GESTALT_HOME="$gestalt_home" CONTEXT_MODE_PACKAGE_MANAGER=npm \
+  bash "$root/gestalt-setup.sh" >/dev/null
+after=$(sha256sum \
+  "$codex_home/config.toml" \
+  "$codex_home/hooks.json" \
+  "$codex_home/bin/context-mode-mcp.mjs" \
+  "$codex_home/bin/context-mode-hook.mjs")
+test "$before" = "$after"
 
 printf 'Codex marketplace installation smoke test passed\n'

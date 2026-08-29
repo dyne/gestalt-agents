@@ -26,8 +26,11 @@ Marketplace installation does not run the setup script automatically. The
 script installs both plugins, prepares a stable context-mode runtime under
 `${GESTALT_HOME:-$HOME/.gestalt}`, verifies its artifact manifest, generates the
 reviewer and executor profiles, and removes the retired supervisor profile. It
-does not create, validate, or rewrite `config.toml`. Run setup again after a
-marketplace upgrade.
+reconciles a native context-mode MCP entry, enables stable hooks, and installs
+user-level hook launchers. Existing unrelated TOML and hook entries are
+preserved, and repeating setup makes no further changes. Run setup again after
+a marketplace upgrade; this also repairs older installations that have the
+runtime but lack one or more registrations.
 
 Useful modes:
 
@@ -48,15 +51,17 @@ in `CODEX_HOME/skills` and preserves entries that already exist there.
 `--extra-skills-only` skips runtime preparation, marketplace registration,
 plugin installation, and profile generation.
 
-No configuration override is required: current Codex defaults V1 agent depth
-to one and enables stable lifecycle hooks. The former `features.plugin_hooks`
-flag has been removed. An older explicit `agents.max_depth = 2` override should
-be removed or changed to `1`.
+Current Codex defaults V1 agent depth to one. The former
+`features.plugin_hooks` flag has been removed; setup enables the stable
+`features.hooks` gate used by the generated `hooks.json`. An older explicit
+`agents.max_depth = 2` override should be removed or changed to `1`.
 
 Start Codex with `CODEX_HOME="$HOME/.codex-gestalt"` after setup or
-configuration changes. The plugin manifest registers the MCP server, and Codex
-discovers the hooks from `hooks/hooks.json`. Do not add duplicate MCP or hook
-configuration.
+configuration changes. Setup retains the context-mode plugin package as the
+implementation source but disables its manifest contribution, then registers
+one native MCP launcher and one user-level hook set. This compatibility bridge
+is necessary because current Codex does not supply a session workspace to
+plugin MCP children. Do not add duplicate MCP or hook configuration.
 
 Verify the installation with:
 
@@ -168,9 +173,11 @@ The repository-level setup script is the required pre-flight because Codex has
 no marketplace install-build hook, generated bundles are not committed, and
 Codex may rematerialize its plugin cache when a session starts.
 
-The context-mode plugin exposes only its Codex MCP and hook surfaces. Hooks use
-Codex's auto-discovered `hooks/hooks.json` path, so the plugin manifest does not
-declare a custom `hooks` field.
+The context-mode plugin contains the Codex MCP and hook implementations. Setup
+installs stable launchers under `CODEX_HOME/bin`, registers the native MCP in
+`config.toml`, and merges the lifecycle entries into `CODEX_HOME/hooks.json`.
+The cache-local manifest remains a packaging fallback, but setup disables that
+contribution to prevent duplicate servers and hooks.
 
 ## Maintainer verification
 

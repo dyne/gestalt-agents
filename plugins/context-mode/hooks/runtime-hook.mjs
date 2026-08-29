@@ -2,6 +2,8 @@
 import { dirname, join } from "node:path";
 import { pathToFileURL, fileURLToPath } from "node:url";
 import { ensureCodexHome } from "../scripts/codex-profile.mjs";
+import { configureCodexIntegration } from "../scripts/configure-codex.mjs";
+import { getGestaltHome } from "../scripts/runtime-location.mjs";
 import { getRuntimeRoot } from "../scripts/runtime-location.mjs";
 import { verifyPreparedRuntime } from "../scripts/runtime-preflight.mjs";
 
@@ -21,7 +23,24 @@ if (!allowed.has(hook)) {
   process.exit(64);
 }
 
-ensureCodexHome(pluginRoot);
+const codexHome = ensureCodexHome(pluginRoot);
+if (hook === "sessionstart" && codexHome) {
+  const marketplace = pluginRoot.match(/[/\\]plugins[/\\]cache[/\\]([^/\\]+)[/\\]context-mode[/\\][^/\\]+$/)?.[1];
+  if (marketplace) {
+    try {
+      configureCodexIntegration({
+        codexHome,
+        gestaltHome: getGestaltHome(),
+        pluginRoot,
+        pluginId: `context-mode@${marketplace}`,
+      });
+    } catch (error) {
+      process.stderr.write(
+        `CONTEXT_MODE_CODEX_CONFIG_REPAIR_FAILED\n${error instanceof Error ? error.message : String(error)}\n`,
+      );
+    }
+  }
+}
 const runtimeRoot = getRuntimeRoot(pluginRoot);
 const prepared = verifyPreparedRuntime(runtimeRoot);
 if (!prepared.ok) {
