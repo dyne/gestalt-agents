@@ -19,7 +19,9 @@ cat >"$tmp/bin/node" <<'SH'
 if [[ -n ${UNEXPECTED_SETUP_LOG:-} ]]; then printf 'node\n' >>"$UNEXPECTED_SETUP_LOG"; fi
 case ${1:-} in
   -p) printf '22.12.0\n' ;;
-  -e) printf 'dyne-gestalt-agents' ;;
+  -e) exec /usr/bin/node "$@" ;;
+  *install-runtime.mjs) mkdir -p "$GESTALT_HOME" ;;
+  *configure-codex.mjs) exec /usr/bin/node "$@" ;;
 esac
 SH
 cat >"$tmp/bin/npm" <<'SH'
@@ -32,6 +34,13 @@ cat >"$tmp/bin/codex" <<'SH'
 if [[ -n ${UNEXPECTED_SETUP_LOG:-} ]]; then printf 'codex\n' >>"$UNEXPECTED_SETUP_LOG"; fi
 if [[ $* == 'plugin marketplace list' ]]; then
   printf 'Marketplace  Path\n'
+elif [[ $* == plugin\ add\ context-mode@* ]]; then
+  root="$CODEX_HOME/plugins/cache/dyne-gestalt-agents/context-mode/test"
+  mkdir -p "$root/hooks"
+  printf '// test\n' >"$root/start.mjs"
+  printf '// test\n' >"$root/hooks/runtime-hook.mjs"
+elif [[ $* == 'plugin list --marketplace dyne-gestalt-agents --json' ]]; then
+  printf '%s\n' '{"installed":[{"name":"context-mode","installed":true,"version":"test"}]}'
 fi
 SH
 cat >"$tmp/bin/npx" <<'SH'

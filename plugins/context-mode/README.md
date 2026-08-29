@@ -33,6 +33,11 @@ automatic dependency-installer selection.
 Run setup again after an upgrade. Use `--prepare-only` for only the external runtime,
 `--force` to rebuild, or `--dry-run` to inspect mutations.
 
+Setup also repairs the Codex integration in place. It enables stable hooks,
+merges context-mode entries into `CODEX_HOME/hooks.json`, and registers a native
+MCP launcher in `config.toml` without replacing unrelated user settings.
+Repeated setup is byte-idempotent.
+
 ## Startup contract
 
 Codex starts `node ./start.mjs`. The launcher only:
@@ -47,9 +52,12 @@ exits with code 78 and `CONTEXT_MODE_NOT_PREPARED` so the failure is immediate
 instead of timing out during the MCP handshake. Codex may replace its plugin
 cache without affecting the prepared runtime.
 
-The plugin manifest registers `.mcp.json`, while Codex discovers lifecycle
-hooks from the conventional `hooks/hooks.json` path. Do not add duplicate MCP
-or hook configuration manually.
+The package includes `.mcp.json` and `hooks/hooks.json` as its portable plugin
+surfaces. For current Codex, setup disables that manifest contribution and uses
+stable user-level launchers instead. Codex does not currently pass the session
+workspace to a plugin MCP child, while the native launcher inherits the Codex
+process workspace and completes the MCP handshake. Do not add duplicate MCP or
+hook configuration manually; rerun setup to reconcile it.
 
 ## Development
 

@@ -29,6 +29,14 @@ and contents while excluding generated dependencies and build artifacts.
   temporary directories still run preparation. This avoids dependence on
   Codex's replaceable plugin cache.
 - Routes Codex hooks through a cache-local launcher into the external runtime.
+- Adds an idempotent Codex integration reconciler. Marketplace setup and a
+  legacy plugin `SessionStart` hook repair native MCP registration, stable-hook
+  enablement, user-level hook launchers, and incomplete older installations
+  while preserving unrelated TOML and JSON entries.
+- Disables the plugin manifest contribution after installing its package and
+  registers a native workspace-inheriting MCP launcher instead. This works
+  around current Codex builds omitting session/workspace variables from plugin
+  MCP child environments without starting duplicate servers or hooks.
 - Treats Codex stable hooks as enabled when no explicit feature override exists,
   and recognizes the context-mode plugin under any Codex marketplace name.
 - Validates plugin-provided hooks at Codex's conventional `hooks/hooks.json`

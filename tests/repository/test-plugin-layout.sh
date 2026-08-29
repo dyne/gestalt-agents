@@ -168,7 +168,8 @@ for upgrade_contract in (
     "generates `org-plan-reviewer` and `org-plan-executor`",
     "~/.codex-gestalt/agents/org-plan-supervisor.toml",
     "agents.max_depth = 2",
-    "does not create, validate, or",
+    "context-mode MCP and lifecycle-hook entries",
+    "byte-idempotent",
     "features.plugin_hooks",
     "./gestalt-setup.sh --force",
 ):

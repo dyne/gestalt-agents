@@ -12,6 +12,7 @@ const required = [
   "start.mjs",
   "scripts/prepare-runtime.mjs",
   "scripts/install-runtime.mjs",
+  "scripts/configure-codex.mjs",
   "scripts/runtime-location.mjs",
   "scripts/runtime-preflight.mjs",
   "hooks/runtime-hook.mjs",

@@ -5,6 +5,7 @@ set -Eeuo pipefail
 script_dir=$(CDPATH='' cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
 marketplace_file="$script_dir/.agents/plugins/marketplace.json"
 context_source="$script_dir/plugins/context-mode"
+context_configurator="$context_source/scripts/configure-codex.mjs"
 org_plan="$script_dir/plugins/gestalt/skills/org-plan/scripts/org-plan"
 catalog_verifier="$script_dir/scripts/verify-gestalt-skill-catalog.mjs"
 setup_args=("$@")
@@ -191,6 +192,7 @@ fi
 
 [[ -f $marketplace_file ]] || die "marketplace manifest not found: $marketplace_file"
 [[ -f $context_source/scripts/install-runtime.mjs ]] || die "context-mode runtime installer not found"
+[[ -f $context_configurator ]] || die "context-mode Codex configurator not found"
 [[ -x $org_plan ]] || die "Org Plan helper is not executable: $org_plan"
 [[ -f $catalog_verifier ]] || die "Gestalt skill catalog verifier is missing: $catalog_verifier"
 command -v node >/dev/null 2>&1 || die "Node.js 22.5 or newer is required"
@@ -265,6 +267,31 @@ fi
 
 run codex plugin add "context-mode@$marketplace_name"
 run codex plugin add "gestalt@$marketplace_name"
+
+if "$dry_run"; then
+  printf 'DRY-RUN: configure context-mode MCP and hooks under %q\n' "$codex_root"
+else
+  context_version=$(codex plugin list --marketplace "$marketplace_name" --json | node -e '
+    let source = "";
+    process.stdin.on("data", (chunk) => { source += chunk; });
+    process.stdin.on("end", () => {
+      const payload = JSON.parse(source);
+      const plugin = payload.installed.find((item) => item.name === "context-mode");
+      if (!plugin?.installed || typeof plugin.version !== "string" || !plugin.version) process.exit(1);
+      process.stdout.write(plugin.version);
+    });
+  ') || die "cannot resolve installed context-mode version"
+  context_plugin_root="$codex_root/plugins/cache/$marketplace_name/context-mode/$context_version"
+  [[ -f $context_plugin_root/start.mjs ]] || die "installed context-mode launcher is missing: $context_plugin_root/start.mjs"
+  gestalt_root=${GESTALT_HOME:-${HOME:?HOME is required}/.gestalt}
+  [[ $gestalt_root == /* ]] || die "GESTALT_HOME must be an absolute path: $gestalt_root"
+  gestalt_root=$(CDPATH='' cd -- "$gestalt_root" && pwd -P) || die "cannot resolve GESTALT_HOME: $gestalt_root"
+  node "$context_configurator" \
+    --codex-home "$codex_root" \
+    --gestalt-home "$gestalt_root" \
+    --plugin-root "$context_plugin_root" \
+    --plugin-id "context-mode@$marketplace_name"
+fi
 
 if "$extra_skills"; then
   run install_extra_skills "$codex_root/skills"

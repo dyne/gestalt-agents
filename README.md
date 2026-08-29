@@ -92,14 +92,18 @@ snapshot automatically and preserves its arguments.
 The script defaults `CODEX_HOME` to `~/.codex-gestalt`, installs both plugins,
 and prepares context-mode under `~/.gestalt`. Setup generates `org-plan-reviewer` and `org-plan-executor`,
 then removes the obsolete
-`~/.codex-gestalt/agents/org-plan-supervisor.toml`. It does not create,
-validate, or rewrite `config.toml`; `codex plugin add` only records the installed
-plugins.
+`~/.codex-gestalt/agents/org-plan-supervisor.toml`. It also reconciles the
+context-mode MCP and lifecycle-hook entries in `config.toml` and `hooks.json`.
+The reconciler preserves unrelated settings and is byte-idempotent. It disables
+the plugin-manifest contribution while retaining the installed package, because
+current Codex does not pass its session workspace to plugin MCP children; the
+native launcher supplies the Codex process workspace and avoids duplicate MCP
+and hook registrations.
 Current Codex already defaults the V1 agent depth to one and enables stable
 lifecycle hooks. The former `features.plugin_hooks` flag has been removed, so
-Gestalt needs no configuration override. On an older installation, remove an
-`agents.max_depth = 2` override; setup does not create, validate, or rewrite
-Codex configuration.
+Gestalt only enables the stable `features.hooks` gate required by its generated
+hook configuration. On an older installation, remove an
+`agents.max_depth = 2` override.
 
 Setup also verifies the app-server's real `skills/list` response contains every
 enabled `$gestalt:<skill-name>` distributed by the installed release. Setup
@@ -146,9 +150,10 @@ codex plugin marketplace upgrade dyne-gestalt-agents
 "$CODEX_HOME/.tmp/marketplaces/dyne-gestalt-agents/gestalt-setup.sh"
 ```
 
-Do not add duplicate MCP or hook configuration. If startup still fails after
-forced preparation, confirm that another context-mode marketplace variant is
-not also enabled. `CONTEXT_MODE_NOT_PREPARED` identifies a missing, incompatible,
+Do not add duplicate MCP or hook configuration; rerun setup to repair old or
+partial registrations. If startup still fails after forced preparation,
+confirm that another context-mode marketplace variant is not also enabled.
+`CONTEXT_MODE_NOT_PREPARED` identifies a missing, incompatible,
 or damaged external runtime; rerun setup with `--force` and restart Codex. MCP
 and hook startup are side-effect free: only setup installs, builds, or repairs
 the external runtime.
