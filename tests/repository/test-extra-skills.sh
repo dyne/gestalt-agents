@@ -39,13 +39,13 @@ if [[ -n ${UNEXPECTED_SETUP_LOG:-} ]]; then printf 'codex\n' >>"$UNEXPECTED_SETU
 if [[ $* == 'plugin marketplace list' ]]; then
   printf 'Marketplace  Path\n'
 elif [[ $* == plugin\ add\ context-mode@* ]]; then
-  root="$CODEX_HOME/plugins/cache/dyne-gestalt-agents/context-mode/0.0.0-test"
+  root="$CODEX_HOME/plugins/cache/dyne-gestalt-agents/context-mode/2.5.4"
   mkdir -p "$root/hooks"
-  printf '%s\n' '{"version":"0.0.0-test"}' >"$root/package.json"
+  printf '%s\n' '{"version":"2.5.4"}' >"$root/package.json"
   printf '// test\n' >"$root/start.mjs"
   printf '// test\n' >"$root/hooks/runtime-hook.mjs"
 elif [[ $* == 'plugin list --marketplace dyne-gestalt-agents --json' ]]; then
-  printf '%s\n' '{"installed":[{"name":"context-mode","installed":true,"version":"0.0.0-test"}]}'
+  printf '%s\n' '{"installed":[{"name":"context-mode","installed":true,"version":"2.5.4"}]}'
 fi
 SH
 cat >"$tmp/bin/npx" <<'SH'

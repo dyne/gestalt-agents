@@ -27,8 +27,8 @@ function requireAbsolute(path, label) {
 
 function requireVersionedPluginRoot(pluginRoot) {
   const expectedVersion = pluginRoot.split(/[\\/]/).at(-1);
-  if (!/^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/.test(expectedVersion ?? "")) {
-    throw new Error(`context-mode plugin root must end with its package version: ${pluginRoot}`);
+  if (!/^\d+\.\d+\.\d+$/.test(expectedVersion ?? "")) {
+    throw new Error(`context-mode plugin root must end with a stable package version: ${pluginRoot}`);
   }
   let packageVersion;
   try {
