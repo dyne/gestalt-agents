@@ -17,6 +17,8 @@ try {
   const mutation = mutate(planPath, "l1", "first-outcome", "WIP");
   assert.equal(mutation.before.state, "TODO");
   assert.equal(mutation.after.state, "WIP");
+  assert.throws(() => mutate(planPath, "l1", "first-task", "WIP"), /is not an L1/);
+  assert.equal(readPlan(planPath).items.find((item) => item.id === "first-task").state, "TODO");
   const statusDirectory = join(temporary, "status");
   mkdirSync(statusDirectory, { mode: 0o700 });
   const old = process.env.GESTALT_MOBILE_ORG_PLAN_STATUS_DIRECTORY;
@@ -48,13 +50,32 @@ try {
   request(3, "tools/call", { name: "org_plan_l1_transition", arguments: { plan: planPath, id: "first-outcome", state: "WIP" } });
   request(4, "tools/call", { name: "org_plan_measure", arguments: { plan: planPath, id: "first-outcome", operation: "start", snapshot: { observedAt: "2026-08-31T12:00:00Z", tokensUsed: 10 } } });
   request(5, "tools/call", { name: "org_plan_signal", arguments: { plan: planPath, reason: "mcp-integration" } });
-  await new Promise((resolve, reject) => { const timer = setTimeout(() => reject(new Error("MCP server did not answer")), 3000); const poll = () => { if (messages.length >= 5) { clearTimeout(timer); resolve(); } else setTimeout(poll, 10); }; poll(); });
+  const invalidCalls = [
+    { name: "org_plan_validate", arguments: {} },
+    { name: "org_plan_validate", arguments: { plan: planPath, extra: true } },
+    { name: "org_plan_l1_transition", arguments: { plan: planPath, id: "first-outcome", state: "DONE", force: "yes" } },
+    { name: "org_plan_next", arguments: { plan: planPath, kind: "later" } },
+    { name: "org_plan_describe", arguments: { plan: planPath, id: "INVALID" } },
+    { name: "org_plan_validate", arguments: { plan: "" } },
+    { name: "org_plan_signal", arguments: { plan: planPath, reason: "x".repeat(257) } },
+    { name: "org_plan_measure", arguments: { plan: planPath, id: "first-outcome", operation: "checkpoint", snapshot: { observedAt: "2026-02-30T12:00:00Z" } } },
+    { name: "org_plan_measure", arguments: { plan: planPath, id: "first-outcome", operation: "checkpoint", snapshot: { observedAt: "2026-08-31T12:00:00Z", weeklyRemaining: -1 } } },
+    { name: "org_plan_measure", arguments: { plan: planPath, id: "first-outcome", operation: "checkpoint", snapshot: { observedAt: "2026-08-31T12:00:00Z", weeklyRemaining: 101 } } },
+    { name: "org_plan_measure", arguments: { plan: planPath, id: "first-outcome", operation: "checkpoint", snapshot: { observedAt: "2026-08-31T12:00:00Z", tokensUsed: 1.5 } } },
+    { name: "org_plan_measure", arguments: { plan: planPath, id: "first-outcome", operation: "checkpoint", snapshot: "invalid" } },
+    { name: "org_plan_l1_transition", arguments: { plan: planPath, id: "first-task", state: "WIP" } },
+  ];
+  invalidCalls.forEach((params, index) => request(6 + index, "tools/call", params));
+  const expectedMessages = 5 + invalidCalls.length;
+  await new Promise((resolve, reject) => { const timer = setTimeout(() => reject(new Error("MCP server did not answer")), 3000); const poll = () => { if (messages.length >= expectedMessages) { clearTimeout(timer); resolve(); } else setTimeout(poll, 10); }; poll(); });
   child.stdin.end();
   child.kill();
   const list = messages.find((message) => message.id === 2).result.tools;
   assert.equal(list.length, 10);
   assert.equal(list.find((entry) => entry.name === "org_plan_projection").annotations.readOnlyHint, true);
   assert.equal(list.find((entry) => entry.name === "org_plan_l1_transition").annotations.readOnlyHint, false);
+  assert.equal(list.find((entry) => entry.name === "org_plan_l1_transition").annotations.destructiveHint, true);
+  assert.equal(list.find((entry) => entry.name === "org_plan_l2_transition").annotations.destructiveHint, false);
   const mutation = messages.find((message) => message.id === 3).result.structuredContent;
   assert.equal(mutation.before.state, "TODO");
   assert.equal(mutation.after.state, "WIP");
@@ -70,5 +91,7 @@ try {
   assert.deepEqual(signal.before, signal.after);
   assert.equal(signal.projection.plan[0].status, "in_progress");
   assert.equal(JSON.parse(readFileSync(join(statusDirectory, `${createHash("sha256").update(planPath).digest("hex")}.plan-status.json`), "utf8")).reason, "mcp-integration");
+  for (let id = 6; id < 6 + invalidCalls.length; id += 1) assert.equal(messages.find((message) => message.id === id).error.code, -32000);
+  assert.equal(readPlan(planPath).items.find((item) => item.id === "first-task").state, "TODO");
   process.stdout.write("org-plan MCP server contract passed\n");
 } finally { rmSync(integration, { recursive: true, force: true }); }
