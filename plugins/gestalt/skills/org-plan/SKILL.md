@@ -97,8 +97,10 @@ subagent dedicated to a position uses collaboration-safe task name `l<a>` or
     progress report is non-terminal. After every report, the root inspects the
     executor state. If the L1 is partial and the executor stopped or became
     idle, resume that same executor immediately. Review only DONE + UNREVIEWED
-    L1s, and keep advancing supervision until every L1 is REVIEWED and final
-    gates pass.
+    L1s. After an L1 is ACCEPTED, committed when changed, REVIEWED, and
+    projected, one concise root accepted-L1 final may end that root turn; it
+    never ends the plan. Continue through every L1 and a later terminal review
+    until final gates pass.
 12. In supervised execution, final acceptance includes one fresh depth-one
     `gpt-5.6-sol` whole-branch reviewer, launched with `fork_turns=none`,
     `agent_type=worker`, and `task_name=final_review`, after every L1 is
@@ -187,6 +189,15 @@ writes or changes Org state.
 The root performs the native projection after every successful lifecycle
 boundary named above; executors only report their successful helper mutation.
 Never ask Bash, an MCP server, or a generated profile to invoke `update_plan`.
+
+In checkpoint-capable sessions, after an accepted L1 has its commit/review and
+projection transition, the root optionally calls `gestalt_org_plan_checkpoint`
+once with `l1Accepted`, then emits one concise root final answer. The final L1
+is still followed by a later root turn for terminal whole-branch review. Only
+after that review, corrections, and final gates may the root optionally
+checkpoint `terminalReviewAccepted` and emit terminal success. If checkpointing
+is unavailable, retain all safety gates and continuous supervision; never end
+early after the final L1.
 
 Stop before plan completion only for a genuine external blocker that cannot be
 resolved autonomously: an unavailable required skill or execution prerequisite,

@@ -59,9 +59,14 @@
   executor immediately. Otherwise take the next eligible lifecycle action:
   review only a DONE + UNREVIEWED L1, finish an accepted L1, or launch the next
   L1. Never turn a partial report into a final user response or wait for
-  progress approval. Stop only after the complete plan is accepted or when a
-  genuine external blocker remains that the root cannot resolve without user
-  input or changed external state.
+  progress approval. An accepted L1 may end its current root turn only after
+  its commit/review/projection transition and optional `l1Accepted` checkpoint;
+  it never ends the plan. Autopilot continues in the next root turn, and the
+  final L1 still has a later terminal-review turn. Without the optional
+  checkpoint tool, retain safe continuous supervision and never stop early.
+  Stop only after the complete plan is accepted or when a genuine external
+  blocker remains that the root cannot resolve without user input or changed
+  external state.
 - Org Plan files are workspace-local runtime coordination data and are never
   Git deliverables. No user request, repository instruction, or release
   workflow can permit staging, committing, force-adding, cherry-picking, or
@@ -73,8 +78,13 @@
   for large or uncertain analysis, filtering, indexing, and retrieval. If it
   is unavailable, capture output outside conversational context and report only the command, exit
   status, pass/fail counts, affected scope, and smallest necessary failure excerpt. Load the installed `$gestalt:context-mode` skill in every role, but do not install or enable it automatically when unavailable.
-- Keep the root active and post brief human-facing status at supervision start
-  and when an L1 starts, reaches review, is rejected, is accepted, or blocks.
+- Post brief human-facing status at supervision start and when an L1 starts,
+  reaches review, is rejected, is accepted, or blocks. For each accepted L1,
+  emit exactly one concise root final answer with Completion, Review,
+  Verification, Commit, and Next; include repaired rejection findings and no
+  raw logs or child transcripts. The terminal success answer follows only the
+  terminal whole-branch review, correction commit if needed, final gates,
+  residual P2-or-lower findings, and clean intended scope.
   Use `L<a>/TOTAL — TITLE: STATUS` when possible. Resolve the first
   milestone mention with `org-plan describe` and lead with its position, title,
   and Goal/Why; later mentions may use the position and title alone. Lead the
