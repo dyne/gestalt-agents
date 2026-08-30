@@ -1,4 +1,4 @@
-import { mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -20,6 +20,7 @@ async function fixture() {
   const pluginRoot = join(root, "plugin cache", "context-mode", "2.5.1");
   mkdirSync(join(pluginRoot, "hooks"), { recursive: true });
   mkdirSync(gestaltHome, { recursive: true });
+  writeFileSync(join(pluginRoot, "package.json"), JSON.stringify({ version: "2.5.1" }));
   writeFileSync(join(pluginRoot, "start.mjs"), "// MCP server\n");
   writeFileSync(join(pluginRoot, "hooks", "runtime-hook.mjs"), "// hook\n");
   return { codexHome, gestaltHome, pluginRoot };
@@ -31,6 +32,20 @@ afterEach(async () => {
 });
 
 describe("Codex context-mode integration configurator", () => {
+  it("refuses a non-versioned cache fixture before it can replace the live launcher", async () => {
+    const paths = await fixture();
+    const invalidRoot = join(paths.pluginRoot, "..", "test");
+    mkdirSync(join(invalidRoot, "hooks"), { recursive: true });
+    writeFileSync(join(invalidRoot, "package.json"), JSON.stringify({ version: "test" }));
+    writeFileSync(join(invalidRoot, "start.mjs"), "// test\n");
+    writeFileSync(join(invalidRoot, "hooks", "runtime-hook.mjs"), "// test\n");
+
+    expect(() => configureCodexIntegration({ ...paths, pluginRoot: invalidRoot, pluginId })).toThrow(
+      "context-mode plugin root must end with its package version",
+    );
+    expect(existsSync(join(paths.codexHome, "bin", "context-mode-mcp.mjs"))).toBe(false);
+  });
+
   it("creates a fresh registration, hooks, and space-safe launchers", async () => {
     const paths = await fixture();
     const result = configureCodexIntegration({ ...paths, pluginId });

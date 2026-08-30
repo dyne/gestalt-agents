@@ -25,6 +25,22 @@ function requireAbsolute(path, label) {
   return resolve(path);
 }
 
+function requireVersionedPluginRoot(pluginRoot) {
+  const expectedVersion = pluginRoot.split(/[\\/]/).at(-1);
+  if (!/^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/.test(expectedVersion ?? "")) {
+    throw new Error(`context-mode plugin root must end with its package version: ${pluginRoot}`);
+  }
+  let packageVersion;
+  try {
+    packageVersion = JSON.parse(readFileSync(join(pluginRoot, "package.json"), "utf8")).version;
+  } catch {
+    throw new Error(`context-mode plugin root is missing a readable package.json: ${pluginRoot}`);
+  }
+  if (packageVersion !== expectedVersion) {
+    throw new Error(`context-mode plugin root version mismatch: path=${expectedVersion} package=${packageVersion ?? "<missing>"}`);
+  }
+}
+
 function tomlString(value) {
   return JSON.stringify(value);
 }
@@ -209,6 +225,7 @@ export function configureCodexIntegration({ codexHome, gestaltHome, pluginRoot, 
   codexHome = requireAbsolute(codexHome, "CODEX_HOME");
   gestaltHome = requireAbsolute(gestaltHome, "GESTALT_HOME");
   pluginRoot = requireAbsolute(pluginRoot, "context-mode plugin root");
+  requireVersionedPluginRoot(pluginRoot);
   if (!pluginId || !/^[A-Za-z0-9._+-]+@[A-Za-z0-9._+-]+$/.test(pluginId)) {
     throw new Error(`invalid context-mode plugin id: ${pluginId ?? ""}`);
   }

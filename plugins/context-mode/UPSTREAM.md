@@ -48,6 +48,10 @@ and contents while excluding generated dependencies and build artifacts.
   MCP and hook entrypoints never build or repair the package.
 - Moves the eight rewritten routing and command skills into the Gestalt plugin,
   giving Codex one provider for skill listing and enable/disable controls.
+- Removes upstream self-update as a supported Gestalt repair path. Local repair
+  may only use the versioned package shipped by this repository; the Codex
+  integration reconciler rejects non-versioned or package-version-mismatched
+  cache roots so test fixtures cannot replace the live MCP launcher.
 - Keeps the upstream TypeScript adapter registry for now because server and CLI
   compilation share it. It is implementation residue, not a supported-host
   promise; extracting a Codex-only core is a separate architectural change.

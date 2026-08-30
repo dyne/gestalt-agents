@@ -4345,6 +4345,15 @@ server.registerTool(
     inputSchema: z.object({}),
   },
   async () => {
+    return trackResponse("ctx_upgrade", {
+      content: [{
+        type: "text" as const,
+        text:
+          "ctx-upgrade is disabled in the Gestalt distribution: it never fetches or updates from upstream. " +
+          "Use the locally shipped Gestalt repair workflow to regenerate the versioned Codex integration, then restart the session.",
+      }],
+    });
+
     // Issue #542 — thread MCP clientInfo into the spawned upgrade
     // process. detectPlatform() runs IN-PROCESS here (no spawn boundary)
     // so clientInfo from the MCP handshake is the highest-confidence
@@ -4361,9 +4370,10 @@ server.registerTool(
       const signal = detectPlatform(clientInfo ?? undefined);
       platformId = signal.platform;
       platformFlag = ` --platform ${signal.platform}`;
-      nodeOpts = isInProcessPluginPlatform(signal.platform) && runtimes.javascript
-        ? { platform: signal.platform, jsRuntime: runtimes.javascript }
-        : undefined;
+      const jsRuntime = runtimes.javascript;
+      if (isInProcessPluginPlatform(signal.platform) && jsRuntime !== null) {
+        nodeOpts = { platform: signal.platform, jsRuntime: jsRuntime as string };
+      }
     } catch {
       try { platformId = detectPlatform().platform; } catch { /* best effort — fall back to upgrade()'s own detect */ }
     }
