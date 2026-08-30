@@ -1,24 +1,20 @@
 ---
 name: ctx-upgrade
-description: Upgrade or repair a context-mode installation, runtime bundles, hooks, settings, and plugin registration. Trigger when the user invokes ctx-upgrade or asks to update or repair context-mode.
+description: Repair the locally shipped context-mode installation, runtime bundles, hooks, settings, and plugin registration. Trigger when the user invokes ctx-upgrade or asks to repair context-mode. It never updates from upstream.
 ---
 
-# Context Mode Upgrade
+# Context Mode Local Repair
 
-1. Call `ctx_upgrade` to obtain the proposed command.
-2. Inspect the command and summarize its repository, network, build, install,
-   and configuration effects. Do not run a command outside the user's requested
-   upgrade scope.
-3. Execute the command with the host shell tool.
-4. Build the result checklist from observed steps and actual version numbers;
-   mark failed or skipped steps accurately.
-5. Tell the user whether a new session is required.
-
-If `ctx_upgrade` is unavailable, derive the plugin root by going two
-directories up from this skill and run:
-
-```sh
-CLI="<PLUGIN_ROOT>/cli.bundle.mjs"
-[ -f "$CLI" ] || CLI="<PLUGIN_ROOT>/build/cli.js"
-node "$CLI" upgrade
-```
+1. Do not invoke `ctx_upgrade` or any command that fetches GitHub, npm, or an
+   upstream registry.
+2. Derive the Gestalt repository root from this skill's plugin root and run its
+   local `gestalt-setup.sh` with the requested repair options. The repository's
+   versioned context-mode package is the only allowed repair source.
+3. Inspect the command and summarize local build, installation, and Codex
+   configuration effects before execution.
+4. Verify the generated `context-mode-mcp.mjs` references a versioned plugin
+   directory whose package version matches the directory name; then run
+   `ctx-doctor`.
+5. Build the result checklist from observed steps and actual local versions;
+   mark failed or skipped steps accurately, and tell the user when a new
+   session is required.
