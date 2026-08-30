@@ -16,6 +16,7 @@
     "verification"
   ],
   "skills": "./skills/",
+  "mcpServers": "./.mcp.json",
   "interface": {
     "displayName": "org-plan",
     "shortDescription": "Plan, implement, debug, test, and verify software changes",

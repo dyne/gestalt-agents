@@ -2,6 +2,14 @@
 # Strict helper for the small Org dialect used by the org-plan skill.
 set -Eeuo pipefail
 
+# All Org parsing, validation, transitions, measurement, and publication live
+# in the shared Node core.  Keep this Bash entry point only for the existing
+# profile-installation commands, whose transactional file setup is unrelated
+# to plan lifecycle semantics.
+if [[ ${1:-} != prepare-executor && ${1:-} != prepare-supervision ]]; then
+  exec node "$(dirname "$0")/org-plan-cli.mjs" "$@"
+fi
+
 show_help() {
   # The command example is intentionally literal help text.
   # shellcheck disable=SC2016

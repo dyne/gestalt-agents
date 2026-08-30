@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "gestalt-org-plan": {
+      "command": "node",
+      "args": ["./org-plan-mcp.mjs"],
+      "cwd": "."
+    }
+  }
+}
