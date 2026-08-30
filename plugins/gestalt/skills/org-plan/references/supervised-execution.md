@@ -107,9 +107,9 @@ Supervision is a completion loop:
 - After every executor report, inspect the executor's current state. If the L1
   is partial and the executor stopped or became idle, immediately resume that
   same executor. If `org-plan next PLAN review` selects a DONE + UNREVIEWED L1,
-  review it immediately and return ACCEPT or REJECT. After acceptance, finish
-  its commit/review transition and launch the next L1. Never review an
-  ineligible L1.
+  review it immediately and return ACCEPT or REJECT. Never review an
+  ineligible L1. An executor result, a review result, an accepted-L1 report,
+  and terminal whole-plan acceptance are distinct boundaries.
 - A partial report, idle executor, self-described pause, token or elapsed-time
   notice, or completed L2 is never a user-facing stopping condition. Use the
   available follow-up or wait mechanism and keep supervision moving.
@@ -142,9 +142,11 @@ REJECT. Skip already REVIEWED L1s. On REJECT, send the findings unchanged in
 substance to the same executor, which corrects the same uncommitted diff. Repeat
 the gates and review without pausing for user approval.
 
-On ACCEPT, direct the executor to create exactly one conventional L1 commit when
-files changed and record REVIEWED. The root verifies its subject and scope,
-terminates the executor, confirms closure, and selects the next L1.
+On ACCEPT, inspect `git diff --cached --name-only`, direct the executor to
+create exactly one conventional L1 commit when files changed, then record
+`REVIEWED`. The root runs the helper projection and host `update_plan` before
+the reporting boundary, verifies the subject and intended scope, and terminates
+the executor. A no-change L1 explicitly records that no commit was required.
 
 Org Plan files are never Git deliverables. Immediately before every accepted
 L1 commit, the executor and root inspect `git diff --cached --name-only` and
@@ -182,7 +184,56 @@ terminal review, a current root-side full-suite pass, and clean intended scope.
 This terminal reviewer is the sole exception to the prohibition on separate
 reviewers; it never replaces routine root-owned L1 review.
 
-## Reporting boundary
+## Accepted-L1 reporting boundary
+
+An accepted L1 ends one root turn, not the plan. After the ACCEPT commit/review
+transition, projection, and host `update_plan`, call optional
+`gestalt_org_plan_checkpoint` once with `kind: l1Accepted`, the plan identity,
+canonical L1 position/ID, and bounded created-or-not-required commit metadata.
+Then send exactly one root final answer using the template below. Do not make
+executor output user-facing, duplicate the final answer in commentary, or infer
+acceptance from executor prose.
+
+```
+L<a>/TOTAL — TITLE: ACCEPTED
+
+Completion: bounded delivered behavior.
+Review: ACCEPT; include any REJECT findings repaired before acceptance.
+Verification: exact commands and bounded pass/fail results.
+Commit: conventional subject, then optional short hash; or “No commit required”.
+Next: automatic continuation to L<n>, or terminal review after the final L1.
+```
+
+For non-final L1s, Autopilot starts the next root turn. For the final L1, that
+later distinct continuation starts terminal review; its accepted-L1 report is
+not whole-plan success. A missing checkpoint tool is not a blocker: preserve
+the commit, review, projection, and single-writer gates, continue supervision
+without early success, and use the legacy continuous-root fallback. In that
+fallback, do not end the last-L1 turn before terminal review; combine its
+accepted-L1 summary with terminal success only when a separate safe report
+boundary is unavailable.
+
+## Terminal whole-plan report
+
+Only after terminal review has accepted the whole branch, all P0/P1 corrections
+have their one conventional correction commit when needed, final gates pass,
+and intended scope is clean, optionally checkpoint once with
+`kind: terminalReviewAccepted` and send the sole terminal success answer. It
+states terminal-review result, correction commit if any, final gate results,
+residual P2-or-lower findings, clean intended scope, and all milestone commits.
+It must not repeat an accepted-L1 final or include raw logs or child transcripts.
+
+```
+Plan terminal review: ACCEPTED
+
+Review: whole-branch verdict and repaired P0/P1 findings.
+Commits: milestone subjects and any terminal correction commit.
+Verification: final gate commands and bounded results.
+Residual findings: P2 or lower only.
+Scope: clean intended scope.
+```
+
+## Reporting evidence ownership
 
 Potentially large or uncertain inspections, tests, and logs use context-mode or
 another context-preserving analysis path in both roles; small bounded filesystem
