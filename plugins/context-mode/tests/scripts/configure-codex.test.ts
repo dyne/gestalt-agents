@@ -32,16 +32,16 @@ afterEach(async () => {
 });
 
 describe("Codex context-mode integration configurator", () => {
-  it("refuses a non-versioned cache fixture before it can replace the live launcher", async () => {
+  it("refuses a prerelease cache fixture before it can replace the live launcher", async () => {
     const paths = await fixture();
-    const invalidRoot = join(paths.pluginRoot, "..", "test");
+    const invalidRoot = join(paths.pluginRoot, "..", "0.0.0-test");
     mkdirSync(join(invalidRoot, "hooks"), { recursive: true });
-    writeFileSync(join(invalidRoot, "package.json"), JSON.stringify({ version: "test" }));
+    writeFileSync(join(invalidRoot, "package.json"), JSON.stringify({ version: "0.0.0-test" }));
     writeFileSync(join(invalidRoot, "start.mjs"), "// test\n");
     writeFileSync(join(invalidRoot, "hooks", "runtime-hook.mjs"), "// test\n");
 
     expect(() => configureCodexIntegration({ ...paths, pluginRoot: invalidRoot, pluginId })).toThrow(
-      "context-mode plugin root must end with its package version",
+      "context-mode plugin root must end with a stable package version",
     );
     expect(existsSync(join(paths.codexHome, "bin", "context-mode-mcp.mjs"))).toBe(false);
   });
