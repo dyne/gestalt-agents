@@ -3,7 +3,6 @@ import assert from "node:assert/strict";
 import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createHash } from "node:crypto";
 import { spawn } from "node:child_process";
 import { mutate, projection, publishStatus, readPlan } from "../../../plugins/gestalt/skills/org-plan/scripts/org-plan-core.mjs";
 
@@ -12,6 +11,7 @@ const temporary = mkdtempSync(join(tmpdir(), "org-plan-mcp-test-"));
 try {
   const planPath = join(temporary, "plan.org");
   copyFileSync(join(root, "tests/plugins/gestalt/fixtures/valid-minimal.org"), planPath);
+  const canonicalPlanPath = readPlan(planPath).path;
   assert.equal(readPlan(planPath).fingerprint.startsWith("sha256:"), true);
   assert.equal(projection(readPlan(planPath)).plan[0].status, "pending");
   const mutation = mutate(planPath, "l1", "first-outcome", "WIP");
@@ -26,10 +26,9 @@ try {
   const publication = publishStatus(planPath, "mcp-test");
   if (old === undefined) delete process.env.GESTALT_MOBILE_ORG_PLAN_STATUS_DIRECTORY; else process.env.GESTALT_MOBILE_ORG_PLAN_STATUS_DIRECTORY = old;
   assert.equal(publication.published, true);
-  const statusPath = join(statusDirectory, `${createHash("sha256").update(planPath).digest("hex")}.plan-status.json`);
-  const status = JSON.parse(readFileSync(statusPath, "utf8"));
+  const status = JSON.parse(readFileSync(publication.path, "utf8"));
   assert.equal(status.schemaVersion, 1);
-  assert.equal(status.planPath, planPath);
+  assert.equal(status.planPath, canonicalPlanPath);
   assert.equal(status.reason, "mcp-test");
   process.stdout.write("org-plan MCP core/status contract passed\n");
 } finally { rmSync(temporary, { recursive: true, force: true }); }
@@ -39,6 +38,7 @@ try {
   const planPath = join(integration, "plan.org");
   const statusDirectory = join(integration, "status");
   copyFileSync(join(root, "tests/plugins/gestalt/fixtures/valid-minimal.org"), planPath);
+  const canonicalPlanPath = readPlan(planPath).path;
   mkdirSync(statusDirectory, { mode: 0o700 });
   const child = spawn(process.execPath, [join(root, "plugins/gestalt/org-plan-mcp.mjs")], { env: { ...process.env, GESTALT_MOBILE_ORG_PLAN_STATUS_DIRECTORY: statusDirectory }, stdio: ["pipe", "pipe", "pipe"] });
   const messages = [];
@@ -80,17 +80,17 @@ try {
   assert.equal(mutation.before.state, "TODO");
   assert.equal(mutation.after.state, "WIP");
   assert.equal(mutation.projection.plan[0].status, "in_progress");
-  assert.equal(mutation.plan.path, planPath);
+  assert.equal(mutation.plan.path, canonicalPlanPath);
   const measurement = messages.find((message) => message.id === 4).result.structuredContent;
-  assert.equal(measurement.plan.path, planPath);
+  assert.equal(measurement.plan.path, canonicalPlanPath);
   assert.equal(measurement.before.properties.STARTED_AT, undefined);
   assert.equal(measurement.after.properties.STARTED_AT, "2026-08-31T12:00:00Z");
   assert.equal(measurement.projection.plan[0].status, "in_progress");
   const signal = messages.find((message) => message.id === 5).result.structuredContent;
-  assert.equal(signal.plan.path, planPath);
+  assert.equal(signal.plan.path, canonicalPlanPath);
   assert.deepEqual(signal.before, signal.after);
   assert.equal(signal.projection.plan[0].status, "in_progress");
-  assert.equal(JSON.parse(readFileSync(join(statusDirectory, `${createHash("sha256").update(planPath).digest("hex")}.plan-status.json`), "utf8")).reason, "mcp-integration");
+  assert.equal(JSON.parse(readFileSync(signal.publication.path, "utf8")).reason, "mcp-integration");
   for (let id = 6; id < 6 + invalidCalls.length; id += 1) assert.equal(messages.find((message) => message.id === id).error.code, -32000);
   assert.equal(readPlan(planPath).items.find((item) => item.id === "first-task").state, "TODO");
   process.stdout.write("org-plan MCP server contract passed\n");
