@@ -41,9 +41,12 @@ do not copy full Org milestone prose into them.
 - **Manual execution:** use the loop below when supervised roles are unavailable
   or the user explicitly requests manual work.
 
-The bundled `scripts/org-plan` helper validates plans and performs durable state
-changes. `org-plan --help` and `org-plan COMMAND --help` return successful,
-side-effect-free usage. Do not run `prepare-supervision` during ordinary supervision:
+When the typed `gestalt-org-plan` MCP server is available, prefer its bounded
+read and transition tools. Otherwise use the bundled `scripts/org-plan` helper;
+it remains the supported compatibility fallback. Neither path invokes host
+tools: after a lifecycle mutation the active root alone reads the projection and
+updates the native plan. `org-plan --help` and `org-plan COMMAND --help` return
+successful, side-effect-free usage. Do not run `prepare-supervision` during ordinary supervision:
 it is a setup/update command that installs role profiles, and
 `gestalt-setup.sh` already invokes it. When execution is supplied a plan path,
 reuse that exact path instead of searching for another plan or assuming the

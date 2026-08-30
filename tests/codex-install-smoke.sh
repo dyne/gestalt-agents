@@ -34,6 +34,8 @@ gestalt_home = Path(sys.argv[3])
 gestalt = codex_home / "plugins/cache/dyne-gestalt-agents/gestalt" / installed["gestalt"]["version"]
 context_mode = codex_home / "plugins/cache/dyne-gestalt-agents/context-mode" / installed["context-mode"]["version"]
 assert (gestalt / "skills/org-plan/SKILL.md").is_file()
+assert (gestalt / ".mcp.json").is_file()
+assert (gestalt / "org-plan-mcp.mjs").is_file()
 assert (context_mode / "hooks/hooks.json").is_file()
 assert (context_mode / ".mcp.json").is_file()
 runtime_candidates = list((gestalt_home / "runtime/context-mode" / installed["context-mode"]["version"]).glob("*-node-*"))
@@ -75,6 +77,22 @@ grep -F 'verified 13 enabled Gestalt skills in skills/list' "$codex_home/skills-
 
 context_version=$(node -p "JSON.parse(require('node:fs').readFileSync(process.argv[1], 'utf8')).installed.find(x => x.name === 'context-mode').version" "$codex_home/plugins.json")
 context_cache="$codex_home/plugins/cache/dyne-gestalt-agents/context-mode/$context_version"
+gestalt_version=$(node -p "JSON.parse(require('node:fs').readFileSync(process.argv[1], 'utf8')).installed.find(x => x.name === 'gestalt').version" "$codex_home/plugins.json")
+gestalt_cache="$codex_home/plugins/cache/dyne-gestalt-agents/gestalt/$gestalt_version"
+printf '%s\n%s\n' \
+  '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{}}}' \
+  '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}' | \
+  timeout 20s node "$gestalt_cache/org-plan-mcp.mjs" >"$codex_home/org-plan-mcp.out"
+python3 - "$codex_home/org-plan-mcp.out" <<'PY'
+import json
+import sys
+
+messages = [json.loads(line) for line in open(sys.argv[1]) if line.startswith("{")]
+tools = next(item["result"]["tools"] for item in messages if item.get("id") == 2)
+assert {tool["name"] for tool in tools} >= {"org_plan_validate", "org_plan_l1_transition", "org_plan_signal"}
+assert next(tool for tool in tools if tool["name"] == "org_plan_validate")["annotations"]["readOnlyHint"]
+assert not next(tool for tool in tools if tool["name"] == "org_plan_l1_transition")["annotations"]["readOnlyHint"]
+PY
 printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"codex-install-smoke","version":"1"}}}' |
   timeout 20s env CODEX_HOME="$codex_home" GESTALT_HOME="$gestalt_home" CONTEXT_MODE_WORKSPACE="$workspace" \
     node "$context_cache/start.mjs" >"$codex_home/mcp.out"

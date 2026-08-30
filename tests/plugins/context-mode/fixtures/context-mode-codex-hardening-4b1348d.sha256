@@ -1,4 +1,4 @@
-0644 0009544376c6d9a5cb3c61469160c19ebc134d0923797a574ec87e5d8a956202  tests/scripts/configure-codex.test.ts
+0644 bf04411fa29c2e6038c563d747aa715c483ee4c029fea53bd64915f9c79e4768  tests/scripts/configure-codex.test.ts
 0644 00f094275f9376343897d6ac82c995ddc99e7a68c3c74e840a064011c22600c3  tests/session/session-goal.test.ts
 0644 0152192dc1e90efefea2a05e3cfa48f4eb5341cf908a5dab053233faa0e4da91  src/cli.ts
 0644 016b08806075962abb8b0ebd160d9cb5c5ca3aa0055dd4a10ef52894b1ffed20  tests/fixtures/playwright-network.txt
@@ -153,7 +153,7 @@
 0644 615b46fac8199c16bcf641b9f610026f839b159dc90cedbd6bd69e1b2b6ea067  tests/integration/project-dir-strict.test.ts
 0644 62236eed15011d6cca701fa565044042d8d1b9ed1fa77b5324318f74a15d5d1b  tests/util/package-deps-policy.test.ts
 0644 62af1941eca55afe7802e9a3b30036620650f29049bc47dc26ebedaec8381ad8  tests/hooks/sessionstart-shell-snapshot-heal.test.ts
-0644 63463cbd733584b205823832b3230a3b80ba1b127e3902f6f714be7a346ecfa5  scripts/configure-codex.mjs
+0644 012391f97159b24b8c77a3132c80d6b28429ba0383cdf1b71da702dbe445168a  scripts/configure-codex.mjs
 0644 637963ccb6881e3e61d9acbea781ce97709ec2108c44fa47bb21931f91fc4d17  tests/session/format-datetime.test.ts
 0644 63d70f789db4f4c6d0a68f16c4da7b9fc7152005c1032cd7c13d8989ee3029f5  src/adapters/claude-code/index.ts
 0644 652b0f7e7e092e44ff84f6b769748edb1e4baac0aa4258ec253db9493b94d94c  tests/context-comparison.ts
