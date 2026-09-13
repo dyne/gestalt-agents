@@ -49,6 +49,15 @@ Neither role yields merely for progress, time, or token usage. The root stops
 only when every plan L1 is REVIEWED and final gates pass, or when a genuine
 external blocker requires user input or changed external state.
 
+Starting supervision has an observable postcondition: the retained plan either
+has healthy Mobile control evidence, or the root emits one bounded compatibility
+warning and continues in the same turn. On an incomplete plan it must choose a
+real disposition—work, same-executor follow-up, review/correction, accepted
+checkpoint plus next L1, a valid probe-requested wait, structured attention, or
+explicit manual Off. A status message alone never ends supervision. Executors
+use machine names such as `l2` (or a replacement `l2_g2`); the human label is
+always `L2 — <current L1 title>`.
+
 Context-mode transports evidence; it does not spawn agents.
 
 ### Optional mobile attention protocol
@@ -109,8 +118,10 @@ Setup also verifies the app-server's real `skills/list` response contains every
 enabled `$gestalt:<skill-name>` distributed by the installed release. Setup
 fails rather than reporting success when the session catalog disagrees with
 the plugin. The bundled Org Plan helper is copied to the stable
-`$CODEX_HOME/bin/org-plan` path on every setup or upgrade; launchers should add
-`$CODEX_HOME/bin` to `PATH`.
+`$CODEX_HOME/bin/org-plan` path on every setup or upgrade, with its Node
+implementation installed as a matching private bundle under
+`$CODEX_HOME/lib/gestalt-org-plan`; launchers should add `$CODEX_HOME/bin` to
+`PATH`.
 
 Pass `--extra-skills` to opt into the marketplace's curated third-party skill
 set. This uses `npx skills` in project scope and keeps its canonical skill

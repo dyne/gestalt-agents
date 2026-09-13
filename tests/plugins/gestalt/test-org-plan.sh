@@ -29,6 +29,15 @@ copy() {
 
 copy valid-minimal.org plan.org
 expect_ok "$helper" validate "$tmp/plan.org"
+installed_root="$tmp/installed-codex"
+mkdir -p "$installed_root/bin" "$installed_root/lib/gestalt-org-plan"
+install -m 0755 "$root/plugins/gestalt/skills/org-plan/scripts/org-plan" "$installed_root/bin/org-plan"
+for runtime_file in org-plan-cli.mjs org-plan-core.mjs measure-plan.mjs; do
+  install -m 0644 "$root/plugins/gestalt/skills/org-plan/scripts/$runtime_file" \
+    "$installed_root/lib/gestalt-org-plan/$runtime_file"
+done
+expect_ok "$installed_root/bin/org-plan" validate "$tmp/plan.org"
+expect_ok "$installed_root/bin/org-plan" projection "$tmp/plan.org"
 expect_ok "$helper" --help
 expect_contains "$tmp/out" 'usage: org-plan COMMAND [args]'
 expect_ok "$helper" signal --help
@@ -555,6 +564,12 @@ expect_contains "$supervision_dir/org-plan-reviewer.toml" 'Context-mode never wr
 expect_contains "$supervision_dir/org-plan-reviewer.toml" 'recommended root launch profile'
 expect_contains "$supervision_dir/org-plan-reviewer.toml" 'directly spawn exactly one fresh depth-one org-plan executor per L1'
 expect_contains "$supervision_dir/org-plan-reviewer.toml" 'Name the L<a> executor with collaboration-safe task_name l<a>'
+expect_contains "$supervision_dir/org-plan-reviewer.toml" 'Mobile reports enabled healthy control for the retained plan'
+expect_contains "$supervision_dir/org-plan-reviewer.toml" 'one bounded compatibility warning and remains in same-turn continuous supervision'
+expect_contains "$supervision_dir/org-plan-reviewer.toml" 'Status prose, progress updates, and waiting statements are never dispositions.'
+expect_contains "$supervision_dir/org-plan-reviewer.toml" 'Executor completion, error, interruption, idle transition, process result, and a user status question are root wake inputs.'
+expect_contains "$supervision_dir/org-plan-reviewer.toml" 'Use task_name l<a>; only a physically unavailable slot permits l<a>_gN.'
+expect_contains "$supervision_dir/org-plan-reviewer.toml" 'Human-facing identity is always `L<a> — <current L1 title>`.'
 expect_contains "$supervision_dir/org-plan-reviewer.toml" 'Use `L<a>/TOTAL — TITLE: STATUS`'
 expect_contains "$supervision_dir/org-plan-reviewer.toml" 'Never spawn an intermediate supervisor or a separate routine L1 reviewer; the required terminal whole-branch reviewer is the sole exception.'
 expect_contains "$supervision_dir/org-plan-reviewer.toml" 'Keep one executor active and keep the root active.'
@@ -698,6 +713,13 @@ expect_contains "$supervised" 'git diff --cached --name-only'
 expect_contains "$supervised" 'companion explanation separately'
 expect_contains "$supervised" '## Accepted-L1 reporting boundary'
 expect_contains "$supervised" 'An accepted L1 ends one root turn, not the plan.'
+expect_contains "$supervised" '## Activation and legal dispositions'
+expect_contains "$supervised" 'one bounded compatibility warning and continue supervision in the same'
+expect_contains "$supervised" 'A status update, progress report, or "waiting" statement'
+expect_contains "$supervised" 'Completion, error, interruption, idle transition,'
+expect_contains "$supervised" 'physical collaboration slot cannot be reused, use `l<a>_gN`'
+expect_contains "$skill" '`supervision-start` has a verifiable postcondition'
+expect_contains "$skill" 'Status prose alone is never a disposition.'
 expect_contains "$supervised" 'L<a>/TOTAL — TITLE: ACCEPTED'
 expect_contains "$supervised" 'kind: l1Accepted'
 expect_contains "$supervised" '## Terminal whole-plan report'
@@ -734,6 +756,8 @@ expect_contains "$agents" '`org-plan describe PLAN ID` for stable title plus Goa
 expect_contains "$agents" 'skips already REVIEWED milestones'
 expect_contains "$agents" 'Keep one writer active.'
 expect_contains "$agents" 'Treat supervision as a completion loop, not a report relay.'
+expect_contains "$agents" 'has a required postcondition: Mobile'
+expect_contains "$agents" 'table-qualified attention, or explicit manual Off. Status prose alone is not'
 expect_contains "$agents" 'The executor owns'
 expect_contains "$agents" "After every executor report, inspect the executor's current state."
 expect_contains "$agents" 'If its L1 is partial and the executor stopped or became idle, resume that same'

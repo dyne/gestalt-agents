@@ -70,6 +70,17 @@
   Stop only after the complete plan is accepted or when a genuine external
   blocker remains that the root cannot resolve without user input or changed
   external state.
+- `org-plan signal PLAN supervision-start` has a required postcondition: Mobile
+  either reports enabled healthy control for the retained plan, or the root
+  reports one bounded compatibility warning and stays in same-turn continuous
+  supervision. Before yielding an incomplete plan, choose exactly one legal
+  disposition: actionable work, same-executor follow-up, review/correction,
+  accepted checkpoint plus next-L1 handoff, probe-requested wait lease,
+  table-qualified attention, or explicit manual Off. Status prose alone is not
+  a disposition. Executor completion/error/interruption/idle, process result,
+  and a user status question wake the root; do not require a probe or lease
+  before immediate work. A replacement physical slot may use `l<a>_gN`, but its
+  human identity remains `L<a> — <current L1 title>`.
 - Org Plan files are workspace-local runtime coordination data and are never
   Git deliverables. No user request, repository instruction, or release
   workflow can permit staging, committing, force-adding, cherry-picking, or

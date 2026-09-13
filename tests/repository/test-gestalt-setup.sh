@@ -39,6 +39,10 @@ assert_contains "$output" "$tmp/.codex-gestalt" "dry-run uses the isolated defau
 assert_contains "$output" "prepare-supervision" "dry-run prepares supervision profiles"
 assert_contains "$output" "$tmp/.codex-gestalt/bin/org-plan" \
   "dry-run installs the stable Org Plan helper"
+assert_contains "$output" "$tmp/.codex-gestalt/lib/gestalt-org-plan/org-plan-cli.mjs" \
+  "dry-run installs the Org Plan runtime bundle"
+assert_contains "$output" "$tmp/.codex-gestalt/lib/gestalt-org-plan/org-plan-core.mjs" \
+  "dry-run installs the Org Plan core beside its launcher"
 assert_contains "$output" "org-plan-supervisor.toml" "dry-run removes the retired supervisor profile"
 assert_contains "$output" "configure context-mode MCP and hooks" \
   "dry-run schedules native context-mode registration"
