@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "component": "agents",
+  "supervisionContract": 1,
+  "capabilities": [
+    "supervision-start",
+    "wait-lease-tool",
+    "checkpoint-tool",
+    "canonical-agent-identity",
+    "org-plan-contract"
+  ]
+}
