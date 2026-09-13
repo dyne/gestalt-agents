@@ -7,7 +7,15 @@ set -Eeuo pipefail
 # profile-installation commands, whose transactional file setup is unrelated
 # to plan lifecycle semantics.
 if [[ ${1:-} != prepare-executor && ${1:-} != prepare-supervision ]]; then
-  exec node "$(dirname "$0")/org-plan-cli.mjs" "$@"
+  script_dir=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd -P)
+  cli="$script_dir/org-plan-cli.mjs"
+  # Setup keeps the stable public launcher in CODEX_HOME/bin and installs its
+  # Node implementation as one coherent private bundle below CODEX_HOME/lib.
+  # Retain the colocated source layout for plugin and development use.
+  if [[ ! -f $cli ]]; then
+    cli="$script_dir/../lib/gestalt-org-plan/org-plan-cli.mjs"
+  fi
+  exec node "$cli" "$@"
 fi
 
 show_help() {
@@ -327,6 +335,12 @@ routing_contract_requirements() {
   printf '%s' ' The first tool call reads the org-plan skill completely and performs no other command; only after that standalone read returns may you inspect other guidance, the plan, or repository state. Use host-native filesystem tools for governing instructions, small bounded reads, edits, mutations, and short command interaction; use context-mode only for large or uncertain analysis, filtering, indexing, and retrieval. Context-mode never writes or changes Org state.'
 }
 
+supervision_continuation_requirements() {
+  # Literal profile text intentionally contains template notation.
+  # shellcheck disable=SC2016
+  printf '%s' ' `org-plan signal PLAN supervision-start` has a required postcondition: Mobile reports enabled healthy control for the retained plan, or the root emits one bounded compatibility warning and remains in same-turn continuous supervision. Before yielding an incomplete plan, take exactly one legal disposition: perform actionable work now, follow up the same executor, review/correct, checkpoint then launch the next L1, register a probe-requested wait lease, declare table-qualified attention, or confirm explicit manual Off. Status prose, progress updates, and waiting statements are never dispositions. Executor completion, error, interruption, idle transition, process result, and a user status question are root wake inputs. Never require a probe or lease when immediate work exists. Use task_name l<a>; only a physically unavailable slot permits l<a>_gN. Human-facing identity is always `L<a> — <current L1 title>`.'
+}
+
 written_profile=
 profile_stage_dir=
 profile_stage_owned=0
@@ -468,6 +482,7 @@ prepare_executor() {
   local lifecycle_requirements=' During supervised execution, direct TODO keyword or property edits are forbidden. Use org-plan set PLAN L1_ID WIP|DONE for L1 transitions and org-plan l2 PLAN L2_ID WIP|DONE for L2 transitions. Use org-plan next PLAN review and org-plan review PLAN L1_ID REVIEWED|UNREVIEWED for review selection and state. After any externally corrected plan file, run org-plan signal PLAN resync. After every successful authoring-start, supervision-start, set, l2, review, or resync helper action, report the mutation to the active root; executors never invoke host update_plan or create a competing native projection. Org Plan files are never Git deliverables: no user request, repository instruction, or release workflow overrides the ban on staging, committing, force-adding, cherry-picking, or otherwise introducing an Org Plan into Git history. Immediately before every accepted L1 commit, inspect git diff --cached --name-only; it must exclude the active Org Plan and every .gestalt/*.org path, including force-added paths. Status publication is optional when neither GESTALT_MOBILE_ORG_PLAN_STATUS_DIRECTORY nor the legacy GESTALT_MOBILE_ORG_PLAN_STATUS_FILE is present.'
   lifecycle_requirements+=$(attention_contract_requirements)
   lifecycle_requirements+=$(routing_contract_requirements)
+  lifecycle_requirements+=$(supervision_continuation_requirements)
   while (( $# )); do
     case $1 in
       --model) (( $# >= 2 )) || usage; model=$2; shift 2 ;;
@@ -496,6 +511,7 @@ prepare_supervision() {
   local lifecycle_requirements=' Before the first L1, run org-plan signal PLAN supervision-start. During supervised execution, direct TODO keyword or property edits are forbidden. Require the executor to use org-plan set PLAN L1_ID WIP|DONE and org-plan l2 PLAN L2_ID WIP|DONE for all state transitions, retain org-plan next PLAN review and org-plan review PLAN L1_ID REVIEWED|UNREVIEWED for review selection and state, and run org-plan signal PLAN resync after any externally corrected plan file. After every successful authoring-start, supervision-start, set, l2, review, or resync helper action, the active root runs org-plan projection PLAN and makes the host-owned update_plan call with its exact plan items, reporting the companion explanation separately. Executors report mutations and never invoke host update_plan or create a competing native projection. If update_plan is absent or fails, warn once, keep Org state authoritative, and retry only at the next lifecycle boundary; Bash and MCP code never invoke it. Org Plan files are never Git deliverables: no user request, repository instruction, or release workflow overrides the ban on staging, committing, force-adding, cherry-picking, or otherwise introducing an Org Plan into Git history. Immediately before every accepted L1 commit, inspect git diff --cached --name-only; it must exclude the active Org Plan and every .gestalt/*.org path, including force-added paths. Status publication is optional when neither GESTALT_MOBILE_ORG_PLAN_STATUS_DIRECTORY nor the legacy GESTALT_MOBILE_ORG_PLAN_STATUS_FILE is present.'
   lifecycle_requirements+=$(attention_contract_requirements)
   lifecycle_requirements+=$(routing_contract_requirements)
+  lifecycle_requirements+=$(supervision_continuation_requirements)
   while (( $# )); do
     case $1 in
       --executor-model) (( $# >= 2 )) || usage; executor_model=$2; shift 2 ;;

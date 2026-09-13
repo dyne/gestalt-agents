@@ -63,7 +63,9 @@ without reinstalling its own profile.
    executor, confirm closure, and resolve the next milestone with
    `org-plan describe`.
 3. Launch a fresh depth-one executor with `fork_turns=none` for exactly that L1,
-   using task name `l<a>` for its canonical `L<a>` position.
+   using task name `l<a>` for its canonical `L<a>` position. Only when that
+   physical collaboration slot cannot be reused, use `l<a>_gN`; its human
+   label remains `L<a> — <current L1 title>`.
 4. The executor loads `$gestalt:context-mode`, verifies every declared L1
    skill is available, then loads exactly those declared skills before any
    repository inspection or edit. Missing skills block without edits.
@@ -96,6 +98,23 @@ Never call the tool for L1/L2 progress, a child report, waiting on a live child,
 review readiness, a diagnosable or recoverable failing test, an ordinary merge
 conflict, token/context pressure, elapsed time, a checkpoint, or an idle
 executor. Resume the next legal supervision action in each of those cases.
+
+## Activation and legal dispositions
+
+Immediately after `org-plan signal PLAN supervision-start`, verify the retained
+plan has Mobile control evidence. When it is enabled and healthy, use its
+continuation mechanism. When Mobile or its status capability is unavailable,
+write one bounded compatibility warning and continue supervision in the same
+root turn; optional tooling must never become a reason to await the user.
+
+Before yielding an incomplete plan, the root must select exactly one legal
+disposition: perform actionable work now; follow up the same executor; review
+and correct; checkpoint then hand off to the next L1; register a
+probe-requested wait lease; declare table-qualified attention; or confirm
+explicit manual Off. A status update, progress report, or "waiting" statement
+is not a disposition. Completion, error, interruption, idle transition,
+process result, and a status question each wake the root to make that choice.
+Do not create a probe or wait lease while actionable work exists.
 
 ## Evidence and review loop
 

@@ -7,6 +7,9 @@ marketplace_file="$script_dir/.agents/plugins/marketplace.json"
 context_source="$script_dir/plugins/context-mode"
 context_configurator="$context_source/scripts/configure-codex.mjs"
 org_plan="$script_dir/plugins/gestalt/skills/org-plan/scripts/org-plan"
+org_plan_cli="$script_dir/plugins/gestalt/skills/org-plan/scripts/org-plan-cli.mjs"
+org_plan_core="$script_dir/plugins/gestalt/skills/org-plan/scripts/org-plan-core.mjs"
+org_plan_measure="$script_dir/plugins/gestalt/skills/org-plan/scripts/measure-plan.mjs"
 catalog_verifier="$script_dir/scripts/verify-gestalt-skill-catalog.mjs"
 setup_args=("$@")
 prepare_only=false
@@ -303,7 +306,11 @@ if ! "$dry_run"; then
 fi
 
 run install -d -m 0755 -- "$codex_root/bin"
+run install -d -m 0755 -- "$codex_root/lib/gestalt-org-plan"
 run install -m 0755 -- "$org_plan" "$codex_root/bin/org-plan"
+run install -m 0644 -- "$org_plan_cli" "$codex_root/lib/gestalt-org-plan/org-plan-cli.mjs"
+run install -m 0644 -- "$org_plan_core" "$codex_root/lib/gestalt-org-plan/org-plan-core.mjs"
+run install -m 0644 -- "$org_plan_measure" "$codex_root/lib/gestalt-org-plan/measure-plan.mjs"
 run "$org_plan" prepare-supervision --agents-dir "$agents_dir"
 run rm -f -- "$agents_dir/org-plan-supervisor.toml"
 

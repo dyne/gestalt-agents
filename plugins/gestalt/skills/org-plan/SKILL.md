@@ -115,6 +115,17 @@ subagent dedicated to a position uses collaboration-safe task name `l<a>` or
     to become the sole writer, fix every P0/P1, add regression coverage, and run focused plus
     full-suite checks before the root accepts one conventional final-review
     correction commit. Do not finish with an unresolved P0 or P1.
+13. `supervision-start` has a verifiable postcondition: Mobile either reports
+    enabled, healthy control for the retained plan, or the root records one
+    bounded compatibility warning and remains in same-turn continuous
+    supervision. At every would-be yield on an incomplete plan, the root must
+    take one legal disposition: do actionable work, follow up the same
+    executor, review/correct, checkpoint then launch the next L1, register a
+    probe-requested wait lease, declare table-qualified attention, or confirm
+    explicit manual Off. Status prose alone is never a disposition. Executor
+    completion, error, interruption, idle state, process result, and a user
+    status question are root wake inputs; an immediate action never requires a
+    probe or lease first.
 
 ## Human-attention decision table
 
