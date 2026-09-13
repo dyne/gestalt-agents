@@ -582,6 +582,8 @@ expect_contains "$supervision_dir/org-plan-reviewer.toml" 'Treat an L2 completio
 expect_contains "$supervision_dir/org-plan-reviewer.toml" 'never turn it into a final user response or wait for progress approval.'
 expect_contains "$supervision_dir/org-plan-reviewer.toml" 'Continue until every L1 is DONE and REVIEWED and final gates pass.'
 expect_contains "$supervision_dir/org-plan-reviewer.toml" 'Stop early only for a genuine external blocker'
+expect_contains "$supervision_dir/org-plan-reviewer.toml" 'call `gestalt_agent_capacity_recovery` exactly once'
+expect_contains "$supervision_dir/org-plan-reviewer.toml" 'Mobile preserves the durable root thread and Org Plan'
 expect_contains "$supervision_dir/org-plan-reviewer.toml" 'Show brief user-facing status'
 expect_contains "$supervision_dir/org-plan-reviewer.toml" 'L<a>/TOTAL — TITLE: STATUS'
 expect_contains "$supervision_dir/org-plan-reviewer.toml" 'Independently inspect its uncommitted diff against the starting commit'
