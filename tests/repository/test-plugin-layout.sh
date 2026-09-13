@@ -36,6 +36,16 @@ assert plugin_manifest["interface"]["displayName"] == "org-plan"
 assert plugin_manifest["skills"] == "./skills/"
 assert plugin_manifest["repository"] == "https://github.com/dyne/gestalt-agents"
 assert plugin_manifest["license"] == "MIT"
+supervision_manifest = json.loads((plugin / "gestalt-supervision-capabilities.json").read_text())
+assert supervision_manifest == {
+    "schemaVersion": 1,
+    "component": "agents",
+    "supervisionContract": 1,
+    "capabilities": [
+        "supervision-start", "wait-lease-tool", "checkpoint-tool",
+        "canonical-agent-identity", "org-plan-contract",
+    ],
+}, "Gestalt must ship the bounded supervision capability manifest"
 
 manifests = {
     path.parent.parent.name: json.loads(path.read_text())
