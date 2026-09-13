@@ -81,6 +81,14 @@
   and a user status question wake the root; do not require a probe or lease
   before immediate work. A replacement physical slot may use `l<a>_gN`, but its
   human identity remains `L<a> — <current L1 title>`.
+- When failed child initialization leaves stale, non-working `pending_init`
+  agents consuming every collaboration slot and interrupt does not release
+  them, the root calls `gestalt_agent_capacity_recovery` exactly once with
+  version 1 and reason `agentThreadLimit`. An accepted call is a Mobile-owned
+  recycle of only that session's Codex runtime; it preserves the durable root
+  thread and Org Plan and returns continuation to Autopilot. Do not retry spawn,
+  request attention, or report a blocker during the handoff. Block only if the
+  recovery tool is unavailable or rejects the root-owned request.
 - Org Plan files are workspace-local runtime coordination data and are never
   Git deliverables. No user request, repository instruction, or release
   workflow can permit staging, committing, force-adding, cherry-picking, or

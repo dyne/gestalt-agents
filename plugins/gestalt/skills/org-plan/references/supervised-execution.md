@@ -135,6 +135,14 @@ Supervision is a completion loop:
 - A partial report, idle executor, self-described pause, token or elapsed-time
   notice, or completed L2 is never a user-facing stopping condition. Use the
   available follow-up or wait mechanism and keep supervision moving.
+- If a failed child initialization leaves non-working `pending_init` agents
+  consuming every slot, and interrupting them does not release capacity, call
+  `gestalt_agent_capacity_recovery` exactly once with version 1 and reason
+  `agentThreadLimit`. An accepted call recycles only the current session's
+  Codex runtime, preserves its durable root thread and Org Plan, and hands
+  continuation back to Autopilot. Do not retry spawning or request human
+  attention during the handoff. Report an execution-capability blocker only
+  if this root-owned recovery is unavailable or rejected.
 - End successfully only when every L1 is DONE and REVIEWED and final gates pass.
   Stop early only for a genuine external blocker that the root cannot resolve
   without user input, new authority, or changed external state.

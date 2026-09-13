@@ -106,6 +106,16 @@ subagent dedicated to a position uses collaboration-safe task name `l<a>` or
     projected, one concise root accepted-L1 final may end that root turn; it
     never ends the plan. Continue through every L1 and a later terminal review
     until final gates pass.
+    If Codex reports `agent thread limit reached` after child initialization
+    failed, inspect the roster. When stale, non-working `pending_init` entries
+    still consume every slot and interrupting them does not release capacity,
+    call `gestalt_agent_capacity_recovery` exactly once with version 1 and
+    reason `agentThreadLimit`. Its accepted response recycles only the current
+    session runtime while preserving the durable root thread and Org Plan;
+    Autopilot resumes supervision after restoration. Do not request human
+    attention or retry spawning during that handoff. Report an execution
+    blocker only when the recovery tool is unavailable or rejects the
+    root-owned request.
 12. In supervised execution, final acceptance includes one fresh depth-one
     `gpt-5.6-sol` whole-branch reviewer, launched with `fork_turns=none`,
     `agent_type=worker`, and `task_name=final_review`, after every L1 is
