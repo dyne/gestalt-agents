@@ -17,10 +17,12 @@
   only code writer, and reports only to the root. Do not create an intermediate
   supervisor or a separate routine L1 reviewer. The required terminal
   `gpt-5.6-sol` whole-branch reviewer is the sole exception.
-- Use one-based canonical labels for every plan reference: L1 position `a` is
+- Use one-based canonical labels for plan references: L1 position `a` is
   `L<a>` and its L2 child position `b` is `L<a>.<b>`. IDs remain helper
-  arguments. Name a dedicated collaboration agent `l<a>` or `l<a>_<b>` to
-  satisfy task-name syntax, and refer to it by the canonical uppercase label.
+  arguments. Agent-roster identity is deliberately different and exact: the
+  root is `l0`; the executor for L1 position `a` is `l<a> — <L1 title>`, with
+  the title shown once. Never substitute roles, nicknames, plan titles, or
+  generated labels for these names.
 - Every L1 must have exactly one non-empty `:SKILLS:` property and exactly one
   `:REVIEW_STATUS:` property, initially `UNREVIEWED`; L2s must have neither.
   `:SKILLS:` is a whitespace-separated list of exact `$skill` references chosen
@@ -51,12 +53,15 @@
   requests go directly to the root as concise structured summaries. After all
   L1 executors have terminated, the terminal reviewer becomes the sole writer
   only when its review reports P0 or P1 issues.
-- Treat supervision as a completion loop, not a report relay. The executor owns
-  its whole assigned L1, not one L2, and continues across L2 completion,
-  checkpoints, tests, and progress updates until the L1 reaches its review
-  boundary. After every executor report, inspect the executor's current state.
-  If its L1 is partial and the executor stopped or became idle, resume that same
-  executor immediately with `followup_task` before returning any root response.
+- Treat supervision as a completion loop with explicit report boundaries. The
+  executor owns its whole assigned L1, not one L2, but returns concise evidence
+  after each L2 reaches DONE. The root validates that state and evidence,
+  projects it, and, when supported, records `l2Completed` before returning one
+  compact L2 final. Do not call `followup_task` before that final. Autopilot
+  starts the next root turn, where the root resumes the same executor for the
+  next L2 or begins L1 review. If no L2 boundary is available, preserve the
+  legacy same-turn fallback: resume the same executor before returning a root
+  response.
   If the user asks for status during partial work, answer briefly and perform
   that same continuation in the current turn; a status reply never consumes the
   required supervision action. Otherwise take the next eligible lifecycle action:
@@ -80,7 +85,7 @@
   a disposition. Executor completion/error/interruption/idle, process result,
   and a user status question wake the root; do not require a probe or lease
   before immediate work. A replacement physical slot may use `l<a>_gN`, but its
-  human identity remains `L<a> — <current L1 title>`.
+  roster identity remains `l<a> — <current L1 title>`.
 - When failed child initialization leaves stale, non-working `pending_init`
   agents consuming every collaboration slot and interrupt does not release
   them, the root calls `gestalt_agent_capacity_recovery` exactly once with
@@ -101,10 +106,13 @@
   is unavailable, capture output outside conversational context and report only the command, exit
   status, pass/fail counts, affected scope, and smallest necessary failure excerpt. Load the installed `$gestalt:context-mode` skill in every role, but do not install or enable it automatically when unavailable.
 - Post brief human-facing status at supervision start and when an L1 starts,
-  reaches review, is rejected, is accepted, or blocks. For each accepted L1,
-  emit exactly one concise root final answer with Completion, Review,
-  Verification, Commit, and Next; include repaired rejection findings and no
-  raw logs or child transcripts. The terminal success answer follows only the
+  reaches review, is rejected, is accepted, or blocks. For every DONE L2, emit
+  exactly one concise root final with Completion, Files, Verification, Commit,
+  and Next. `Commit` says it is pending L1 acceptance because L2s never commit.
+  For each accepted L1, emit exactly one concise root final answer that rolls up
+  its L2 outcomes and includes Completion, Files, Review, Verification, Commit,
+  and Next. Synthesize only facts added since the previous boundary; do not copy
+  commentary, raw logs, or child transcripts. The terminal success answer follows only the
   terminal whole-branch review, correction commit if needed, final gates,
   residual P2-or-lower findings, and clean intended scope.
   Use `L<a>/TOTAL — TITLE: STATUS` when possible. Resolve the first

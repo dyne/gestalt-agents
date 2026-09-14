@@ -29,10 +29,13 @@ Use one-based positions independently of mutable IDs and titles. L1 position
 assignments, reports, reviews, commits, and user updates. IDs remain the exact
 helper arguments.
 
-The collaboration API accepts lowercase letters, digits, and underscores in a
-task name. A dedicated position agent therefore uses `l<a>` or `l<a>_<b>` as
-its machine task name and is referred to as `L<a>` or `L<a>.<b>`. For example,
-L1 position 2 uses `l2`; its fifth L2 child uses `l2_5` and displays as `L2.5`.
+The root's exact roster name is `l0`. The executor for L1 position `a` uses
+collaboration task name `l<a>` and exact roster identity
+`l<a> — <current L1 title>`. The title appears once. Do not display a role,
+nickname, plan title, generated label, or uppercase plan position as an agent
+name. A physical replacement may use task name `l<a>_gN`, but retains the same
+canonical roster identity. L2 positions remain plan/report labels, not separate
+routine agent names.
 
 ## Start supervision
 
@@ -65,7 +68,7 @@ without reinstalling its own profile.
 3. Launch a fresh depth-one executor with `fork_turns=none` for exactly that L1,
    using task name `l<a>` for its canonical `L<a>` position. Only when that
    physical collaboration slot cannot be reused, use `l<a>_gN`; its human
-   label remains `L<a> — <current L1 title>`.
+   roster identity remains `l<a> — <current L1 title>`.
 4. The executor loads `$gestalt:context-mode`, verifies every declared L1
    skill is available, then loads exactly those declared skills before any
    repository inspection or edit. Missing skills block without edits.
@@ -109,7 +112,8 @@ root turn; optional tooling must never become a reason to await the user.
 
 Before yielding an incomplete plan, the root must select exactly one legal
 disposition: perform actionable work now; follow up the same executor; review
-and correct; checkpoint then hand off to the next L1; register a
+and correct; checkpoint and report a DONE L2; checkpoint then hand off to the
+next L1; register a
 probe-requested wait lease; declare table-qualified attention; or confirm
 explicit manual Off. A status update, progress report, or "waiting" statement
 is not a disposition. Completion, error, interruption, idle transition,
@@ -120,21 +124,23 @@ Do not create a probe or wait lease while actionable work exists.
 
 Supervision is a completion loop:
 
-- The executor owns the entire assigned L1. It continues from one L2 to the
-  next without returning a final report merely because an L2, checkpoint,
-  focused test, or progress update completed.
+- The executor owns the entire assigned L1, but returns a concise structured
+  evidence report whenever an L2 reaches DONE. It remains assigned and idle
+  across that presentation boundary.
 - After every executor report, inspect the executor's current state. If the L1
-  is partial and the executor stopped or became idle, call `followup_task` on
-  that same executor before returning any root response. If the user asks for
-  status, answer briefly and perform that continuation in the same turn; the
+  is partial because an L2 just reached DONE, validate its focused evidence and
+  changed-file scope, project it, and use the L2 reporting boundary below. On
+  the following root turn, call `followup_task` on that same executor. Other
+  partial or idle reports use immediate same-turn follow-up. If the user asks
+  for status, answer briefly and perform the applicable continuation; the
   status reply does not satisfy the supervision action. If `org-plan next PLAN
   review` selects a DONE + UNREVIEWED L1,
   review it immediately and return ACCEPT or REJECT. Never review an
   ineligible L1. An executor result, a review result, an accepted-L1 report,
   and terminal whole-plan acceptance are distinct boundaries.
-- A partial report, idle executor, self-described pause, token or elapsed-time
-  notice, or completed L2 is never a user-facing stopping condition. Use the
-  available follow-up or wait mechanism and keep supervision moving.
+- A partial report, idle executor, self-described pause, or token or
+  elapsed-time notice is never a user-facing stopping condition. A validated
+  DONE L2 is a finite presentation boundary only; it never requests approval.
 - If a failed child initialization leaves non-working `pending_init` agents
   consuming every slot, and interrupting them does not release capacity, call
   `gestalt_agent_capacity_recovery` exactly once with version 1 and reason
@@ -214,6 +220,35 @@ terminal review, a current root-side full-suite pass, and clean intended scope.
 This terminal reviewer is the sole exception to the prohibition on separate
 reviewers; it never replaces routine root-owned L1 review.
 
+## Completed-L2 reporting boundary
+
+After the root validates a DONE L2, its focused evidence, changed-file scope,
+projection, and host `update_plan`, call optional
+`gestalt_org_plan_checkpoint` once with `kind: l2Completed`, plan identity,
+canonical L1/L2 IDs and position, `status: DONE`, and bounded changes, files,
+and test summaries. Then send exactly one root final answer using this template:
+
+```
+L<a>.<b>/CHILD_TOTAL — TITLE: DONE
+
+Completion: one or two sentences describing delivered behavior since the previous boundary.
+Files: sorted relative paths, compactly grouped; or “None”.
+Verification: exact focused commands and bounded pass/fail results.
+Commit: Pending L<a> acceptance; changes remain uncommitted.
+Next: automatic continuation to L<a>.<n>, or L<a> review.
+```
+
+Keep this to one screen and synthesize only new facts. Never copy commentary,
+raw logs, or executor prose. Do not commit at an L2 boundary. Do not call
+`followup_task` before the final: Autopilot uses the checkpoint to start the
+next root turn, and that turn resumes the same executor. Even when the final L2
+completes its L1, emit the L2 boundary first; run the full suite, review, commit,
+and accepted-L1 report in the later turn.
+
+If `l2Completed` is unavailable, it is not a blocker. Use a compact commentary
+summary and resume the same executor in the current turn, because Mobile cannot
+safely accept a root final for an incomplete plan without that boundary.
+
 ## Accepted-L1 reporting boundary
 
 An accepted L1 ends one root turn, not the plan. After the ACCEPT commit/review
@@ -228,6 +263,7 @@ acceptance from executor prose.
 L<a>/TOTAL — TITLE: ACCEPTED
 
 Completion: bounded delivered behavior.
+Files: sorted union of files changed across the L1, compactly grouped; or “None”.
 Review: ACCEPT; include any REJECT findings repaired before acceptance.
 Verification: exact commands and bounded pass/fail results.
 Commit: conventional subject, then optional short hash; or “No commit required”.

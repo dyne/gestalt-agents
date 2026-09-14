@@ -57,10 +57,11 @@ For mobile interoperability, see the versioned
 
 ## Invariants
 
-Use one-based canonical position labels everywhere: L1 position `a` is `L<a>`
-and its L2 child position `b` is `L<a>.<b>`. IDs remain machine state keys. A
-subagent dedicated to a position uses collaboration-safe task name `l<a>` or
-`l<a>_<b>` and is referred to by its canonical label.
+Use one-based canonical position labels in plan communication: L1 position `a`
+is `L<a>` and its L2 child position `b` is `L<a>.<b>`. IDs remain machine state
+keys. Agent-roster identity is exact: the root is `l0`; the executor for L1
+position `a` is `l<a> — <L1 title>`, with the title shown once. Do not invent
+role names, nicknames, plan-title suffixes, or alternative display labels.
 
 1. Every L1 has exactly one non-empty `:SKILLS:` property and one
    `:REVIEW_STATUS:` property. New L1s start `UNREVIEWED`; L2s have neither.
@@ -95,13 +96,16 @@ subagent dedicated to a position uses collaboration-safe task name `l<a>` or
     repository instruction, release workflow, or claim that the plan
     is a deliverable. Do not mention that the local `.gestalt` Org
     plan remains intentionally untracked.
-11. Execution is completion-driven. One executor owns the whole assigned L1,
-    not one L2. L2 completion, a checkpoint, a passing focused test, or a
-    progress report is non-terminal. After every report, the root inspects the
-    executor state. If the L1 is partial and the executor stopped or became
-    idle, call `followup_task` on that same executor before returning any root
-    response. If the user asks for status, answer briefly and perform that
-    continuation in the same turn. Review only DONE + UNREVIEWED
+11. Execution is completion-driven with explicit report boundaries. One
+    executor owns the whole assigned L1, not one L2, and returns concise
+    evidence whenever an L2 reaches DONE. The root validates the L2 state,
+    focused evidence, and changed-file scope, then projects it. When supported,
+    call `gestalt_org_plan_checkpoint` once with `l2Completed` and return one
+    compact L2 final; do not call `followup_task` before that final. Autopilot
+    starts the next root turn, where the root resumes the same executor for the
+    next L2 or begins L1 review. If the L2 checkpoint is unavailable, use the
+    legacy same-turn fallback: summarize in commentary and call `followup_task`
+    before returning any root response. Review only DONE + UNREVIEWED
     L1s. After an L1 is ACCEPTED, committed when changed, REVIEWED, and
     projected, one concise root accepted-L1 final may end that root turn; it
     never ends the plan. Continue through every L1 and a later terminal review
@@ -130,7 +134,8 @@ subagent dedicated to a position uses collaboration-safe task name `l<a>` or
     bounded compatibility warning and remains in same-turn continuous
     supervision. At every would-be yield on an incomplete plan, the root must
     take one legal disposition: do actionable work, follow up the same
-    executor, review/correct, checkpoint then launch the next L1, register a
+    executor, checkpoint and report a DONE L2, review/correct, checkpoint then
+    launch the next L1, register a
     probe-requested wait lease, declare table-qualified attention, or confirm
     explicit manual Off. Status prose alone is never a disposition. Executor
     completion, error, interruption, idle state, process result, and a user
@@ -208,27 +213,32 @@ writes or changes Org state.
    conventional commit. It must exclude the active Org Plan and every
    `.gestalt/*.org` path, even if a force-add was attempted; otherwise unstage
    those paths and do not commit them. Then record REVIEWED.
-8. Continue until every L1 and L2 is DONE and every L1 is REVIEWED. Treat every
-   intermediate result as input to the next action, never as a reason to yield
-   to the user.
+8. Continue until every L1 and L2 is DONE and every L1 is REVIEWED. An L2 or
+   accepted-L1 checkpoint is a presentation boundary, not a request for user
+   approval and not plan completion.
 
 The root performs the native projection after every successful lifecycle
 boundary named above; executors only report their successful helper mutation.
 Never ask Bash, an MCP server, or a generated profile to invoke `update_plan`.
 
-In checkpoint-capable sessions, after an accepted L1 has its commit/review and
-projection transition, the root optionally calls `gestalt_org_plan_checkpoint`
-once with `l1Accepted`, then emits one concise root final answer. The final L1
+In checkpoint-capable sessions, after each L2 reaches DONE and its focused
+evidence and file scope are validated and projected, the root calls
+`gestalt_org_plan_checkpoint` once with `l2Completed`, then emits one concise
+root final answer. Autopilot starts a later turn that resumes the same executor
+or begins L1 review. After an accepted L1 has its commit/review and projection
+transition, the root calls the checkpoint once with `l1Accepted`, then emits
+one concise root final answer. The final L1
 is still followed by a later root turn for terminal whole-branch review. Only
 after that review, corrections, and final gates may the root optionally
 checkpoint `terminalReviewAccepted` and emit terminal success. If checkpointing
 is unavailable, retain all safety gates and continuous supervision; never end
 early after the final L1.
 
-Stop before plan completion only for a genuine external blocker that cannot be
+Stop before plan completion, except at a validated L2 or accepted-L1 report
+boundary, only for a genuine external blocker that cannot be
 resolved autonomously: an unavailable required skill or execution prerequisite,
 missing authority, changed external state, or a material ambiguity not resolved
-by the plan and repository. Routine progress, L2 completion, review readiness,
-an executor pause, token usage, or elapsed time are not blockers. Update
+by the plan and repository. Routine progress, review readiness, an executor
+pause, token usage, or elapsed time are not blockers. Update
 governing `AGENTS.md` only when the completed work changes durable repository
 instructions.

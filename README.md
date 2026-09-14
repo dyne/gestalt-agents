@@ -41,11 +41,14 @@ After all L1s are REVIEWED and their executors have closed, the root launches
 one fresh `gpt-5.6-sol` subagent for a terminal whole-branch review. That agent
 fixes any P0/P1 findings as the sole writer before final acceptance.
 
-Supervision is completion-driven. An executor owns its entire L1 and continues
-across L2 boundaries. After every report, the root inspects executor state and
-immediately resumes the same executor when its L1 is partial and it stopped or
-became idle. It reviews only DONE + UNREVIEWED L1s and advances accepted work.
-Neither role yields merely for progress, time, or token usage. The root stops
+Supervision is completion-driven. An executor owns its entire L1 but returns a
+concise evidence report whenever an L2 reaches DONE. In checkpoint-capable
+Mobile sessions, the root validates and publishes that L2 as a compact final
+answer; the next automatic turn resumes the same executor. Each answer lists
+the new behavior, changed files, focused verification, pending L1 commit, and
+next action. Accepted L1 answers roll up their L2s and name the resulting
+commit. Without L2 checkpoint support, the root uses the legacy same-turn
+continuation. Neither role yields merely for progress, time, or token usage. The root stops
 only when every plan L1 is REVIEWED and final gates pass, or when a genuine
 external blocker requires user input or changed external state.
 
