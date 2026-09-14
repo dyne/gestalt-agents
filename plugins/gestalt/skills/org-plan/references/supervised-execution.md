@@ -83,10 +83,13 @@ it never writes or changes Org state.
 `gestalt_org_plan_attention` is an optional mobile dynamic tool, not an
 `$org-plan` dependency. Its current schema version is 1. Exhaust safe,
 in-scope checks first. When a row below still prevents safe progress and the
-tool is available, call it before yielding with a bounded summary, concrete
-`requestedAction`, and the mapped `reason` and `resumeCondition`. When absent,
-report the ordinary blocker concisely and continue normal supervision rather
-than requiring the tool.
+tool is available, call it before sending any blocker response or yielding,
+with a bounded summary, concrete `requestedAction`, and the mapped `reason` and
+`resumeCondition`. Blocker prose is not a signal. A successful call is the
+terminal disposition for that turn: issue no further lifecycle action and let
+Mobile hold Autopilot until the matching resume event. When absent, report the
+ordinary blocker concisely and continue normal supervision rather than
+requiring the tool.
 
 | Genuine blocker after safe checks | `reason` | `resumeCondition` |
 | --- | --- | --- |
