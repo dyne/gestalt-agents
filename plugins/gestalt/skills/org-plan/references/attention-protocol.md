@@ -23,3 +23,9 @@ keep all existing helper, review, measurement, single-writer, projection, and
 continuation rules, and report genuine blockers normally. A mobile checkpoint
 is synthetic control input, never authorization to change scope or review
 state.
+
+When the tool is exposed, a supervisor must call it before sending any blocker
+response or yielding for a table-qualified blocker. Blocker prose is not a
+signal. After Mobile accepts the call, the supervisor issues no more lifecycle
+actions in that turn; the pending dynamic-tool request is the durable stop that
+Autopilot consumes until its mapped resume condition is satisfied.

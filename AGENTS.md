@@ -142,8 +142,9 @@
 
 `gestalt_org_plan_attention` is an optional mobile dynamic tool, not an
 `$org-plan` dependency. Its schema version is 1. After exhausting safe
-in-scope checks, roots and executors call it before yielding only for a genuine
-table-qualified blocker: a material plan change (`planChange`/`planRevision`),
+in-scope checks, roots and executors call it before sending any blocker response
+or yielding for a genuine table-qualified blocker: a material plan change
+(`planChange`/`planRevision`),
 exhausted hard block (`hardBlock`/`externalStateChanged`), unavailable required
 dependency (`missingDependency`/`dependencyInstalled`), missing authority
 (`permissionRequired`/`permissionGranted`), changed external state
@@ -151,6 +152,10 @@ dependency (`missingDependency`/`dependencyInstalled`), missing authority
 (`materialAmbiguity`/`userGuidance`). Every call includes a bounded summary and
 a concrete requested action. If the tool is absent, report the ordinary blocker
 without treating it as a missing Org Plan dependency.
+
+When the tool is available, blocker prose is not a signal. A successful call is
+the terminal disposition for that turn: issue no further lifecycle action and
+let Mobile hold Autopilot until the mapped resume condition occurs.
 
 A mobile autopilot checkpoint is synthetic control input: it never changes plan
 scope or review authority. On a checkpoint, either emit the table-qualified

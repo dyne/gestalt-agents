@@ -147,10 +147,12 @@ role names, nicknames, plan-title suffixes, or alternative display labels.
 `gestalt_org_plan_attention` is an optional, mobile-provided dynamic tool. It
 uses schema version 1 and is never an `$org-plan` dependency. First exhaust
 safe, in-scope checks. If a row applies and the tool is available, call it
-before yielding with a bounded summary, a concrete `requestedAction`, and the
-listed `reason` and `resumeCondition`. If it is unavailable, report the same
-normal blocker concisely and preserve the supervision loop; do not invent a
-tool dependency.
+before sending any blocker response or yielding, with a bounded summary, a
+concrete `requestedAction`, and the listed `reason` and `resumeCondition`.
+Blocker prose is not a signal. After a successful call, stop issuing lifecycle
+actions and let Mobile hold Autopilot until the matching resume event. If the
+tool is unavailable, report the same normal blocker concisely and preserve the
+supervision loop; do not invent a tool dependency.
 
 | Only after safe checks, progress cannot continue because… | `reason` | `resumeCondition` |
 | --- | --- | --- |
@@ -238,7 +240,9 @@ Stop before plan completion, except at a validated L2 or accepted-L1 report
 boundary, only for a genuine external blocker that cannot be
 resolved autonomously: an unavailable required skill or execution prerequisite,
 missing authority, changed external state, or a material ambiguity not resolved
-by the plan and repository. Routine progress, review readiness, an executor
+by the plan and repository. When the attention tool is available, this stop is
+valid only after its matching decision-table call succeeds. Routine progress,
+review readiness, an executor
 pause, token usage, or elapsed time are not blockers. Update
 governing `AGENTS.md` only when the completed work changes durable repository
 instructions.
