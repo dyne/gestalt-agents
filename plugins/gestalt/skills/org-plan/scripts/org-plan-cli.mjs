@@ -1,7 +1,190 @@
 #!/usr/bin/env node
-import { describe, measure as coreMeasure, mutate as coreMutate, next, projection, publishStatus, readPlan, summary } from "./org-plan-core.mjs";
-const u=()=>{console.error("usage: org-plan COMMAND [args]\ncommands: validate|next|summary|status|describe|projection|review|l2|measure|set|signal|supervision-start|prepare-executor|prepare-supervision");process.exit(2)},[c,...a]=process.argv.slice(2),h={validate:"usage: org-plan validate PLAN",next:"usage: org-plan next PLAN {l1|l2|review}",summary:"usage: org-plan summary PLAN",status:"usage: org-plan status PLAN",describe:"usage: org-plan describe PLAN ID",projection:"usage: org-plan projection PLAN",review:"usage: org-plan review PLAN L1_ID {REVIEWED|UNREVIEWED}",l2:"usage: org-plan l2 PLAN L2_ID {WIP|DONE}",measure:"usage: org-plan measure {start|checkpoint|finish} PLAN ID SNAPSHOT_JSON",set:"usage: org-plan set PLAN L1_ID {TODO|WIP|DONE} [--force]",signal:"usage: org-plan signal PLAN [REASON]","supervision-start":"usage: org-plan supervision-start PLAN"};
-if(!c)u();if(c==="--help"||c==="-h"){console.log("usage: org-plan COMMAND [args]\ncommands: validate|next|summary|status|describe|projection|review|l2|measure|set|signal|supervision-start|prepare-executor|prepare-supervision");process.exit()}if(a.length===1&&/^--?help$/.test(a[0])){if(h[c])console.log(h[c]);else u();process.exit()}
-const warn=(r)=>{if(r.publication.attempted&&!r.publication.published)console.error(`warning: plan status not published: ${r.publication.warning}`)};
-const mutate=(...args)=>{const r=coreMutate(...args);warn(r);return r},measure=(...args)=>{const r=coreMeasure(...args);warn(r);return r};
-try{if(c==="validate"){if(a.length!==1)u();readPlan(a[0])}else if(c==="next"){if(a.length!==2)u();const x=next(readPlan(a[0]),a[1]);if(!x)process.exit(1);console.log(` ${x.id} [#${x.state}] ${x.title}`)}else if(c==="summary"||c==="status"){if(a.length!==1)u();const p=readPlan(a[0]),s=summary(p);for(const x of ["TODO","WIP","DONE"])console.log(`L1 ${x}=${s.l1[x]}`);for(const x of ["TODO","WIP","DONE"])console.log(`L2 ${x}=${s.l2[x]}`);const x=next(p,"l1");if(x)console.log(`current  ${x.id} [#${x.state}] ${x.title}`);for(const x of ["REVIEWED","UNREVIEWED"])console.log(`L1 ${x}=${s.review[x]}`)}else if(c==="describe"){if(a.length!==2)u();const x=describe(readPlan(a[0]),a[1]);console.log(x.skills?`${x.position} ${x.title}\nGoal: ${x.goal}\nSkills: ${x.skills}`:`L2 ${x.title}\nWhy: ${x.goal}`)}else if(c==="projection"){if(a.length!==1)u();console.log(JSON.stringify(projection(readPlan(a[0]))))}else if(c==="review"){if(a.length!==3)u();if(!["REVIEWED","UNREVIEWED"].includes(a[2]))u();mutate(a[0],"review",a[1],a[2])}else if(c==="l2"){if(a.length===2){const p=readPlan(a[0]),r=new RegExp(a[1]),b=p.items.filter(x=>x.level===2&&r.test(p.lines.slice(x.line,x.end).join("\n")));if(!b.length)throw Error("no matching L2 blocks");console.log(b.map(x=>p.lines.slice(x.line,x.end).join("\n")).join("\n"))}else if(a.length===3)mutate(a[0],"l2",a[1],a[2]);else u()}else if(c==="set"){if(a.length<3||a.length>4)u();mutate(a[0],"set",a[1],a[2],{force:a[3]==="--force"})}else if(c==="measure"){if(a.length!==4)u();measure(a[1],a[0],a[2],JSON.parse(a[3]))}else if(c==="signal"||c==="supervision-start"){if(!a[0]||a.length>2)u();readPlan(a[0]);const why=c==="supervision-start"?"supervision-start":a[1]??"signal",p=publishStatus(a[0],why);if(p.attempted&&!p.published)throw Error(p.warning);console.log(`signal=published plan=${readPlan(a[0]).path} reason=${why}`)}else u()}catch(e){console.error(`${a[0]??"org-plan"}: ${e.message}`);process.exit(1)}
+import {
+  describe,
+  measure,
+  mutate,
+  next,
+  projection,
+  publishStatus,
+  readPlan,
+  summary,
+} from "./org-plan-core.mjs";
+
+const COMMANDS = [
+  "validate",
+  "next",
+  "summary",
+  "status",
+  "describe",
+  "projection",
+  "review",
+  "l2",
+  "measure",
+  "set",
+  "signal",
+  "supervision-start",
+  "prepare-executor",
+  "prepare-supervision",
+];
+const HELP = {
+  validate: "usage: org-plan validate PLAN",
+  next: "usage: org-plan next PLAN {l1|l2|review}",
+  summary: "usage: org-plan summary PLAN",
+  status: "usage: org-plan status PLAN",
+  describe: "usage: org-plan describe PLAN ID",
+  projection: "usage: org-plan projection PLAN",
+  review: "usage: org-plan review PLAN L1_ID {REVIEWED|UNREVIEWED}",
+  l2: "usage: org-plan l2 PLAN L2_ID {WIP|DONE}",
+  measure:
+    "usage: org-plan measure {start|checkpoint|finish} PLAN ID SNAPSHOT_JSON",
+  set: "usage: org-plan set PLAN L1_ID {TODO|WIP|DONE} [--force]",
+  signal: "usage: org-plan signal PLAN [REASON]",
+  "supervision-start": "usage: org-plan supervision-start PLAN",
+};
+
+function usage() {
+  console.error(
+    `usage: org-plan COMMAND [args]\ncommands: ${COMMANDS.join("|")}`,
+  );
+  process.exit(2);
+}
+
+function warnOnPublicationFailure(result) {
+  if (result.publication.attempted && !result.publication.published) {
+    console.error(
+      `warning: plan status not published: ${result.publication.warning}`,
+    );
+  }
+}
+
+function runMutation(...args) {
+  const result = mutate(...args);
+  warnOnPublicationFailure(result);
+  return result;
+}
+
+function runMeasurement(...args) {
+  const result = measure(...args);
+  warnOnPublicationFailure(result);
+  return result;
+}
+
+function printSummary(plan) {
+  const planSummary = summary(plan);
+  for (const state of ["TODO", "WIP", "DONE"]) {
+    console.log(`L1 ${state}=${planSummary.l1[state]}`);
+  }
+  for (const state of ["TODO", "WIP", "DONE"]) {
+    console.log(`L2 ${state}=${planSummary.l2[state]}`);
+  }
+  const current = next(plan, "l1");
+  if (current)
+    console.log(`current  ${current.id} [#${current.state}] ${current.title}`);
+  for (const state of ["REVIEWED", "UNREVIEWED"]) {
+    console.log(`L1 ${state}=${planSummary.review[state]}`);
+  }
+}
+
+function describeItem(path, id) {
+  const item = describe(readPlan(path), id);
+  console.log(
+    item.skills
+      ? `${item.position} ${item.title}\nGoal: ${item.goal}\nSkills: ${item.skills}`
+      : `L2 ${item.title}\nWhy: ${item.goal}`,
+  );
+}
+
+function findL2(path, pattern) {
+  const plan = readPlan(path);
+  const expression = new RegExp(pattern);
+  const blocks = plan.items.filter(
+    (item) =>
+      item.level === 2 &&
+      expression.test(plan.lines.slice(item.line, item.end).join("\n")),
+  );
+  if (!blocks.length) throw new Error("no matching L2 blocks");
+  console.log(
+    blocks
+      .map((item) => plan.lines.slice(item.line, item.end).join("\n"))
+      .join("\n"),
+  );
+}
+
+function publishSignal(command, args) {
+  if (!args[0] || args.length > 2) usage();
+  readPlan(args[0]);
+  const reason =
+    command === "supervision-start"
+      ? "supervision-start"
+      : (args[1] ?? "signal");
+  const publication = publishStatus(args[0], reason);
+  if (publication.attempted && !publication.published)
+    throw new Error(publication.warning);
+  console.log(
+    `signal=published plan=${readPlan(args[0]).path} reason=${reason}`,
+  );
+}
+
+function run(command, args) {
+  if (command === "validate") {
+    if (args.length !== 1) usage();
+    readPlan(args[0]);
+  } else if (command === "next") {
+    if (args.length !== 2) usage();
+    const item = next(readPlan(args[0]), args[1]);
+    if (!item) process.exit(1);
+    console.log(` ${item.id} [#${item.state}] ${item.title}`);
+  } else if (command === "summary" || command === "status") {
+    if (args.length !== 1) usage();
+    printSummary(readPlan(args[0]));
+  } else if (command === "describe") {
+    if (args.length !== 2) usage();
+    describeItem(args[0], args[1]);
+  } else if (command === "projection") {
+    if (args.length !== 1) usage();
+    console.log(JSON.stringify(projection(readPlan(args[0]))));
+  } else if (command === "review") {
+    if (args.length !== 3 || !["REVIEWED", "UNREVIEWED"].includes(args[2]))
+      usage();
+    runMutation(args[0], "review", args[1], args[2]);
+  } else if (command === "l2") {
+    if (args.length === 2) findL2(args[0], args[1]);
+    else if (args.length === 3) runMutation(args[0], "l2", args[1], args[2]);
+    else usage();
+  } else if (command === "set") {
+    if (args.length < 3 || args.length > 4) usage();
+    runMutation(args[0], "set", args[1], args[2], {
+      force: args[3] === "--force",
+    });
+  } else if (command === "measure") {
+    if (args.length !== 4) usage();
+    runMeasurement(args[1], args[0], args[2], JSON.parse(args[3]));
+  } else if (command === "signal" || command === "supervision-start") {
+    publishSignal(command, args);
+  } else {
+    usage();
+  }
+}
+
+const [command, ...args] = process.argv.slice(2);
+if (!command) usage();
+if (command === "--help" || command === "-h") {
+  console.log(
+    `usage: org-plan COMMAND [args]\ncommands: ${COMMANDS.join("|")}`,
+  );
+  process.exit(0);
+}
+if (args.length === 1 && /^--?help$/.test(args[0])) {
+  if (!HELP[command]) usage();
+  console.log(HELP[command]);
+  process.exit(0);
+}
+
+try {
+  run(command, args);
+} catch (error) {
+  console.error(
+    `${args[0] ?? "org-plan"}: ${error instanceof Error ? error.message : String(error)}`,
+  );
+  process.exit(1);
+}

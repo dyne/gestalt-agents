@@ -32,12 +32,19 @@ expect_ok "$helper" validate "$tmp/plan.org"
 installed_root="$tmp/installed-codex"
 mkdir -p "$installed_root/bin" "$installed_root/lib/gestalt-org-plan"
 install -m 0755 "$root/plugins/gestalt/skills/org-plan/scripts/org-plan" "$installed_root/bin/org-plan"
-for runtime_file in org-plan-cli.mjs org-plan-core.mjs measure-plan.mjs; do
+for runtime_file in \
+  org-plan-cli.mjs \
+  org-plan-core.mjs \
+  org-plan-files.mjs \
+  org-plan-parser.mjs \
+  org-plan-publication.mjs \
+  org-plan-transitions.mjs; do
   install -m 0644 "$root/plugins/gestalt/skills/org-plan/scripts/$runtime_file" \
     "$installed_root/lib/gestalt-org-plan/$runtime_file"
 done
 expect_ok "$installed_root/bin/org-plan" validate "$tmp/plan.org"
 expect_ok "$installed_root/bin/org-plan" projection "$tmp/plan.org"
+expect_not_contains "$installed_root/bin/org-plan" 'parse()'
 expect_ok "$helper" --help
 expect_contains "$tmp/out" 'usage: org-plan COMMAND [args]'
 expect_ok "$helper" signal --help
