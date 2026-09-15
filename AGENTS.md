@@ -20,9 +20,9 @@
 - Use one-based canonical labels for plan references: L1 position `a` is
   `L<a>` and its L2 child position `b` is `L<a>.<b>`. IDs remain helper
   arguments. Agent-roster identity is deliberately different and exact: the
-  root is `l0`; the executor for L1 position `a` is `l<a> — <L1 title>`, with
-  the title shown once. Never substitute roles, nicknames, plan titles, or
-  generated labels for these names.
+  root is `l0`; the executor for L1 position `a` is exactly `l<a>`. Pass that
+  literal value as `task_name` (`l1`, then `l2`, and so on). Never append a
+  title, role, nickname, plan name, L2 position, or generated label.
 - Every L1 must have exactly one non-empty `:SKILLS:` property and exactly one
   `:REVIEW_STATUS:` property, initially `UNREVIEWED`; L2s must have neither.
   `:SKILLS:` is a whitespace-separated list of exact `$skill` references chosen
@@ -69,7 +69,9 @@
   L1. Never turn a partial report into a final user response or wait for
   progress approval. An accepted L1 may end its current root turn only after
   its commit/review/projection transition and optional `l1Accepted` checkpoint;
-  it never ends the plan. Autopilot continues in the next root turn, and the
+  it never ends the plan. The checkpoint must be the last tool call of the root
+  turn: immediately emit the boundary final and end the turn. Autopilot
+  continues in the next root turn, and the
   final L1 still has a later terminal-review turn. Without the optional
   checkpoint tool, retain safe continuous supervision and never stop early.
   Stop only after the complete plan is accepted or when a genuine external
@@ -80,12 +82,12 @@
   reports one bounded compatibility warning and stays in same-turn continuous
   supervision. Before yielding an incomplete plan, choose exactly one legal
   disposition: actionable work, same-executor follow-up, review/correction,
-  accepted checkpoint plus next-L1 handoff, one-shot wait lease,
+  accepted-L1 checkpoint and boundary final, one-shot wait lease,
   table-qualified attention, or explicit manual Off. Status prose alone is not
   a disposition. Executor completion/error/interruption/idle, process result,
   and a user status question wake the root; do not require a probe or lease
   before immediate work. A replacement physical slot may use `l<a>_gN`, but its
-  roster identity remains `l<a> — <current L1 title>`.
+  displayed roster identity remains exactly `l<a>`.
 - Before yielding for an operation that is reasonably expected to outlast the
   normal Autopilot control interval, the root registers
   `gestalt_autopilot_wait_lease` version 2 with a unique report and lease ID,
@@ -125,7 +127,9 @@
   and Next. `Commit` says it is pending L1 acceptance because L2s never commit.
   For each accepted L1, emit exactly one concise root final answer that rolls up
   its L2 outcomes and includes Completion, Files, Review, Verification, Commit,
-  and Next. Synthesize only facts added since the previous boundary; do not copy
+  and Next. After either boundary checkpoint, make no more tool calls, launch no
+  executor, perform no review, and start no later milestone in that root turn.
+  Synthesize only facts added since the previous boundary; do not copy
   commentary, raw logs, or child transcripts. The terminal success answer follows only the
   terminal whole-branch review, correction commit if needed, final gates,
   residual P2-or-lower findings, and clean intended scope.

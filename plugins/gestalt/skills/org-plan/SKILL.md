@@ -60,8 +60,9 @@ For mobile interoperability, see the versioned
 Use one-based canonical position labels in plan communication: L1 position `a`
 is `L<a>` and its L2 child position `b` is `L<a>.<b>`. IDs remain machine state
 keys. Agent-roster identity is exact: the root is `l0`; the executor for L1
-position `a` is `l<a> — <L1 title>`, with the title shown once. Do not invent
-role names, nicknames, plan-title suffixes, or alternative display labels.
+position `a` is exactly `l<a>`. Pass that literal value as `task_name` (`l1`,
+then `l2`, and so on). Do not append a title, role, nickname, plan name, L2
+position, or generated display label.
 
 1. Every L1 has exactly one non-empty `:SKILLS:` property and one
    `:REVIEW_STATUS:` property. New L1s start `UNREVIEWED`; L2s have neither.
@@ -101,13 +102,15 @@ role names, nicknames, plan-title suffixes, or alternative display labels.
     evidence whenever an L2 reaches DONE. The root validates the L2 state,
     focused evidence, and changed-file scope, then projects it. When supported,
     call `gestalt_org_plan_checkpoint` once with `l2Completed` and return one
-    compact L2 final; do not call `followup_task` before that final. Autopilot
+    compact L2 final; do not call `followup_task` before that final. The
+    checkpoint is the last tool call of the root turn: emit the final
+    immediately and end the turn. Autopilot
     starts the next root turn, where the root resumes the same executor for the
     next L2 or begins L1 review. If the L2 checkpoint is unavailable, use the
     legacy same-turn fallback: summarize in commentary and call `followup_task`
     before returning any root response. Review only DONE + UNREVIEWED
     L1s. After an L1 is ACCEPTED, committed when changed, REVIEWED, and
-    projected, one concise root accepted-L1 final may end that root turn; it
+    projected, one concise root accepted-L1 final must end that root turn; it
     never ends the plan. Continue through every L1 and a later terminal review
     until final gates pass.
     If Codex reports `agent thread limit reached` after child initialization
@@ -134,8 +137,8 @@ role names, nicknames, plan-title suffixes, or alternative display labels.
     bounded compatibility warning and remains in same-turn continuous
     supervision. At every would-be yield on an incomplete plan, the root must
     take one legal disposition: do actionable work, follow up the same
-    executor, checkpoint and report a DONE L2, review/correct, checkpoint then
-    launch the next L1, register a
+    executor, checkpoint and report a DONE L2, review/correct, checkpoint and
+    report an accepted L1, register a
     one-shot wait lease, declare table-qualified attention, or confirm
     explicit manual Off. Status prose alone is never a disposition. Executor
     completion, error, interruption, idle state, process result, and a user
@@ -248,10 +251,13 @@ Never ask Bash, an MCP server, or a generated profile to invoke `update_plan`.
 In checkpoint-capable sessions, after each L2 reaches DONE and its focused
 evidence and file scope are validated and projected, the root calls
 `gestalt_org_plan_checkpoint` once with `l2Completed`, then emits one concise
-root final answer. Autopilot starts a later turn that resumes the same executor
+root final answer without any intervening tool call. That final ends the root
+turn. Autopilot starts a later turn that resumes the same executor
 or begins L1 review. After an accepted L1 has its commit/review and projection
 transition, the root calls the checkpoint once with `l1Accepted`, then emits
-one concise root final answer. The final L1
+one concise root final answer without any intervening tool call. That final
+ends the root turn; no executor launch, review, or later milestone action is
+allowed after the checkpoint in that turn. The final L1
 is still followed by a later root turn for terminal whole-branch review. Only
 after that review, corrections, and final gates may the root optionally
 checkpoint `terminalReviewAccepted` and emit terminal success. If checkpointing
