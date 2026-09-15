@@ -29,13 +29,13 @@ Use one-based positions independently of mutable IDs and titles. L1 position
 assignments, reports, reviews, commits, and user updates. IDs remain the exact
 helper arguments.
 
-The root's exact roster name is `l0`. The executor for L1 position `a` uses
-collaboration task name `l<a>` and exact roster identity
-`l<a> — <current L1 title>`. The title appears once. Do not display a role,
-nickname, plan title, generated label, or uppercase plan position as an agent
-name. A physical replacement may use task name `l<a>_gN`, but retains the same
-canonical roster identity. L2 positions remain plan/report labels, not separate
-routine agent names.
+The root's exact roster name is `l0`. The executor for L1 position `a` uses the
+exact collaboration task name and roster identity `l<a>`: pass literal `l1`
+for L1, `l2` for L2, and so on. Do not display or append a role, nickname,
+milestone title, plan title, generated label, or uppercase plan position. A
+physical replacement may use task name `l<a>_gN`, but its displayed canonical
+identity remains exactly `l<a>`. L2 positions remain plan/report labels, never
+separate routine agent names.
 
 ## Start supervision
 
@@ -67,8 +67,8 @@ without reinstalling its own profile.
    `org-plan describe`.
 3. Launch a fresh depth-one executor with `fork_turns=none` for exactly that L1,
    using task name `l<a>` for its canonical `L<a>` position. Only when that
-   physical collaboration slot cannot be reused, use `l<a>_gN`; its human
-   roster identity remains `l<a> — <current L1 title>`.
+   physical collaboration slot cannot be reused, use `l<a>_gN`; its displayed
+   roster identity remains exactly `l<a>`.
 4. The executor loads `$gestalt:context-mode`, verifies every declared L1
    skill is available, then loads exactly those declared skills before any
    repository inspection or edit. Missing skills block without edits.
@@ -155,7 +155,8 @@ Version 1 remains only for the legacy probe-requested compatibility path.
 Supervision is a completion loop:
 
 - The executor owns the entire assigned L1, but returns a concise structured
-  evidence report whenever an L2 reaches DONE. It remains assigned and idle
+  evidence report whenever an L2 reaches DONE. That report ends the executor's
+  turn. It remains assigned and idle
   across that presentation boundary.
 - After every executor report, inspect the executor's current state. If the L1
   is partial because an L2 just reached DONE, validate its focused evidence and
@@ -256,7 +257,9 @@ After the root validates a DONE L2, its focused evidence, changed-file scope,
 projection, and host `update_plan`, call optional
 `gestalt_org_plan_checkpoint` once with `kind: l2Completed`, plan identity,
 canonical L1/L2 IDs and position, `status: DONE`, and bounded changes, files,
-and test summaries. Then send exactly one root final answer using this template:
+and test summaries. This checkpoint must be the last tool call of the root turn.
+Send exactly one root final answer immediately, with no intervening tool call,
+using this template:
 
 ```
 L<a>.<b>/CHILD_TOTAL — TITLE: DONE
@@ -285,7 +288,9 @@ An accepted L1 ends one root turn, not the plan. After the ACCEPT commit/review
 transition, projection, and host `update_plan`, call optional
 `gestalt_org_plan_checkpoint` once with `kind: l1Accepted`, the plan identity,
 canonical L1 position/ID, and bounded created-or-not-required commit metadata.
-Then send exactly one root final answer using the template below. Do not make
+The checkpoint must be the last tool call of the root turn. Then send exactly
+one root final answer immediately, with no intervening tool call, using the
+template below. Do not make
 executor output user-facing, duplicate the final answer in commentary, or infer
 acceptance from executor prose.
 

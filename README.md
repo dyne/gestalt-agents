@@ -55,11 +55,12 @@ external blocker requires user input or changed external state.
 Starting supervision has an observable postcondition: the retained plan either
 has healthy Mobile control evidence, or the root emits one bounded compatibility
 warning and continues in the same turn. On an incomplete plan it must choose a
-real disposition—work, same-executor follow-up, review/correction, accepted
-checkpoint plus next L1, a valid probe-requested wait, structured attention, or
+real disposition—work, same-executor follow-up, review/correction, an accepted
+checkpoint followed immediately by its boundary final, a valid probe-requested wait, structured attention, or
 explicit manual Off. A status message alone never ends supervision. Executors
-use machine names such as `l2` (or a replacement `l2_g2`); the human label is
-always `L2 — <current L1 title>`.
+and their displayed roster entries use exact names such as `l2` (or canonical
+`l2` for a replacement physical slot such as `l2_g2`); titles and generated
+nicknames are never appended.
 
 Context-mode transports evidence; it does not spawn agents.
 
