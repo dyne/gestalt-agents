@@ -116,12 +116,39 @@ root turn; optional tooling must never become a reason to await the user.
 Before yielding an incomplete plan, the root must select exactly one legal
 disposition: perform actionable work now; follow up the same executor; review
 and correct; checkpoint and report a DONE L2; checkpoint then hand off to the
-next L1; register a
-probe-requested wait lease; declare table-qualified attention; or confirm
-explicit manual Off. A status update, progress report, or "waiting" statement
+next L1; register a one-shot wait lease; declare table-qualified attention; or
+confirm explicit manual Off. A status update, progress report, or "waiting" statement
 is not a disposition. Completion, error, interruption, idle transition,
 process result, and a status question each wake the root to make that choice.
 Do not create a probe or wait lease while actionable work exists.
+
+## One-shot long-wait lease
+
+Before yielding for work expected to take longer than the ordinary Autopilot
+control interval, call `gestalt_autopilot_wait_lease` with version 2, unique
+`reportId` and `leaseId` values, the smallest relevant `wakeConditions`, and
+`maxWaitMs` between 60000 and 86400000. The first matching observable event or
+the deadline resumes normal Autopilot control. This is one episode, not a pulse
+policy change. If the wait remains justified after that later turn begins, the
+root must reassess it and explicitly register another episode.
+
+For long L2 or subagent work, choose `executorChanged`. For a long observable
+process, choose its process wake conditions. Do not use the lease for ordinary
+work, to mask a stalled executor,
+or when any immediate supervision action exists.
+
+For GitHub PR CI, the root starts an owned synchronous watcher:
+
+```sh
+gh pr checks <PR> --watch --interval 30
+```
+
+Give the command only a short initial execution yield. If it is still running,
+register the version 2 lease with `processExited` and
+`processResultAvailable`, plus a realistic safety deadline. When the watcher
+exits, read that same process result and continue the lifecycle. Mobile neither
+holds GitHub credentials nor implements a parallel GitHub polling loop.
+Version 1 remains only for the legacy probe-requested compatibility path.
 
 ## Evidence and review loop
 
