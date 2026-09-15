@@ -80,12 +80,26 @@
   reports one bounded compatibility warning and stays in same-turn continuous
   supervision. Before yielding an incomplete plan, choose exactly one legal
   disposition: actionable work, same-executor follow-up, review/correction,
-  accepted checkpoint plus next-L1 handoff, probe-requested wait lease,
+  accepted checkpoint plus next-L1 handoff, one-shot wait lease,
   table-qualified attention, or explicit manual Off. Status prose alone is not
   a disposition. Executor completion/error/interruption/idle, process result,
   and a user status question wake the root; do not require a probe or lease
   before immediate work. A replacement physical slot may use `l<a>_gN`, but its
   roster identity remains `l<a> — <current L1 title>`.
+- Before yielding for an operation that is reasonably expected to outlast the
+  normal Autopilot control interval, the root registers
+  `gestalt_autopilot_wait_lease` version 2 with a unique report and lease ID,
+  the smallest relevant observable wake set, and a bounded `maxWaitMs` between
+  one minute and 24 hours. Mobile resumes on the first matching event or the
+  deadline. The lease covers one episode only and never changes the permanent
+  pulse policy; if the wait is still justified in a later turn, the root must
+  assess and register a new lease. Use process events for an observable command
+  and `executorChanged` for long delegated work. Never lease routine work,
+  hide a stalled executor, or delay an action available now. For GitHub PR CI,
+  the root starts `gh pr checks <PR> --watch --interval 30` with a short initial
+  command yield; only if it remains running does the root lease
+  `processExited` and `processResultAvailable`, then consumes that same process
+  result after wake. Mobile never needs GitHub credentials or its own CI poller.
 - When failed child initialization leaves stale, non-working `pending_init`
   agents consuming every collaboration slot and interrupt does not release
   them, the root calls `gestalt_agent_capacity_recovery` exactly once with

@@ -136,11 +136,33 @@ role names, nicknames, plan-title suffixes, or alternative display labels.
     take one legal disposition: do actionable work, follow up the same
     executor, checkpoint and report a DONE L2, review/correct, checkpoint then
     launch the next L1, register a
-    probe-requested wait lease, declare table-qualified attention, or confirm
+    one-shot wait lease, declare table-qualified attention, or confirm
     explicit manual Off. Status prose alone is never a disposition. Executor
     completion, error, interruption, idle state, process result, and a user
     status question are root wake inputs; an immediate action never requires a
     probe or lease first.
+
+## One-shot long waits
+
+When an operation is reasonably expected to exceed the normal Autopilot control
+interval, the root calls `gestalt_autopilot_wait_lease` version 2 before
+yielding. Supply unique `reportId` and `leaseId` values, the smallest relevant
+`wakeConditions` set, and a bounded `maxWaitMs` from 60000 through 86400000.
+Mobile resumes on the first matching observable event or that deadline. The
+accepted lease applies to this episode only and does not alter later pulse
+timing. If the same wait remains justified after Autopilot resumes, reassess it
+and register a new lease from that later turn.
+
+Use `executorChanged` for long delegated work and the appropriate process
+conditions for an observable command. Do not create a
+lease for routine work, while an immediate lifecycle action exists, or merely
+to conceal a stalled executor. For GitHub PR CI, start
+`gh pr checks <PR> --watch --interval 30` with a short initial command yield.
+If the command remains running, register a version 2 lease for `processExited`
+and `processResultAvailable` with a realistic safety deadline. After the wake,
+consume that same process result and continue. The supervisor owns this watcher;
+Mobile does not receive GitHub credentials or poll GitHub itself. Version 1
+remains the compatibility form for a Mobile-requested probe wait.
 
 ## Human-attention decision table
 
