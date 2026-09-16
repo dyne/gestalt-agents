@@ -34,8 +34,11 @@ exact collaboration task name and roster identity `l<a>`: pass literal `l1`
 for L1, `l2` for L2, and so on. Do not display or append a role, nickname,
 milestone title, plan title, generated label, or uppercase plan position. A
 physical replacement may use task name `l<a>_gN`, but its displayed canonical
-identity remains exactly `l<a>`. L2 positions remain plan/report labels, never
-separate routine agent names.
+identity remains exactly `l<a>`. Use the exact physical replacement identity
+supplied by Mobile. Never increment a generation speculatively; choose the
+first unused `l<a>_gN` only after the prior collaboration slot is confirmed
+unavailable. L2 positions remain plan/report labels, never separate routine
+agent names.
 
 ## Start supervision
 
@@ -68,7 +71,9 @@ without reinstalling its own profile.
 3. Launch a fresh depth-one executor with `fork_turns=none` for exactly that L1,
    using task name `l<a>` for its canonical `L<a>` position. Only when that
    physical collaboration slot cannot be reused, use `l<a>_gN`; its displayed
-   roster identity remains exactly `l<a>`.
+   roster identity remains exactly `l<a>`. Use Mobile's exact supplied identity,
+   or the first unused generation after confirming the prior slot unavailable;
+   never increment it speculatively.
 4. The executor loads `$gestalt:context-mode`, verifies every declared L1
    skill is available, then loads exactly those declared skills before any
    repository inspection or edit. Missing skills block without edits.
@@ -136,6 +141,7 @@ For long L2 or subagent work, choose `executorChanged`. For a long observable
 process, choose its process wake conditions. Do not use the lease for ordinary
 work, to mask a stalled executor,
 or when any immediate supervision action exists.
+Never use a wait lease to await a checkpoint boundary or its continuation.
 
 For GitHub PR CI, the root starts an owned synchronous watcher:
 
@@ -229,7 +235,8 @@ After every L1 is DONE and REVIEWED, terminate the last L1 executor and confirm
 that no other writer is active. Before final acceptance:
 
 1. Spawn one fresh depth-one subagent with `fork_turns=none`,
-   `agent_type=worker`, `model=gpt-5.6-sol`, and `task_name=final_review`.
+   `agent_type=org-plan-reviewer`, and `task_name=final_review`. This dedicated
+   role fixes the reviewer model to Sol.
 2. Give it a general overview containing the Org Plan goal, every implemented
    L1/L2 outcome, the branch base and current HEAD, milestone commits, tests,
    known tradeoffs, and the exact plan path as read-only context.
@@ -252,6 +259,16 @@ This terminal reviewer is the sole exception to the prohibition on separate
 reviewers; it never replaces routine root-owned L1 review.
 
 ## Completed-L2 reporting boundary
+
+A checkpoint is a short, idempotent persist-and-ack boundary, never a wait
+episode. Do not register a wait lease or wait for `executorChanged` after it.
+After the matching root final, Mobile schedules the next fenced continuation
+from durable `checkpointChanged`. If a later turn observes
+`checkpointHandoffFailed`, re-read the durable plan and Mobile control state;
+do not blindly replay the checkpoint, request attention, or invent a
+replacement. Treat `safetyPaused` as a safe terminal control state, not as
+"waiting for agent event", and resume only after Mobile or explicit manual
+recovery.
 
 After the root validates a DONE L2, its focused evidence, changed-file scope,
 projection, and host `update_plan`, call optional

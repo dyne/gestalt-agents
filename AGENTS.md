@@ -22,7 +22,10 @@
   arguments. Agent-roster identity is deliberately different and exact: the
   root is `l0`; the executor for L1 position `a` is exactly `l<a>`. Pass that
   literal value as `task_name` (`l1`, then `l2`, and so on). Never append a
-  title, role, nickname, plan name, L2 position, or generated label.
+  title, role, nickname, plan name, L2 position, or generated label. For a
+  replacement, use the exact physical identity supplied by Mobile. Never
+  increment a generation speculatively; choose the first unused `l<a>_gN`
+  only after the prior collaboration slot is confirmed unavailable.
 - Every L1 must have exactly one non-empty `:SKILLS:` property and exactly one
   `:REVIEW_STATUS:` property, initially `UNREVIEWED`; L2s must have neither.
   `:SKILLS:` is a whitespace-separated list of exact `$skill` references chosen
@@ -74,6 +77,14 @@
   continues in the next root turn, and the
   final L1 still has a later terminal-review turn. Without the optional
   checkpoint tool, retain safe continuous supervision and never stop early.
+  A checkpoint is a short, idempotent persist-and-ack boundary, never a wait
+  episode. Do not register a wait lease or wait for `executorChanged` after
+  it; Mobile schedules the fenced continuation from durable
+  `checkpointChanged` after the matching root final. If a later turn observes
+  `checkpointHandoffFailed`, re-read durable plan and control state instead of
+  blindly replaying the checkpoint, requesting attention, or inventing a
+  replacement. Treat `safetyPaused` as a safe terminal control state and
+  resume only after Mobile or explicit manual recovery.
   Stop only after the complete plan is accepted or when a genuine external
   blocker remains that the root cannot resolve without user input or changed
   external state.
@@ -87,7 +98,8 @@
   a disposition. Executor completion/error/interruption/idle, process result,
   and a user status question wake the root; do not require a probe or lease
   before immediate work. A replacement physical slot may use `l<a>_gN`, but its
-  displayed roster identity remains exactly `l<a>`.
+  displayed roster identity remains exactly `l<a>` and its generation follows
+  the non-speculative replacement rule above.
 - Before yielding for an operation that is reasonably expected to outlast the
   normal Autopilot control interval, the root registers
   `gestalt_autopilot_wait_lease` version 2 with a unique report and lease ID,
@@ -143,8 +155,9 @@
   executor. Do not ask the user for progress decisions or review approval;
   request user input only for material ambiguity or an unavailable prerequisite.
 - After every L1 is DONE and REVIEWED, terminate the last L1 executor and spawn
-  one fresh depth-one subagent with `fork_turns=none`, `agent_type=worker`,
-  `model=gpt-5.6-sol`, and `task_name=final_review`. Give it a general overview
+  one fresh depth-one subagent with `fork_turns=none`,
+  `agent_type=org-plan-reviewer`, and `task_name=final_review`. That dedicated
+  role fixes the reviewer model to Sol. Give it a general overview
   of the implemented Org Plan, including the plan goal, milestones, branch base,
   commits, tests, and known tradeoffs. Require a whole-branch review of all
   implementation work against the Org Plan and a severity-ranked report. If it

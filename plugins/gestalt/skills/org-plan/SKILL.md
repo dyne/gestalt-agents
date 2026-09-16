@@ -62,7 +62,10 @@ is `L<a>` and its L2 child position `b` is `L<a>.<b>`. IDs remain machine state
 keys. Agent-roster identity is exact: the root is `l0`; the executor for L1
 position `a` is exactly `l<a>`. Pass that literal value as `task_name` (`l1`,
 then `l2`, and so on). Do not append a title, role, nickname, plan name, L2
-position, or generated display label.
+position, or generated display label. For a replacement, use the exact
+physical identity supplied by Mobile. Never increment a generation
+speculatively; choose the first unused `l<a>_gN` only after the prior
+collaboration slot is confirmed unavailable.
 
 1. Every L1 has exactly one non-empty `:SKILLS:` property and one
    `:REVIEW_STATUS:` property. New L1s start `UNREVIEWED`; L2s have neither.
@@ -113,6 +116,14 @@ position, or generated display label.
     projected, one concise root accepted-L1 final must end that root turn; it
     never ends the plan. Continue through every L1 and a later terminal review
     until final gates pass.
+    A checkpoint is a short, idempotent persist-and-ack boundary, never a wait
+    episode. Do not register a wait lease or wait for `executorChanged` after
+    it. Mobile starts the next fenced continuation from durable
+    `checkpointChanged` after the matching root final. If a later turn observes
+    `checkpointHandoffFailed`, re-read durable plan and control state; do not
+    blindly replay the checkpoint, request attention, or invent a replacement.
+    Treat `safetyPaused` as a safe terminal control state and resume only after
+    Mobile or explicit manual recovery.
     If Codex reports `agent thread limit reached` after child initialization
     failed, inspect the roster. When stale, non-working `pending_init` entries
     still consume every slot and interrupting them does not release capacity,
@@ -124,10 +135,11 @@ position, or generated display label.
     blocker only when the recovery tool is unavailable or rejects the
     root-owned request.
 12. In supervised execution, final acceptance includes one fresh depth-one
-    `gpt-5.6-sol` whole-branch reviewer, launched with `fork_turns=none`,
-    `agent_type=worker`, and `task_name=final_review`, after every L1 is
-    REVIEWED and its executor has terminated. Give it a general overview of the
-    implemented plan and require a severity-ranked review of all branch
+    whole-branch reviewer, launched with `fork_turns=none`,
+    `agent_type=org-plan-reviewer`, and `task_name=final_review`, after every L1
+    is REVIEWED and its executor has terminated. Give it a general overview of
+    the implemented plan; the dedicated role fixes the reviewer model to Sol.
+    Require a severity-ranked review of all branch
     implementation work. If it reports P0 or P1 issues, order that same reviewer
     to become the sole writer, fix every P0/P1, add regression coverage, and run focused plus
     full-suite checks before the root accepts one conventional final-review
@@ -159,7 +171,8 @@ and register a new lease from that later turn.
 Use `executorChanged` for long delegated work and the appropriate process
 conditions for an observable command. Do not create a
 lease for routine work, while an immediate lifecycle action exists, or merely
-to conceal a stalled executor. For GitHub PR CI, start
+to conceal a stalled executor. Never use a lease to await a checkpoint boundary.
+For GitHub PR CI, start
 `gh pr checks <PR> --watch --interval 30` with a short initial command yield.
 If the command remains running, register a version 2 lease for `processExited`
 and `processResultAvailable` with a realistic safety deadline. After the wake,
