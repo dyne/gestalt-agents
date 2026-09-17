@@ -92,11 +92,13 @@ org-plan measure checkpoint PLAN ID SNAPSHOT_JSON
 org-plan measure finish PLAN ID SNAPSHOT_JSON
 ```
 
-Never hand-edit derived measurements. Timestamps are UTC ISO-8601 instants;
-elapsed seconds and token counters are non-negative integers; quota values are
-integer percentages. Start values are immutable, checkpoints refresh current
-values, and completion records end values. Omit unavailable quota values. If a
-quota resets or moves backward, record zero percent used.
+Never hand-edit derived measurements. Timestamps are ISO-8601 instants; the
+helper accepts RFC 3339 offsets in existing plans and normalizes newly written
+timestamps to UTC. Elapsed seconds and token counters are non-negative
+integers; quota values are integer percentages. Start values are immutable,
+checkpoints refresh current values, and completion records end values. Omit
+unavailable quota values. If a quota resets or moves backward, record zero
+percent used.
 
 Start the L1 before its first L2 and finish it after implementation, review,
 retries, and waiting. Start and finish each L2 separately. Checkpoint the active
