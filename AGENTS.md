@@ -104,7 +104,11 @@
   normal Autopilot control interval, the root registers
   `gestalt_autopilot_wait_lease` version 2 with a unique report and lease ID,
   the smallest relevant observable wake set, and a bounded `maxWaitMs` between
-  one minute and 24 hours. Mobile resumes on the first matching event or the
+  one minute and 24 hours. Yield only when the tool response has
+  `accepted:true`. If it is unavailable or returns `accepted:false`, automatic
+  continuation is not guaranteed: continue supervising in the same root turn,
+  including an immediate same-executor follow-up when that is the next action.
+  Mobile resumes an accepted lease on the first matching event or the
   deadline. The lease covers one episode only and never changes the permanent
   pulse policy; if the wait is still justified in a later turn, the root must
   assess and register a new lease. Use process events for an observable command
