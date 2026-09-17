@@ -11,6 +11,12 @@ export interface McpProbeLaunch {
 export interface McpHandshakeResult {
   ok: boolean;
   detail: string;
+  /** The first child exited cleanly before initialize, but one retry passed. */
+  recoveredAfterRetry?: boolean;
+}
+
+interface McpHandshakeAttemptResult extends McpHandshakeResult {
+  retryableEarlyCleanExit?: boolean;
 }
 
 interface JsonRpcResponse {
@@ -75,19 +81,26 @@ function terminateChild(child: ChildProcessWithoutNullStreams): void {
  * tools/list exchange used by executor sessions. Never calls ctx_doctor in the
  * child, avoiding recursive diagnostics.
  */
-export function probeMcpHandshake(
+function probeMcpHandshakeOnce(
   launch: McpProbeLaunch,
-  timeoutMs = 8_000,
-): Promise<McpHandshakeResult> {
+  timeoutMs: number,
+): Promise<McpHandshakeAttemptResult> {
   return new Promise((resolveResult) => {
     let child: ChildProcessWithoutNullStreams;
     try {
+      const env: NodeJS.ProcessEnv = {
+        ...process.env,
+        CONTEXT_MODE_DISABLE_VERSION_CHECK: "1",
+      };
+      // This process is a top-level diagnostic child, even when ctx_doctor was
+      // invoked from a nested bridge. Inheriting bridge-only lifecycle state
+      // can make the probe self-reap for reasons unrelated to normal Codex MCP
+      // startup.
+      delete env.CONTEXT_MODE_BRIDGE_DEPTH;
+      delete env.CONTEXT_MODE_BRIDGE_IDLE_MS;
       child = spawn(launch.command, launch.args, {
         stdio: ["pipe", "pipe", "pipe"],
-        env: {
-          ...process.env,
-          CONTEXT_MODE_DISABLE_VERSION_CHECK: "1",
-        },
+        env,
       });
     } catch (error) {
       resolveResult({ ok: false, detail: `could not spawn ${launch.label}: ${error instanceof Error ? error.message : String(error)}` });
@@ -100,7 +113,7 @@ export function probeMcpHandshake(
     let stderr = "";
     let timeout: ReturnType<typeof setTimeout>;
 
-    const finish = (result: McpHandshakeResult) => {
+    const finish = (result: McpHandshakeAttemptResult) => {
       if (settled) return;
       settled = true;
       clearTimeout(timeout);
@@ -167,7 +180,12 @@ export function probeMcpHandshake(
     child.on("close", (code, signal) => {
       if (!settled) {
         const status = signal ? `signal ${signal}` : `exit ${code ?? "unknown"}`;
-        finish({ ok: false, detail: failureDetail(`connection closed during ${phase} (${status})`) });
+        const provenance = `launcher ${launch.label}; pid ${child.pid ?? "unknown"}`;
+        finish({
+          ok: false,
+          detail: failureDetail(`connection closed during ${phase} (${status}); ${provenance}`),
+          retryableEarlyCleanExit: phase === "initialize" && signal === null && code === 0,
+        });
       }
     });
 
@@ -186,4 +204,31 @@ export function probeMcpHandshake(
       },
     }) + "\n");
   });
+}
+
+/**
+ * Spawn a fresh MCP server and complete the same initialize -> initialized ->
+ * tools/list exchange used by executor sessions. A clean exit before the first
+ * initialize response is retried once: runtime repair/session turnover can
+ * briefly close a disposable probe without proving the installed MCP is bad.
+ */
+export async function probeMcpHandshake(
+  launch: McpProbeLaunch,
+  timeoutMs = 8_000,
+): Promise<McpHandshakeResult> {
+  const first = await probeMcpHandshakeOnce(launch, timeoutMs);
+  if (!first.retryableEarlyCleanExit) return first;
+
+  const second = await probeMcpHandshakeOnce(launch, timeoutMs);
+  if (second.ok) {
+    return {
+      ok: true,
+      recoveredAfterRetry: true,
+      detail: `${second.detail}; recovered on retry after transient clean exit`,
+    };
+  }
+  return {
+    ok: false,
+    detail: `${first.detail}; retry also failed — ${second.detail}`,
+  };
 }

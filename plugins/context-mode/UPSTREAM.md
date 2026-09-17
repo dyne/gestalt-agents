@@ -46,6 +46,9 @@ and contents while excluding generated dependencies and build artifacts.
 - Recovers a missing `CODEX_HOME` from Codex's installed plugin-cache path so
   MCP diagnostics, storage, and hooks stay inside the selected profile.
   MCP and hook entrypoints never build or repair the package.
+- Hardens the spawned MCP doctor probe against bridge-only lifecycle state and
+  one transient clean exit. Recovered probes remain visible as warnings, while
+  persistent failures include launcher, child PID, and shutdown diagnostics.
 - Moves the eight rewritten routing and command skills into the Gestalt plugin,
   giving Codex one provider for skill listing and enable/disable controls.
 - Removes upstream self-update as a supported Gestalt repair path. Local repair
