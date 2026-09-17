@@ -775,7 +775,9 @@ async function doctor(): Promise<number> {
       p.log.error(color.red("Spawned MCP handshake: FAIL") + " — no MCP launcher or server bundle found");
     } else {
       const result = await probeMcpHandshake(launch);
-      if (result.ok) {
+      if (result.recoveredAfterRetry) {
+        p.log.warn(color.yellow("Spawned MCP handshake: PASS after retry") + ` — ${result.detail}`);
+      } else if (result.ok) {
         p.log.success(color.green("Spawned MCP handshake: PASS") + ` — ${result.detail}`);
       } else {
         criticalFails++;

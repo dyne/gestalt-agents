@@ -4261,8 +4261,8 @@ server.registerTool(
         lines.push("[FAIL] Spawned MCP handshake: FAIL — no MCP launcher or server bundle found");
       } else {
         const result = await probeMcpHandshake(launch);
-        const prefix = result.ok ? "[OK]" : "[FAIL]";
-        const status = result.ok ? "PASS" : "FAIL";
+        const prefix = result.recoveredAfterRetry ? "[WARN]" : result.ok ? "[OK]" : "[FAIL]";
+        const status = result.recoveredAfterRetry ? "PASS after retry" : result.ok ? "PASS" : "FAIL";
         lines.push(`${prefix} Spawned MCP handshake: ${status} — ${result.detail}`);
       }
     }
@@ -4957,7 +4957,8 @@ async function main() {
     // #844: stop refreshing the sentinel mtime on shutdown.
     if (sentinelRefresh) clearInterval(sentinelRefresh);
   };
-  const gracefulShutdown = async () => {
+  const gracefulShutdown = async (reason?: string) => {
+    if (reason) process.stderr.write(`[context-mode] MCP shutdown: ${reason}\n`);
     // Final stats flush — bypass throttle so the last 0-500ms of
     // bytes_indexed / bytes_returned aren't silently lost on SIGTERM/SIGINT
     // (PR #401 grill-me review B1: persistStats early-returns inside throttle
@@ -4970,11 +4971,14 @@ async function main() {
     process.exit(0);
   };
   process.on("exit", shutdown);
-  process.on("SIGINT", () => { gracefulShutdown(); });
-  process.on("SIGTERM", () => { gracefulShutdown(); });
+  process.on("SIGINT", () => { gracefulShutdown("signal SIGINT"); });
+  process.on("SIGTERM", () => { gracefulShutdown("signal SIGTERM"); });
+  if (process.platform !== "win32") {
+    process.on("SIGHUP", () => { gracefulShutdown("signal SIGHUP"); });
+  }
 
   // Lifecycle guard: detect parent death + stdin close to prevent orphaned processes (#103)
-  startLifecycleGuard({ onShutdown: () => gracefulShutdown() });
+  startLifecycleGuard({ onShutdown: () => gracefulShutdown("lifecycle guard") });
 
   const transport = new StdioServerTransport();
   await server.connect(transport);

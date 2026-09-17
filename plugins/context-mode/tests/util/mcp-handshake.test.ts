@@ -53,6 +53,77 @@ describe("spawned MCP handshake probe", () => {
     expect(result.ok).toBe(false);
     expect(result.detail).toContain("connection closed during initialize (exit 23)");
     expect(result.detail).toContain("fixture initialization failed");
+    expect(result.detail).toContain("launcher test fixture; pid ");
+  });
+
+  test("retries one clean exit before initialize and reports recovery", async () => {
+    const fixtureRoot = mkdtempSync(join(tmpdir(), "ctx-handshake-retry-"));
+    const marker = join(fixtureRoot, "first-attempt");
+    const script = String.raw`
+      const { existsSync, writeFileSync } = require("node:fs");
+      const marker = process.argv[1];
+      if (!existsSync(marker)) { writeFileSync(marker, "1"); process.exit(0); }
+      ${successfulServer}
+    `;
+
+    try {
+      const result = await probeMcpHandshake({
+        command: process.execPath,
+        args: ["-e", script, marker],
+        label: "retry fixture",
+      }, 2_000);
+
+      expect(result).toEqual({
+        ok: true,
+        recoveredAfterRetry: true,
+        detail: "initialize + tools/list passed (ctx_doctor available); recovered on retry after transient clean exit",
+      });
+    } finally {
+      rmSync(fixtureRoot, { recursive: true, force: true });
+    }
+  });
+
+  test("bounds clean-exit recovery to one retry and preserves both failures", async () => {
+    const fixtureRoot = mkdtempSync(join(tmpdir(), "ctx-handshake-retry-limit-"));
+    const attempts = join(fixtureRoot, "attempts");
+    const script = String.raw`
+      const { appendFileSync } = require("node:fs");
+      appendFileSync(process.argv[1], "attempt\n");
+      process.exit(0);
+    `;
+
+    try {
+      const result = await probeMcpHandshake({
+        command: process.execPath,
+        args: ["-e", script, attempts],
+        label: "retry-limit fixture",
+      }, 2_000);
+
+      expect(result.ok).toBe(false);
+      expect(result.detail).toContain("retry also failed");
+      expect(result.detail.match(/launcher retry-limit fixture; pid/g)).toHaveLength(2);
+    } finally {
+      rmSync(fixtureRoot, { recursive: true, force: true });
+    }
+  });
+
+  test("scrubs inherited bridge-only lifecycle variables", async () => {
+    const previousDepth = process.env.CONTEXT_MODE_BRIDGE_DEPTH;
+    const previousIdle = process.env.CONTEXT_MODE_BRIDGE_IDLE_MS;
+    process.env.CONTEXT_MODE_BRIDGE_DEPTH = "3";
+    process.env.CONTEXT_MODE_BRIDGE_IDLE_MS = "1";
+    try {
+      const result = await probeMcpHandshake(nodeScript(String.raw`
+        if (process.env.CONTEXT_MODE_BRIDGE_DEPTH || process.env.CONTEXT_MODE_BRIDGE_IDLE_MS) process.exit(31);
+        ${successfulServer}
+      `), 2_000);
+      expect(result.ok).toBe(true);
+    } finally {
+      if (previousDepth === undefined) delete process.env.CONTEXT_MODE_BRIDGE_DEPTH;
+      else process.env.CONTEXT_MODE_BRIDGE_DEPTH = previousDepth;
+      if (previousIdle === undefined) delete process.env.CONTEXT_MODE_BRIDGE_IDLE_MS;
+      else process.env.CONTEXT_MODE_BRIDGE_IDLE_MS = previousIdle;
+    }
   });
 
   test("reports the handshake phase on timeout", async () => {
