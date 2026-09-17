@@ -85,6 +85,13 @@ expect_contains "$tmp/measured.org" ':WEEKLY_REMAINING_END: 74'
 expect_contains "$tmp/measured.org" ':TOKENS_END: 180'
 expect_ok "$helper" validate "$tmp/measured.org"
 
+copy valid-multi.org measured-offset.org
+expect_ok "$helper" measure start "$tmp/measured-offset.org" second-task \
+  '{"observedAt":"2026-08-01T12:00:00+02:00","weeklyRemaining":80,"tokensUsed":100}'
+expect_contains "$tmp/measured-offset.org" ':STARTED_AT: 2026-08-01T10:00:00Z'
+expect_contains "$tmp/measured-offset.org" ':UPDATED_AT: 2026-08-01T10:00:00Z'
+expect_ok "$helper" validate "$tmp/measured-offset.org"
+
 copy valid-multi.org 'measured plan with spaces.org'
 measured_with_spaces="$tmp/measured plan with spaces.org"
 expect_ok "$helper" measure start "$measured_with_spaces" second-task "$measurement_start"
@@ -704,6 +711,8 @@ expect_contains "$plan_format" 'git diff --cached --name-only'
 expect_contains "$plan_format" 'L2 property drawers contain an `:ID:` but no `:SKILLS:`'
 expect_contains "$plan_format" 'viewport sizes,'
 expect_contains "$plan_format" 'org-plan measure start PLAN ID SNAPSHOT_JSON'
+expect_contains "$plan_format" 'accepts RFC 3339 offsets in existing plans'
+expect_contains "$plan_format" 'normalizes newly written'
 expect_contains "$cli_state" 'org-plan next PLAN review'
 expect_contains "$cli_state" 'org-plan review PLAN L1_ID REVIEWED\|UNREVIEWED'
 expect_contains "$cli_state" 'org-plan signal PLAN resync'

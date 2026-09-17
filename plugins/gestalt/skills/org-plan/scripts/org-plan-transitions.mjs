@@ -156,6 +156,10 @@ function validateSnapshot(operation, snapshot) {
       );
     }
   }
+  return {
+    ...snapshot,
+    observedAt: new Date(snapshot.observedAt).toISOString().replace(".000Z", "Z"),
+  };
 }
 
 function measurementUpdates(operation, properties, snapshot) {
@@ -213,7 +217,7 @@ function measurementUpdates(operation, properties, snapshot) {
 }
 
 export function measure(path, operation, id, snapshot) {
-  validateSnapshot(operation, snapshot);
+  snapshot = validateSnapshot(operation, snapshot);
   const plan = readPlan(path);
   const item = findItem(plan, id);
   const before = observable(plan, id);
