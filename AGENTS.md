@@ -108,6 +108,10 @@
   `accepted:true`. If it is unavailable or returns `accepted:false`, automatic
   continuation is not guaranteed: continue supervising in the same root turn,
   including an immediate same-executor follow-up when that is the next action.
+  For an `accepted:false` response, `reason:"wakeAlreadySatisfied"` means the
+  executor event is already actionable. Do not retry the lease; inspect the
+  executor's current report and state, then take the next legal lifecycle action
+  in the same turn.
   Mobile resumes an accepted lease on the first matching event or the
   deadline. The lease covers one episode only and never changes the permanent
   pulse policy; if the wait is still justified in a later turn, the root must
