@@ -137,6 +137,11 @@ the deadline resumes normal Autopilot control. This is one episode, not a pulse
 policy change. If the wait remains justified after that later turn begins, the
 root must reassess it and explicitly register another episode.
 
+The root may yield only when the tool response contains `accepted:true`. An
+unavailable tool or an `accepted:false` response means automatic continuation
+is not guaranteed, so the root continues supervision in the same turn. If the
+next action is delegated work, follow up the same executor immediately.
+
 For long L2 or subagent work, choose `executorChanged`. For a long observable
 process, choose its process wake conditions. Do not use the lease for ordinary
 work, to mask a stalled executor,

@@ -168,6 +168,11 @@ accepted lease applies to this episode only and does not alter later pulse
 timing. If the same wait remains justified after Autopilot resumes, reassess it
 and register a new lease from that later turn.
 
+Yield only when the tool response contains `accepted:true`. If the tool is
+unavailable or returns `accepted:false`, automatic continuation is not
+guaranteed. Continue supervision in the same root turn, including an immediate
+same-executor follow-up when that is the next lifecycle action.
+
 Use `executorChanged` for long delegated work and the appropriate process
 conditions for an observable command. Do not create a
 lease for routine work, while an immediate lifecycle action exists, or merely

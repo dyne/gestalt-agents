@@ -62,6 +62,11 @@ and their displayed roster entries use exact names such as `l2` (or canonical
 `l2` for a replacement physical slot such as `l2_g2`); titles and generated
 nicknames are never appended.
 
+A wait lease is a valid yield disposition only after Mobile returns
+`accepted:true`. If the tool is unavailable or returns `accepted:false`, the
+root keeps supervising in the same turn so an idle executor cannot be stranded
+without an automatic continuation.
+
 Context-mode transports evidence; it does not spawn agents.
 
 ### Optional mobile attention protocol
