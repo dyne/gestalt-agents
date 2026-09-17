@@ -141,6 +141,10 @@ The root may yield only when the tool response contains `accepted:true`. An
 unavailable tool or an `accepted:false` response means automatic continuation
 is not guaranteed, so the root continues supervision in the same turn. If the
 next action is delegated work, follow up the same executor immediately.
+For an `accepted:false` response, `reason:"wakeAlreadySatisfied"` means the
+executor event is already actionable. Do not retry the lease. Inspect the
+executor's current report and state, then take the next legal lifecycle action
+in the same turn.
 
 For long L2 or subagent work, choose `executorChanged`. For a long observable
 process, choose its process wake conditions. Do not use the lease for ordinary
