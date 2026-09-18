@@ -1,5 +1,11 @@
 import { createHash, randomUUID } from "node:crypto";
-import { lstatSync, realpathSync, unlinkSync, writeFileSync } from "node:fs";
+import {
+  lstatSync,
+  readFileSync,
+  realpathSync,
+  unlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { basename, dirname, isAbsolute, join } from "node:path";
 import {
   chmodThroughPath,
@@ -43,7 +49,15 @@ function validateStatusTarget(path) {
   }
 }
 
-export function publishStatus(path, reason) {
+function retainsSupervisionStart(path, planPath) {
+  try {
+    return readFileSync(path, "utf8") === `${planPath}\n`;
+  } catch {
+    return false;
+  }
+}
+
+export function publishStatus(path, reason, options = {}) {
   const directoryInput = process.env.GESTALT_MOBILE_ORG_PLAN_STATUS_DIRECTORY;
   const legacyFile = process.env.GESTALT_MOBILE_ORG_PLAN_STATUS_FILE;
   if (!directoryInput && !legacyFile)
@@ -53,11 +67,18 @@ export function publishStatus(path, reason) {
     const planPath = resolvePlanPath(path);
     let directory;
     let targetName;
+    let supervisionMarker;
     if (directoryInput) {
       if (!isAbsolute(directoryInput))
         fail("status directory must be absolute");
       directory = safeStatusDirectory(directoryInput);
-      targetName = `${createHash("sha256").update(planPath).digest("hex")}.plan-status.json`;
+      const planHash = createHash("sha256").update(planPath).digest("hex");
+      targetName = `${planHash}.plan-status.json`;
+      if (options.preserveExisting === true)
+        supervisionMarker = join(
+          directory,
+          `${planHash}.supervision-started`,
+        );
     } else {
       if (!isAbsolute(legacyFile)) fail("status file must be absolute");
       directory = safeStatusDirectory(dirname(legacyFile));
@@ -66,6 +87,18 @@ export function publishStatus(path, reason) {
 
     const target = join(directory, targetName);
     validateStatusTarget(target);
+    if (supervisionMarker) validateStatusTarget(supervisionMarker);
+    if (
+      supervisionMarker &&
+      retainsSupervisionStart(supervisionMarker, planPath)
+    ) {
+      return {
+        attempted: true,
+        published: true,
+        changed: false,
+        path: target,
+      };
+    }
     const temporary = join(directory, `.${targetName}.tmp.${randomUUID()}`);
     try {
       const record = {
@@ -77,13 +110,29 @@ export function publishStatus(path, reason) {
       writeFileSync(temporary, `${JSON.stringify(record)}\n`, { mode: 0o600 });
       chmodThroughPath(temporary, 0o600);
       renameStatusThroughPath(temporary, target);
+      if (supervisionMarker) {
+        const markerTemporary = join(
+          directory,
+          `.${basename(supervisionMarker)}.tmp.${randomUUID()}`,
+        );
+        try {
+          writeFileSync(markerTemporary, `${planPath}\n`, { mode: 0o600 });
+          chmodThroughPath(markerTemporary, 0o600);
+          renameStatusThroughPath(markerTemporary, supervisionMarker);
+        } catch (error) {
+          try {
+            unlinkSync(markerTemporary);
+          } catch {}
+          throw error;
+        }
+      }
     } catch (error) {
       try {
         unlinkSync(temporary);
       } catch {}
       throw error;
     }
-    return { attempted: true, published: true, path: target };
+    return { attempted: true, published: true, changed: true, path: target };
   } catch (error) {
     return {
       attempted: true,

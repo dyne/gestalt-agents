@@ -61,7 +61,14 @@ the root and executor profiles. Do not run it during ordinary supervised
 execution. A root already running in the user conversation adopts this contract
 without reinstalling its own profile.
 
-1. Validate the exact plan once. The root then signals `supervision-start`,
+1. At the beginning of every new or resumed root session, validate the exact
+   plan once and signal `supervision-start` before inspecting milestone state,
+   recovering the roster, following up an executor, or spawning one. This
+   signal is session-scoped, not plan-scoped: emit it even when the plan is
+   already WIP or earlier L1s are REVIEWED. In Mobile's session-directory mode,
+   the helper retains an existing signal for the same plan, preventing a later
+   root turn from overriding explicit manual Off; a newly resumed relay session
+   has a fresh directory and publishes its own signal. The root then
    runs `org-plan projection PLAN`,
    and calls host `update_plan` with its exact `plan` items, reporting the
    companion explanation separately.

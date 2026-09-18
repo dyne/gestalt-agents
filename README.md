@@ -52,7 +52,12 @@ continuation. Neither role yields merely for progress, time, or token usage. The
 only when every plan L1 is REVIEWED and final gates pass, or when a genuine
 external blocker requires user input or changed external state.
 
-Starting supervision has an observable postcondition: the retained plan either
+Every new or resumed root session signals supervision before it recovers
+milestone or executor state, including when the plan is already WIP. Mobile
+uses a fresh status directory for a resumed relay session; repeated signaling
+inside one directory retains the existing document so a later root turn cannot
+override explicit manual Off. Starting supervision has an observable
+postcondition: the retained plan either
 has healthy Mobile control evidence, or the root emits one bounded compatibility
 warning and continues in the same turn. On an incomplete plan it must choose a
 real disposition—work, same-executor follow-up, review/correction, an accepted

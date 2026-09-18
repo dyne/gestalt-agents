@@ -117,12 +117,13 @@ function publishSignal(command, args) {
     command === "supervision-start"
       ? "supervision-start"
       : (args[1] ?? "signal");
-  const publication = publishStatus(args[0], reason);
+  const publication = publishStatus(args[0], reason, {
+    preserveExisting: reason === "supervision-start",
+  });
   if (publication.attempted && !publication.published)
     throw new Error(publication.warning);
-  console.log(
-    `signal=published plan=${readPlan(args[0]).path} reason=${reason}`,
-  );
+  const outcome = publication.changed === false ? "retained" : "published";
+  console.log(`signal=${outcome} plan=${readPlan(args[0]).path} reason=${reason}`);
 }
 
 function run(command, args) {
