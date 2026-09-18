@@ -88,7 +88,15 @@
   Stop only after the complete plan is accepted or when a genuine external
   blocker remains that the root cannot resolve without user input or changed
   external state.
-- `org-plan signal PLAN supervision-start` has a required postcondition: Mobile
+- At the beginning of every new or resumed root session supervising an
+  incomplete plan, validate the exact plan and run `org-plan signal PLAN
+  supervision-start` before milestone-state recovery, roster recovery,
+  executor follow-up, or executor spawn. The signal is session-scoped, not
+  plan-scoped: run it even when an L1 is already WIP or earlier L1s are
+  REVIEWED. In Mobile's session-directory mode the helper retains an existing
+  signal for the same plan, so a later root turn cannot override explicit
+  manual Off; a newly resumed relay session has a fresh directory and publishes
+  its own signal. The command has a required postcondition: Mobile
   either reports enabled healthy control for the retained plan, or the root
   reports one bounded compatibility warning and stays in same-turn continuous
   supervision. Before yielding an incomplete plan, choose exactly one legal

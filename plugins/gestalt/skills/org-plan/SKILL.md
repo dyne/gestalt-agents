@@ -144,7 +144,16 @@ collaboration slot is confirmed unavailable.
     to become the sole writer, fix every P0/P1, add regression coverage, and run focused plus
     full-suite checks before the root accepts one conventional final-review
     correction commit. Do not finish with an unresolved P0 or P1.
-13. `supervision-start` has a verifiable postcondition: Mobile either reports
+13. At the beginning of every new or resumed root session that supervises an
+    incomplete plan, validate the exact plan and run `org-plan signal PLAN
+    supervision-start` before milestone-state recovery, roster recovery,
+    executor follow-up, or executor spawn. This is session-scoped, not
+    plan-scoped: run it even when an L1 is already WIP or earlier L1s are
+    REVIEWED. In Mobile's session-directory mode the helper retains an existing
+    signal for the same plan, so a later root turn cannot re-enable control
+    after explicit manual Off; a newly resumed relay session has a fresh
+    directory and publishes its own signal. `supervision-start` has a verifiable postcondition:
+    Mobile either reports
     enabled, healthy control for the retained plan, or the root records one
     bounded compatibility warning and remains in same-turn continuous
     supervision. At every would-be yield on an incomplete plan, the root must

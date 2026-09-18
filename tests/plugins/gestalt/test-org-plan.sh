@@ -766,6 +766,10 @@ expect_contains "$supervised" '`checkpointChanged`'
 expect_contains "$supervised" '`checkpointHandoffFailed`'
 expect_contains "$supervised" '`safetyPaused`'
 expect_contains "$skill" '`supervision-start` has a verifiable postcondition'
+expect_contains "$skill" 'At the beginning of every new or resumed root session'
+expect_contains "$supervised" 'before inspecting milestone state,'
+expect_contains "$agents" 'The signal is session-scoped, not'
+expect_contains "$readme" 'Every new or resumed root session signals supervision'
 expect_contains "$skill" 'Status prose alone is never a disposition.'
 expect_contains "$supervised" 'L<a>/TOTAL — TITLE: ACCEPTED'
 expect_contains "$supervised" 'kind: l1Accepted'
@@ -875,6 +879,27 @@ mkdir -m 700 -p "$directory_status_dir"
 expect_ok env GESTALT_MOBILE_ORG_PLAN_STATUS_DIRECTORY="$directory_status_dir" "$helper" signal "$status_plan" supervision-start
 directory_status_file=$(find "$directory_status_dir" -maxdepth 1 -type f -name '*.plan-status.json' -print -quit)
 python3 -c 'import hashlib, json, os, pathlib, sys; plan=os.path.realpath(sys.argv[2]); expected=hashlib.sha256(plan.encode()).hexdigest()+".plan-status.json"; assert pathlib.Path(sys.argv[1]).name == expected; assert json.load(open(sys.argv[1], encoding="utf-8"))["planPath"] == plan' "$directory_status_file" "$status_plan" && pass || fail 'directory publication derives a plan-specific opaque status filename'
+test "$(find "$directory_status_dir" -maxdepth 1 -type f -name '*.supervision-started' | wc -l)" = 1 && pass || fail 'supervision-start records one session-scoped activation marker'
+expect_ok env GESTALT_MOBILE_ORG_PLAN_STATUS_DIRECTORY="$directory_status_dir" "$helper" supervision-start "$status_plan"
+expect_contains "$tmp/out" 'signal=retained'
+expect_ok env GESTALT_MOBILE_ORG_PLAN_STATUS_DIRECTORY="$directory_status_dir" "$helper" signal "$status_plan" work-start
+directory_status_inode=$(stat -c '%i' "$directory_status_file" 2>/dev/null || stat -f '%i' "$directory_status_file")
+expect_ok env GESTALT_MOBILE_ORG_PLAN_STATUS_DIRECTORY="$directory_status_dir" "$helper" signal "$status_plan" supervision-start
+expect_contains "$tmp/out" 'signal=retained'
+test "$directory_status_inode" = "$(stat -c '%i' "$directory_status_file" 2>/dev/null || stat -f '%i' "$directory_status_file")" && pass || fail 'repeated same-session supervision-start retains the status document'
+python3 -c 'import json, sys; assert json.load(open(sys.argv[1], encoding="utf-8"))["reason"] == "work-start"' "$directory_status_file" && pass || fail 'repeated same-session supervision-start does not emit a new activation edge'
+resumed_status_dir="$tmp/directory-status/session-b"
+mkdir -m 700 "$resumed_status_dir"
+expect_ok env GESTALT_MOBILE_ORG_PLAN_STATUS_DIRECTORY="$resumed_status_dir" "$helper" signal "$status_plan" supervision-start
+expect_contains "$tmp/out" 'signal=published'
+test -n "$(find "$resumed_status_dir" -maxdepth 1 -type f -name '*.plan-status.json' -print -quit)" && pass || fail 'resumed session publishes into its fresh status directory'
+late_status_dir="$tmp/directory-status/session-late"
+mkdir -m 700 "$late_status_dir"
+expect_ok env GESTALT_MOBILE_ORG_PLAN_STATUS_DIRECTORY="$late_status_dir" "$helper" signal "$status_plan" work-start
+expect_ok env GESTALT_MOBILE_ORG_PLAN_STATUS_DIRECTORY="$late_status_dir" "$helper" signal "$status_plan" supervision-start
+expect_contains "$tmp/out" 'signal=published'
+late_status_file=$(find "$late_status_dir" -maxdepth 1 -type f -name '*.plan-status.json' -print -quit)
+python3 -c 'import json, sys; assert json.load(open(sys.argv[1], encoding="utf-8"))["reason"] == "supervision-start"' "$late_status_file" && pass || fail 'late supervision-start recovers when only work-start was published'
 copy valid-minimal.org second-status-plan.org
 expect_ok env GESTALT_MOBILE_ORG_PLAN_STATUS_DIRECTORY="$directory_status_dir" "$helper" signal "$tmp/second-status-plan.org" supervision-start
 test "$(find "$directory_status_dir" -maxdepth 1 -type f -name '*.plan-status.json' | wc -l)" = 2 && pass || fail 'different Org plans retain distinct status files in one session'

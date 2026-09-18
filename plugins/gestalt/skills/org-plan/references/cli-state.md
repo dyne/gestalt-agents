@@ -23,6 +23,16 @@ For startup compatibility, `org-plan supervision-start PLAN` is an exact alias
 for the supervision signal, and `org-plan status PLAN` is a read-only alias for
 `org-plan summary PLAN`.
 
+In Mobile's session-directory mode, the first `supervision-start` for a plan in
+that relay session publishes the status document. Repeating it in the same
+directory retains the existing document instead of emitting another activation
+edge. A private per-plan marker distinguishes a prior activation from ordinary
+`work-start` or lifecycle publication, so a missed activation remains
+recoverable. A resumed relay session receives a fresh directory, so it must
+invoke the command again even when the Org plan itself is already WIP. Legacy
+single-file mode continues to publish on every explicit signal because it has
+no session-isolation boundary.
+
 ## Native Codex plan projection
 
 `org-plan projection PLAN` validates and emits a read-only JSON document with
