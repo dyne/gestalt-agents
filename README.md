@@ -24,14 +24,14 @@ system. It adopts a light multi-agent setup to keep the workflow and
 avoid stall. The prepared agents default to:
 
 ```text
-director (depth 0, org-plan-reviewer, Sol or Terra, read-only)
+root (depth 0, org-plan-reviewer, Sol or Terra, read-only)
 └── executor (depth 1, org-plan-executor, Terra, only code writer)
 ```
 
-The root director also performs the supervisor and reviewer duties. It directly
-launches one fresh executor for each L1, supervises its evidence gates, and
-reviews its uncommitted result. Rejected work returns to the same executor;
-accepted work is committed once before that executor closes.
+The root also performs the director, supervisor, and routine reviewer duties.
+It directly launches one fresh executor for each L1, supervises its evidence
+gates, and reviews its uncommitted result. Rejected work returns to the same
+executor; accepted work is committed once before that executor closes.
 This keeps the root active with only one subagent below it. Evidence flows
 upward as concise summaries; raw test and inspection logs stay outside
 conversational context. The root gives brief user-facing updates such as
@@ -52,7 +52,7 @@ continuation. Neither role yields merely for progress, time, or token usage. The
 only when every plan L1 is REVIEWED and final gates pass, or when a genuine
 external blocker requires user input or changed external state.
 
-Every new or resumed root session signals supervision before it recovers
+Every new or resumed relay session signals supervision before it recovers
 milestone or executor state, including when the plan is already WIP. Mobile
 uses a fresh status directory for a resumed relay session; repeated signaling
 inside one directory retains the existing document so a later root turn cannot
@@ -61,8 +61,9 @@ postcondition: the retained plan either
 has healthy Mobile control evidence, or the root emits one bounded compatibility
 warning and continues in the same turn. On an incomplete plan it must choose a
 real disposition—work, same-executor follow-up, review/correction, an accepted
-checkpoint followed immediately by its boundary final, a valid probe-requested wait, structured attention, or
-explicit manual Off. A status message alone never ends supervision. Executors
+checkpoint followed immediately by its boundary final, an accepted one-shot
+wait lease, structured attention, or explicit manual Off. A status message
+alone never ends supervision. Executors
 and their displayed roster entries use exact names such as `l2` (or canonical
 `l2` for a replacement physical slot such as `l2_g2`); titles and generated
 nicknames are never appended.
@@ -215,7 +216,7 @@ retaining per-skill activation and Org Plan's explicit milestone skill loading.
 # 📃 Plan
 
 Each L1 starts unreviewed. After implementation and test gates make it
-DONE, the director/reviewer audits only requested DONE + UNREVIEWED
+DONE, the root audits only requested DONE + UNREVIEWED
 milestones. Accepted L1s remain reviewed as the plan grows, so later
 refinements review only new or materially changed L1s. Final
 acceptance still requires a current full-suite pass and clean intended

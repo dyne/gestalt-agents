@@ -39,7 +39,7 @@ expect 'Do not use shell write tricks when a'
 # provider prefixes are host-specific and an unavailable prerequisite stops
 # rather than attempting installation or inventing a replacement tool.
 expect 'provider-prefixed method'
-grep -F -- 'stop with that single missing prerequisite' "$profiles" >/dev/null || {
+grep -F -- 'stop without edits if an input or skill is unavailable' "$profiles" >/dev/null || {
   printf 'missing supervised missing-prerequisite contract\n' >&2
   exit 1
 }
