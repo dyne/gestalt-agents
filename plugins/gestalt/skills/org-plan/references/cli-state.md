@@ -29,7 +29,7 @@ directory retains the existing document instead of emitting another activation
 edge. A private per-plan marker distinguishes a prior activation from ordinary
 `work-start` or lifecycle publication, so a missed activation remains
 recoverable. A resumed relay session receives a fresh directory, so it must
-invoke the command again even when the Org plan itself is already WIP. Legacy
+invoke the command again even when the Org Plan itself is already WIP. Legacy
 single-file mode continues to publish on every explicit signal because it has
 no session-isolation boundary.
 

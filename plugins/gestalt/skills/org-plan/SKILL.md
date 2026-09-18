@@ -129,7 +129,7 @@ collaboration slot is confirmed unavailable.
     still consume every slot and interrupting them does not release capacity,
     call `gestalt_agent_capacity_recovery` exactly once with version 1 and
     reason `agentThreadLimit`. Its accepted response recycles only the current
-    session runtime while preserving the durable root thread and Org Plan;
+    Codex runtime while preserving the durable root thread and Org Plan;
     Autopilot resumes supervision after restoration. Do not request human
     attention or retry spawning during that handoff. Report an execution
     blocker only when the recovery tool is unavailable or rejects the
@@ -144,7 +144,7 @@ collaboration slot is confirmed unavailable.
     to become the sole writer, fix every P0/P1, add regression coverage, and run focused plus
     full-suite checks before the root accepts one conventional final-review
     correction commit. Do not finish with an unresolved P0 or P1.
-13. At the beginning of every new or resumed root session that supervises an
+13. At the beginning of every new or resumed relay session that supervises an
     incomplete plan, validate the exact plan and run `org-plan signal PLAN
     supervision-start` before milestone-state recovery, roster recovery,
     executor follow-up, or executor spawn. This is session-scoped, not
@@ -168,47 +168,21 @@ collaboration slot is confirmed unavailable.
 
 ## One-shot long waits
 
-When an operation is reasonably expected to exceed the normal Autopilot control
-interval, the root calls `gestalt_autopilot_wait_lease` version 2 before
-yielding. Supply unique `reportId` and `leaseId` values, the smallest relevant
-`wakeConditions` set, and a bounded `maxWaitMs` from 60000 through 86400000.
-Mobile resumes on the first matching observable event or that deadline. The
-accepted lease applies to this episode only and does not alter later pulse
-timing. If the same wait remains justified after Autopilot resumes, reassess it
-and register a new lease from that later turn.
-
-Yield only when the tool response contains `accepted:true`. If the tool is
-unavailable or returns `accepted:false`, automatic continuation is not
-guaranteed. Continue supervision in the same root turn, including an immediate
-same-executor follow-up when that is the next lifecycle action.
-For an `accepted:false` response, `reason:"wakeAlreadySatisfied"` means the
-executor event is already actionable. Do not retry the lease. Inspect the
-executor's current report and state, then take the next legal lifecycle action
-in the same turn.
-
-Use `executorChanged` for long delegated work and the appropriate process
-conditions for an observable command. Do not create a
-lease for routine work, while an immediate lifecycle action exists, or merely
-to conceal a stalled executor. Never use a lease to await a checkpoint boundary.
-For GitHub PR CI, start
-`gh pr checks <PR> --watch --interval 30` with a short initial command yield.
-If the command remains running, register a version 2 lease for `processExited`
-and `processResultAvailable` with a realistic safety deadline. After the wake,
-consume that same process result and continue. The supervisor owns this watcher;
-Mobile does not receive GitHub credentials or poll GitHub itself. Version 1
-remains the compatibility form for a Mobile-requested probe wait.
+Use a version 2 wait lease only for work expected to exceed the ordinary
+Autopilot interval. Supply unique IDs, the smallest observable wake set, and a
+60000–86400000 ms deadline. Yield only after `accepted:true`. On tool absence,
+`accepted:false`, or `wakeAlreadySatisfied`, inspect current state and continue
+in the same root turn. A lease covers one episode; it never waits for a
+checkpoint or hides an idle executor. Supervised roles read the exact event and
+CI-watcher rules in [Supervised execution](references/supervised-execution.md).
 
 ## Human-attention decision table
 
-`gestalt_org_plan_attention` is an optional, mobile-provided dynamic tool. It
-uses schema version 1 and is never an `$org-plan` dependency. First exhaust
-safe, in-scope checks. If a row applies and the tool is available, call it
-before sending any blocker response or yielding, with a bounded summary, a
-concrete `requestedAction`, and the listed `reason` and `resumeCondition`.
-Blocker prose is not a signal. After a successful call, stop issuing lifecycle
-actions and let Mobile hold Autopilot until the matching resume event. If the
-tool is unavailable, report the same normal blocker concisely and preserve the
-supervision loop; do not invent a tool dependency.
+`gestalt_org_plan_attention` is optional and is never an `$org-plan`
+dependency. Exhaust safe in-scope checks first. When a row applies, send its
+exact `reason` and `resumeCondition` with a bounded summary and
+`requestedAction`; a successful call ends the turn. If the tool is unavailable,
+report the blocker normally. Blocker prose is not a signal.
 
 | Only after safe checks, progress cannot continue because… | `reason` | `resumeCondition` |
 | --- | --- | --- |
@@ -219,11 +193,8 @@ supervision loop; do not invent a tool dependency.
 | Relevant external state changed after safe refresh or verification. | `externalState` | `externalStateChanged` |
 | A material ambiguity remains after the plan and repository evidence are exhausted. | `materialAmbiguity` | `userGuidance` |
 
-Do not escalate L1/L2 progress, a child report, waiting on a live child, review
-readiness, a diagnosable or recoverable failing test, an ordinary merge
-conflict, token or context pressure, elapsed time, checkpointing, or an idle
-executor. Those cases immediately continue through the existing legal
-lifecycle action.
+Progress, review readiness, recoverable failures, checkpoints, elapsed time,
+and executor idleness are not attention conditions.
 
 ## Authoring workflow
 
@@ -272,7 +243,7 @@ writes or changes Org state.
    `.gestalt/*.org` path, even if a force-add was attempted; otherwise unstage
    those paths and do not commit them. Then record REVIEWED.
 8. Continue until every L1 and L2 is DONE and every L1 is REVIEWED. An L2 or
-   accepted-L1 checkpoint is a presentation boundary, not a request for user
+   accepted-L1 checkpoint is a boundary final, not a request for user
    approval and not plan completion.
 
 The root performs the native projection after every successful lifecycle

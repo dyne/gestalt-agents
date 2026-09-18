@@ -49,18 +49,19 @@ def validate(document):
 
 fixture = json.loads(Path(sys.argv[1]).read_text(), object_pairs_hook=reject_duplicate_keys)
 skill, supervised, protocol, agents = (Path(path).read_text() for path in sys.argv[2:])
-normalised_skill = " ".join(skill.split())
+normalised_contract = " ".join((skill + " " + supervised).split())
 mapping = validate(fixture)
 for reason, resume in mapping.items():
     for text in (skill, supervised):
         assert f"`{reason}`" in text and f"`{resume}`" in text
     assert f"`{reason}/{resume}`" in protocol
 for scenario in fixture["scenarios"]:
-    assert scenario["positive"] in normalised_skill
-    assert scenario["negative"] in normalised_skill
-for text in (skill, supervised, protocol, agents):
+    assert scenario["positive"] in normalised_contract
+    assert scenario["negative"] in normalised_contract
+for text in (skill, supervised, protocol):
     assert fixture["toolName"] in text
     assert "blocker prose is not a signal" in " ".join(text.lower().split())
+assert "canonical runtime contract" in agents
 assert "fail closed" in protocol
 assert "optional" in protocol
 
@@ -93,14 +94,10 @@ fixture = json.loads(Path(sys.argv[1]).read_text())
 for profile_path in sys.argv[2:]:
     profile = Path(profile_path).read_text()
     assert profile.count(fixture["toolName"]) == 1, profile_path
-    assert "schema version is 1" in profile
-    assert "synthetic control input" in profile
-    assert "Blocker prose is not a signal" in profile
-    assert "issue no further lifecycle action" in profile
-    assert "waiting on a live child" in profile
-    assert "diagnosable or recoverable test failures" in profile
-    for reason, resume in fixture["reasonResumeConditions"].items():
-        assert f"{reason}/{resume}" in profile
+    assert "optional" in profile
+    assert "skill decision table" in profile
+    assert "A successful call ends the root turn" in profile
+    assert "recoverable failures" in profile
 PY
 
 "$helper" --help >"$tmp/help" 2>&1

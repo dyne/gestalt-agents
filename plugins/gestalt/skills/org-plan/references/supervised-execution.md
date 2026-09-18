@@ -4,12 +4,23 @@ Read this reference completely before launching supervised roles.
 
 ## Roles and ownership
 
+Use these terms consistently:
+
+- **root:** the depth-zero director, supervisor, and routine reviewer;
+- **executor:** the depth-one writer assigned to one complete L1;
+- **terminal reviewer:** the final whole-branch reviewer;
+- **relay session:** one Mobile status-directory lifetime;
+- **root turn:** one model turn by the root;
+- **Codex runtime:** one app-server process lifetime;
+- **checkpoint:** a durable control event;
+- **boundary final:** the user response immediately following a checkpoint.
+
 ```text
-director (depth 0, org-plan-reviewer, Sol or Terra, read-only root)
+root (depth 0, org-plan-reviewer, Sol or Terra, read-only)
 └── executor (depth 1, only code writer)
 ```
 
-- The root director also owns supervisor and reviewer duties. It owns user
+- The root owns director, supervisor, and routine reviewer duties. It owns user
   communication, directly launches each executor, enforces evidence gates, and
   returns ACCEPT or REJECT for DONE + UNREVIEWED L1s.
 - The executor writes code for one L1 and reports only to the root.
@@ -18,7 +29,7 @@ director (depth 0, org-plan-reviewer, Sol or Terra, read-only root)
   against separate reviewers and becomes the sole writer only for P0/P1 fixes.
 - Recommended profiles are `org-plan-reviewer` (Sol) for a newly launched root
   and `org-plan-executor` (Terra). An already-running root keeps its selected
-  model while adopting the combined director/reviewer/supervisor contract.
+  model while adopting the root contract.
 - Codex V1 agent depth defaults to one, which permits this direct spawn. Stop
   when direct spawning is unavailable; do not edit user configuration.
 
@@ -61,7 +72,7 @@ the root and executor profiles. Do not run it during ordinary supervised
 execution. A root already running in the user conversation adopts this contract
 without reinstalling its own profile.
 
-1. At the beginning of every new or resumed root session, validate the exact
+1. At the beginning of every new or resumed relay session, validate the exact
    plan once and signal `supervision-start` before inspecting milestone state,
    recovering the roster, following up an executor, or spawning one. This
    signal is session-scoped, not plan-scoped: emit it even when the plan is
@@ -170,7 +181,8 @@ register the version 2 lease with `processExited` and
 `processResultAvailable`, plus a realistic safety deadline. When the watcher
 exits, read that same process result and continue the lifecycle. Mobile neither
 holds GitHub credentials nor implements a parallel GitHub polling loop.
-Version 1 remains only for the legacy probe-requested compatibility path.
+Version 1 remains only for legacy compatibility when Mobile explicitly requests
+it.
 
 ## Evidence and review loop
 
@@ -179,10 +191,10 @@ Supervision is a completion loop:
 - The executor owns the entire assigned L1, but returns a concise structured
   evidence report whenever an L2 reaches DONE. That report ends the executor's
   turn. It remains assigned and idle
-  across that presentation boundary.
+  across that boundary final.
 - After every executor report, inspect the executor's current state. If the L1
   is partial because an L2 just reached DONE, validate its focused evidence and
-  changed-file scope, project it, and use the L2 reporting boundary below. On
+  changed-file scope, project it, and use the L2 boundary below. On
   the following root turn, call `followup_task` on that same executor. Other
   partial or idle reports use immediate same-turn follow-up. If the user asks
   for status, answer briefly and perform the applicable continuation; the
@@ -193,7 +205,7 @@ Supervision is a completion loop:
   and terminal whole-plan acceptance are distinct boundaries.
 - A partial report, idle executor, self-described pause, or token or
   elapsed-time notice is never a user-facing stopping condition. A validated
-  DONE L2 is a finite presentation boundary only; it never requests approval.
+  DONE L2 produces a finite boundary final; it never requests approval.
 - If a failed child initialization leaves non-working `pending_init` agents
   consuming every slot, and interrupting them does not release capacity, call
   `gestalt_agent_capacity_recovery` exactly once with version 1 and reason
@@ -234,7 +246,7 @@ the gates and review without pausing for user approval.
 On ACCEPT, inspect `git diff --cached --name-only`, direct the executor to
 create exactly one conventional L1 commit when files changed, then record
 `REVIEWED`. The root runs the helper projection and host `update_plan` before
-the reporting boundary, verifies the subject and intended scope, and terminates
+the boundary final, verifies the subject and intended scope, and terminates
 the executor. A no-change L1 explicitly records that no commit was required.
 
 Org Plan files are never Git deliverables. Immediately before every accepted
@@ -274,7 +286,7 @@ terminal review, a current root-side full-suite pass, and clean intended scope.
 This terminal reviewer is the sole exception to the prohibition on separate
 reviewers; it never replaces routine root-owned L1 review.
 
-## Completed-L2 reporting boundary
+## Completed-L2 boundary
 
 A checkpoint is a short, idempotent persist-and-ack boundary, never a wait
 episode. Do not register a wait lease or wait for `executorChanged` after it.
@@ -315,7 +327,7 @@ If `l2Completed` is unavailable, it is not a blocker. Use a compact commentary
 summary and resume the same executor in the current turn, because Mobile cannot
 safely accept a root final for an incomplete plan without that boundary.
 
-## Accepted-L1 reporting boundary
+## Accepted-L1 boundary
 
 An accepted L1 ends one root turn, not the plan. After the ACCEPT commit/review
 transition, projection, and host `update_plan`, call optional
