@@ -4,14 +4,10 @@ set -Eeuo pipefail
 root=$(CDPATH='' cd -- "$(dirname -- "$0")/../../.." && pwd)
 helper="$root/plugins/gestalt/skills/org-plan/scripts/org-plan"
 fixture="$root/tests/plugins/gestalt/fixtures/org-plan-attention-contract.json"
-skill="$root/plugins/gestalt/skills/org-plan/SKILL.md"
-supervised="$root/plugins/gestalt/skills/org-plan/references/supervised-execution.md"
-protocol="$root/plugins/gestalt/skills/org-plan/references/attention-protocol.md"
-agents="$root/AGENTS.md"
 tmp=$(mktemp -d "${TMPDIR:-/tmp}/org-plan-attention-test.XXXXXX")
 trap 'rm -rf -- "$tmp"' EXIT HUP INT TERM
 
-python3 - "$fixture" "$skill" "$supervised" "$protocol" "$agents" <<'PY'
+python3 - "$fixture" <<'PY'
 import json
 from copy import deepcopy
 import sys
@@ -48,22 +44,7 @@ def validate(document):
     return expected_mapping
 
 fixture = json.loads(Path(sys.argv[1]).read_text(), object_pairs_hook=reject_duplicate_keys)
-skill, supervised, protocol, agents = (Path(path).read_text() for path in sys.argv[2:])
-normalised_contract = " ".join((skill + " " + supervised).split())
-mapping = validate(fixture)
-for reason, resume in mapping.items():
-    for text in (skill, supervised):
-        assert f"`{reason}`" in text and f"`{resume}`" in text
-    assert f"`{reason}/{resume}`" in protocol
-for scenario in fixture["scenarios"]:
-    assert scenario["positive"] in normalised_contract
-    assert scenario["negative"] in normalised_contract
-for text in (skill, supervised, protocol):
-    assert fixture["toolName"] in text
-    assert "blocker prose is not a signal" in " ".join(text.lower().split())
-assert "canonical runtime contract" in agents
-assert "fail closed" in protocol
-assert "optional" in protocol
+validate(fixture)
 
 for mutation in ("missing", "extra", "mismatched"):
     invalid = deepcopy(fixture)

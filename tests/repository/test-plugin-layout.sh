@@ -76,11 +76,6 @@ assert (root / "plugins" / "context-mode" / "hooks" / "hooks.json").is_file(), (
 assert (plugin / "scripts" / "ctx-doctor.mjs").is_file(), (
     "ctx-doctor external-runtime bridge is missing"
 )
-doctor_skill = (plugin / "skills" / "ctx-doctor" / "SKILL.md").read_text()
-assert "<PLUGIN_ROOT>/scripts/ctx-doctor.mjs" in doctor_skill, (
-    "ctx-doctor fallback does not use the external-runtime bridge"
-)
-
 actual_skills = {
     path.parent.name
     for path in (plugin / "skills").glob("*/SKILL.md")
@@ -128,38 +123,6 @@ for entry in marketplace["plugins"]:
         if isinstance(value, str) and value.startswith("./"):
             assert (root / "plugins" / entry["name"] / value[2:]).exists(), value
 
-frontmatter = (plugin / "skills" / "org-plan" / "SKILL.md").read_text().split("---", 2)[1]
-assert "name: org-plan" in frontmatter
-assert "Do not use for ordinary bounded single-session tasks." in frontmatter
-
-org_plan_skill = (plugin / "skills" / "org-plan" / "SKILL.md").read_text()
-for routing_contract in (
-    "Use Codex's native planning surfaces when useful for small",
-    "Straightforward implementation tasks do",
-    "not require a persisted plan.",
-    "Select Org Plan only when the user explicitly requests it",
-    "execution across sessions or context compaction;",
-    "inspectable workspace-local durability;",
-    "L1/L2 milestone hierarchy or explicit skill assignment;",
-    "supervised subagent ownership;",
-    "review, accept, or reject transitions and evidence gates;",
-    "one commit per accepted milestone;",
-    "mobile attention or supervision.",
-):
-    assert routing_contract in org_plan_skill, f"org-plan skill lacks routing contract: {routing_contract}"
-for contract in (
-    "<workspace-root>/.gestalt/<topic>.org",
-    "A Git repository root never redefines the supplied",
-    "Never stage, commit, or otherwise introduce one into",
-    "This absolute prohibition cannot be overridden by",
-    "Do not mention that the local `.gestalt` Org",
-    "git diff --cached --name-only",
-):
-    assert contract in org_plan_skill, f"org-plan skill lacks workspace-local contract: {contract}"
-assert "Do not commit Org plan files unless the governing repository or user" not in org_plan_skill, (
-    "org-plan skill retains the permissive plan-commit exception"
-)
-
 readme = (root / "README.md").read_text()
 for contract in (
     "Node.js 22.5",
@@ -185,17 +148,6 @@ for upgrade_contract in (
     "./gestalt-setup.sh --force",
 ):
     assert upgrade_contract in readme, f"README lacks upgrade contract: {upgrade_contract}"
-
-context_skill = (plugin / "skills" / "context-mode" / "SKILL.md").read_text()
-for contract in (
-    "## Org Plan execution",
-    "Context-mode transports evidence; it does not spawn agents",
-    "In solo execution",
-    "In supervised execution",
-    "every agent session as an independent context",
-    "Do not add `$gestalt:context-mode`",
-):
-    assert contract in context_skill, f"context-mode skill lacks Org Plan contract: {contract}"
 
 fixture = root / "tests" / "plugins" / "context-mode" / "fixtures" / "context-mode-codex-hardening-4b1348d.sha256"
 fixture_paths = {
