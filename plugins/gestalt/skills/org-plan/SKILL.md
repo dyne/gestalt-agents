@@ -41,6 +41,9 @@ do not copy full Org milestone prose into them.
 - **Manual execution:** use the loop below when supervised roles are unavailable
   or the user explicitly requests manual work.
 
+Authoring never authorizes execution: after the validated handoff, stop until
+the user explicitly orders implementation or supervision.
+
 When the typed `gestalt-org-plan` MCP server is available, prefer its bounded
 read and transition tools. Otherwise use the bundled `scripts/org-plan` helper;
 it remains the supported compatibility fallback. Neither path invokes host
@@ -217,7 +220,6 @@ and executor idleness are not attention conditions.
    material doubts before handoff.
 7. Validate with the helper. Create the topic branch and run the repository's
    required baseline checks before implementation handoff.
-
 ## Manual execution loop
 
 Use host-native filesystem tools for governing instructions, small bounded
@@ -265,6 +267,9 @@ after that review, corrections, and final gates may the root optionally
 checkpoint `terminalReviewAccepted` and emit terminal success. If checkpointing
 is unavailable, retain all safety gates and continuous supervision; never end
 early after the final L1.
+
+Each L2/L1 boundary final rolls new outcomes, files, commands, and verification
+into one answer; later work starts in a new root turn.
 
 Stop before plan completion, except at a validated L2 or accepted-L1 report
 boundary, only for a genuine external blocker that cannot be
