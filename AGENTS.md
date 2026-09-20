@@ -11,6 +11,9 @@ postconditions, then defer to those canonical documents.
 
 When testing Org Plan supervision in this repository:
 
+- Treat plan authoring and execution as separate user-authorized workflows.
+  Authoring ends after the validated plan handoff; do not signal
+  `supervision-start` or implement until the user explicitly orders execution.
 - Reuse the supplied skill directory and exact plan path. Do not search for a
   replacement, assume a repository-local `.gestalt/`, inspect helper source, or
   run `prepare-supervision` during ordinary execution.
@@ -31,6 +34,8 @@ When testing Org Plan supervision in this repository:
 - A checkpoint is the last tool call of its root turn. Emit its boundary final
   immediately and make no further tool call. A checkpoint is never a wait
   lease; the next root turn resumes the executor or advances the lifecycle.
+  Roll up commentary, files, verification, and commands into that single chat
+  answer; later milestone work belongs to a new root turn and answer.
 - Org Plan files are workspace-local coordination state and never Git
   deliverables. Before every accepted commit, inspect
   `git diff --cached --name-only` and reject the active plan or any

@@ -32,7 +32,9 @@ expected = {
     "writing-skills",
 }
 clean = re.sub(r"\x1b\[[0-?]*[ -/]*[@-~]", "", sys.argv[1])
-names = re.findall(r"^│    ([a-z0-9][a-z0-9-]*)$", clean, re.MULTILINE)
+# skills uses either Unicode box drawing or an ASCII pipe depending on terminal
+# capabilities even with NO_COLOR. Both are presentation-only variants.
+names = re.findall(r"^[│|]    ([a-z0-9][a-z0-9-]*)$", clean, re.MULTILINE)
 counts = collections.Counter(names)
 assert set(names) == expected, f"unexpected discovered skills: {names}"
 assert all(count == 1 for count in counts.values()), (

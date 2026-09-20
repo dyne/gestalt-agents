@@ -206,6 +206,9 @@ Supervision is a completion loop:
 - A partial report, idle executor, self-described pause, or token or
   elapsed-time notice is never a user-facing stopping condition. A validated
   DONE L2 produces a finite boundary final; it never requests approval.
+  That final rolls up commentary outcome, files, verification, and commands
+  since the prior boundary into one chat answer. Later milestone work starts in
+  a new root turn and appears in a new answer.
 - If a failed child initialization leaves non-working `pending_init` agents
   consuming every slot, and interrupting them does not release capacity, call
   `gestalt_agent_capacity_recovery` exactly once with version 1 and reason
