@@ -4,6 +4,9 @@ set -Eeuo pipefail
 root=$(CDPATH='' cd -- "$(dirname -- "$0")/../../.." && pwd)
 helper="$root/plugins/gestalt/skills/org-plan/scripts/org-plan"
 fixture="$root/tests/plugins/gestalt/fixtures/org-plan-attention-contract.json"
+skill="$root/plugins/gestalt/skills/org-plan/SKILL.md"
+attention_reference="$root/plugins/gestalt/skills/org-plan/references/attention-protocol.md"
+supervision_reference="$root/plugins/gestalt/skills/org-plan/references/supervised-execution.md"
 tmp=$(mktemp -d "${TMPDIR:-/tmp}/org-plan-attention-test.XXXXXX")
 trap 'rm -rf -- "$tmp"' EXIT HUP INT TERM
 
@@ -66,19 +69,32 @@ agents_dir="$tmp/agents"
 output=$("$helper" prepare-supervision --agents-dir "$agents_dir")
 [[ $output == *"executor_profile="* && $output == *"root_reviewer_profile="* ]]
 
-python3 - "$fixture" "$agents_dir/org-plan-reviewer.toml" "$agents_dir/org-plan-executor.toml" <<'PY'
+python3 - "$fixture" "$agents_dir/org-plan-reviewer.toml" "$agents_dir/org-plan-executor.toml" \
+    "$skill" "$attention_reference" "$supervision_reference" <<'PY'
 import json
 import sys
 from pathlib import Path
 
 fixture = json.loads(Path(sys.argv[1]).read_text())
-for profile_path in sys.argv[2:]:
+for profile_path in sys.argv[2:4]:
     profile = Path(profile_path).read_text()
     assert profile.count(fixture["toolName"]) == 1, profile_path
     assert "optional" in profile
     assert "skill decision table" in profile
     assert "A successful call ends the root turn" in profile
     assert "recoverable failures" in profile
+    assert "with only the mapped reason and resumeCondition" in profile
+    assert "requestedAction" not in profile
+
+skill = Path(sys.argv[4]).read_text()
+attention_reference = Path(sys.argv[5]).read_text()
+supervision_reference = Path(sys.argv[6]).read_text()
+assert "exact `reason` and `resumeCondition` only" in skill
+assert "Calls contain only the mapped `reason`" in attention_reference
+assert "once with only `kind: l2Completed`" in supervision_reference
+assert "once with only `kind: l1Accepted`" in supervision_reference
+for document in (skill, attention_reference, supervision_reference):
+    assert "`requestedAction`" not in document
 PY
 
 "$helper" --help >"$tmp/help" 2>&1
