@@ -302,11 +302,16 @@ replacement. Treat `safetyPaused` as a safe terminal control state, not as
 "waiting for agent event", and resume only after Mobile or explicit manual
 recovery.
 
-After the root validates a DONE L2, its focused evidence, changed-file scope,
-projection, and host `update_plan`, call optional
+Checkpoint handoff has no `accepted` field, but still requires a successful
+response. Missing, rejected, terminated, or result-less calls never authorize a
+final. A surviving turn re-reads durable state and continues same-turn; a
+Mobile-recycled runtime later reconciles `checkpointHandoffFailed` once.
+
+After validating a DONE L2, its evidence, scope, projection, and host
+`update_plan`, call optional
 `gestalt_org_plan_checkpoint` once with only `kind: l2Completed`. Mobile derives
 the boundary details from the authoritative retained plan. This checkpoint must
-be the last tool call of the root turn.
+be the turn's last tool call; success is required before the final.
 Send exactly one root final answer immediately, with no intervening tool call,
 using this template:
 
@@ -320,12 +325,10 @@ Commit: Pending L<a> acceptance; changes remain uncommitted.
 Next: automatic continuation to L<a>.<n>, or L<a> review.
 ```
 
-Keep this to one screen and synthesize only new facts. Never copy commentary,
-raw logs, or executor prose. Do not commit at an L2 boundary. Do not call
-`followup_task` before the final: Autopilot uses the checkpoint to start the
-next root turn, and that turn resumes the same executor. Even when the final L2
-completes its L1, emit the L2 boundary first; run the full suite, review, commit,
-and accepted-L1 report in the later turn.
+Keep this to one screen with only new facts. Never copy commentary, raw logs, or
+executor prose. Do not commit or call `followup_task`: Autopilot starts the next
+root turn and resumes the executor. Even the final L2 gets its boundary first;
+full-suite review, commit, and L1 reporting happen later.
 
 If `l2Completed` is unavailable, it is not a blocker. Use a compact commentary
 summary and resume the same executor in the current turn, because Mobile cannot
@@ -333,12 +336,13 @@ safely accept a root final for an incomplete plan without that boundary.
 
 ## Accepted-L1 boundary
 
-An accepted L1 ends one root turn, not the plan. After the ACCEPT commit/review
-transition, projection, and host `update_plan`, call optional
+An accepted L1 ends one root turn, not the plan. After its commit/review,
+projection, and host `update_plan`, call optional
 `gestalt_org_plan_checkpoint` once with only `kind: l1Accepted`. Mobile derives
 the boundary details from the authoritative retained plan.
 The checkpoint must be the last tool call of the root turn. Then send exactly
-one root final answer immediately, with no intervening tool call, using the
+one root final answer immediately after its successful response, with no
+intervening tool call, using the
 template below. Do not make
 executor output user-facing, duplicate the final answer in commentary, or infer
 acceptance from executor prose.
