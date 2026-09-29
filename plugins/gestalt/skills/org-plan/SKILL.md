@@ -108,13 +108,11 @@ collaboration slot is confirmed unavailable.
     evidence whenever an L2 reaches DONE. The root validates the L2 state,
     focused evidence, and changed-file scope, then projects it. When supported,
     call `gestalt_org_plan_checkpoint` once with `l2Completed` and return one
-    compact L2 final; do not call `followup_task` before that final. The
-    checkpoint is the last tool call of the root turn: emit the final
-    immediately and end the turn. Autopilot
-    starts the next root turn, where the root resumes the same executor for the
-    next L2 or begins L1 review. If the L2 checkpoint is unavailable, use the
-    legacy same-turn fallback: summarize in commentary and call `followup_task`
-    before returning any root response. Review only DONE + UNREVIEWED
+    compact L2 final. It is the turn's last tool call; only success authorizes
+    the final. Missing, rejected, terminated, or result-less calls require
+    same-turn supervision. Autopilot's next root turn resumes the executor or
+    begins review. Without checkpointing, summarize in commentary and call
+    `followup_task` before any root response. Review only DONE + UNREVIEWED
     L1s. After an L1 is ACCEPTED, committed when changed, REVIEWED, and
     projected, one concise root accepted-L1 final must end that root turn; it
     never ends the plan. Continue through every L1 and a later terminal review
@@ -253,21 +251,14 @@ The root performs the native projection after every successful lifecycle
 boundary named above; executors only report their successful helper mutation.
 Never ask Bash, an MCP server, or a generated profile to invoke `update_plan`.
 
-In checkpoint-capable sessions, after each L2 reaches DONE and its focused
-evidence and file scope are validated and projected, the root calls
-`gestalt_org_plan_checkpoint` once with `l2Completed`, then emits one concise
-root final answer without any intervening tool call. That final ends the root
-turn. Autopilot starts a later turn that resumes the same executor
-or begins L1 review. After an accepted L1 has its commit/review and projection
-transition, the root calls the checkpoint once with `l1Accepted`, then emits
-one concise root final answer without any intervening tool call. That final
-ends the root turn; no executor launch, review, or later milestone action is
-allowed after the checkpoint in that turn. The final L1
-is still followed by a later root turn for terminal whole-branch review. Only
-after that review, corrections, and final gates may the root optionally
-checkpoint `terminalReviewAccepted` and emit terminal success. If checkpointing
-is unavailable, retain all safety gates and continuous supervision; never end
-early after the final L1.
+In checkpoint-capable sessions, after validating and projecting an L2, call
+`gestalt_org_plan_checkpoint` once with `l2Completed`. Its successful return
+authorizes one concise root final with no intervening tool call. After an
+accepted L1's commit, review, and projection, do the same with `l1Accepted`.
+That final ends the turn; later milestone work is forbidden there. A later turn
+performs final-L1 terminal review. Only after it and final gates may the root
+checkpoint `terminalReviewAccepted` and emit terminal success. Without
+checkpointing, retain every gate and continuous supervision.
 
 Each L2/L1 boundary final rolls new outcomes, files, commands, and verification
 into one answer; later work starts in a new root turn.
