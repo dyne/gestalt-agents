@@ -6,11 +6,11 @@ server policy. The current compatible schema is version 1.
 
 The closed reason vocabulary is `planChange`, `hardBlock`,
 `missingDependency`, `permissionRequired`, `externalState`, and
-`materialAmbiguity`. Calls contain only a bounded summary, concrete requested
-action, and the mapped resume condition from the decision table in the Org Plan
-skill. Unknown future reason codes fail closed: do not infer a meaning or emit
-them; use the current table or report the ordinary blocker when the tool is
-absent.
+`materialAmbiguity`. Calls contain only the mapped `reason` and
+`resumeCondition` from the decision table in the Org Plan skill. Mobile derives
+the bounded summary and requested action from that validated pair. Unknown
+future reason codes fail closed: do not infer a meaning or emit them; use the
+current table or report the ordinary blocker when the tool is absent.
 
 The exact schema-v1 pairs are `planChange/planRevision`,
 `hardBlock/externalStateChanged`, `missingDependency/dependencyInstalled`,

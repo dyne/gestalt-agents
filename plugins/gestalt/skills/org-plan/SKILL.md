@@ -183,9 +183,10 @@ CI-watcher rules in [Supervised execution](references/supervised-execution.md).
 
 `gestalt_org_plan_attention` is optional and is never an `$org-plan`
 dependency. Exhaust safe in-scope checks first. When a row applies, send its
-exact `reason` and `resumeCondition` with a bounded summary and
-`requestedAction`; a successful call ends the turn. If the tool is unavailable,
-report the blocker normally. Blocker prose is not a signal.
+exact `reason` and `resumeCondition` only; Mobile derives the bounded summary
+and requested action from that validated pair. A successful call ends the turn.
+If the tool is unavailable, report the blocker normally. Blocker prose is not
+a signal.
 
 | Only after safe checks, progress cannot continue because… | `reason` | `resumeCondition` |
 | --- | --- | --- |

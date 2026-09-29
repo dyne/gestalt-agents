@@ -107,8 +107,9 @@ it never writes or changes Org state.
 `$org-plan` dependency. Its current schema version is 1. Exhaust safe,
 in-scope checks first. When a row below still prevents safe progress and the
 tool is available, call it before sending any blocker response or yielding,
-with a bounded summary, concrete `requestedAction`, and the mapped `reason` and
-`resumeCondition`. Blocker prose is not a signal. A successful call is the
+with only the mapped `reason` and `resumeCondition`; Mobile derives the bounded
+summary and requested action from that validated pair. Blocker prose is not a
+signal. A successful call is the
 terminal disposition for that turn: issue no further lifecycle action and let
 Mobile hold Autopilot until the matching resume event. When absent, report the
 ordinary blocker concisely and continue normal supervision rather than
@@ -303,9 +304,9 @@ recovery.
 
 After the root validates a DONE L2, its focused evidence, changed-file scope,
 projection, and host `update_plan`, call optional
-`gestalt_org_plan_checkpoint` once with `kind: l2Completed`, plan identity,
-canonical L1/L2 IDs and position, `status: DONE`, and bounded changes, files,
-and test summaries. This checkpoint must be the last tool call of the root turn.
+`gestalt_org_plan_checkpoint` once with only `kind: l2Completed`. Mobile derives
+the boundary details from the authoritative retained plan. This checkpoint must
+be the last tool call of the root turn.
 Send exactly one root final answer immediately, with no intervening tool call,
 using this template:
 
@@ -334,8 +335,8 @@ safely accept a root final for an incomplete plan without that boundary.
 
 An accepted L1 ends one root turn, not the plan. After the ACCEPT commit/review
 transition, projection, and host `update_plan`, call optional
-`gestalt_org_plan_checkpoint` once with `kind: l1Accepted`, the plan identity,
-canonical L1 position/ID, and bounded created-or-not-required commit metadata.
+`gestalt_org_plan_checkpoint` once with only `kind: l1Accepted`. Mobile derives
+the boundary details from the authoritative retained plan.
 The checkpoint must be the last tool call of the root turn. Then send exactly
 one root final answer immediately, with no intervening tool call, using the
 template below. Do not make

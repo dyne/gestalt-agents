@@ -48,7 +48,7 @@ valid_profile_name() { [[ $1 =~ ^[a-z0-9][a-z0-9-]*$ ]]; }
 # Keep the generated role profiles aligned without duplicating this contract.
 # shellcheck disable=SC2016 # Literal profile instructions must retain $org-plan.
 attention_contract_requirements() {
-  printf '%s' ' `gestalt_org_plan_attention` is optional. After exhausting safe checks, use it only for a blocker listed in the skill decision table, with the mapped reason and resumeCondition plus a bounded summary and requestedAction. A successful call ends the root turn. If unavailable, report the blocker normally. Progress, review readiness, recoverable failures, checkpoints, elapsed time, and executor idleness are not attention conditions.'
+  printf '%s' ' `gestalt_org_plan_attention` is optional. After exhausting safe checks, use it only for a blocker listed in the skill decision table, with only the mapped reason and resumeCondition; Mobile derives the bounded summary and requested action. A successful call ends the root turn. If unavailable, report the blocker normally. Progress, review readiness, recoverable failures, checkpoints, elapsed time, and executor idleness are not attention conditions.'
 }
 
 routing_contract_requirements() {
