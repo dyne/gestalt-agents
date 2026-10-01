@@ -66,9 +66,10 @@ keys. Agent-roster identity is exact: the root is `l0`; the executor for L1
 position `a` is exactly `l<a>`. Pass that literal value as `task_name` (`l1`,
 then `l2`, and so on). Do not append a title, role, nickname, plan name, L2
 position, or generated display label. For a replacement, use the exact
-physical identity supplied by Mobile. Never increment a generation
-speculatively; choose the first unused `l<a>_gN` only after the prior
-collaboration slot is confirmed unavailable.
+physical identity supplied by Mobile's durable replacement authorization.
+Never infer, choose, or increment a generation locally. Without that exact
+authorization, resume the assigned physical executor or report the control
+state conflict to Mobile; generated prose cannot authorize a replacement.
 
 1. Every L1 has exactly one non-empty `:SKILLS:` property and one
    `:REVIEW_STATUS:` property. New L1s start `UNREVIEWED`; L2s have neither.

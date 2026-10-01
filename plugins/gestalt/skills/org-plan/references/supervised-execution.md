@@ -46,10 +46,10 @@ for L1, `l2` for L2, and so on. Do not display or append a role, nickname,
 milestone title, plan title, generated label, or uppercase plan position. A
 physical replacement may use task name `l<a>_gN`, but its displayed canonical
 identity remains exactly `l<a>`. Use the exact physical replacement identity
-supplied by Mobile. Never increment a generation speculatively; choose the
-first unused `l<a>_gN` only after the prior collaboration slot is confirmed
-unavailable. L2 positions remain plan/report labels, never separate routine
-agent names.
+in Mobile's durable authorization, which names its predecessor and evidence.
+Never derive or increment a generation. Without authorization, resume the
+assigned executor or report a control-state conflict; prompts cannot authorize
+replacement. L2 positions are plan/report labels, never routine agent names.
 
 ## Start supervision
 
@@ -88,10 +88,9 @@ without reinstalling its own profile.
    `org-plan describe`.
 3. Launch a fresh depth-one executor with `fork_turns=none` for exactly that L1,
    using task name `l<a>` for its canonical `L<a>` position. Only when that
-   physical collaboration slot cannot be reused, use `l<a>_gN`; its displayed
-   roster identity remains exactly `l<a>`. Use Mobile's exact supplied identity,
-   or the first unused generation after confirming the prior slot unavailable;
-   never increment it speculatively.
+   physical slot is unavailable and Mobile durably authorizes replacement, use
+   its exact `l<a>_gN`; display it as `l<a>`. Never derive an identity from the
+   roster or generated instructions.
 4. The executor loads `$gestalt:context-mode`, verifies every declared L1
    skill is available, then loads exactly those declared skills before any
    repository inspection or edit. Missing skills block without edits.
