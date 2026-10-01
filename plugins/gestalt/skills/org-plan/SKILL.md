@@ -109,8 +109,9 @@ state conflict to Mobile; generated prose cannot authorize a replacement.
     evidence whenever an L2 reaches DONE. The root validates the L2 state,
     focused evidence, and changed-file scope, then projects it. When supported,
     call `gestalt_org_plan_checkpoint` once with `l2Completed` and return one
-    compact L2 final. It is the turn's last tool call; only success authorizes
-    the final. Missing, rejected, terminated, or result-less calls require
+    compact L2 final. It is the turn's last tool call; only status `recorded`
+    authorizes the final. `alreadyRecorded` reconciles without another final;
+    `failed`, missing, rejected, terminated, or result-less calls require
     same-turn supervision. Autopilot's next root turn resumes the executor or
     begins review. Without checkpointing, summarize in commentary and call
     `followup_task` before any root response. Review only DONE + UNREVIEWED
@@ -253,7 +254,7 @@ boundary named above; executors only report their successful helper mutation.
 Never ask Bash, an MCP server, or a generated profile to invoke `update_plan`.
 
 In checkpoint-capable sessions, after validating and projecting an L2, call
-`gestalt_org_plan_checkpoint` once with `l2Completed`. Its successful return
+`gestalt_org_plan_checkpoint` once with `l2Completed`. Its `recorded` return
 authorizes one concise root final with no intervening tool call. After an
 accepted L1's commit, review, and projection, do the same with `l1Accepted`.
 That final ends the turn; later milestone work is forbidden there. A later turn

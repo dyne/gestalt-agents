@@ -301,16 +301,16 @@ replacement. Treat `safetyPaused` as a safe terminal control state, not as
 "waiting for agent event", and resume only after Mobile or explicit manual
 recovery.
 
-Checkpoint handoff has no `accepted` field, but still requires a successful
-response. Missing, rejected, terminated, or result-less calls never authorize a
-final. A surviving turn re-reads durable state and continues same-turn; a
-Mobile-recycled runtime later reconciles `checkpointHandoffFailed` once.
+Checkpoint handoff returns `recorded`, `alreadyRecorded`, or `failed`. Only
+`recorded` authorizes a new final. Replay status reconciles without another
+final; failure, rejection, termination, or no result requires same-turn
+supervision. A recycled runtime reconciles `checkpointHandoffFailed` once.
 
 After validating a DONE L2, its evidence, scope, projection, and host
 `update_plan`, call optional
 `gestalt_org_plan_checkpoint` once with only `kind: l2Completed`. Mobile derives
 the boundary details from the authoritative retained plan. This checkpoint must
-be the turn's last tool call; success is required before the final.
+be the turn's last tool call; status `recorded` is required before the final.
 Send exactly one root final answer immediately, with no intervening tool call,
 using this template:
 

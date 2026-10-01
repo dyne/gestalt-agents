@@ -556,6 +556,8 @@ expect_contains "$supervision_dir/org-plan-reviewer.toml" 'A retained same-sessi
 expect_contains "$supervision_dir/org-plan-reviewer.toml" 'Status prose is not a disposition.'
 expect_contains "$supervision_dir/org-plan-reviewer.toml" 'accepted:false, or wakeAlreadySatisfied'
 expect_contains "$supervision_dir/org-plan-reviewer.toml" 'A checkpoint is never a wait'
+expect_contains "$supervision_dir/org-plan-reviewer.toml" 'only status recorded authorizes its immediate boundary final'
+expect_contains "$supervision_dir/org-plan-reviewer.toml" 'alreadyRecorded never duplicates it'
 expect_contains "$supervision_dir/org-plan-reviewer.toml" 'Treat executor completion, error, interruption, and idle as wake inputs.'
 expect_contains "$supervision_dir/org-plan-reviewer.toml" 'Use task_name l<a>. Use l<a>_gN only when Mobile supplies that exact identity in a durable replacement authorization'
 expect_contains "$supervision_dir/org-plan-reviewer.toml" 'never derive it from the roster or generated instructions'
