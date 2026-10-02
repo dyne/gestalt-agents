@@ -17,8 +17,23 @@ try {
   const mutation = mutate(planPath, "l1", "first-outcome", "WIP");
   assert.equal(mutation.before.state, "TODO");
   assert.equal(mutation.after.state, "WIP");
+  assert.throws(
+    () => mutate(planPath, "l1", "first-outcome", "TODO", { force: true }),
+    /invalid transition WIP -> TODO/,
+  );
+  mutate(planPath, "l2", "first-task", "WIP");
+  mutate(planPath, "l2", "first-task", "DONE");
+  mutate(planPath, "l2", "first-task", "WIP");
+  mutate(planPath, "l2", "first-task", "DONE");
+  mutate(planPath, "l1", "first-outcome", "DONE");
+  assert.throws(
+    () => mutate(planPath, "l1", "first-outcome", "TODO", { force: true }),
+    /invalid transition DONE -> TODO/,
+  );
+  mutate(planPath, "l1", "first-outcome", "WIP");
+  mutate(planPath, "l1", "first-outcome", "DONE");
   assert.throws(() => mutate(planPath, "l1", "first-task", "WIP"), /is not an L1/);
-  assert.equal(readPlan(planPath).items.find((item) => item.id === "first-task").state, "TODO");
+  assert.equal(readPlan(planPath).items.find((item) => item.id === "first-task").state, "DONE");
   const statusDirectory = join(temporary, "status");
   mkdirSync(statusDirectory, { mode: 0o700 });
   const old = process.env.GESTALT_MOBILE_ORG_PLAN_STATUS_DIRECTORY;

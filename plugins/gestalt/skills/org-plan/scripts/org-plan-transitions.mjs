@@ -57,10 +57,13 @@ function transitionHeading(plan, item, state, force) {
   if (!["TODO", "WIP", "DONE"].includes(state)) {
     fail(`invalid transition ${item.state} -> ${state}`);
   }
-  const isForwardTransition =
+  const isAllowedTransition =
     (item.state === "TODO" && state === "WIP") ||
-    (item.state === "WIP" && state === "DONE");
-  if (!force && !isForwardTransition) {
+    (item.state === "WIP" && state === "DONE") ||
+    (item.state === "DONE" && state === "WIP");
+  const isForbiddenTodoRollback =
+    state === "TODO" && (item.state === "WIP" || item.state === "DONE");
+  if (isForbiddenTodoRollback || (!force && !isAllowedTransition)) {
     fail(`invalid transition ${item.state} -> ${state}`);
   }
   if (
