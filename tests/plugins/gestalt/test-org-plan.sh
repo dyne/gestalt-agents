@@ -271,7 +271,7 @@ expect_contains "$tmp/out" 'L1 REVIEWED=2'
 expect_contains "$tmp/out" 'L1 UNREVIEWED=1'
 expect_ok "$helper" next "$tmp/appended-review.org" review
 test "$(<"$tmp/out")" = ' appended-refinement [#DONE] Appended refinement' && pass || fail 'rejected L1 remains pending without a review transition'
-expect_ok "$helper" set "$tmp/appended-review.org" appended-refinement WIP --force
+expect_ok "$helper" set "$tmp/appended-review.org" appended-refinement WIP
 sed 's/- Goal :: Test order\./- Goal :: Correct the rejected refinement./' "$tmp/appended-review.org" >"$tmp/changed" && mv "$tmp/changed" "$tmp/appended-review.org"
 expect_ok "$helper" set "$tmp/appended-review.org" appended-refinement DONE
 expect_ok "$helper" next "$tmp/appended-review.org" review
@@ -304,7 +304,7 @@ expect_contains "$tmp/review-transitions.org" '* DONE [#A] First outcome'
 sed 's/- Goal :: Test the helper\./- Goal :: Corrected after explicit review reset./' "$tmp/review-transitions.org" >"$tmp/changed" && mv "$tmp/changed" "$tmp/review-transitions.org"
 expect_ok "$helper" validate "$tmp/review-transitions.org"
 expect_ok "$helper" review "$tmp/review-transitions.org" first-outcome REVIEWED
-expect_ok "$helper" set "$tmp/review-transitions.org" first-outcome WIP --force
+expect_ok "$helper" set "$tmp/review-transitions.org" first-outcome WIP
 expect_contains "$tmp/review-transitions.org" ':REVIEW_STATUS: UNREVIEWED'
 expect_contains "$tmp/review-transitions.org" '* WIP [#A] First outcome'
 expect_ok "$helper" set "$tmp/review-transitions.org" first-outcome DONE
@@ -371,12 +371,17 @@ expect_ok "$helper" set "$tmp/state.org" first-task WIP
 expect_ok "$helper" set "$tmp/state.org" first-task DONE
 expect_ok "$helper" set "$tmp/state.org" first-outcome DONE
 expect_fail "$helper" set "$tmp/state.org" first-outcome TODO
+expect_fail "$helper" set "$tmp/state.org" first-outcome TODO --force
+expect_ok "$helper" set "$tmp/state.org" first-outcome WIP
+expect_fail "$helper" set "$tmp/state.org" first-outcome TODO
+expect_fail "$helper" set "$tmp/state.org" first-outcome TODO --force
+expect_ok "$helper" set "$tmp/state.org" first-outcome DONE
 expect_fail "$helper" set "$tmp/state.org" missing TODO
 test "$(stat -c '%a' "$tmp/state.org" 2>/dev/null || stat -f '%Lp' "$tmp/state.org")" = 640 && pass || fail 'set preserves mode'
 copy valid-minimal.org forced.org
 expect_ok "$helper" set "$tmp/forced.org" first-outcome WIP
-expect_ok "$helper" set "$tmp/forced.org" first-outcome TODO --force
-expect_fail "$helper" set "$tmp/forced.org" first-task WIP --force
+expect_fail "$helper" set "$tmp/forced.org" first-outcome TODO --force
+expect_contains "$tmp/forced.org" '* WIP [#A] First outcome'
 
 agents_dir="$tmp/org-plan-test-agents"
 profile="$agents_dir/org-plan-test-executor.toml"
@@ -745,13 +750,16 @@ expect_ok env GESTALT_MOBILE_ORG_PLAN_STATUS_FILE="$status_file" "$helper" set "
 expect_ok env GESTALT_MOBILE_ORG_PLAN_STATUS_FILE="$status_file" "$helper" l2 "$lifecycle_plan" first-task WIP
 python3 -c 'import json, sys; assert json.load(open(sys.argv[1], encoding="utf-8"))["reason"] == "l2:first-task:WIP"' "$status_file" && pass || fail 'L2 WIP publishes exactly one L2 lifecycle reason'
 expect_ok env GESTALT_MOBILE_ORG_PLAN_STATUS_FILE="$status_file" "$helper" l2 "$lifecycle_plan" first-task DONE
+expect_ok env GESTALT_MOBILE_ORG_PLAN_STATUS_FILE="$status_file" "$helper" l2 "$lifecycle_plan" first-task WIP
+expect_ok env GESTALT_MOBILE_ORG_PLAN_STATUS_FILE="$status_file" "$helper" l2 "$lifecycle_plan" first-task DONE
 expect_ok env GESTALT_MOBILE_ORG_PLAN_STATUS_FILE="$status_file" "$helper" set "$lifecycle_plan" first-outcome DONE
 expect_ok env GESTALT_MOBILE_ORG_PLAN_STATUS_FILE="$status_file" "$helper" review "$lifecycle_plan" first-outcome REVIEWED
 python3 -c 'import json, sys; assert json.load(open(sys.argv[1], encoding="utf-8"))["reason"] == "review:first-outcome:REVIEWED"' "$status_file" && pass || fail 'review publishes its stable target reason'
 expect_ok env GESTALT_MOBILE_ORG_PLAN_STATUS_FILE="$status_file" "$helper" review "$lifecycle_plan" first-outcome UNREVIEWED
 expect_ok env GESTALT_MOBILE_ORG_PLAN_STATUS_FILE="$status_file" "$helper" review "$lifecycle_plan" first-outcome REVIEWED
-expect_ok env GESTALT_MOBILE_ORG_PLAN_STATUS_FILE="$status_file" "$helper" set "$lifecycle_plan" first-outcome WIP --force
+expect_ok env GESTALT_MOBILE_ORG_PLAN_STATUS_FILE="$status_file" "$helper" set "$lifecycle_plan" first-outcome WIP
 python3 -c 'import json, sys; assert json.load(open(sys.argv[1], encoding="utf-8"))["reason"] == "set:first-outcome:WIP"' "$status_file" && pass || fail 'reopen after review publishes after the durable state reset'
+expect_ok env GESTALT_MOBILE_ORG_PLAN_STATUS_FILE="$status_file" "$helper" set "$lifecycle_plan" first-outcome DONE
 status_before=$(cksum "$status_file")
 copy valid-minimal.org malformed-status.org
 sed 's/^\* TODO /\* WAIT /' "$tmp/malformed-status.org" >"$tmp/changed" && mv "$tmp/changed" "$tmp/malformed-status.org"

@@ -56,8 +56,8 @@ lifecycle boundary. Bash helpers and MCP code never invoke `update_plan`.
 ## Legal progression
 
 ```text
-L2: TODO -> WIP -> DONE
-L1: TODO -> WIP -> DONE + UNREVIEWED -> REVIEWED
+L2: TODO -> WIP <-> DONE
+L1: TODO -> WIP <-> DONE + UNREVIEWED -> REVIEWED
 ```
 
 - Mark an L2 DONE only after intended-scope inspection and current focused-test
@@ -65,7 +65,9 @@ L1: TODO -> WIP -> DONE + UNREVIEWED -> REVIEWED
 - Mark an L1 DONE only after every child is DONE and the full suite passes.
 - Mark an L1 REVIEWED only after an explicit ACCEPT verdict.
 - REJECT leaves the L1 DONE + UNREVIEWED while corrections and gates repeat.
-- Reopening a REVIEWED L1 as WIP resets it to UNREVIEWED.
+- Reopen a DONE L1 or L2 as WIP whenever corrections require another completion
+  cycle. Reopening a REVIEWED L1 also resets it to UNREVIEWED.
+- WIP and DONE states never transition back to TODO, including with `--force`.
 - Before materially changing a completed REVIEWED L1 without reopening it, run
   `org-plan review PLAN ID UNREVIEWED`.
 - After an external correction to the plan, signal `resync` before continuing.
