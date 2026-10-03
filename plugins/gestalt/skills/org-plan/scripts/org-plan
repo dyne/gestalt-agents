@@ -290,7 +290,7 @@ prepare_supervision() {
   # shellcheck disable=SC2016
   stage_profile "$reviewer_name" 'Directs, supervises, and reviews an org-plan implementation.' \
     "$(reviewer_profile_instructions)" \
-    "$reviewer_model" "$agents_dir" 'read-only' "$reviewer_lifecycle_requirements$reporting_requirements" ''
+    "$reviewer_model" "$agents_dir" 'read-only' "$reviewer_lifecycle_requirements$reporting_requirements" 'medium'
   # The skill reference is intentionally literal profile text.
   # shellcheck disable=SC2016
   stage_profile "$executor_name" 'Executes an org-plan implementation.' \
