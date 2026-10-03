@@ -551,6 +551,7 @@ expect_not_contains "$supervision_dir/org-plan-executor.toml" 'At the start of e
 expect_not_contains "$supervision_dir/org-plan-executor.toml" 'Use task_name l<a>'
 expect_not_contains "$supervision_dir/org-plan-executor.toml" 'sandbox_mode ='
 expect_contains "$supervision_dir/org-plan-reviewer.toml" 'model = "gpt-5.6-sol"'
+expect_contains "$supervision_dir/org-plan-reviewer.toml" 'model_reasoning_effort = "medium"'
 expect_contains "$supervision_dir/org-plan-reviewer.toml" 'sandbox_mode = "read-only"'
 expect_contains "$supervision_dir/org-plan-reviewer.toml" 'You are the depth-zero read-only root: director, supervisor, and routine reviewer.'
 expect_contains "$supervision_dir/org-plan-reviewer.toml" 'First tool call: read the org-plan skill completely and do nothing else.'
@@ -601,6 +602,7 @@ expect_ok "$helper" prepare-supervision --agents-dir "$override_dir" \
 expect_contains "$override_dir/test-executor.toml" 'model = "terra-test"'
 expect_contains "$override_dir/test-executor.toml" 'model_reasoning_effort = "high"'
 expect_contains "$override_dir/test-reviewer.toml" 'model = "sol-test"'
+expect_contains "$override_dir/test-reviewer.toml" 'model_reasoning_effort = "medium"'
 expect_contains "$tmp/out" 'executor=test-executor executor_model=terra-test'
 expect_contains "$tmp/out" 'root_reviewer=test-reviewer root_reviewer_model=sol-test'
 expect_fail "$helper" prepare-supervision --agents-dir "$override_dir" --supervisor-model luna-test
