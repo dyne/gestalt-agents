@@ -9,7 +9,11 @@ trap 'rm -rf "$codex_home" "$gestalt_home" "$workspace"' EXIT HUP INT TERM
 
 CODEX_HOME="$codex_home" codex plugin marketplace add "$root" >/dev/null
 mkdir -p "$codex_home/agents"
-printf 'developer_instructions = "legacy supervisor"\n' >"$codex_home/agents/org-plan-supervisor.toml"
+printf '%s\n' \
+  'name = "org-plan-supervisor"' \
+  'description = "Retired supervisor fixture"' \
+  'developer_instructions = "legacy supervisor"' \
+  >"$codex_home/agents/org-plan-supervisor.toml"
 printf 'approval_policy = "never"\n' >"$codex_home/config.toml"
 CODEX_HOME="$codex_home" GESTALT_HOME="$gestalt_home" CONTEXT_MODE_PACKAGE_MANAGER=npm \
   bash "$root/gestalt-setup.sh" >/dev/null
@@ -73,7 +77,7 @@ PY
 
 CODEX_HOME="$codex_home" node "$root/scripts/verify-gestalt-skill-catalog.mjs" "$root" \
   >"$codex_home/skills-catalog.out"
-grep -F 'verified 13 enabled Gestalt skills in skills/list' "$codex_home/skills-catalog.out" >/dev/null
+grep -F 'verified 14 enabled Gestalt skills in skills/list' "$codex_home/skills-catalog.out" >/dev/null
 
 context_version=$(node -p "JSON.parse(require('node:fs').readFileSync(process.argv[1], 'utf8')).installed.find(x => x.name === 'context-mode').version" "$codex_home/plugins.json")
 context_cache="$codex_home/plugins/cache/dyne-gestalt-agents/context-mode/$context_version"
