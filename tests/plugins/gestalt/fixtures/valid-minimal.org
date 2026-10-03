@@ -6,7 +6,7 @@
 * TODO [#A] First outcome
 :PROPERTIES:
 :ID: first-outcome
-:SKILLS: $gestalt:development-testing
+:SKILLS: $make
 :REVIEW_STATUS: UNREVIEWED
 :END:
 - Effort :: Small

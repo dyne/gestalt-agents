@@ -5,6 +5,7 @@ import { homedir } from 'node:os';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { verifyGestaltSkillCatalog } from './verify-skill-catalog.mjs';
 
 const pluginRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const manifest = JSON.parse(
@@ -15,6 +16,20 @@ const gestaltHome = process.env.GESTALT_HOME || join(homedir(), '.gestalt');
 
 if (!isAbsolute(gestaltHome)) {
   process.stderr.write(`[FAIL] GESTALT_HOME must be absolute: ${gestaltHome}\n`);
+  process.exit(1);
+}
+
+try {
+  const detail = await verifyGestaltSkillCatalog({
+    pluginRoot,
+    workspace: process.env.CONTEXT_MODE_WORKSPACE || process.cwd(),
+  });
+  process.stdout.write(`[OK] ${detail}\n`);
+} catch (error) {
+  process.stderr.write(
+    `[FAIL] Gestalt skill catalog is invalid for ${version}: ${error instanceof Error ? error.message : String(error)}\n` +
+      "Run 'gestalt update', restart that Codex profile, and retry ctx-doctor.\n",
+  );
   process.exit(1);
 }
 

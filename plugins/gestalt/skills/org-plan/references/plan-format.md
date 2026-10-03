@@ -47,8 +47,8 @@ Every L1 property drawer contains exactly:
 ```
 
 The skills list is non-empty, whitespace-separated, exact, and task-specific.
-Never include `$gestalt:context-mode`; execution loads it as an implicit
-baseline.
+Every `$gestalt:*` skill is always-loaded session infrastructure, so never
+include one. Declare only optional non-Gestalt skills.
 
 Every L1 body contains:
 

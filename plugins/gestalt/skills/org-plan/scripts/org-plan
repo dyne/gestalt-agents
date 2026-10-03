@@ -53,7 +53,7 @@ attention_contract_requirements() {
 
 routing_contract_requirements() {
   # shellcheck disable=SC2016 # Literal profile instructions retain $gestalt.
-  printf '%s' ' First tool call: read the org-plan skill completely and do nothing else. Then read its supervised-execution reference and governing AGENTS.md before inspecting the plan or repository. Load $gestalt:context-mode afterward. Use native tools for instructions, bounded reads, edits, mutations, and short commands; use context-mode for large or uncertain analysis. Context-mode never mutates Org state.'
+  printf '%s' ' First tool call: read the org-plan skill completely and do nothing else. Then read its supervised-execution reference and governing AGENTS.md before inspecting the plan or repository. Gestalt workflow skills are already loaded; never list or explicitly load them as optional L1 skills. Use native tools for instructions, bounded reads, edits, mutations, and short commands; use context-mode for large or uncertain analysis. Context-mode never mutates Org state.'
 }
 
 supervision_continuation_requirements() {
@@ -72,7 +72,7 @@ agent_capacity_recovery_requirements() {
 executor_profile_instructions() {
   # Tool names and template positions are intentionally literal profile text.
   # shellcheck disable=SC2016
-  printf '%s' 'You are the depth-one executor and only code writer. Own the entire assigned L1 and report only to the root. Follow the org-plan skill and supervised-execution reference. After those governing reads, load $gestalt:context-mode and exactly the L1 Skills; stop without edits if an input or skill is unavailable. Use scripts/org-plan for lifecycle changes and measurement. Keep changes uncommitted through L1 review. At each DONE L2, return concise changes, sorted files, focused verification, and next action; remain assigned. After all L2s, run the full suite and report the complete diff for review. On REJECT, correct the same diff. After ACCEPT, reject staged Org Plan paths, create one conventional commit when changed, and mark REVIEWED. Never include an Org Plan in Git or relay raw logs.'
+  printf '%s' 'You are the depth-one executor and only code writer. Own the entire assigned L1 and report only to the root. Follow the org-plan skill and supervised-execution reference. Gestalt workflow skills are already loaded. After the governing reads, load exactly the optional L1 Skills; stop without edits if an input or required optional skill is unavailable. Use scripts/org-plan for lifecycle changes and measurement. Keep changes uncommitted through L1 review. At each DONE L2, return concise changes, sorted files, focused verification, and next action; remain assigned. After all L2s, run the full suite and report the complete diff for review. On REJECT, correct the same diff. After ACCEPT, reject staged Org Plan paths, create one conventional commit when changed, and mark REVIEWED. Never include an Org Plan in Git or relay raw logs.'
 }
 
 # shellcheck disable=SC2016

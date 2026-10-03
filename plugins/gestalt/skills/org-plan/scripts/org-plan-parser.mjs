@@ -118,6 +118,12 @@ function validateL1(item) {
   ) {
     fail(`line ${item.line + 1} (${item.id}): missing or invalid SKILLS`);
   }
+  const declaredSkills = skills.split(" ");
+  if (declaredSkills.some((skill) => skill.startsWith("$gestalt:"))) {
+    fail(
+      `line ${item.line + 1} (${item.id}): Gestalt skills are always loaded and must not appear in SKILLS`,
+    );
+  }
   if (new Set(skills.split(" ")).size !== skills.split(" ").length) {
     fail(`line ${item.line + 1} (${item.id}): duplicate skill reference`);
   }
