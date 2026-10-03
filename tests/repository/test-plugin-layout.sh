@@ -21,6 +21,7 @@ expected_skills = {
     "ctx-stats",
     "ctx-upgrade",
     "org-plan",
+    "self-debug",
     "systematic-debugging",
     "development-testing",
     "verification-before-completion",

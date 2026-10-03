@@ -75,7 +75,7 @@ runtime or build prerequisite.
 
 ## Distributed skills
 
-The `gestalt` plugin distributes 13 Codex skills: five development workflows
+The `gestalt` plugin distributes 14 Codex skills: six development workflows
 and eight context-mode routing and command skills. Codex shows each one with
 the `(gestalt)` provider and enables or disables it with the other
 Gestalt-provided skills.
