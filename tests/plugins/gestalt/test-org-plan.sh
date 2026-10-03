@@ -525,6 +525,7 @@ expect_ok "$helper" prepare-executor --agents-dir "$encoded_dir" --profile-name 
 test "$(wc -l < "$tmp/out")" = 1 && pass || fail 'legacy encoded success output is exactly one record'
 python3 -c 'import sys, urllib.parse; fields=dict(item.split("=", 1) for item in open(sys.argv[1], encoding="ascii").read().strip().split(" ")); assert urllib.parse.unquote(fields["profile"]) == sys.argv[2] + "/encoded-executor.toml"' "$tmp/out" "$encoded_dir" && pass || fail 'legacy encoded profile path round-trips without eval'
 expect_contains "$encoded_dir/encoded-executor.toml" 'Own the entire assigned L1 and report only to the root.'
+expect_contains "$encoded_dir/encoded-executor.toml" 'model_reasoning_effort = "high"'
 expect_contains "$encoded_dir/encoded-executor.toml" 'load $gestalt:context-mode and exactly the L1 Skills'
 expect_contains "$encoded_dir/encoded-executor.toml" 'First tool call: read the org-plan skill completely and do nothing else.'
 expect_not_contains "$encoded_dir/encoded-executor.toml" 'First load $gestalt:context-mode'
@@ -537,6 +538,7 @@ expect_ok "$helper" prepare-supervision --agents-dir "$supervision_dir"
 expect_contains "$tmp/out" 'executor=org-plan-executor executor_model=gpt-5.6-terra'
 expect_contains "$tmp/out" 'root_reviewer=org-plan-reviewer root_reviewer_model=gpt-5.6-sol'
 expect_contains "$supervision_dir/org-plan-executor.toml" 'model = "gpt-5.6-terra"'
+expect_contains "$supervision_dir/org-plan-executor.toml" 'model_reasoning_effort = "high"'
 expect_contains "$supervision_dir/org-plan-executor.toml" 'You are the depth-one executor and only code writer.'
 expect_contains "$supervision_dir/org-plan-executor.toml" 'Own the entire assigned L1 and report only to the root.'
 expect_contains "$supervision_dir/org-plan-executor.toml" 'load $gestalt:context-mode and exactly the L1 Skills'
@@ -597,6 +599,7 @@ expect_ok "$helper" prepare-supervision --agents-dir "$override_dir" \
   --executor-model terra-test --reviewer-model sol-test \
   --executor-profile-name test-executor --reviewer-profile-name test-reviewer
 expect_contains "$override_dir/test-executor.toml" 'model = "terra-test"'
+expect_contains "$override_dir/test-executor.toml" 'model_reasoning_effort = "high"'
 expect_contains "$override_dir/test-reviewer.toml" 'model = "sol-test"'
 expect_contains "$tmp/out" 'executor=test-executor executor_model=terra-test'
 expect_contains "$tmp/out" 'root_reviewer=test-reviewer root_reviewer_model=sol-test'

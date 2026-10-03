@@ -140,7 +140,7 @@ finish_profile_transaction() {
   staged_profiles=() profile_destinations=() profile_backups=() profile_had_destination=()
 }
 stage_profile() {
-  local profile_name=$1 description=$2 instructions=$3 model=$4 agents_dir=$5 sandbox_mode=${6:-} lifecycle_requirements=${7:-}
+  local profile_name=$1 description=$2 instructions=$3 model=$4 agents_dir=$5 sandbox_mode=${6:-} lifecycle_requirements=${7:-} reasoning_effort=${8:-}
   local destination="$agents_dir/$profile_name.toml" temporary="$profile_stage_dir/$profile_name.toml" mode
   instructions+=$lifecycle_requirements
   mode=$(stat -c '%a' "$destination" 2>/dev/null || stat -f '%Lp' "$destination" 2>/dev/null || printf '600')
@@ -149,6 +149,7 @@ stage_profile() {
     printf 'description = "%s"\n' "$description"
     printf 'developer_instructions = "%s"\n' "$instructions"
     printf 'model = "%s"\n' "$model"
+    [[ -z $reasoning_effort ]] || printf 'model_reasoning_effort = "%s"\n' "$reasoning_effort"
     [[ -z $sandbox_mode ]] || printf 'sandbox_mode = "%s"\n' "$sandbox_mode"
   } > "$temporary"; then
     rm -f -- "$temporary"
@@ -237,7 +238,7 @@ prepare_executor() {
   # shellcheck disable=SC2016
   write_profile "$profile_name" 'Executes an org-plan implementation.' \
     "$(executor_profile_instructions)" \
-    "$model" "$agents_dir" '' "$lifecycle_requirements"
+    "$model" "$agents_dir" '' "$lifecycle_requirements" 'high'
   printf 'executor=%s model=%s profile=%s\n' "$profile_name" "$model" "$(encode_record_value "$written_profile")"
 }
 
@@ -289,12 +290,12 @@ prepare_supervision() {
   # shellcheck disable=SC2016
   stage_profile "$reviewer_name" 'Directs, supervises, and reviews an org-plan implementation.' \
     "$(reviewer_profile_instructions)" \
-    "$reviewer_model" "$agents_dir" 'read-only' "$reviewer_lifecycle_requirements$reporting_requirements"
+    "$reviewer_model" "$agents_dir" 'read-only' "$reviewer_lifecycle_requirements$reporting_requirements" ''
   # The skill reference is intentionally literal profile text.
   # shellcheck disable=SC2016
   stage_profile "$executor_name" 'Executes an org-plan implementation.' \
     "$(executor_profile_instructions)" \
-    "$executor_model" "$agents_dir" '' "$executor_lifecycle_requirements"
+    "$executor_model" "$agents_dir" '' "$executor_lifecycle_requirements" 'high'
   prepare_profile_install
   install_profiles
   local reviewer_path executor_path
