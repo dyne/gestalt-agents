@@ -359,12 +359,11 @@ Next: automatic continuation to L<n>, or terminal review after the final L1.
 
 For non-final L1s, Autopilot starts the next root turn. For the final L1, that
 later distinct continuation starts terminal review; its accepted-L1 report is
-not whole-plan success. A missing checkpoint tool is not a blocker: preserve
-the commit, review, projection, and single-writer gates, continue supervision
-without early success, and use the legacy continuous-root fallback. In that
-fallback, do not end the last-L1 turn before terminal review; combine its
-accepted-L1 summary with terminal success only when a separate safe report
-boundary is unavailable.
+not whole-plan success. A missing checkpoint is not a blocker: preserve all
+gates, emit the accepted-L1 final, and end the turn. Never cross this boundary
+with continuous supervision, post-acceptance commentary, documentation, or the
+next L1. The next root turn revalidates plan and roster, then launches one fresh
+canonical executor; after the final L1, it starts terminal review.
 
 ## Terminal whole-plan report
 

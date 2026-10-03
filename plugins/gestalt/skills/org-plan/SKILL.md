@@ -117,8 +117,12 @@ state conflict to Mobile; generated prose cannot authorize a replacement.
     `followup_task` before any root response. Review only DONE + UNREVIEWED
     L1s. After an L1 is ACCEPTED, committed when changed, REVIEWED, and
     projected, one concise root accepted-L1 final must end that root turn; it
-    never ends the plan. Continue through every L1 and a later terminal review
-    until final gates pass.
+    never ends the plan. This accepted-L1 boundary is mandatory even when the
+    checkpoint tool is unavailable: do not continue into the next L1, emit
+    documentation as ongoing commentary, or launch its executor in that turn.
+    A later root turn revalidates durable state, selects the next L1, and
+    launches exactly one fresh canonical executor. Continue through every L1
+    and a later terminal review until final gates pass.
     A checkpoint is a short, idempotent persist-and-ack boundary, never a wait
     episode. Do not register a wait lease or wait for `executorChanged` after
     it. Mobile starts the next fenced continuation from durable
@@ -260,7 +264,8 @@ accepted L1's commit, review, and projection, do the same with `l1Accepted`.
 That final ends the turn; later milestone work is forbidden there. A later turn
 performs final-L1 terminal review. Only after it and final gates may the root
 checkpoint `terminalReviewAccepted` and emit terminal success. Without
-checkpointing, retain every gate and continuous supervision.
+checkpointing, retain every gate; completed L2s may use continuous supervision,
+but an accepted L1 still ends its root turn before the next L1 begins.
 
 Each L2/L1 boundary final rolls new outcomes, files, commands, and verification
 into one answer; later work starts in a new root turn.
