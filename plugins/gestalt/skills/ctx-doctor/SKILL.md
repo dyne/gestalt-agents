@@ -5,13 +5,13 @@ description: Diagnose context-mode runtime, dependency, spawned MCP handshake, h
 
 # Context Mode Doctor
 
-1. Call `ctx_doctor` and return its complete status report unchanged.
-2. Preserve its `[OK]`, `[FAIL]`, and `[WARN]` prefixes.
-3. If the MCP call fails, derive the Gestalt plugin root by going two
-   directories up from this skill and run its external-runtime bridge:
+1. Derive the Gestalt plugin root by going two directories up from this skill
+   and run its version-aware doctor bridge:
 
 ```sh
 node "<PLUGIN_ROOT>/scripts/ctx-doctor.mjs"
 ```
 
-Report the fallback command, exit status, and complete diagnostic report.
+2. Return the command, exit status, and complete diagnostic report unchanged.
+3. Preserve its `[OK]`, `[FAIL]`, and `[WARN]` prefixes. A missing, disabled, or
+   incorrectly versioned `gestalt:` skill is a failure, not a warning.

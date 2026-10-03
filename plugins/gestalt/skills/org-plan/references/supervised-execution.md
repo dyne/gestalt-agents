@@ -91,9 +91,10 @@ without reinstalling its own profile.
    physical slot is unavailable and Mobile durably authorizes replacement, use
    its exact `l<a>_gN`; display it as `l<a>`. Never derive an identity from the
    roster or generated instructions.
-4. The executor loads `$gestalt:context-mode`, verifies every declared L1
-   skill is available, then loads exactly those declared skills before any
-   repository inspection or edit. Missing skills block without edits.
+4. Gestalt skills are already loaded. The executor verifies every declared
+   optional L1 skill is available, then loads exactly those declared skills
+   before any repository inspection or edit. Missing skills block without
+   edits.
 
 Both roles use host-native filesystem tools for governing instructions, small
 bounded reads, edits, mutations, and short command interaction. Context-mode
@@ -408,9 +409,9 @@ unavailable prerequisite, never for progress approval.
 Every executor assignment identifies canonical `L<a>` and uses task name
 `l<a>`. It includes its one L1 and full L2 block, repository
 starting state, accepted prior outputs, allowed scope, required tests, exact
-skills, implicit context-mode baseline, helper-only transitions, one post-ACCEPT
-commit rule, preserved paths, completion-driven continuation, and genuine
-external-blocker stop conditions. It explicitly forbids treating an L2 boundary
-or partial report as completion of the assigned L1.
+optional skills, always-loaded Gestalt workflow skills, helper-only transitions,
+one post-ACCEPT commit rule, preserved paths, completion-driven continuation,
+and genuine external-blocker stop conditions. It explicitly forbids treating an
+L2 boundary or partial report as completion of the assigned L1.
 
 Never rely on inherited conversation context or write “continue above.”

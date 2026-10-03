@@ -73,12 +73,12 @@ state conflict to Mobile; generated prose cannot authorize a replacement.
 
 1. Every L1 has exactly one non-empty `:SKILLS:` property and one
    `:REVIEW_STATUS:` property. New L1s start `UNREVIEWED`; L2s have neither.
-2. Select L1 skills from the complete available catalog. Use exact `$skill`
-   references and the smallest sufficient task-specific set.
-3. `$gestalt:context-mode` is an implicit execution baseline. Never put it
-   in `:SKILLS:`. Every executor loads it plus exactly the declared L1 skills
-   before repository inspection or implementation, and stops without edits if
-   any required skill is unavailable.
+2. Select L1 skills from the optional available catalog. Use exact `$skill`
+   references and the smallest sufficient task-specific set. Every
+   `$gestalt:*` skill is always-loaded session infrastructure: never put one in
+   `:SKILLS:` or explicitly load one. Executors verify and load exactly the
+   declared optional skills before repository inspection or implementation,
+   and stop without edits if any required optional skill is unavailable.
 4. Use helper commands for TODO and review transitions; do not hand-edit them
    during execution.
    After each successful `authoring-start`, `supervision-start`, `set`, `l2`,
@@ -234,7 +234,8 @@ writes or changes Org state.
 
 1. Confirm the assigned branch and choose the next WIP L1, otherwise the first
    TODO L1. Transition it with `org-plan set`.
-2. Load the implicit context-mode baseline and exactly the L1's declared skills.
+2. Gestalt skills are already loaded. Load exactly the L1's declared optional
+   skills.
 3. Choose the next WIP L2, otherwise the first TODO L2. Transition it with
    `org-plan l2`.
 4. Implement the L2, add or update relevant tests, run focused tests, inspect
