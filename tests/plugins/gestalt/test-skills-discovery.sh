@@ -8,6 +8,7 @@ mkdir -p "$tmp/repository/plugins"
 cp -a "$root/plugins/gestalt" "$tmp/repository/plugins/gestalt"
 
 test "$(sed -n 's/^  allow_implicit_invocation: //p' "$tmp/repository/plugins/gestalt/skills/org-plan/agents/openai.yaml")" = true
+test "$(sed -n 's/^  allow_implicit_invocation: //p' "$tmp/repository/plugins/gestalt/skills/self-debug/agents/openai.yaml")" = true
 
 output=$(NO_COLOR=1 npx --yes skills@1.5.18 add "$tmp/repository" --list 2>&1)
 
@@ -27,6 +28,7 @@ expected = {
     "ctx-upgrade",
     "development-testing",
     "org-plan",
+    "self-debug",
     "systematic-debugging",
     "verification-before-completion",
     "writing-skills",

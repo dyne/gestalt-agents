@@ -1,0 +1,6 @@
+interface:
+  display_name: "Gestalt Self-Debug"
+  short_description: "Trace failures across Gestalt control-plane layers"
+  default_prompt: "Use $gestalt:self-debug to correlate Gestalt control-plane, runtime, agent, UI, and sandbox telemetry and identify the first failed boundary."
+policy:
+  allow_implicit_invocation: true
