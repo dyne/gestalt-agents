@@ -10,9 +10,14 @@ overrides recorded by the running process.
 The primary supported diagnostic is:
 
 ```sh
-gestalt-mobile trace <session-id>
-gestalt-mobile trace <session-id> --json
+mobile_bin=${GESTALT_MOBILE_BIN:-$(gestalt path mobile)}
+"$mobile_bin" trace <session-id>
+"$mobile_bin" trace <session-id> --json
 ```
+
+Resolve the executable once and retain that exact value throughout the
+incident. Do not use `command -v gestalt-mobile` or an unqualified
+`gestalt-mobile`: either can select an unrelated system installation.
 
 The relay database is `<data-dir>/relay.sqlite`. Without `--data-dir`, Mobile
 uses `$XDG_STATE_HOME/gestalt-mobile/<workspace-hash>/relay.sqlite`, falling
@@ -81,13 +86,18 @@ event sequence and UI state transition on the same UTC timeline.
 Record the executable paths and versions actually used:
 
 ```sh
-command -v gestalt-mobile codex
-gestalt-mobile --version
+mobile_bin=${GESTALT_MOBILE_BIN:-$(gestalt path mobile)}
+gestalt path --json
+realpath "$mobile_bin"
+"$mobile_bin" --version
+command -v codex
 codex --version
 ```
 
-Inspect Gestalt plugin/cache versions beneath `CODEX_HOME/plugins/cache` and
-the active marketplace install metadata. Use `$gestalt:ctx-doctor` only for
+Use `gestalt path context-mode` for the prepared context-mode runtime and
+`gestalt path context-mode-plugin` for its installed source; do not construct
+either path from a moving cache version. Inspect the active marketplace install
+metadata when version provenance is relevant. Use `$gestalt:ctx-doctor` only for
 context-mode startup, hook, MCP handshake, FTS5, dependency, or registration
 failures. Use `$gestalt:ctx-stats` for context-mode activity, not as general
 control-plane evidence.
