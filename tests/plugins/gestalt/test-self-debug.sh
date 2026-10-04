@@ -11,13 +11,21 @@ test -f "$telemetry"
 test "$(sed -n 's/^  allow_implicit_invocation: //p' "$metadata")" = true
 
 for contract in \
-  'gestalt-mobile trace <session-id>' \
+  '"$mobile_bin" trace <session-id>' \
   'org-plan.*-checkpointed' \
   'autopilot.continuation-scheduled' \
   'autopilot.control-issued' \
   'agent.activity.updated' \
   'browser receipt'; do
   grep -F "$contract" "$skill" >/dev/null
+done
+
+for discovery_contract in \
+  'GESTALT_MOBILE_BIN' \
+  'gestalt path mobile' \
+  'gestalt path --json' \
+  'command -v gestalt-mobile'; do
+  grep -F "$discovery_contract" "$skill" >/dev/null
 done
 
 for entry_point in \
@@ -32,5 +40,8 @@ for entry_point in \
   'spawnSync()'; do
   grep -F "$entry_point" "$telemetry" >/dev/null
 done
+
+grep -F 'gestalt path context-mode' "$telemetry" >/dev/null
+grep -F 'gestalt path context-mode-plugin' "$telemetry" >/dev/null
 
 printf 'self-debug skill covers correlated Gestalt telemetry\n'

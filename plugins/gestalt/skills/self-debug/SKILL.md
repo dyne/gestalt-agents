@@ -10,8 +10,13 @@ Do not infer a component failure from a downstream symptom.
 
 ## Start safely
 
-1. Record the session ID, workspace, UTC time window, Gestalt Mobile version,
-   Codex CLI version, plugin version, exact symptom, and last known-good action.
+1. Resolve the helper-selected Mobile executable before diagnosis:
+   `mobile_bin=${GESTALT_MOBILE_BIN:-$(gestalt path mobile)}`. Record
+   `realpath "$mobile_bin"`, `"$mobile_bin" --version`, `codex --version`,
+   `gestalt path --json`, the session ID, workspace, UTC time window, exact
+   symptom, and last known-good action. Never select Mobile with
+   `command -v gestalt-mobile` or an unqualified `gestalt-mobile` command;
+   another installation may precede the managed executable on `PATH`.
 2. Preserve the original error and reproduction. Do not restart, delete state,
    edit databases, or retry destructively before collecting durable evidence.
 3. Redact tokens, credentials, environment values, prompts, model output, and
@@ -36,8 +41,9 @@ look for this order:
 Run the control-plane exporter first:
 
 ```sh
-gestalt-mobile trace <session-id>
-gestalt-mobile trace <session-id> --json
+mobile_bin=${GESTALT_MOBILE_BIN:-$(gestalt path mobile)}
+"$mobile_bin" trace <session-id>
+"$mobile_bin" trace <session-id> --json
 ```
 
 Pass `--cwd <workspace>` or `--data-dir <directory>` when the relay used a
