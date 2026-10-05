@@ -52,6 +52,7 @@ try {
 } finally { rmSync(temporary, { recursive: true, force: true }); }
 
 const integration = mkdtempSync(join(tmpdir(), "org-plan-mcp-server-"));
+let integrationChild;
 try {
   const planPath = join(integration, "plan.org");
   const statusDirectory = join(integration, "status");
@@ -59,6 +60,7 @@ try {
   const canonicalPlanPath = readPlan(planPath).path;
   mkdirSync(statusDirectory, { mode: 0o700 });
   const child = spawn(process.execPath, [join(root, "plugins/gestalt/org-plan-mcp.mjs")], { env: { ...process.env, GESTALT_MOBILE_ORG_PLAN_STATUS_DIRECTORY: statusDirectory }, stdio: ["pipe", "pipe", "pipe"] });
+  integrationChild = child;
   const messages = [];
   child.stdout.setEncoding("utf8");
   child.stdout.on("data", (chunk) => { for (const line of chunk.trim().split("\n")) if (line) messages.push(JSON.parse(line)); });
@@ -86,8 +88,6 @@ try {
   invalidCalls.forEach((params, index) => request(6 + index, "tools/call", params));
   const expectedMessages = 5 + invalidCalls.length;
   await new Promise((resolve, reject) => { const timer = setTimeout(() => reject(new Error("MCP server did not answer")), 3000); const poll = () => { if (messages.length >= expectedMessages) { clearTimeout(timer); resolve(); } else setTimeout(poll, 10); }; poll(); });
-  child.stdin.end();
-  child.kill();
   const list = messages.find((message) => message.id === 2).result.tools;
   assert.equal(list.length, 10);
   assert.equal(list.find((entry) => entry.name === "org_plan_projection").annotations.readOnlyHint, true);
@@ -111,5 +111,17 @@ try {
   assert.equal(JSON.parse(readFileSync(signal.publication.path, "utf8")).reason, "mcp-integration");
   for (let id = 6; id < 6 + invalidCalls.length; id += 1) assert.equal(messages.find((message) => message.id === id).error.code, -32000);
   assert.equal(readPlan(planPath).items.find((item) => item.id === "first-task").state, "TODO");
+  request(1000, "tools/call", { name: "org_plan_signal", arguments: { plan: planPath, reason: "supervision-start" } });
+  request(1001, "tools/call", { name: "org_plan_signal", arguments: { plan: planPath, reason: "resync" } });
+  request(1002, "tools/call", { name: "org_plan_signal", arguments: { plan: planPath, reason: "supervision-start" } });
+  await new Promise((resolve, reject) => { const timer = setTimeout(() => reject(new Error("MCP startup retention did not answer")), 3000); const poll = () => { if (messages.some((message) => message.id === 1002)) { clearTimeout(timer); resolve(); } else setTimeout(poll, 10); }; poll(); });
+  const firstStartup = messages.find((message) => message.id === 1000).result.structuredContent.publication;
+  const retainedStartup = messages.find((message) => message.id === 1002).result.structuredContent.publication;
+  assert.equal(firstStartup.changed, true);
+  assert.equal(retainedStartup.changed, false);
+  assert.equal(retainedStartup.published, true);
+  assert.equal(JSON.parse(readFileSync(retainedStartup.path, "utf8")).reason, "resync");
+  child.stdin.end();
+  child.kill();
   process.stdout.write("org-plan MCP server contract passed\n");
-} finally { rmSync(integration, { recursive: true, force: true }); }
+} finally { integrationChild?.stdin.end(); integrationChild?.kill(); rmSync(integration, { recursive: true, force: true }); }

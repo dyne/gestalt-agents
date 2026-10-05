@@ -148,6 +148,17 @@ The server also forwards Mobile's session-specific status directory (or its
 legacy status file), so typed lifecycle calls publish to the same relay
 session as CLI helper calls.
 
+Setup now checks the effective MCP permission configuration before reporting
+success. Launchers can repeat the read-only check outside the agent sandbox
+with the intended session policy; see the bundled Org-plan skill's
+[startup diagnostics](plugins/gestalt/skills/org-plan/references/startup-diagnostics.md).
+The diagnostic starts no turn and changes no permission or plan state.
+Automated approval tests use a local Responses fixture to exercise Codex's
+model-triggered MCP gate without credentials or paid model calls, including
+explicit per-tool overrides and status publication.
+Typed `supervision-start` signals also retain the existing same-session startup
+marker, matching the CLI and preserving a deliberate Autopilot Off.
+
 Pass `--extra-skills` to opt into the marketplace's curated third-party skill
 set. This uses `npx skills` in project scope and keeps its canonical skill
 payloads and lock metadata under `${GESTALT_HOME:-$HOME/.gestalt}`, then links
