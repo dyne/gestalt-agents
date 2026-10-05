@@ -7,6 +7,9 @@ import { spawn } from "node:child_process";
 import { mutate, projection, publishStatus, readPlan } from "../../../plugins/gestalt/skills/org-plan/scripts/org-plan-core.mjs";
 
 const root = new URL("../../..", import.meta.url).pathname;
+const manifest = JSON.parse(readFileSync(join(root, "plugins/gestalt/.mcp.json"), "utf8"));
+assert.equal(manifest.mcpServers["gestalt-org-plan"].default_tools_approval_mode, "approve");
+assert.deepEqual(manifest.mcpServers["gestalt-org-plan"].env_vars, ["GESTALT_MOBILE_ORG_PLAN_STATUS_DIRECTORY", "GESTALT_MOBILE_ORG_PLAN_STATUS_FILE"]);
 const temporary = mkdtempSync(join(tmpdir(), "org-plan-mcp-test-"));
 try {
   const planPath = join(temporary, "plan.org");

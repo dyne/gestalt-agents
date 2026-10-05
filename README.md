@@ -138,6 +138,16 @@ implementation installed as a matching private bundle under
 `$CODEX_HOME/lib/gestalt-org-plan`; launchers should add `$CODEX_HOME/bin` to
 `PATH`.
 
+The bundled `gestalt-org-plan` MCP server explicitly approves its local plan
+and lifecycle tools, matching the trusted context-mode server. Codex's
+`approval_policy = "never"` forbids approval prompts; it does not approve a
+write-capable MCP tool automatically. Without the server's approval setting,
+read-only plan queries work while startup signals and lifecycle updates fail.
+Explicit user per-tool approval overrides still take precedence.
+The server also forwards Mobile's session-specific status directory (or its
+legacy status file), so typed lifecycle calls publish to the same relay
+session as CLI helper calls.
+
 Pass `--extra-skills` to opt into the marketplace's curated third-party skill
 set. This uses `npx skills` in project scope and keeps its canonical skill
 payloads and lock metadata under `${GESTALT_HOME:-$HOME/.gestalt}`, then links
