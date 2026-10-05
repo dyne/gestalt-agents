@@ -130,4 +130,19 @@ after=$(sha256sum \
   "$codex_home/bin/context-mode-hook.mjs")
 test "$before" = "$after"
 
+cat >>"$codex_home/config.toml" <<'TOML'
+
+[plugins."gestalt@dyne-gestalt-agents".mcp_servers.gestalt-org-plan.tools.org_plan_signal]
+approval_mode = "prompt"
+TOML
+conflict_before=$(sha256sum "$codex_home/config.toml")
+if CODEX_HOME="$codex_home" node "$root/scripts/verify-gestalt-skill-catalog.mjs" "$root" \
+  >"$codex_home/preflight-conflict.out" 2>&1; then
+  printf 'startup verification must reject prompt-only Org-plan tools under never\n' >&2
+  exit 1
+fi
+grep -F 'ORG_PLAN_APPROVAL_CONFLICT (org_plan_signal)' "$codex_home/preflight-conflict.out" >/dev/null
+conflict_after=$(sha256sum "$codex_home/config.toml")
+test "$conflict_before" = "$conflict_after"
+
 printf 'Codex marketplace installation smoke test passed\n'

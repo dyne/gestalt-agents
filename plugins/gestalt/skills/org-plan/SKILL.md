@@ -45,7 +45,8 @@ Authoring never authorizes execution: after the validated handoff, stop until
 the user explicitly orders implementation or supervision.
 
 When the typed `gestalt-org-plan` MCP server is available, prefer its bounded
-read and transition tools. Otherwise use the bundled `scripts/org-plan` helper;
+read and transition tools. For permission failures, see [startup diagnostics](references/startup-diagnostics.md).
+Otherwise use the bundled `scripts/org-plan` helper;
 it remains the supported compatibility fallback. Neither path invokes host
 tools: after a lifecycle mutation the active root alone reads the projection and
 updates the native plan. `org-plan --help` and `org-plan COMMAND --help` return
