@@ -1,64 +1,248 @@
 #!/usr/bin/env node
 import readline from "node:readline";
-import { basename, dirname, isAbsolute, resolve } from "node:path";
+import { dirname } from "node:path";
+import {
+  handleLine,
+  ProtocolError,
+  resolveMcpPlanPath,
+  validate,
+} from "./org-plan-mcp-support.mjs";
 import { fileURLToPath } from "node:url";
-import { describe, measure, mutate, next, projection, publishStatus, readPlan, summary } from "./skills/org-plan/scripts/org-plan-core.mjs";
+import {
+  describe,
+  measure,
+  mutate,
+  next,
+  projection,
+  publishStatus,
+  readPlan,
+  summary,
+} from "./skills/org-plan/scripts/org-plan-core.mjs";
 
-const plan = { type: "string", minLength: 1, description: "Absolute or workspace-relative Org Plan path." };
+const plan = {
+  type: "string",
+  minLength: 1,
+  description: "Absolute or workspace-relative Org Plan path.",
+};
 const id = { type: "string", pattern: "^[a-z0-9]+(?:-[a-z0-9]+)*$" };
 const lifecycleState = { type: "string", enum: ["TODO", "WIP", "DONE"] };
-const tool = (name, description, inputSchema, readOnlyHint, destructiveHint = false) => ({ name, description, inputSchema: { type: "object", additionalProperties: false, ...inputSchema }, annotations: { readOnlyHint, destructiveHint, idempotentHint: readOnlyHint } });
+const tool = (
+  name,
+  description,
+  inputSchema,
+  readOnlyHint,
+  destructiveHint = false,
+) => ({
+  name,
+  description,
+  inputSchema: { type: "object", additionalProperties: false, ...inputSchema },
+  annotations: { readOnlyHint, destructiveHint, idempotentHint: readOnlyHint },
+});
 const tools = [
-  tool("org_plan_validate", "Validate an Org Plan without changing it.", { properties: { plan }, required: ["plan"] }, true),
-  tool("org_plan_describe", "Describe one Org Plan milestone.", { properties: { plan, id }, required: ["plan", "id"] }, true),
-  tool("org_plan_next", "Select the next L1, L2, or review milestone.", { properties: { plan, kind: { type: "string", enum: ["l1", "l2", "review"] } }, required: ["plan", "kind"] }, true),
-  tool("org_plan_summary", "Summarize Org Plan lifecycle and review state.", { properties: { plan }, required: ["plan"] }, true),
-  tool("org_plan_projection", "Return the root-owned native plan projection.", { properties: { plan }, required: ["plan"] }, true),
-  tool("org_plan_l1_transition", "Transition one L1 milestone.", { properties: { plan, id, state: lifecycleState, force: { type: "boolean" } }, required: ["plan", "id", "state"] }, false, true),
-  tool("org_plan_l2_transition", "Transition one L2 milestone.", { properties: { plan, id, state: { type: "string", enum: ["WIP", "DONE"] } }, required: ["plan", "id", "state"] }, false),
-  tool("org_plan_review_transition", "Record an L1 review state.", { properties: { plan, id, state: { type: "string", enum: ["REVIEWED", "UNREVIEWED"] } }, required: ["plan", "id", "state"] }, false),
-  tool("org_plan_measure", "Record a derived Org Plan measurement.", { properties: { plan, id, operation: { type: "string", enum: ["start", "checkpoint", "finish"] }, snapshot: { type: "object", additionalProperties: false, properties: { observedAt: { type: "string", format: "date-time" }, weeklyRemaining: { type: "integer", minimum: 0, maximum: 100 }, tokensUsed: { type: "integer", minimum: 0 } }, required: ["observedAt"] } }, required: ["plan", "id", "operation", "snapshot"] }, false),
-  tool("org_plan_signal", "Publish a non-mutating Org Plan lifecycle signal.", { properties: { plan, reason: { type: "string", minLength: 1, maxLength: 256 } }, required: ["plan"] }, false),
+  tool(
+    "org_plan_validate",
+    "Validate an Org Plan without changing it.",
+    { properties: { plan }, required: ["plan"] },
+    true,
+  ),
+  tool(
+    "org_plan_describe",
+    "Describe one Org Plan milestone.",
+    { properties: { plan, id }, required: ["plan", "id"] },
+    true,
+  ),
+  tool(
+    "org_plan_next",
+    "Select the next L1, L2, or review milestone.",
+    {
+      properties: {
+        plan,
+        kind: { type: "string", enum: ["l1", "l2", "review"] },
+      },
+      required: ["plan", "kind"],
+    },
+    true,
+  ),
+  tool(
+    "org_plan_summary",
+    "Summarize Org Plan lifecycle and review state.",
+    { properties: { plan }, required: ["plan"] },
+    true,
+  ),
+  tool(
+    "org_plan_projection",
+    "Return the root-owned native plan projection.",
+    { properties: { plan }, required: ["plan"] },
+    true,
+  ),
+  tool(
+    "org_plan_l1_transition",
+    "Transition one L1 milestone.",
+    {
+      properties: {
+        plan,
+        id,
+        state: lifecycleState,
+        force: { type: "boolean" },
+      },
+      required: ["plan", "id", "state"],
+    },
+    false,
+    true,
+  ),
+  tool(
+    "org_plan_l2_transition",
+    "Transition one L2 milestone.",
+    {
+      properties: {
+        plan,
+        id,
+        state: { type: "string", enum: ["WIP", "DONE"] },
+      },
+      required: ["plan", "id", "state"],
+    },
+    false,
+  ),
+  tool(
+    "org_plan_review_transition",
+    "Record an L1 review state.",
+    {
+      properties: {
+        plan,
+        id,
+        state: { type: "string", enum: ["REVIEWED", "UNREVIEWED"] },
+      },
+      required: ["plan", "id", "state"],
+    },
+    false,
+  ),
+  tool(
+    "org_plan_measure",
+    "Record a derived Org Plan measurement.",
+    {
+      properties: {
+        plan,
+        id,
+        operation: { type: "string", enum: ["start", "checkpoint", "finish"] },
+        snapshot: {
+          type: "object",
+          additionalProperties: false,
+          properties: {
+            observedAt: { type: "string", format: "date-time" },
+            weeklyRemaining: { type: "integer", minimum: 0, maximum: 100 },
+            tokensUsed: { type: "integer", minimum: 0 },
+          },
+          required: ["observedAt"],
+        },
+      },
+      required: ["plan", "id", "operation", "snapshot"],
+    },
+    false,
+  ),
+  tool(
+    "org_plan_signal",
+    "Publish a non-mutating Org Plan lifecycle signal.",
+    {
+      properties: {
+        plan,
+        reason: { type: "string", minLength: 1, maxLength: 256 },
+      },
+      required: ["plan"],
+    },
+    false,
+  ),
 ];
-const envelope = (current, value) => ({ plan: { path: current.path, fingerprint: current.fingerprint }, ...value });
-const result = (value) => ({ content: [{ type: "text", text: JSON.stringify(value) }], structuredContent: value });
-// Plugin MCP processes start in the installed package, not the session workspace.
-// Mobile's session-scoped status directory is an explicit workspace handoff.
-function resolveMcpPlanPath(path) {
-  if (isAbsolute(path)) return path;
-  const status = process.env.GESTALT_MOBILE_ORG_PLAN_STATUS_DIRECTORY;
-  if (status && isAbsolute(status) && /^[a-f0-9]{64}$/.test(basename(status)) &&
-      basename(dirname(status)) === "status" && basename(dirname(dirname(status))) === ".gestalt") {
-    return resolve(dirname(dirname(dirname(status))), path);
-  }
-  if (resolve(process.cwd()) === dirname(fileURLToPath(import.meta.url))) {
-    throw new Error("A relative Org Plan path requires the session workspace. Pass the absolute plan path.");
-  }
-  return resolve(path);
-}
-const dateTime = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/;
-function validate(value, schema, at = "arguments") { if (schema.type === "object") { if (value === null || typeof value !== "object" || Array.isArray(value)) throw new Error(`${at} must be an object`); const properties = schema.properties ?? {}; for (const key of schema.required ?? []) if (!Object.hasOwn(value, key)) throw new Error(`${at}.${key} is required`); if (schema.additionalProperties === false) for (const key of Object.keys(value)) if (!Object.hasOwn(properties, key)) throw new Error(`${at}.${key} is not allowed`); for (const [key, child] of Object.entries(properties)) if (Object.hasOwn(value, key)) validate(value[key], child, `${at}.${key}`); return; } if (schema.type === "string") { if (typeof value !== "string") throw new Error(`${at} must be a string`); const length=[...value].length;if (schema.minLength !== undefined && length < schema.minLength) throw new Error(`${at} is too short`); if (schema.maxLength !== undefined && length > schema.maxLength) throw new Error(`${at} is too long`); if (schema.enum && !schema.enum.includes(value)) throw new Error(`${at} has an invalid value`); if (schema.pattern && !new RegExp(schema.pattern).test(value)) throw new Error(`${at} has an invalid format`); if (schema.format === "date-time") { const match=dateTime.exec(value),days=match?new Date(Date.UTC(Number(match[1]),Number(match[2]),0)).getUTCDate():0,offsetHour=match&&value.at(-1)!=="Z"?Number(value.slice(-5,-3)):0,offsetMinute=match&&value.at(-1)!=="Z"?Number(value.slice(-2)):0; if(!match||Number(match[2])<1||Number(match[2])>12||Number(match[3])<1||Number(match[3])>days||Number(match[4])>23||Number(match[5])>59||Number(match[6])>59||offsetHour>23||offsetMinute>59)throw new Error(`${at} must be a valid date-time`); } return; } if (schema.type === "boolean") { if (typeof value !== "boolean") throw new Error(`${at} must be a boolean`); return; } if (schema.type === "integer") { if (!Number.isSafeInteger(value)) throw new Error(`${at} must be an integer`); if (schema.minimum !== undefined && value < schema.minimum) throw new Error(`${at} is below the minimum`); if (schema.maximum !== undefined && value > schema.maximum) throw new Error(`${at} is above the maximum`); return; } throw new Error(`${at} has an unsupported schema`); }
+const envelope = (current, value) => ({
+  plan: { path: current.path, fingerprint: current.fingerprint },
+  ...value,
+});
+const result = (value) => ({
+  content: [{ type: "text", text: JSON.stringify(value) }],
+  structuredContent: value,
+});
+const launchContext = {
+  cwd: process.cwd(),
+  pluginDirectory: dirname(fileURLToPath(import.meta.url)),
+  statusDirectory: process.env.GESTALT_MOBILE_ORG_PLAN_STATUS_DIRECTORY,
+};
 function call(name, args) {
   const definition = tools.find((entry) => entry.name === name);
-  if (!definition) throw new Error(`unknown tool ${name}`);
+  if (!definition) throw new ProtocolError(-32602, `Unknown tool: ${name}`);
   validate(args, definition.inputSchema);
-  const planPath = resolveMcpPlanPath(args.plan);
+  try {
+    return executeTool(name, args);
+  } catch (error) {
+    return {
+      isError: true,
+      content: [
+        {
+          type: "text",
+          text:
+            error instanceof Error ? error.message : "Tool execution failed",
+        },
+      ],
+    };
+  }
+}
+function executeTool(name, args) {
+  const planPath = resolveMcpPlanPath(args.plan, launchContext);
   const current = readPlan(planPath);
-  if (name === "org_plan_validate") return result(envelope(current, { valid: true }));
-  if (name === "org_plan_describe") return result(envelope(current, { item: describe(current, args.id) }));
-  if (name === "org_plan_next") return result(envelope(current, { item: next(current, args.kind) }));
-  if (name === "org_plan_summary") return result(envelope(current, { summary: summary(current) }));
-  if (name === "org_plan_projection") return result(envelope(current, { projection: projection(current) }));
-  if (name === "org_plan_l1_transition") return result(mutate(planPath, "l1", args.id, args.state, { force: args.force === true }));
-  if (name === "org_plan_l2_transition") return result(mutate(planPath, "l2", args.id, args.state));
-  if (name === "org_plan_review_transition") return result(mutate(planPath, "review", args.id, args.state));
-  if (name === "org_plan_measure") return result(measure(planPath, args.operation, args.id, args.snapshot));
+  if (name === "org_plan_validate")
+    return result(envelope(current, { valid: true }));
+  if (name === "org_plan_describe")
+    return result(envelope(current, { item: describe(current, args.id) }));
+  if (name === "org_plan_next")
+    return result(envelope(current, { item: next(current, args.kind) }));
+  if (name === "org_plan_summary")
+    return result(envelope(current, { summary: summary(current) }));
+  if (name === "org_plan_projection")
+    return result(envelope(current, { projection: projection(current) }));
+  if (name === "org_plan_l1_transition")
+    return result(
+      mutate(planPath, "l1", args.id, args.state, {
+        force: args.force === true,
+      }),
+    );
+  if (name === "org_plan_l2_transition")
+    return result(mutate(planPath, "l2", args.id, args.state));
+  if (name === "org_plan_review_transition")
+    return result(mutate(planPath, "review", args.id, args.state));
+  if (name === "org_plan_measure")
+    return result(measure(planPath, args.operation, args.id, args.snapshot));
   if (name === "org_plan_signal") {
     const before = summary(current);
-    return result(envelope(current, { before, after: summary(current), projection: projection(current),
-      publication: publishStatus(planPath, args.reason ?? "signal", { preserveExisting: args.reason === "supervision-start" }) }));
+    return result(
+      envelope(current, {
+        before,
+        after: summary(current),
+        projection: projection(current),
+        publication: publishStatus(planPath, args.reason ?? "signal", {
+          preserveExisting: args.reason === "supervision-start",
+        }),
+      }),
+    );
   }
   throw new Error(`unknown tool ${name}`);
 }
-const reply = (id, payload) => process.stdout.write(`${JSON.stringify({ jsonrpc: "2.0", id, ...payload })}\n`);
-readline.createInterface({ input: process.stdin }).on("line", (line) => { let request; try { request = JSON.parse(line); let response; if (request.method === "initialize") response = { protocolVersion: "2025-03-26", capabilities: { tools: {} }, serverInfo: { name: "gestalt-org-plan", version: "1.0.0" } }; else if (request.method === "tools/list") response = { tools }; else if (request.method === "tools/call") response = call(request.params?.name, request.params?.arguments ?? {}); else return; reply(request.id, { result: response }); } catch (error) { reply(request?.id ?? null, { error: { code: -32000, message: error instanceof Error ? error.message : String(error) } }); } });
+function dispatch(method, params) {
+  switch (method) {
+    case "initialize":
+      return {
+        protocolVersion: "2025-03-26",
+        capabilities: { tools: {} },
+        serverInfo: { name: "gestalt-org-plan", version: "1.0.0" },
+      };
+    case "ping":
+      return {};
+    case "tools/list":
+      return { tools };
+    case "tools/call":
+      return call(params.name, params.arguments ?? {});
+    default:
+      throw new ProtocolError(-32601, `Method not found: ${method}`);
+  }
+}
+readline.createInterface({ input: process.stdin }).on("line", (line) => {
+  const response = handleLine(line, dispatch);
+  if (response) process.stdout.write(`${JSON.stringify(response)}\n`);
+});
