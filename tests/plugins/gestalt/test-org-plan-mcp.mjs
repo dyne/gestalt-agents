@@ -55,11 +55,11 @@ const integration = mkdtempSync(join(tmpdir(), "org-plan-mcp-server-"));
 let integrationChild;
 try {
   const planPath = join(integration, "plan.org");
-  const statusDirectory = join(integration, "status");
+  const statusDirectory = join(integration, ".gestalt", "status", "a".repeat(64));
   copyFileSync(join(root, "tests/plugins/gestalt/fixtures/valid-minimal.org"), planPath);
   const canonicalPlanPath = readPlan(planPath).path;
-  mkdirSync(statusDirectory, { mode: 0o700 });
-  const child = spawn(process.execPath, [join(root, "plugins/gestalt/org-plan-mcp.mjs")], { env: { ...process.env, GESTALT_MOBILE_ORG_PLAN_STATUS_DIRECTORY: statusDirectory }, stdio: ["pipe", "pipe", "pipe"] });
+  mkdirSync(statusDirectory, { mode: 0o700, recursive: true });
+  const child = spawn(process.execPath, [join(root, "plugins/gestalt/org-plan-mcp.mjs")], { cwd: join(root, "plugins/gestalt"), env: { ...process.env, GESTALT_MOBILE_ORG_PLAN_STATUS_DIRECTORY: statusDirectory }, stdio: ["pipe", "pipe", "pipe"] });
   integrationChild = child;
   const messages = [];
   child.stdout.setEncoding("utf8");
@@ -67,7 +67,7 @@ try {
   const request = (id, method, params = {}) => { child.stdin.write(`${JSON.stringify({ jsonrpc: "2.0", id, method, params })}\n`); };
   request(1, "initialize", { protocolVersion: "2025-03-26", capabilities: {} });
   request(2, "tools/list");
-  request(3, "tools/call", { name: "org_plan_l1_transition", arguments: { plan: planPath, id: "first-outcome", state: "WIP" } });
+  request(3, "tools/call", { name: "org_plan_l1_transition", arguments: { plan: "plan.org", id: "first-outcome", state: "WIP" } });
   request(4, "tools/call", { name: "org_plan_measure", arguments: { plan: planPath, id: "first-outcome", operation: "start", snapshot: { observedAt: "2026-08-31T12:00:00Z", tokensUsed: 10 } } });
   request(5, "tools/call", { name: "org_plan_signal", arguments: { plan: planPath, reason: "mcp-integration" } });
   const invalidCalls = [
@@ -114,7 +114,9 @@ try {
   request(1000, "tools/call", { name: "org_plan_signal", arguments: { plan: planPath, reason: "supervision-start" } });
   request(1001, "tools/call", { name: "org_plan_signal", arguments: { plan: planPath, reason: "resync" } });
   request(1002, "tools/call", { name: "org_plan_signal", arguments: { plan: planPath, reason: "supervision-start" } });
-  await new Promise((resolve, reject) => { const timer = setTimeout(() => reject(new Error("MCP startup retention did not answer")), 3000); const poll = () => { if (messages.some((message) => message.id === 1002)) { clearTimeout(timer); resolve(); } else setTimeout(poll, 10); }; poll(); });
+  request(1003, "tools/call", { name: "org_plan_validate", arguments: { plan: "plan.org" } });
+  await new Promise((resolve, reject) => { const timer = setTimeout(() => reject(new Error("MCP startup retention did not answer")), 3000); const poll = () => { if (messages.some((message) => message.id === 1003)) { clearTimeout(timer); resolve(); } else setTimeout(poll, 10); }; poll(); });
+  assert.deepEqual(messages.find((message) => message.id === 1003).result.structuredContent.plan.path, canonicalPlanPath);
   const firstStartup = messages.find((message) => message.id === 1000).result.structuredContent.publication;
   const retainedStartup = messages.find((message) => message.id === 1002).result.structuredContent.publication;
   assert.equal(firstStartup.changed, true);
