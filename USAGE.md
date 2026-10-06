@@ -135,12 +135,17 @@ registry, or writes generated files. Startup follows this path:
 ```text
 Codex MCP start
   -> start.mjs in the replaceable Codex plugin cache
-  -> resolve version + platform + architecture + Node ABI
+  -> resolve the shared managed runtime
   -> runtime-preflight.mjs (read only)
-  -> ~/.gestalt/runtime/context-mode/<version>/<target>/server.bundle.mjs
+  -> ~/.gestalt/runtime/context-mode/server.bundle.mjs
 ```
 
-`runtime-preflight.mjs` verifies the package version and SHA-256 artifact
+Updates replace this one runtime after successful preparation; old version
+directories are removed during migration. Stable commands are available at
+`~/.gestalt/bin/context-mode` and `~/.gestalt/bin/org-plan` (or under `GESTALT_HOME`).
+Restart sessions after updating the runtime.
+
+`runtime-preflight.mjs` verifies the package version, platform, Node ABI, and SHA-256 artifact
 manifest, including the native `better-sqlite3` binding. An incomplete external
 runtime exits with code 78,
 `CONTEXT_MODE_NOT_PREPARED`, the invalid paths, and the setup command.

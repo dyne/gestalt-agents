@@ -50,6 +50,8 @@ done
 assert_contains "$output" "org-plan-supervisor.toml" "dry-run removes the retired supervisor profile"
 assert_contains "$output" "configure context-mode MCP and hooks" \
   "dry-run schedules native context-mode registration"
+assert_contains "$output" "install-managed-commands.mjs" \
+  "dry-run schedules stable public commands"
 assert_absent "$tmp/.codex-gestalt" "dry-run does not create the Codex home"
 
 extra_output=$(env -u CODEX_HOME HOME="$tmp" bash "$script" --dry-run --extra-skills)
