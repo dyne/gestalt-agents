@@ -45,6 +45,8 @@ def regular_entries(archive: Path) -> set[str]:
 bundle_entries = regular_entries(artifacts / f"gestalt-agents-{tag}.zip")
 assert ".agents/plugins/marketplace.json" in bundle_entries
 assert "gestalt-setup.sh" in bundle_entries
+assert "scripts/install-managed-commands.mjs" in bundle_entries
+assert "scripts/verify-gestalt-skill-catalog.mjs" in bundle_entries
 assert "README.md" in bundle_entries
 assert "USAGE.md" in bundle_entries
 assert "plugins/gestalt/.codex-plugin/plugin.json" in bundle_entries
@@ -66,6 +68,7 @@ tracked = subprocess.check_output(
     [
         "git", "-C", str(root), "ls-tree", "-r", "--name-only", "HEAD", "--",
         ".agents/plugins/marketplace.json", "README.md", "USAGE.md", "gestalt-setup.sh",
+        "scripts/install-managed-commands.mjs", "scripts/verify-gestalt-skill-catalog.mjs",
         "plugins/gestalt", "plugins/context-mode",
     ],
     text=True,

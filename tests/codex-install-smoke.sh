@@ -42,9 +42,7 @@ assert (gestalt / ".mcp.json").is_file()
 assert (gestalt / "org-plan-mcp.mjs").is_file()
 assert (context_mode / "hooks/hooks.json").is_file()
 assert (context_mode / ".mcp.json").is_file()
-runtime_candidates = list((gestalt_home / "runtime/context-mode" / installed["context-mode"]["version"]).glob("*-node-*"))
-assert len(runtime_candidates) == 1, runtime_candidates
-runtime = runtime_candidates[0]
+runtime = gestalt_home / "runtime/context-mode"
 assert (runtime / ".context-mode-prepared.json").is_file()
 assert (runtime / "node_modules/better-sqlite3/build/Release/better_sqlite3.node").is_file()
 # Simulate Codex rematerializing its cache after setup.

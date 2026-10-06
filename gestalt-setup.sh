@@ -14,6 +14,7 @@ org_plan_parser="$script_dir/plugins/gestalt/skills/org-plan/scripts/org-plan-pa
 org_plan_publication="$script_dir/plugins/gestalt/skills/org-plan/scripts/org-plan-publication.mjs"
 org_plan_transitions="$script_dir/plugins/gestalt/skills/org-plan/scripts/org-plan-transitions.mjs"
 catalog_verifier="$script_dir/scripts/verify-gestalt-skill-catalog.mjs"
+command_installer="$script_dir/scripts/install-managed-commands.mjs"
 setup_args=("$@")
 prepare_only=false
 force=false
@@ -228,6 +229,7 @@ if "$prepare_only"; then
   else
     node "$context_source/scripts/install-runtime.mjs" --check
   fi
+  run node "$command_installer" "${GESTALT_HOME:-${HOME:?HOME is required}/.gestalt}"
   printf 'gestalt-setup: context-mode external runtime is prepared\n'
   exit 0
 fi
@@ -317,6 +319,7 @@ run install -m 0644 -- "$org_plan_files" "$codex_root/lib/gestalt-org-plan/org-p
 run install -m 0644 -- "$org_plan_parser" "$codex_root/lib/gestalt-org-plan/org-plan-parser.mjs"
 run install -m 0644 -- "$org_plan_publication" "$codex_root/lib/gestalt-org-plan/org-plan-publication.mjs"
 run install -m 0644 -- "$org_plan_transitions" "$codex_root/lib/gestalt-org-plan/org-plan-transitions.mjs"
+run node "$command_installer" "${GESTALT_HOME:-${HOME:?HOME is required}/.gestalt}" "$codex_root"
 run "$org_plan" prepare-supervision --agents-dir "$agents_dir"
 run rm -f -- "$agents_dir/org-plan-supervisor.toml"
 

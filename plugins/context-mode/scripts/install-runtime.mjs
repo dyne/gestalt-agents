@@ -14,7 +14,7 @@ import {
 import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { prepareRuntime } from "./prepare-runtime.mjs";
-import { getRuntimeRoot } from "./runtime-location.mjs";
+import { getRuntimeIdentity, getRuntimeRoot } from "./runtime-location.mjs";
 import { verifyPreparedRuntime } from "./runtime-preflight.mjs";
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
@@ -73,8 +73,20 @@ function publishRuntime(stage, target) {
   }
 }
 
-export async function installRuntime(sourceRoot = SOURCE_ROOT, { force = false } = {}) {
-  const target = getRuntimeRoot(sourceRoot);
+export function verifyInstalledRuntime(sourceRoot, target) {
+  const expectedVersion = getRuntimeIdentity(sourceRoot).packageVersion;
+  const prepared = verifyPreparedRuntime(target);
+  if (!prepared.ok) return prepared;
+  try {
+    if (expectedVersion === getRuntimeIdentity(target).packageVersion) return prepared;
+  } catch {
+    // A concurrent publisher can replace the target between these reads.
+  }
+  return { ok: false, problems: ["package.json:source-version"] };
+}
+
+export async function installRuntime(sourceRoot = SOURCE_ROOT, { force = false, env = process.env, prepare = prepareRuntime } = {}) {
+  const target = getRuntimeRoot(sourceRoot, env);
   const targetFromSource = relative(sourceRoot, target);
   if (
     targetFromSource === "" ||
@@ -82,7 +94,7 @@ export async function installRuntime(sourceRoot = SOURCE_ROOT, { force = false }
   ) {
     throw new Error(`external runtime must not be inside the context-mode source: ${target}`);
   }
-  if (!force && verifyPreparedRuntime(target).ok) return target;
+  if (!force && verifyInstalledRuntime(sourceRoot, target).ok) return target;
 
   mkdirSync(dirname(target), { recursive: true });
   const lockDir = `${target}.install.lock`;
@@ -101,13 +113,13 @@ export async function installRuntime(sourceRoot = SOURCE_ROOT, { force = false }
     if (ownsLock) {
       const stage = `${target}.stage-${process.pid}-${Date.now()}`;
       try {
-        if (force || !verifyPreparedRuntime(target).ok) {
+        if (force || !verifyInstalledRuntime(sourceRoot, target).ok) {
           cpSync(sourceRoot, stage, {
             recursive: true,
             filter: (source) => shouldCopy(sourceRoot, source),
           });
-          await prepareRuntime(stage, { force: true });
-          const prepared = verifyPreparedRuntime(stage);
+          await prepare(stage, { force: true });
+          const prepared = verifyInstalledRuntime(sourceRoot, stage);
           if (!prepared.ok) throw new Error(`staged runtime is invalid: ${prepared.problems.join(", ")}`);
           publishRuntime(stage, target);
         }
@@ -118,7 +130,7 @@ export async function installRuntime(sourceRoot = SOURCE_ROOT, { force = false }
       return target;
     }
 
-    if (!force && verifyPreparedRuntime(target).ok) return target;
+    if (!force && verifyInstalledRuntime(sourceRoot, target).ok) return target;
     await delay(WAIT_MS);
   }
   throw new Error(`timed out waiting for runtime installation lock: ${lockDir}`);
@@ -130,7 +142,7 @@ if (
 ) {
   const target = getRuntimeRoot(SOURCE_ROOT);
   if (process.argv.includes("--check")) {
-    const result = verifyPreparedRuntime(target);
+    const result = verifyInstalledRuntime(SOURCE_ROOT, target);
     if (!result.ok) {
       process.stderr.write(`context-mode external runtime is not prepared: ${result.problems.join(", ")}\n`);
       process.exit(1);

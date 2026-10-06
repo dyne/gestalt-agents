@@ -33,8 +33,7 @@ try {
   process.exit(1);
 }
 
-const runtimeIdentity = `${process.platform}-${process.arch}-node-${process.versions.modules}`;
-const runtimeRoot = join(gestaltHome, 'runtime', 'context-mode', version, runtimeIdentity);
+const runtimeRoot = join(gestaltHome, 'runtime', 'context-mode');
 const cli = join(runtimeRoot, 'cli.bundle.mjs');
 
 if (!existsSync(cli)) {

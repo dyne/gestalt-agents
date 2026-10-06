@@ -19,13 +19,15 @@ and contents while excluding generated dependencies and build artifacts.
   user-facing documentation. Other host packaging, configuration, hook
   wrappers, website content, and release automation are omitted.
 - Replaces the self-healing first-run launcher with a small `start.mjs` that
-  resolves a versioned external runtime, performs a read-only artifact
+  resolves one replaceable external runtime, performs a read-only artifact
   preflight, and starts its `server.bundle.mjs`.
 - Adds `scripts/prepare-runtime.mjs` for explicit locked dependency install,
   type-checking, bundle creation, validation, and preparation-manifest creation.
-- Adds an atomic external-runtime installer under
-  `${GESTALT_HOME:-$HOME/.gestalt}`, isolated by platform, architecture, and
-  Node ABI. It canonicalizes CLI entrypoint paths so symlinked marketplace or
+- Adds a staged external-runtime installer at
+  `${GESTALT_HOME:-$HOME/.gestalt}/runtime/context-mode`, with version, platform,
+  architecture, and Node ABI checked through the preparation manifest. Verified
+  replacements remove the previous runtime and legacy version-directory tree;
+  failed builds preserve the prior installation. It canonicalizes CLI entrypoint paths so symlinked marketplace or
   temporary directories still run preparation. This avoids dependence on
   Codex's replaceable plugin cache.
 - Routes Codex hooks through a cache-local launcher into the external runtime.

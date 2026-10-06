@@ -30,12 +30,7 @@ export function getRuntimeIdentity(pluginRoot) {
 }
 
 export function getRuntimeRoot(pluginRoot, env = process.env) {
-  const { packageVersion, platform, arch, modulesAbi } = getRuntimeIdentity(pluginRoot);
-  return join(
-    getGestaltHome(env),
-    "runtime",
-    "context-mode",
-    packageVersion,
-    `${platform}-${arch}-node-${modulesAbi}`,
-  );
+  // Versions and native ABI belong in the preparation manifest, not the path.
+  // Keep the argument for cache-local launchers that share this API.
+  return join(getGestaltHome(env), "runtime", "context-mode");
 }

@@ -172,7 +172,7 @@ run `ctx-doctor` in a new session:
 
 ```sh
 export CODEX_HOME="$HOME/.codex-gestalt"
-export PATH="$CODEX_HOME/bin:$PATH"
+export PATH="$HOME/.gestalt/bin:$CODEX_HOME/bin:$PATH"
 codex plugin list --marketplace dyne-gestalt-agents --json
 codex
 ```
@@ -182,11 +182,23 @@ codex
 Run `./gestalt-setup.sh` again after a marketplace upgrade. Use
 `./gestalt-setup.sh --prepare-only` to install the external runtime without
 installing plugins or changing the isolated Codex home, and `--force` to replace
-an invalid prepared runtime. Runtime versions are isolated by operating system,
-CPU architecture, and Node ABI under
-`${GESTALT_HOME:-$HOME/.gestalt}/runtime/context-mode/`. Set `CODEX_HOME`
+an invalid prepared runtime. A single runtime lives under
+`${GESTALT_HOME:-$HOME/.gestalt}/runtime/context-mode/`. Its manifest checks the
+package version, operating system, CPU architecture, and Node ABI. Setup builds
+and verifies a temporary replacement before switching, then removes the previous
+copy, including the old version-directory layout. A failed build keeps the
+previous runtime. Restart sessions after updating.
+
+Setup also installs `context-mode` and `org-plan` in
+`${GESTALT_HOME:-$HOME/.gestalt}/bin/`. Add that directory to your shell's `PATH`,
+or invoke the commands by their full paths. These are small managed launchers;
+the Org-plan launcher preserves the helper's relative module lookup. Future
+commands can use the same explicit registry in `scripts/install-managed-commands.mjs`.
+User-owned files in that directory are never overwritten.
+
+Set `CODEX_HOME`
 explicitly only to test or install an additional isolated Gestalt profile.
-Use `./gestalt-setup.sh --force` to rebuild and atomically replace that runtime.
+Use `./gestalt-setup.sh --force` to rebuild and replace that runtime.
 
 Marketplace installation does not execute setup automatically. On an existing
 installation, upgrade the marketplace and rerun its setup script:

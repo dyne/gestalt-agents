@@ -52,6 +52,8 @@ release_paths=(
   README.md
   USAGE.md
   gestalt-setup.sh
+  scripts/install-managed-commands.mjs
+  scripts/verify-gestalt-skill-catalog.mjs
   plugins/gestalt
   plugins/context-mode
 )
