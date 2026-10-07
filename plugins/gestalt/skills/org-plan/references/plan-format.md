@@ -47,8 +47,9 @@ Every L1 property drawer contains exactly:
 ```
 
 The skills list is non-empty, whitespace-separated, exact, and task-specific.
-Every `$gestalt:*` skill is always-loaded session infrastructure, so never
-include one. Declare only optional non-Gestalt skills.
+Gestalt workflow skills are always-loaded session infrastructure. Conditional
+capabilities such as `$gestalt:xerj` require runtime readiness; neither belongs
+in milestone dependencies. Declare only optional non-Gestalt skills.
 
 Every L1 body contains:
 

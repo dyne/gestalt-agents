@@ -121,7 +121,7 @@ function validateL1(item) {
   const declaredSkills = skills.split(" ");
   if (declaredSkills.some((skill) => skill.startsWith("$gestalt:"))) {
     fail(
-      `line ${item.line + 1} (${item.id}): Gestalt skills are always loaded and must not appear in SKILLS`,
+      `line ${item.line + 1} (${item.id}): Gestalt skills are runtime infrastructure or conditional capabilities and must not appear in SKILLS`,
     );
   }
   if (new Set(skills.split(" ")).size !== skills.split(" ").length) {

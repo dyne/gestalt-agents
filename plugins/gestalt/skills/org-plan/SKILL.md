@@ -76,8 +76,9 @@ state conflict to Mobile; generated prose cannot authorize a replacement.
    `:REVIEW_STATUS:` property. New L1s start `UNREVIEWED`; L2s have neither.
 2. Select L1 skills from the optional available catalog. Use exact `$skill`
    references and the smallest sufficient task-specific set.
-3. Every `$gestalt:*` skill is always-loaded session infrastructure: never put
-   one in `:SKILLS:` or explicitly load one. Executors verify and load exactly
+3. Gestalt workflows are always loaded; conditional `$gestalt:xerj` requires
+   runtime readiness. Never declare `$gestalt:*` in `:SKILLS:` or load one as
+   optional. Executors verify and load exactly
    the declared optional skills before repository inspection or implementation,
    and stop without edits if any required optional skill is unavailable.
 4. Use helper commands for TODO and review transitions; do not hand-edit them
