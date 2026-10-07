@@ -7,7 +7,13 @@ description: Implement a defined behavior, create or update coherent automated t
 
 1. Implement the stated behavior within the current scope.
 2. Add or update tests for its externally observable contract.
-3. Run the smallest suite that exercises the changed behavior.
+3. Run the smallest suite that exercises the changed behavior. Check intended
+   test identities and executed counts; zero matches or all-skipped results
+   leave the behavior unverified. For filtered or controlled concurrency tests,
+   follow [execution evidence](references/test-execution-evidence.md).
+   Before an expensive run with environment prerequisites, use the configurable
+   [test readiness helper](references/test-readiness.md) for the repository's
+   declared executables, browser, and evidence directory.
 4. Diagnose each mismatch. Fix production code when behavior is wrong; fix a
    test when it encodes an obsolete contract or incidental implementation
    detail; request clarification only for a material requirement ambiguity.

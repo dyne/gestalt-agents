@@ -61,9 +61,19 @@ if os.environ.get('FAIL'):
         self.assertNotEqual(first['artifact'], second['artifact'])
         self.assertEqual(meta['coverage'], 'covered')
         self.assertEqual(meta['exporterVersion'], '1.2.3')
-        self.assertEqual(meta['workspace'], str(self.workspace))
+        self.assertEqual(meta['workspace'], str(self.workspace.resolve()))
         self.assertIn('--data-dir', (self.root / 'args').read_text())
         self.assertEqual(json.loads(Path(first['trace']).read_text()), self.trace)
+
+    def test_workspace_symlink_identity(self):
+        canonical = self.workspace.resolve()
+        alias = self.root / 'workspace alias'
+        alias.symlink_to(self.workspace, target_is_directory=True)
+        self.workspace = alias
+        self.trace['workspace'] = str(alias)
+        _, meta = self.run_capture()
+        self.assertEqual(meta['workspace'], str(canonical))
+        self.assertEqual(meta['coverage'], 'covered')
 
     def test_ranges_and_unordered(self):
         self.trace['events'].reverse()
