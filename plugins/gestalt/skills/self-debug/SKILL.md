@@ -17,7 +17,12 @@ Do not infer a component failure from a downstream symptom.
    symptom, and last known-good action. Never select Mobile with
    `command -v gestalt-mobile` or an unqualified `gestalt-mobile` command;
    another installation may precede the managed executable on `PATH`.
-2. Preserve the original error and reproduction. Do not restart, delete state,
+2. Capture the redacted trace immediately with
+   [the incident helper](references/incident-capture.md), using the source
+   session's explicit workspace and state overrides. Inspect incident-window
+   coverage before causal analysis; missing or unknown coverage limits any
+   conclusion about an absent event. Preserve the original error and reproduction.
+   Do not restart, delete state,
    edit databases, or retry destructively before collecting durable evidence.
 3. Redact tokens, credentials, environment values, prompts, model output, and
    unrelated conversation. Prefer bounded queries and structured exports over
@@ -38,7 +43,7 @@ look for this order:
 `autopilot.executor-resumed` -> `autopilot.turn-started` or
 `autopilot.turn-failed` -> `agent.activity.updated` -> browser receipt.
 
-Run the control-plane exporter first:
+Use the saved capture for diagnosis. For the supported exporter contract:
 
 ```sh
 mobile_bin=${GESTALT_MOBILE_BIN:-$(gestalt path mobile)}

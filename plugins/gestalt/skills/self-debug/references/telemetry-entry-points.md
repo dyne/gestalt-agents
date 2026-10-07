@@ -7,7 +7,9 @@ overrides recorded by the running process.
 
 ## Gestalt Mobile relay
 
-The primary supported diagnostic is:
+First preserve evidence with the [incident capture helper](incident-capture.md).
+Analyze the saved packet and its coverage before querying changing live stores.
+The underlying supported diagnostic is:
 
 ```sh
 mobile_bin=${GESTALT_MOBILE_BIN:-$(gestalt path mobile)}
@@ -119,6 +121,11 @@ receives `EPERM`, classify it as sandbox/interposition evidence rather than a
 binary permission failure. Do not broaden permissions as a diagnostic shortcut.
 
 ## Evidence quality
+
+Before treating empty `rg` output as absence, verify the search root, ignored
+paths (`rg --files --hidden --no-ignore` in the narrow expected directory), and
+symlinks (`ls -ld` and `realpath` on the known path; `rg --follow` when needed).
+Do not replace a failed narrow lookup with a broad directory dump.
 
 Prefer durable IDs and ordered records over screenshots or prose. Preserve UTC
 timestamps. Separate facts, inferences, and missing evidence. Never claim that
