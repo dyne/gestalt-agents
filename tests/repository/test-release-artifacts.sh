@@ -1,9 +1,37 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-root=$(CDPATH='' cd -- "$(dirname -- "$0")/../.." && pwd)
+source_root=$(CDPATH='' cd -- "$(dirname -- "$0")/../.." && pwd)
 tmp=$(mktemp -d "${TMPDIR:-/tmp}/release-artifacts-test.XXXXXX")
 trap 'rm -rf "$tmp"' EXIT HUP INT TERM
+# Production archives HEAD. Test the current distributable content in an
+# isolated Git fixture so newly authored skills are verified before acceptance,
+# without staging or committing anything in the source repository.
+root="$tmp/repository"
+python3 - "$source_root" "$root" <<'PY'
+import shutil
+import subprocess
+import sys
+from pathlib import Path
+
+source, target = map(Path, sys.argv[1:])
+paths = subprocess.check_output(
+    ["git", "-C", str(source), "ls-files", "--cached", "--others", "--exclude-standard", "-z"],
+).decode().split("\0")
+for name in paths:
+    if not name or (".gestalt" in Path(name).parts and name.endswith(".org")):
+        continue
+    path = source / name
+    if not path.is_file():
+        continue
+    destination = target / name
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(path, destination, follow_symlinks=False)
+PY
+git -C "$root" init -q
+git -C "$root" add -- .
+git -C "$root" -c user.name='Release fixture' -c user.email='fixture@example.invalid' \
+  -c commit.gpgsign=false commit -qm 'test: snapshot distributable fixture'
 
 version=$(python3 - "$root/plugins/gestalt/.codex-plugin/plugin.json" <<'PY'
 import json

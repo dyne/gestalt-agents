@@ -145,7 +145,7 @@ sed 's/:SKILLS:.*/:SKILLS: $gestalt:development-testing/' \
   "$tmp/invalid-gestalt-skill.org" >"$tmp/changed" && \
   mv "$tmp/changed" "$tmp/invalid-gestalt-skill.org"
 expect_fail "$helper" validate "$tmp/invalid-gestalt-skill.org"
-expect_contains "$tmp/err" 'Gestalt skills are always loaded and must not appear in SKILLS'
+expect_contains "$tmp/err" 'Gestalt skills are runtime infrastructure or conditional capabilities and must not appear in SKILLS'
 
 for mutation in \
   '1d' \

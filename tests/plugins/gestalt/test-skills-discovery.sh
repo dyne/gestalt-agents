@@ -32,6 +32,7 @@ expected = {
     "systematic-debugging",
     "verification-before-completion",
     "writing-skills",
+    "xerj",
 }
 clean = re.sub(r"\x1b\[[0-?]*[ -/]*[@-~]", "", sys.argv[1])
 # skills uses either Unicode box drawing or an ASCII pipe depending on terminal

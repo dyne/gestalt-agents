@@ -47,7 +47,10 @@ export async function verifyGestaltSkillCatalog({
     );
   for (const [name, expectedPath] of expected) {
     const skill = byName.get(name);
-    if (skill.enabled !== true) throw new Error(`Gestalt skill is disabled: ${name}`);
+    // xerj is discoverable in the package, but its effective session state is
+    // decided alongside MCP readiness by the runtime launcher.
+    if (name !== 'gestalt:xerj' && skill.enabled !== true)
+      throw new Error(`Gestalt skill is disabled: ${name}`);
     if (typeof skill.path !== 'string' || skill.path.length === 0)
       throw new Error(`Gestalt skill path is missing for ${name}`);
     if (resolve(skill.path) !== expectedPath)
@@ -55,5 +58,6 @@ export async function verifyGestaltSkillCatalog({
         `Gestalt skill path mismatch for ${name}; expected ${expectedPath}; found ${skill.path}`,
       );
   }
-  return `verified ${expected.size} enabled Gestalt skills in skills/list at ${canonicalRoot}`;
+  const conditional = expected.has('gestalt:xerj') ? 1 : 0;
+  return `verified ${expected.size - conditional} enabled fixed Gestalt skills and ${conditional} conditional skill in skills/list at ${canonicalRoot}`;
 }

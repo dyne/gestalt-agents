@@ -258,7 +258,9 @@ scope.
 Each L1 also declares a non-empty `:SKILLS:` property containing exact
 `$skill` references selected from the planner's complete
 optional-skill catalog. Never list a `$gestalt:*` skill: Gestalt workflow
-skills are always loaded for every role. A fresh executor loads exactly the
+skills are always loaded for every role; conditional capabilities such as
+`gestalt:xerj` require verified runtime tools and are not milestone dependencies.
+A fresh executor loads exactly the
 declared optional task-specific list before inspecting or implementing the L1
 and stops without edits when a required optional skill is unavailable.
 
@@ -281,3 +283,13 @@ Affero General Public License for more details.
 You should have received a copy of the GNU Affero General Public
 License along with this program. If not, see
 https://www.gnu.org/licenses/.
+
+## Conditional local retrieval
+
+The canonical `gestalt:xerj` skill is packaged with Gestalt. Managed runtime
+launchers expose it only alongside verified xerj MCP tools, and force it into
+the effective session skills when ready. Installation and package discovery do
+not establish runtime readiness. A missing service or unindexed repository
+falls back to `rg` and direct file reads. Indexing requires an explicit request
+for the identified repository; startup never autoindexes a workspace. Existing
+Gestalt workflow skills retain their fixed inclusion.

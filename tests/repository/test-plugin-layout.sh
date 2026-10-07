@@ -26,6 +26,7 @@ expected_skills = {
     "development-testing",
     "verification-before-completion",
     "writing-skills",
+    "xerj",
 }
 
 assert not (root / "skills" / "org-plan").exists(), "root skill copy must not exist"
