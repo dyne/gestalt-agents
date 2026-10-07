@@ -5,6 +5,8 @@ Audited against xerj `1.0.0-rc.87`, source commit
 and `xerj-mcp/src/lib.rs` under `engine/crates`). These examples use the
 manager wrapper; never invoke upstream `init` to configure Gestalt.
 
+Every workspace uses the same `$CODEX_HOME/xerj-data` database and runtime
+(default `~/.codex-gestalt/xerj-data`), independent of the current directory.
 Use the endpoint supplied by runtime readiness, with authentication supplied
 by the managed environment/key file. Do not put keys in arguments or output.
 Status is read-only:
@@ -15,17 +17,17 @@ gestalt xerj autoindex map --url http://127.0.0.1:9300 --json
 gestalt xerj autoindex status --url http://127.0.0.1:9300
 ```
 
-Only after an explicit request to index this repository, use its absolute
-root. This is a single pass; do not add `--watch`, broaden the root, or remove
-default ignores. `--no-semantic` avoids embedding model downloads:
-
-```sh
-gestalt xerj autoindex /absolute/path/to/repository --url http://127.0.0.1:9300 --no-semantic
-```
+Mobile owns indexing and watching at its `--cwd` root. Do not run autoindex
+from an agent session. Report stale or missing material and use direct source
+reads within the session's existing permissions. Operator recovery commands
+belong in Gestalt Mobile's XERJ operational guide.
 
 The pinned autoindex CLI requires an explicit `--url`; it does not use
 `XERJ_URL` as its endpoint. Let the wrapper supply managed `--state-dir`.
-Inspect its completion/catalog for actual index names and source provenance;
+The manager gives each canonical source root a stable `ax-<hash>` prefix
+and separate autoindex bookkeeping inside the shared state directory. An
+explicit `--prefix` is an intentional namespace override; do not reuse one for
+unrelated roots. Inspect completion/catalog for actual index names and source provenance;
 do not derive an index name from the directory basename.
 
 For MCP, use the runtime's discovered schema:
@@ -41,5 +43,9 @@ For MCP, use the runtime's discovered schema:
   licence warnings. Do not override its stale-index refusal automatically;
   managed Gestalt does not provision or clone corpora.
 
-Paths and line numbers are locators. Read the matching files in the current
-repository and check that their content still supports the answer.
+Paths and line numbers are locators within the identified source repository.
+Search broadly for engineering references, preserve repository provenance, and
+read the actual target repository before treating a reference as local behavior.
+
+`ax_paths` retains all repository-relative aliases for identical content. Preserve
+those identities when comparing forks; `ax_path` alone is only the canonical alias.
