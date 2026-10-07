@@ -21,6 +21,8 @@ For every result claim:
 | Full suite passes | current full-suite result | focused tests only |
 | Build succeeds | current build result | lint output |
 | Bug is fixed | current reproduction or regression test | code changed only |
+| Historical incident cause is proven | incident-window evidence tying the mechanism to the failure | similar error text or a source reproduction alone |
+| Running installation includes the fix | verified installed revision or deployment evidence | passing source tests |
 | Requirements are met | criterion-by-criterion inspection | tests alone |
 | Delegated work is complete | inspected artifacts and relevant results | agent report alone |
 

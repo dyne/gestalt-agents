@@ -73,6 +73,12 @@ For a one-shot question about a large file that will not be loaded in full, use
 and query it with `ctx_search`. Read a small file or any file before editing it
 with the native reader instead.
 
+An empty `rg` result does not establish absence: confirm the search root, ignored
+paths and symlink targets. For a huge single-line JSON artifact, parse it into
+bounded structural rows before retrieval; preserve the original file for later
+questions. Gestalt traces use the
+[capture and summary helpers](../self-debug/references/incident-capture.md).
+
 When a browser or another tool can save output to a file, always request a
 filename and process the saved file server-side:
 

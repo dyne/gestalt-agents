@@ -96,8 +96,12 @@ Report:
 - ordered observed events and the first missing or contradictory edge;
 - exact read-only commands, database paths, and bounded queries used;
 - reproduction, expected result, and actual result;
-- confirmed cause, or the smallest remaining hypotheses with discriminating
-  evidence still needed;
+- observed symptom, reproduced source defect, and proven incident cause as
+  separate findings. Repeated `reconcileFailed` records identify a symptom,
+  not an identical cause across incidents. A reproduced defect does not prove
+  attribution when the incident window is missing; name the missing evidence;
+- source verification and deployment status separately. A passing local
+  regression does not establish that the running installation includes the fix;
 - owning layer and a composition-level regression test that crosses the failed
   boundary.
 
