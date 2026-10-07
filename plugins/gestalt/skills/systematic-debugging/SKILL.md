@@ -17,6 +17,10 @@ Do not propose a fix until evidence identifies a plausible root cause.
 - Inspect relevant recent changes, configuration, dependencies, and environment.
 - At component boundaries, capture what enters, what leaves, and which state or
   configuration applies.
+- For Gestalt incidents, preserve the window with the
+  [incident capture helper](../self-debug/references/incident-capture.md).
+  Before an expensive test reproduction, check declared prerequisites with
+  [test readiness](../development-testing/references/test-readiness.md).
 
 Exit when the failing component and evidence path are known. If the failure is
 not reproducible, gather more data or report that limitation; do not guess.
@@ -40,6 +44,10 @@ the result falsifies the hypothesis, discard it and return to evidence
 collection; do not stack speculative fixes.
 
 Exit only when the experiment confirms or rejects the stated hypothesis.
+
+A reproduced source defect establishes a possible mechanism, not attribution
+to a past incident. Correlate that mechanism with retained incident evidence;
+when the relevant window is absent, keep the historical cause unproven.
 
 ### 4. Implement and verify
 
