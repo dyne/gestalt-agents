@@ -5,6 +5,8 @@ import { readdir } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { withCodexRpc } from './codex-rpc.mjs';
 
+const conditionalSkills = new Set(['gestalt:xerj', 'gestalt:serena']);
+
 /** Verify that Codex advertises this exact installed Gestalt release. */
 export async function verifyGestaltSkillCatalog({
   pluginRoot,
@@ -47,9 +49,9 @@ export async function verifyGestaltSkillCatalog({
     );
   for (const [name, expectedPath] of expected) {
     const skill = byName.get(name);
-    // xerj is discoverable in the package, but its effective session state is
+    // Conditional capabilities are discoverable, but effective session state is
     // decided alongside MCP readiness by the runtime launcher.
-    if (name !== 'gestalt:xerj' && skill.enabled !== true)
+    if (!conditionalSkills.has(name) && skill.enabled !== true)
       throw new Error(`Gestalt skill is disabled: ${name}`);
     if (typeof skill.path !== 'string' || skill.path.length === 0)
       throw new Error(`Gestalt skill path is missing for ${name}`);
@@ -58,6 +60,6 @@ export async function verifyGestaltSkillCatalog({
         `Gestalt skill path mismatch for ${name}; expected ${expectedPath}; found ${skill.path}`,
       );
   }
-  const conditional = expected.has('gestalt:xerj') ? 1 : 0;
-  return `verified ${expected.size - conditional} enabled fixed Gestalt skills and ${conditional} conditional skill in skills/list at ${canonicalRoot}`;
+  const conditional = [...conditionalSkills].filter((name) => expected.has(name)).length;
+  return `verified ${expected.size - conditional} enabled fixed Gestalt skills and ${conditional} conditional skills in skills/list at ${canonicalRoot}`;
 }
