@@ -29,6 +29,10 @@ for name in paths:
     shutil.copy2(path, destination, follow_symlinks=False)
 PY
 git -C "$root" init -q
+# Keep fixture cleanup deterministic: commits must not leave background Git
+# maintenance writing into the disposable repository after validation finishes.
+git -C "$root" config maintenance.auto false
+git -C "$root" config gc.auto 0
 git -C "$root" add -- .
 git -C "$root" -c user.name='Release fixture' -c user.email='fixture@example.invalid' \
   -c commit.gpgsign=false commit -qm 'test: snapshot distributable fixture'
