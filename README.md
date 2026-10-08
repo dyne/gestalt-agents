@@ -293,3 +293,15 @@ not establish runtime readiness. A missing service or unindexed repository
 falls back to `rg` and direct file reads. Indexing requires an explicit request
 for the identified repository; startup never autoindexes a workspace. Existing
 Gestalt workflow skills retain their fixed inclusion.
+
+The conditional `gestalt:serena` skill uses the verified managed connection for
+symbol navigation, references, diagnostics and structured edits in the active
+workspace. CLI and Mobile select it only when its MCP connection is verified,
+hooks are enabled and the session profile permits it. The connection always
+uses `--context codex --mode editing`; native filesystem policy, per-tool
+approvals and collaboration plan-mode instructions still govern edits. A
+connected catalog does not prove language readiness: require a successful
+symbol overview and fall back to native tools for unsupported languages or
+startup failures. Serena and XERJ readiness are independent; use XERJ for broad
+cross-project references and context-mode to analyze large outputs. Startup
+does not install or index Serena implicitly.
