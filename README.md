@@ -38,7 +38,8 @@ conversational context. The root gives brief user-facing updates such as
 `L1 2/5 — Validate release metadata: in review`.
 
 After all L1s are REVIEWED and their executors have closed, the root launches
-one fresh `gpt-5.6-sol` subagent for a terminal whole-branch review. That agent
+one fresh subagent inheriting the root model and reasoning effort for a
+terminal whole-branch review. That agent
 fixes any P0/P1 findings as the sole writer before final acceptance.
 
 Supervision is completion-driven. An executor owns its entire L1 but returns a
