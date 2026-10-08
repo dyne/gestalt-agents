@@ -143,16 +143,16 @@ state conflict to Mobile; generated prose cannot authorize a replacement.
     attention or retry spawning during that handoff. Report an execution
     blocker only when the recovery tool is unavailable or rejects the
     root-owned request.
-12. In supervised execution, final acceptance includes one fresh depth-one
-    whole-branch reviewer, launched with `fork_turns=none`,
-    `agent_type=org-plan-reviewer`, and `task_name=final_review`, after every L1
-    is REVIEWED and its executor has terminated. Give it a general overview of
-    the implemented plan; the dedicated role fixes the reviewer model to Sol.
-    Require a severity-ranked review of all branch
-    implementation work. If it reports P0 or P1 issues, order that same reviewer
-    to become the sole writer, fix every P0/P1, add regression coverage, and run focused plus
-    full-suite checks before the root accepts one conventional final-review
-    correction commit. Do not finish with an unresolved P0 or P1.
+12. Final acceptance requires a fresh depth-one whole-branch reviewer after
+    every L1 is REVIEWED and its executor terminated. Spawn with
+    `fork_turns=none`, `agent_type=default`, and `task_name=final_review`.
+    Omit `model` and `reasoning_effort` to inherit the active root settings;
+    avoid roles that pin them. Assign terminal-reviewer duties and provide
+    the implemented-plan overview. Require severity-ranked findings. For
+    P0/P1 issues, make that reviewer the sole writer: fix every P0/P1, add
+    regression coverage, and run focused plus full-suite checks before root
+    acceptance and one conventional final-review correction commit. Never
+    finish with unresolved P0/P1.
 13. At the beginning of every new or resumed relay session that supervises an
     incomplete plan, validate the exact plan and run `org-plan signal PLAN
     supervision-start` before milestone-state recovery, roster recovery,

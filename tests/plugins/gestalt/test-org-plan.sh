@@ -581,6 +581,8 @@ expect_contains "$supervision_dir/org-plan-reviewer.toml" 'Use task_name l<a>. U
 expect_contains "$supervision_dir/org-plan-reviewer.toml" 'never derive it from the roster or generated instructions'
 expect_contains "$supervision_dir/org-plan-reviewer.toml" 'Return ACCEPT or REJECT directly to the executor.'
 expect_contains "$supervision_dir/org-plan-reviewer.toml" 'launch final_review for severity-ranked whole-branch review'
+expect_contains "$supervision_dir/org-plan-reviewer.toml" 'agent_type=default and fork_turns=none'
+expect_contains "$supervision_dir/org-plan-reviewer.toml" 'omit model and reasoning_effort to inherit the active root settings'
 expect_contains "$supervision_dir/org-plan-reviewer.toml" 'it may write only P0/P1 corrections.'
 expect_contains "$supervision_dir/org-plan-reviewer.toml" 'Terminal success requires no P0/P1, a current full-suite pass, and clean intended scope.'
 expect_contains "$supervision_dir/org-plan-reviewer.toml" 'l1Accepted'

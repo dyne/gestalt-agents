@@ -24,8 +24,8 @@ root (depth 0, org-plan-reviewer, Sol or Terra, read-only)
   communication, directly launches each executor, enforces evidence gates, and
   returns ACCEPT or REJECT for DONE + UNREVIEWED L1s.
 - The executor writes code for one L1 and reports only to the root.
-- After every L1 executor has terminated, one fresh `gpt-5.6-sol` terminal
-  reviewer audits the whole branch. It is the sole exception to the rule
+- After every L1 executor has terminated, one fresh terminal reviewer
+  inherits the active root model and reasoning effort and audits the whole branch. It is the sole exception to the rule
   against separate reviewers and becomes the sole writer only for P0/P1 fixes.
 - Recommended profiles are `org-plan-reviewer` (Sol) for a newly launched root
   and `org-plan-executor` (Terra). An already-running root keeps its selected
@@ -263,15 +263,16 @@ When no L1 review is pending, record that milestone review is current.
 
 ## Terminal whole-branch review
 
-After every L1 is DONE and REVIEWED, terminate the last L1 executor and confirm
-that no other writer is active. Before final acceptance:
+After every L1 is DONE and REVIEWED, terminate the last executor and confirm
+no writer remains. Before acceptance:
 
-1. Spawn one fresh depth-one subagent with `fork_turns=none`,
-   `agent_type=org-plan-reviewer`, and `task_name=final_review`. This dedicated
-   role fixes the reviewer model to Sol.
-2. Give it a general overview containing the Org Plan goal, every implemented
-   L1/L2 outcome, the branch base and current HEAD, milestone commits, tests,
-   known tradeoffs, and the exact plan path as read-only context.
+1. Spawn a fresh depth-one subagent with `fork_turns=none`,
+   `agent_type=default`, and `task_name=final_review`. Omit `model` and
+   `reasoning_effort` to inherit the active root settings. Do not select
+   `org-plan-reviewer`: it pins its own model and effort.
+2. Assign terminal-reviewer duties and supply the skill/reference paths,
+   Org Plan goal, implemented L1/L2 outcomes, branch base and HEAD,
+   milestone commits, tests, tradeoffs, and exact read-only plan path.
 3. Ask it to review the whole branch from the branch base through HEAD, plus any
    intended working-tree changes, against the complete Org Plan. Require a
    concise severity-ranked report with P0, P1, P2, or lower findings and file

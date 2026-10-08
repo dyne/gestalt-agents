@@ -22,7 +22,8 @@ When testing Org Plan supervision in this repository:
 - Keep one writer. The root is `l0`; the L1 executor is `l<a>` and receives
   `task_name=l<a>`. Use `l<a>_gN` only after the prior physical slot is
   confirmed unavailable. The terminal reviewer uses
-  `agent_type=org-plan-reviewer` and `task_name=final_review`.
+  `agent_type=default` and `task_name=final_review`, inheriting the root model
+  and reasoning effort as specified in the canonical terminal-review contract.
 - At the start of each relay session supervising an incomplete plan, validate
   the exact plan and signal `supervision-start` before milestone or roster
   recovery. A retained same-session signal preserves explicit manual Off; a
