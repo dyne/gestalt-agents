@@ -8,9 +8,20 @@ gestalt serena version
 gestalt serena doctor --cwd /absolute/workspace
 ```
 
-For an explicit installation, update or indexing request, consult
-`gestalt --help` for the supported Serena arguments. Startup never authorizes an
-installation or a full workspace scan. The runtime owns MCP startup:
+For installation or update requests, consult `gestalt --help` for the supported
+Serena arguments. Routine repository work does not authorize installation.
+When the agent determines that symbol-cache warmup is needed for the task and
+workspace writes are permitted, use:
+
+```sh
+gestalt serena index --cwd /absolute/workspace
+```
+
+Use the active canonical workspace, accounting for nested repositories; do not
+switch the managed MCP project to perform warmup. Inspect the indexing result
+for failed files and recheck the semantic operations needed by the task. A
+successful command alone does not establish complete cross-file coverage.
+The runtime owns MCP startup:
 
 ```sh
 gestalt serena mcp --cwd /absolute/workspace
@@ -19,8 +30,9 @@ gestalt serena mcp --cwd /absolute/workspace
 The manager fixes `--context codex --mode editing`, disables dashboards and GUI,
 and confines the exposed tool set to workspace navigation and structured edits.
 A catalog handshake confirms connection only; a successful symbol overview
-confirms language readiness. Do not use direct app-server `mcpServer/tool/call`
-as evidence of edit authority: it lacks the native model tool-call permission
+confirms local extraction only. Verify a known cross-file relationship before
+relying on references or definitions across files. Do not use direct app-server
+`mcpServer/tool/call` as evidence of edit authority: it lacks the native model tool-call permission
 metadata required by the sandbox proxy. Missing or incompatible policy metadata
 fails closed. Keep the runtime's prompt approvals and native permission profile.
 
@@ -28,10 +40,39 @@ The immutable executable descriptor is `$GESTALT_HOME/serena/active.json`.
 Mutable configuration, project metadata, language-server caches, HOME/XDG data,
 uv cache and temporary files belong under the canonical workspace's
 `.gestalt/serena/`. A C++ compilation database remains project input, while the
-managed clangd configuration points `compile_commands_dir` at its relocated copy
-there. Do not create `~/.serena` or a project `.serena`, import Serena merely to
-read its version, or add global write grants to accommodate language servers.
+managed clangd setting `compile_commands_dir` specifies where Serena writes a
+transformed copy when needed; it does not generate build commands or select an
+arbitrary existing build database. Do not create `~/.serena` or a project
+`.serena`, import Serena merely to read its version, or add global write grants
+to accommodate language servers.
 Report actual language/platform startup limitations and use native fallback.
+
+## C/C++ readiness and indexing
+
+Serena's project index requests document symbols and saves its LSP caches.
+clangd also builds a semantic index from compilation commands. Cache warmup
+cannot replace missing compiler flags, include paths, or generated headers.
+
+Locate `compile_commands.json` and check that it covers the target source files
+with valid paths, the required language standard, and the intended build
+configuration. Check database discovery relative to the active workspace and
+nested repository roots; a database left in a build directory is not necessarily
+discoverable. Preserve separate build configurations rather than blindly
+merging databases from sibling repositories.
+
+When metadata is missing, use the repository's documented build configuration
+to generate it and any needed headers if that preparation is within the task's
+authorization and filesystem permissions. For CMake this typically means
+configuring the appropriate build directory with
+`-DCMAKE_EXPORT_COMPILE_COMMANDS=ON`, not compiling the entire project. Preserve
+existing build choices. If dependencies or permissions are missing, report the
+specific prerequisite and continue with native source inspection.
+
+After inputs are available, decide whether warmup is needed and verify the
+result. Fallback compile commands, unresolved project headers, or a missed
+known caller mean semantic readiness is still incomplete even if symbol bodies
+are readable. Do not claim a full index from a few successful probes; report
+the operations and scope actually verified.
 
 ## Verified runtime limits
 
