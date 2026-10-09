@@ -47,6 +47,25 @@ arbitrary existing build database. Do not create `~/.serena` or a project
 to accommodate language servers.
 Report actual language/platform startup limitations and use native fallback.
 
+## TypeScript project discovery
+
+When symbols are readable but a known caller is missing, check which
+`tsconfig.json` the language server discovers from the source file's directory.
+A build command that explicitly selects `tsconfig.server.json` does not establish
+that the editor discovers that configuration. A client-only root configuration
+can leave server files outside the configured project, even though individual
+document symbols work. Check that the discovered configuration includes both
+the definition and its caller before warming caches.
+
+For a split client/server repository, a scoped `src/server/tsconfig.json` that
+extends the existing server configuration can make that project discoverable.
+Use this only when it matches the repository layout; preserve its compiler
+options, resolved include paths, and build entry points. Do not broaden the
+client project or switch Serena projects to hide the missing server graph.
+Recheck the original caller through Serena and run the repository's type and
+build checks. A TypeScript language-service regression can verify discovery and
+the caller relationship without depending on an installed Serena runtime.
+
 ## C/C++ readiness and indexing
 
 Serena's project index requests document symbols and saves its LSP caches.
