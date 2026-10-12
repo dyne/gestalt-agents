@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import readline from "node:readline";
+import { existsSync, realpathSync } from "node:fs";
 import { dirname } from "node:path";
 import {
   handleLine,
@@ -38,7 +39,7 @@ const tool = (
   inputSchema: { type: "object", additionalProperties: false, ...inputSchema },
   annotations: { readOnlyHint, destructiveHint, idempotentHint: readOnlyHint },
 });
-const tools = [
+export const tools = [
   tool(
     "org_plan_validate",
     "Validate an Org Plan without changing it.",
@@ -224,7 +225,7 @@ function executeTool(name, args) {
   }
   throw new Error(`unknown tool ${name}`);
 }
-function dispatch(method, params) {
+export function dispatch(method, params) {
   switch (method) {
     case "initialize":
       return {
@@ -242,7 +243,9 @@ function dispatch(method, params) {
       throw new ProtocolError(-32601, `Method not found: ${method}`);
   }
 }
-readline.createInterface({ input: process.stdin }).on("line", (line) => {
-  const response = handleLine(line, dispatch);
-  if (response) process.stdout.write(`${JSON.stringify(response)}\n`);
-});
+if (process.argv[1] && existsSync(process.argv[1]) && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  readline.createInterface({ input: process.stdin }).on("line", (line) => {
+    const response = handleLine(line, dispatch);
+    if (response) process.stdout.write(`${JSON.stringify(response)}\n`);
+  });
+}
