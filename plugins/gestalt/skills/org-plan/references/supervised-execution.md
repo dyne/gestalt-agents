@@ -225,7 +225,8 @@ Supervision is a completion loop:
 After each L2, the root verifies intended dirty paths, inspects the L2
 diff, and requires current focused-test evidence before DONE.
 
-After every successful `authoring-start`, `set`, `l2`, `review`, or external
+After every successful `authoring-start`, `set`, `l2`, `review`, `suspend-reopen`,
+`resume`, or external
 `resync`, the executor reports the helper mutation to the root. The root then
 runs `org-plan projection PLAN` and calls host `update_plan`; executors never
 create a competing native projection. A missing or failed host tool produces

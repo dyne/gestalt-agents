@@ -54,6 +54,67 @@ assert_contains "$output" "install-managed-commands.mjs" \
   "dry-run schedules stable public commands"
 assert_absent "$tmp/.codex-gestalt" "dry-run does not create the Codex home"
 
+# Exercise the exact install commands emitted by setup for the stable launcher
+# and its private Node bundle, without plugin installation or a host startup.
+bundle_home="$tmp/bundle-home"
+CODEX_HOME="$bundle_home" GESTALT_HOME="$tmp/bundle-gestalt" \
+  bash "$script" --dry-run >"$tmp/bundle-install.out"
+python3 - "$tmp/bundle-install.out" "$bundle_home" "$root" <<'PY_BUNDLE'
+import json
+import os
+import shlex
+import subprocess
+import sys
+from pathlib import Path
+
+output, home, root = map(Path, sys.argv[1:])
+bundle = home / "lib/gestalt-org-plan"
+launcher = home / "bin/org-plan"
+installed = set()
+for line in output.read_text().splitlines():
+    if not line.startswith("DRY-RUN:"):
+        continue
+    args = shlex.split(line.removeprefix("DRY-RUN:"))
+    if args[0] != "install":
+        continue
+    target = Path(args[-1])
+    if target not in (home / "bin", bundle, launcher) and target.parent != bundle:
+        raise AssertionError(f"Unexpected helper installation target: {target}")
+    subprocess.run(args, check=True)
+    if "-d" not in args:
+        installed.add(target.name)
+        assert Path(args[-2]).read_bytes() == target.read_bytes()
+assert installed == {
+    "org-plan", "org-plan-cli.mjs", "org-plan-core.mjs", "org-plan-files.mjs",
+    "org-plan-parser.mjs", "org-plan-publication.mjs", "org-plan-transitions.mjs",
+}, installed
+
+# Same distribution has colocated plugin modules and a private stable bundle.
+fixture = (root / "tests/plugins/gestalt/fixtures/valid-minimal.org").read_text()
+first = fixture.replace("* TODO", "* DONE").replace("** TODO", "** DONE")
+first = first.replace(":REVIEW_STATUS: UNREVIEWED", ":REVIEW_STATUS: REVIEWED")
+second = first[first.index("\n* DONE"):].replace("DONE", "WIP")
+second = second.replace("REVIEWED", "UNREVIEWED").replace("first-outcome", "dependent").replace("first-task", "dependent-task")
+plan = home / "probe.org"
+plan.write_text(first + second)
+
+probe_env = dict(os.environ)
+for key in ("GESTALT_MOBILE_ORG_PLAN_STATUS_DIRECTORY", "GESTALT_MOBILE_ORG_PLAN_STATUS_FILE", "GESTALT_MOBILE_ORG_PLAN_CAPABILITIES"):
+    probe_env.pop(key, None)
+
+def run(*args):
+    output = subprocess.check_output([str(launcher), *args], text=True, env=probe_env)
+    return json.loads(output) if output.startswith("{") else output
+
+subprocess.run([str(launcher), "validate", str(plan)], check=True, stdout=subprocess.DEVNULL, env=probe_env)
+assert run("suspend-reopen", str(plan), "dependent", "first-outcome")["after"][0]["state"] == "SUSPENDED"
+assert sum(x["status"] == "in_progress" for x in run("projection", str(plan))["plan"]) == 1
+run("set", str(plan), "first-outcome", "DONE")
+run("review", str(plan), "first-outcome", "REVIEWED")
+assert run("resume", str(plan), "dependent")["after"][0]["state"] == "WIP"
+assert plan.read_text() == first + second
+PY_BUNDLE
+
 extra_output=$(env -u CODEX_HOME HOME="$tmp" bash "$script" --dry-run --extra-skills)
 assert_contains "$extra_output" "install_extra_skills" \
   "extra-skills opt-in schedules the integrated installer"

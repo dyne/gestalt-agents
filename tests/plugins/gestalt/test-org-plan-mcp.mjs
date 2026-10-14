@@ -30,6 +30,7 @@ assert.equal(
 assert.deepEqual(manifest.mcpServers["gestalt-org-plan"].env_vars, [
   "GESTALT_MOBILE_ORG_PLAN_STATUS_DIRECTORY",
   "GESTALT_MOBILE_ORG_PLAN_STATUS_FILE",
+  "GESTALT_MOBILE_ORG_PLAN_CAPABILITIES",
 ]);
 const temporary = mkdtempSync(join(tmpdir(), "org-plan-mcp-test-"));
 try {
@@ -211,7 +212,7 @@ try {
   );
   await Promise.all(pending.splice(0));
   const list = messages.find((message) => message.id === 2).result.tools;
-  assert.equal(list.length, 10);
+  assert.equal(list.length, 12);
   assert.equal(
     list.find((entry) => entry.name === "org_plan_projection").annotations
       .readOnlyHint,

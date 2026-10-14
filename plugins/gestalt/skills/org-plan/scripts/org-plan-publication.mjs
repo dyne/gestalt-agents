@@ -7,6 +7,19 @@ import {
   writeFileSync,
 } from "node:fs";
 import { basename, dirname, isAbsolute, join } from "node:path";
+import { readPlan, projection } from "./org-plan-parser.mjs";
+
+// The trusted host advertises this only after its source-reading consumer has
+// adopted suspension-v1. Legacy consumers reparse headings, ignoring metadata.
+export function requireSuspensionCapability(plan, { consumerAttached = false } = {}) {
+  const destination = process.env.GESTALT_MOBILE_ORG_PLAN_STATUS_DIRECTORY ||
+    process.env.GESTALT_MOBILE_ORG_PLAN_STATUS_FILE;
+  if ((destination || consumerAttached) && plan.items.some((item) => item.state === "SUSPENDED") &&
+      !(process.env.GESTALT_MOBILE_ORG_PLAN_CAPABILITIES ?? "").split(",").includes("suspension-v1")) {
+    fail("Mobile consumer requires suspension-v1 capability; no plan or status written");
+  }
+}
+
 import {
   chmodThroughPath,
   fail,
@@ -65,6 +78,9 @@ export function publishStatus(path, reason, options = {}) {
 
   try {
     const planPath = resolvePlanPath(path);
+    const plan = readPlan(planPath);
+    requireSuspensionCapability(plan);
+    projection(plan);
     let directory;
     let targetName;
     let supervisionMarker;

@@ -33,7 +33,8 @@ Include:
 ```
 
 Use execution-order headings. L1 headings use `*`; L2 headings use `**`. Every
-heading has a TODO keyword, importance `[#A]`, `[#B]`, or `[#C]`, and a unique
+heading has a lifecycle keyword (`TODO`, `WIP`, `DONE`, or helper-managed
+`SUSPENDED`), importance `[#A]`, `[#B]`, or `[#C]`, and a unique
 kebab-case `:ID:`.
 
 ## L1 contract
@@ -105,3 +106,13 @@ Start the L1 before its first L2 and finish it after implementation, review,
 retries, and waiting. Start and finish each L2 separately. Checkpoint the active
 L1 after each state mutation and at least every 60 seconds while active. Never
 derive L1 duration by summing L2 durations.
+
+## Suspended work
+
+Only the supported dependency-reopen transition creates `SUSPENDED`. A suspended
+L1 remains UNREVIEWED and declares `:SUSPENDED_FOR: earlier-l1-id`. Its former
+WIP L2, if any, is also SUSPENDED; other children keep DONE/TODO. A suspended
+L2 cannot exist outside a suspended L1, and a WIP child cannot exist inside one.
+Only one suspended L1/L2 is permitted. Active work must precede the suspended
+L1. See [CLI state machine](cli-state.md) for review and consumer gates; never
+hand-author suspension to bypass them.
