@@ -17,6 +17,8 @@ import {
   publishStatus,
   readPlan,
   summary,
+  suspendReopen,
+  resume,
 } from "./skills/org-plan/scripts/org-plan-core.mjs";
 
 const plan = {
@@ -39,6 +41,20 @@ const tool = (
   annotations: { readOnlyHint, destructiveHint, idempotentHint: readOnlyHint },
 });
 const tools = [
+  tool(
+    "org_plan_suspend_reopen",
+    "Atomically suspend dependent WIP work and reopen an earlier DONE dependency. Requires a suspension-v1 consumer when status is configured.",
+    { properties: { plan, dependentId: id, dependencyId: id }, required: ["plan", "dependentId", "dependencyId"] },
+    false,
+    true,
+  ),
+  tool(
+    "org_plan_resume",
+    "Resume suspended work after every earlier L1 is DONE + REVIEWED.",
+    { properties: { plan, id }, required: ["plan", "id"] },
+    false,
+    true,
+  ),
   tool(
     "org_plan_validate",
     "Validate an Org Plan without changing it.",
@@ -187,6 +203,10 @@ function call(name, args) {
 function executeTool(name, args) {
   const planPath = resolveMcpPlanPath(args.plan, launchContext);
   const current = readPlan(planPath);
+  if (name === "org_plan_suspend_reopen")
+    return result(suspendReopen(planPath, args.dependentId, args.dependencyId));
+  if (name === "org_plan_resume")
+    return result(resume(planPath, args.id));
   if (name === "org_plan_validate")
     return result(envelope(current, { valid: true }));
   if (name === "org_plan_describe")

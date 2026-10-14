@@ -8,6 +8,8 @@ import {
   publishStatus,
   readPlan,
   summary,
+  suspendReopen,
+  resume,
 } from "./org-plan-core.mjs";
 
 const COMMANDS = [
@@ -21,6 +23,8 @@ const COMMANDS = [
   "l2",
   "measure",
   "set",
+  "suspend-reopen",
+  "resume",
   "signal",
   "supervision-start",
   "prepare-executor",
@@ -38,6 +42,8 @@ const HELP = {
   measure:
     "usage: org-plan measure {start|checkpoint|finish} PLAN ID SNAPSHOT_JSON",
   set: "usage: org-plan set PLAN L1_ID {TODO|WIP|DONE} [--force]",
+  "suspend-reopen": "usage: org-plan suspend-reopen PLAN DEPENDENT_L1_ID DEPENDENCY_L1_ID",
+  resume: "usage: org-plan resume PLAN DEPENDENT_L1_ID",
   signal: "usage: org-plan signal PLAN [REASON]",
   "supervision-start": "usage: org-plan supervision-start PLAN",
 };
@@ -77,6 +83,10 @@ function printSummary(plan) {
   for (const state of ["TODO", "WIP", "DONE"]) {
     console.log(`L2 ${state}=${planSummary.l2[state]}`);
   }
+  if (planSummary.l1.SUSPENDED || planSummary.l2.SUSPENDED) {
+    console.log(`L1 SUSPENDED=${planSummary.l1.SUSPENDED}`);
+    console.log(`L2 SUSPENDED=${planSummary.l2.SUSPENDED}`);
+  }
   const current = next(plan, "l1");
   if (current)
     console.log(`current  ${current.id} [#${current.state}] ${current.title}`);
@@ -112,7 +122,7 @@ function findL2(path, pattern) {
 
 function publishSignal(command, args) {
   if (!args[0] || args.length > 2) usage();
-  readPlan(args[0]);
+  projection(readPlan(args[0]));
   const reason =
     command === "supervision-start"
       ? "supervision-start"
@@ -157,6 +167,11 @@ function run(command, args) {
     runMutation(args[0], "set", args[1], args[2], {
       force: args[3] === "--force",
     });
+  } else if (command === "suspend-reopen" || command === "resume") {
+    if (args.length !== (command === "resume" ? 2 : 3)) usage();
+    const result = command === "resume" ? resume(...args) : suspendReopen(...args);
+    warnOnPublicationFailure(result);
+    console.log(JSON.stringify(result));
   } else if (command === "measure") {
     if (args.length !== 4) usage();
     runMeasurement(args[1], args[0], args[2], JSON.parse(args[3]));

@@ -84,7 +84,7 @@ state conflict to Mobile; generated prose cannot authorize a replacement.
 4. Use helper commands for TODO and review transitions; do not hand-edit them
    during execution.
    After each successful `authoring-start`, `supervision-start`, `set`, `l2`,
-   `review`, or external `resync`, the active root reads `org-plan projection PLAN`
+   `review`, `suspend-reopen`, `resume`, or external `resync`, the active root reads `org-plan projection PLAN`
    and makes the host-owned `update_plan` call with its `plan` array,
    reporting its companion explanation separately. This is a best-effort UI
    projection only: tool unavailability warns without rolling back or changing
@@ -95,7 +95,9 @@ state conflict to Mobile; generated prose cannot authorize a replacement.
 7. After ACCEPT, create exactly one conventional commit for the L1 when files
    changed, then record REVIEWED. Never use fixup or autosquash commits for
    review corrections.
-8. Reopening a reviewed L1 resets it to UNREVIEWED. Reset a completed reviewed
+8. Dependency corrections use `suspend-reopen` and `resume` per
+   [CLI state machine](references/cli-state.md), requiring compatible consumption
+   and one writer. Reopening a reviewed L1 resets it to UNREVIEWED. Reset a completed reviewed
    L1 explicitly before a material correction that does not reopen it.
 9. An L2 needs current focused evidence. An L1 needs all children DONE, a current
    full-suite pass, intended dirty scope, and reviewer acceptance.
