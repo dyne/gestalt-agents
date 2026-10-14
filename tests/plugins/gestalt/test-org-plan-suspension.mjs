@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync, existsSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync, existsSync, realpathSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawn, spawnSync } from "node:child_process";
@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 import { measure, mutate, next, parsePlan, projection, publishStatus, readPlan, resume, suspendReopen } from "../../../plugins/gestalt/skills/org-plan/scripts/org-plan-core.mjs";
 import { createMcpTestClient } from "./mcp-test-client.mjs";
 
-const directory = mkdtempSync(join(tmpdir(), "org-suspension-"));
+const directory = realpathSync(mkdtempSync(join(tmpdir(), "org-suspension-")));
 const path = join(directory, "plan.org");
 const status = join(directory, "status.json");
 const cli = fileURLToPath(new URL("../../../plugins/gestalt/skills/org-plan/scripts/org-plan-cli.mjs", import.meta.url));
