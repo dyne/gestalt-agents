@@ -181,6 +181,17 @@ try {
   // closed, then seals the resolved Native sources before reconnecting them.
   report.stage = "native-packaged-preseal-reconfigure";
   started = await resumePackaged();
+  // Production's post-reconfigure observation awaits full MCP discovery before
+  // sealing. Observe the terminal refusal here too: an asynchronously starting
+  // old proxy must not acquire newly published receipts during the cold resume.
+  const unadmitted = await rpc("mcpServerStatus/list", { threadId: started.thread.id, detail: "full" });
+  assert.equal(unadmitted.nextCursor, null);
+  assert.deepEqual(unadmitted.data.map((server) => server.name).sort(), ["context-mode", "gestalt-org-plan"]);
+  for (const server of unadmitted.data) {
+    assert.equal(server.runtimeStatus, "failed");
+    assert.equal(Object.keys(server.tools).length, 0);
+  }
+  report.checks.unadmittedNativeMcpRefused = true;
   const pins = new Map(manifest.configFiles.map((file) => [file.path, file])), sources = [];
   for (const layer of configuration.layers) {
     assert.equal(typeof layer.version, "string");
