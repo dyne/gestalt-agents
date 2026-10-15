@@ -1,7 +1,7 @@
 /** Controller-only Live admission. Never import this from an untrusted MCP worker. */
 import { createHash, createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 import { execFileSync } from "node:child_process";
-import { closeSync, lstatSync, openSync, readFileSync, readdirSync, realpathSync, renameSync, unlinkSync, writeFileSync } from "node:fs";
+import { closeSync, lstatSync, openSync, readFileSync, readdirSync, readlinkSync, realpathSync, renameSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 
 export const LIVE_SERVERS = Object.freeze(["context-mode", "gestalt-org-plan"]);
@@ -319,7 +319,7 @@ function current(bootstrapPath) {
     ...(nativeContract ? { nativeContract } : {}),
     ...(input.consumer ? { consumer: input.consumer } : {}),
   };
-  return { ...checked, key, body };
+  return { ...checked, key, body, nativeRuntime: nativeContract ? policy.provenance.runtime : undefined };
 }
 export function prepareAdmission(bootstrapPath) {
   const { input, key, body } = current(bootstrapPath);
@@ -346,11 +346,68 @@ export function executionAuthority(bootstrapPath) {
   if (stable(authenticate(boundedJson(receiptPath), checked.key)) !== stable(checked.body)) fail("stale-admission-receipt");
   return {
     input: checked.input, manifest: checked.manifest,
+    nativeRuntime: checked.nativeRuntime,
     consumerCapabilities: checked.body.consumer?.capabilities ?? [],
     manager: authenticate(boundedJson(join(dirname(checked.input.manifestPath), "policy-receipt.json")), checked.key).manager,
     bootstrapPath, bootstrapDigest: checked.body.bootstrapDigest,
     receiptPath, receiptDigest: digest(readFileSync(receiptPath)),
   };
+}
+/** Startup-only compatibility for the authenticated Native parent's arg0 aliases.
+ * Never use this directory for executable lookup; callers restore fixed PATH.
+ */
+export function validateNativeProxyPath(path, authority) {
+  const reject = () => fail("unsafe-live-proxy-environment");
+  try {
+    const { manifest, nativeRuntime: native } = authority ?? {};
+    if (manifest?.schemaVersion !== 2 || !native || native.process.pid !== process.ppid
+      || native.process.uid !== process.getuid() || stable(native.executable) !== stable(manifest.binary)
+      || manifest.binary.version !== "0.161.0") reject();
+    const home = canonical(manifest.owningRuntime?.home ?? manifest.runtimeHome, true, true);
+    protectedPath(home, manifest);
+    const parts = typeof path === "string" ? path.split(":") : [];
+    if (parts.length !== 3 || parts[1] !== "/usr/bin" || parts[2] !== "/bin") reject();
+    const directory = parts[0], aliasesRoot = join(home, "tmp/arg0");
+    if (dirname(directory) !== aliasesRoot || !/^codex-arg0[A-Za-z0-9]{6}$/.test(basename(directory))) reject();
+    for (const parent of [home, join(home, "tmp"), aliasesRoot, directory]) {
+      protectedPath(parent, manifest);
+      const info = lstatSync(parent);
+      if (!info.isDirectory() || realpathSync(parent) !== parent || info.uid !== process.getuid() || info.mode & 0o7000
+        || (parent === aliasesRoot || parent === directory) && (info.mode & 0o777) !== 0o700) reject();
+    }
+    const executable = canonical(native.executable.path), image = statSync(`/proc/${native.process.pid}/exe`);
+    if (readlinkSync(`/proc/${native.process.pid}/exe`) !== executable
+      || image.dev !== native.executableIdentity.dev || image.ino !== native.executableIdentity.ino) reject();
+    const current = () => {
+      const stat = readFileSync(`/proc/${native.process.pid}/stat`, "utf8");
+      return { pid: native.process.pid, birth: stat.slice(stat.lastIndexOf(")") + 2).split(" ")[19], uid: lstatSync(`/proc/${native.process.pid}`).uid,
+        namespaces: Object.fromEntries(["mnt", "user", "pid"].map((name) => [name, readlinkSync(`/proc/${native.process.pid}/ns/${name}`)])) };
+    };
+    if (stable(current()) !== stable(native.process)) reject();
+    const names = [".lock", "apply_patch", "applypatch", "codex-execve-wrapper", "codex-linux-sandbox"];
+    if (stable(readdirSync(directory).sort()) !== stable(names)) reject();
+    for (const name of names.slice(1)) {
+      const alias = join(directory, name), info = lstatSync(alias);
+      if (!info.isSymbolicLink() || info.uid !== process.getuid() || readlinkSync(alias) !== executable || realpathSync(alias) !== executable) reject();
+    }
+    const lockPath = join(directory, ".lock"), lock = lstatSync(lockPath);
+    // Native creates tmp/ and .lock with the caller's umask. The private home
+    // and two 0700 alias directories protect them even with group mode bits.
+    if (!lock.isFile() || lock.nlink !== 1 || lock.uid !== process.getuid() || lock.mode & 0o7111 || lock.size !== 0) reject();
+    // A private matching name is insufficient. Native must hold its own exact
+    // lock inode with the source-defined exclusive flock for this directory.
+    const held = readdirSync(`/proc/${native.process.pid}/fd`).some((fd) => {
+      try {
+        const descriptor = `/proc/${native.process.pid}/fd/${fd}`;
+        if (readlinkSync(descriptor) !== lockPath) return false;
+        const info = statSync(descriptor);
+        return info.dev === lock.dev && info.ino === lock.ino
+          && readFileSync(`/proc/${native.process.pid}/fdinfo/${fd}`, "utf8").split("\n")
+            .some((line) => new RegExp(`^lock:\\s+\\d+:\\s+FLOCK\\s+ADVISORY\\s+WRITE\\s+${native.process.pid}\\s+\\S+\\s+0\\s+EOF$`).test(line));
+      } catch { return false; }
+    });
+    if (!held || stable(current()) !== stable(native.process)) reject();
+  } catch { reject(); }
 }
 /** During native lifetime: no second manager verify / project metadata parsing.
  * L9 monitors native/controller/policy freshness; this adds installed-byte and

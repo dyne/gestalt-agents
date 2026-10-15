@@ -5,7 +5,7 @@ import { randomUUID } from "node:crypto";
 import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { StringDecoder } from "node:string_decoder";
-import { AdmissionError, executionAuthority, executionInputsCurrent, LIVE_SERVERS, managerEnvironment, nativeExitVerified } from "./live-admission.mjs";
+import { AdmissionError, executionAuthority, executionInputsCurrent, LIVE_SERVERS, managerEnvironment, nativeExitVerified, validateNativeProxyPath } from "./live-admission.mjs";
 import { orgLifecycle } from "./live-org-lifecycle.mjs";
 import { handleLine } from "./org-plan-mcp-support.mjs";
 
@@ -69,18 +69,24 @@ export async function liveRequest(bootstrapPath, server, line, options = {}) {
     return { jsonrpc: "2.0", id: parsed.id, error: { code: -32000, message: error instanceof AdmissionError ? error.reason : "live-tool-unavailable" } };
   }
 }
-export function validateProxyEnvironment(environment) {
+export function validateProxyEnvironment(environment, authority) {
   if (Object.keys(environment).some((key) => !["PATH", "HOME", "LANG", "TMPDIR"].includes(key))
-    || environment.PATH !== "/usr/bin:/bin"
     || (Object.hasOwn(environment, "TMPDIR") && environment.TMPDIR !== "/tmp")) fail("unsafe-live-proxy-environment");
+  if (environment.PATH !== "/usr/bin:/bin") {
+    validateNativeProxyPath(environment.PATH, authority);
+    if (environment.HOME !== (authority.manifest.owningRuntime?.home ?? authority.manifest.runtimeHome)
+      || environment.LANG !== "C.UTF-8") fail("unsafe-live-proxy-environment");
+  }
 }
 async function main() {
   const [bootstrapFlag, bootstrap, serverFlag, server, ...extra] = process.argv.slice(2);
   if (bootstrapFlag !== "--bootstrap" || serverFlag !== "--server" || extra.length || !LIVE_SERVERS.includes(server)) fail("invalid-live-proxy-command");
-  // Native inherits the Manager's fixed TMPDIR default when launching MCP.
-  // It grants no downstream setting: manager/worker environments are rebuilt.
-  validateProxyEnvironment(process.env);
-  executionAuthority(bootstrap);
+  const inherited = { ...process.env };
+  // Reject ambient variables first, and remove Native's alias prefix BEFORE any
+  // authentication subprocess. That fixed Manager dispatch rebuilds its own env.
+  validateProxyEnvironment({ ...inherited, PATH: "/usr/bin:/bin" });
+  process.env.PATH = "/usr/bin:/bin";
+  validateProxyEnvironment(inherited, executionAuthority(bootstrap));
   const cancellation = new AbortController();
   process.stdin.once("end", () => cancellation.abort());
   process.stdin.once("error", () => cancellation.abort());

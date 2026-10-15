@@ -160,9 +160,16 @@ The prepared launch descriptors point to `live-mcp-proxy.mjs`, with fixed
 bootstrap and server arguments. The controller MUST use a reconstructed
 environment containing only `PATH=/usr/bin:/bin`, its isolated `HOME` and
 `LANG=C.UTF-8`. Native may also inherit Manager's fixed `TMPDIR=/tmp`; every
-other TMPDIR value is refused. This optional input is never forwarded: downstream
-Manager and worker environments are reconstructed. Prepared descriptor `env`
-remains empty. Ambient loader, shell, credential and publication variables are
+other TMPDIR value is refused. With authenticated Manager v2 provenance, the
+original Native parent may prepend its own private arg0 helper directory. The
+proxy checks the full parent birth/namespace/image identity, the exact directory
+under its admitted home, private ownership/modes, the complete alias set targeting
+that admitted executable, and Native's exclusive lock on the exact lock inode.
+Names or directory prefixes alone grant no trust. Extra PATH components fail.
+The proxy restores `PATH=/usr/bin:/bin` before authentication subprocesses and
+never executes those aliases. Downstream Manager and worker environments are
+reconstructed. Prepared descriptor `env` remains empty. Ambient loader, shell,
+credential and publication variables are
 unsupported. The proxy authenticates admission before startup and each request.
 An owning-runtime adapter must consume these exact descriptors and inventory its
 actual generated configuration; project descriptors are never merged into them.
@@ -234,8 +241,9 @@ The normal Org plugin explicitly inherits `GESTALT_MOBILE_ORG_PLAN_CAPABILITIES`
 from the compiled compatible owning Mobile runtime alongside its status lease.
 The canonical admission inventory pins this exact three-variable normal MCP
 allowlist. Prepared Live proxy configuration still has `env: {}`; its process
-whitelist remains PATH/HOME/LANG plus optional fixed `TMPDIR=/tmp`. It does not
-receive or invent the token.
+whitelist remains PATH/HOME/LANG plus optional fixed `TMPDIR=/tmp`; the
+authenticated Native helper prefix is validated and removed at startup as
+described above. It does not receive or invent the token.
 Live suspension is available only with Manager v2 and an optional exact private
 bootstrap field:
 

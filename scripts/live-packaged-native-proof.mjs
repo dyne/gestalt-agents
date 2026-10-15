@@ -32,7 +32,7 @@ const report = {
     acceptedManagerCommit: "4ea4e0c92b156b6979eff04dbd9cdc9862674ea5", acceptedManagerTree: "d5dd7127d67e487f09eea94911ba7999c751500c", nativeSource: "979011409de0a60b52f179721948e65531d26144" },
   limitations: ["No model credentials or production owning-session/picker proof; L11 remains required."],
 };
-let native, caddy, socketServer, activeAbort, authFd, contextProxy, orgProxy, elected, provider, proxyObserver;
+let native, caddy, socketServer, activeAbort, authFd, contextProxy, orgProxy, elected, provider;
 let admittedNode, proofManifest;
 const minimal = { PATH: "/usr/bin:/bin", HOME: owningHome, CODEX_HOME: owningHome, TMPDIR: "/tmp", LANG: "C.UTF-8" };
 const identity = (pid) => {
@@ -213,25 +213,6 @@ try {
   const prepare = () => { inventory(); save(); assert.equal(managerApi("prepare", manifestPath).available, true); assert.equal(prepareAdmission(bootstrapPath).available, true); };
   prepare();
   report.stage = "native-launched-packaged-mcp-initialize";
-  const observedProxies = new Map();
-  const observeProxies = () => {
-    try {
-      const children = new Set(readdirSync(`/proc/${native.pid}/task`).flatMap((tid) => {
-        try { return readFileSync(`/proc/${native.pid}/task/${tid}/children`, "utf8").trim().split(/\s+/).filter(Boolean); }
-        catch { return []; }
-      }));
-      for (const pid of children) {
-        try {
-          const args = readFileSync(`/proc/${pid}/cmdline`, "utf8").split("\0");
-          if (!args.includes(join(gestaltRoot, "live-mcp-proxy.mjs"))) continue;
-          const env = Object.fromEntries(readFileSync(`/proc/${pid}/environ`, "utf8").split("\0").filter(Boolean).map((entry) => { const i = entry.indexOf("="); return [entry.slice(0, i), entry.slice(i + 1)]; }));
-          observedProxies.set(pid, { server: args.at(-2), fixedPath: env.PATH === "/usr/bin:/bin", fixedTmpdir: env.TMPDIR === "/tmp",
-            unrelatedVariableCount: Object.keys(env).filter((name) => !["PATH", "HOME", "LANG", "TMPDIR"].includes(name)).length });
-        } catch {}
-      }
-    } catch {}
-  };
-  proxyObserver = setInterval(observeProxies, 2);
   // Resume the same original Native thread through its supported API. Native's
   // real stdio launcher inherits Manager's TMPDIR=/tmp, unlike a direct proxy
   // fixture. No wrapper or descriptor environment override removes that default.
@@ -243,8 +224,6 @@ try {
     if (!states.includes("starting")) break;
     await wait(1000);
   }
-  clearInterval(proxyObserver); observeProxies();
-  report.nativeProxyObservations = [...observedProxies.values()];
   assert.equal(nativeMcp.nextCursor, null);
   assert.deepEqual(nativeMcp.data.map((server) => server.name).sort(), ["context-mode", "gestalt-org-plan"]);
   report.nativeMcp = nativeMcp.data.map((server) => ({ name: server.name, runtimeStatus: server.runtimeStatus,
@@ -387,19 +366,9 @@ try {
   if (proofManifest) {
     try { report.managerCurrent = managerApi("verify", proofManifest); } catch (failure) { try { const value = JSON.parse(failure.stdout); report.managerCurrent = { available: value.available, reason: value.reason }; } catch {} }
     report.failedLaunches = readdirSync(privateRoot).filter((name) => /^process-[a-f0-9-]+\.json$/.test(name)).map((name) => { const b = JSON.parse(readFileSync(join(privateRoot, name))).body; return { launchId: b.launchId, status: b.status, termination: b.termination, failure: b.failure }; });
-    try {
-      const capture = JSON.parse(readFileSync(proofManifest)).runtimeProvenance?.captureId;
-      const sealed = JSON.parse(readFileSync(join(privateRoot, `runtime-${capture}.json`))).body;
-      report.metadataChanges = Object.entries(sealed.directories).map(([path, pinned], index) => {
-        const current = existsSync(path) ? lstatSync(path) : null;
-        return { index, changed: pinned === null ? current !== null : current === null ||
-          Object.entries(pinned).some(([key, value]) => (key === "ctime" ? current.ctimeMs : key === "mtime" ? current.mtimeMs : key === "birthtime" ? current.birthtimeMs : current[key]) !== value) };
-      });
-    } catch {}
   }
   process.exitCode = 1;
 } finally {
-  clearInterval(proxyObserver);
   activeAbort?.abort();
   await close(contextProxy); await close(orgProxy);
   await close(native); await close(caddy);
