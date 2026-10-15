@@ -33,7 +33,7 @@ const report = {
   limitations: ["No model credentials or production owning-session/picker proof; L11 remains required."],
 };
 let native, caddy, socketServer, activeAbort, authFd, contextProxy, orgProxy, elected, provider;
-let admittedNode;
+let admittedNode, proofManifest;
 const minimal = { PATH: "/usr/bin:/bin", HOME: owningHome, CODEX_HOME: owningHome, TMPDIR: "/tmp", LANG: "C.UTF-8" };
 const identity = (pid) => {
   const stat = readFileSync(`/proc/${pid}/stat`, "utf8");
@@ -146,6 +146,7 @@ try {
   } };
   // Installer's public return contains schemaVersion; bootstrap runtime is exact.
   input.runtime = { root: runtime.root, sha256: runtime.sha256 };
+  proofManifest = manifestPath;
   const save = () => writeFileSync(manifestPath, JSON.stringify(manifest), { mode: 0o600 });
   const saveInput = () => writeFileSync(bootstrapPath, JSON.stringify(input), { mode: 0o600 });
   saveInput(); save(); const config = stageAdmission(bootstrapPath);
@@ -212,11 +213,15 @@ try {
   const call = (name, args) => contextClient.request(++sequence, "tools/call", { name, arguments: args });
   const text = (response) => { assert.equal(response.error, undefined); assert.equal(response.result?.isError, undefined); return response.result.content.filter((item) => item.type === "text").map((item) => item.text).join("\n"); };
   report.stage = "native-packaged-ordinary";
+  report.stage = "packaged-context-initialize";
   const initialized = await contextClient.request(++sequence, "initialize", {}); assert.equal(initialized.error, undefined);
+  report.stage = "packaged-org-initialize";
   const orgInitialized = await orgClient.request(++sequence, "initialize", {}); assert.equal(orgInitialized.error, undefined);
+  report.stage = "packaged-context-list";
   const list = await contextClient.request(++sequence, "tools/list", {});
   assert.equal(list.error, undefined); const names = list.result.tools.map((tool) => tool.name);
   assert.equal(new Set(names).size, 7); assert.ok(names.includes("ctx_execute")); assert.ok(!names.includes("ctx_doctor"));
+  report.stage = "packaged-context-execute";
   assert.match(text(await call("ctx_execute", { language: "javascript", code: 'console.log("ordinary-live-work")' })), /^ordinary-live-work$/m);
   assert.match(text(await call("ctx_execute", { language: "shell", code: 'printf "ordinary-shell-work\\n"' })), /^ordinary-shell-work$/m);
   assert.match(text(await call("ctx_execute_file", { path: publicFile, language: "javascript", code: 'console.log(FILE_CONTENT)' })), /^ordinary-public$/m);
@@ -310,7 +315,12 @@ try {
 } catch (error) {
   report.failure = /^[A-Z_]{1,64}$/.test(error.message) ? error.message : "PROOF_ASSERTION_FAILED";
   report.failureDetails = { stage: report.stage, operator: error.operator, code: error.code,
-    actual: typeof error.actual === "boolean" || typeof error.actual === "number" ? error.actual : undefined };
+    actual: typeof error.actual === "boolean" || typeof error.actual === "number" ? error.actual : undefined,
+    boundedActualReason: typeof error.actual?.message === "string" && /^[a-z-]{1,64}$/.test(error.actual.message) ? error.actual.message : undefined };
+  if (proofManifest) {
+    try { report.managerCurrent = managerApi("verify", proofManifest); } catch (failure) { try { const value = JSON.parse(failure.stdout); report.managerCurrent = { available: value.available, reason: value.reason }; } catch {} }
+    report.failedLaunches = readdirSync(privateRoot).filter((name) => /^process-[a-f0-9-]+\.json$/.test(name)).map((name) => { const b = JSON.parse(readFileSync(join(privateRoot, name))).body; return { launchId: b.launchId, status: b.status, termination: b.termination, failure: b.failure }; });
+  }
   process.exitCode = 1;
 } finally {
   activeAbort?.abort();

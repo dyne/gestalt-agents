@@ -3,7 +3,7 @@ import { chmodSync, copyFileSync, existsSync, linkSync, mkdirSync, readFileSync,
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { createMcpTestClient } from "./mcp-test-client.mjs";
 import { fixture } from "./live-fixture.mjs";
 import { executionAuthority, executionInputsCurrent, prepareAdmission, stageAdmission } from "../../../plugins/gestalt/live-admission.mjs";
@@ -176,4 +176,31 @@ test("ambient consumer assertions cannot grant Live suspension authority", (t) =
     if (before === undefined) delete process.env.GESTALT_MOBILE_ORG_PLAN_CAPABILITIES;
     else process.env.GESTALT_MOBILE_ORG_PLAN_CAPABILITIES = before;
   }
+});
+
+test("Live worker scopes runtime and interpreter temporary writes to its admitted workspace", { skip: process.platform !== "linux" }, (t) => {
+  const f = fixture(t, { appName: "app with spaces" });
+  // A tiny transport fixture observes runtime initialization paths. Real package
+  // and filesystem denial are independently exercised by the hosted Native proof.
+  writeFileSync(join(f.runtime, "server.bundle.mjs"), `
+    import {tmpdir} from 'node:os';
+    import {execFileSync} from 'node:child_process';
+    import {dirname,join} from 'node:path';
+    import {writeFileSync} from 'node:fs';
+    const temporary=tmpdir();
+    const probeRoot=dirname(execFileSync('mktemp',['-u','-d'],{env:{...process.env,TMPDIR:undefined},encoding:'utf8'}).trim());
+    writeFileSync(join(temporary,'runtime-preload'),'fixture');
+    writeFileSync(join(probeRoot,'interpreter-temp'),'fixture');
+    export const server={async connect(t){t.onmessage=r=>t.send({id:r.id,result:{temporary,probeRoot,ambientCapability:process.env.GESTALT_MOBILE_ORG_PLAN_CAPABILITIES??null}})},async close(){}};
+  `);
+  const worker = spawnSync(process.execPath, [join(repo, "plugins/gestalt/live-context-worker.mjs"), "--runtime", f.runtime, "--workspace", f.app], {
+    input: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "initialize", params: {} }), encoding: "utf8",
+    env: { PATH: "/usr/bin:/bin", TMPDIR: "/tmp", GESTALT_MOBILE_ORG_PLAN_CAPABILITIES: "suspension-v1" }, timeout: 15000,
+  });
+  assert.equal(worker.status, 0);
+  const result = JSON.parse(worker.stdout).result, expected = join(f.app, ".gestalt/context-mode/tmp");
+  assert.equal(result.temporary, expected); assert.equal(result.probeRoot, expected);
+  assert.equal(result.ambientCapability, null);
+  assert.equal(readFileSync(join(expected, "runtime-preload"), "utf8"), "fixture");
+  assert.equal(readFileSync(join(expected, "interpreter-temp"), "utf8"), "fixture");
 });

@@ -174,7 +174,12 @@ installation copies a pinned Node binary into such a directory when Node is
 installed in a tool cache. The manager's native launch environment remains
 exactly L9's fixed PATH. Inside confinement the worker discovers that same
 admitted interpreter through `process.execPath`, without adding filesystem or
-network grants.
+network grants. The Live worker places runtime preload and interpreter temporary
+files under `appRoot/.gestalt/context-mode/tmp`. It scopes the upstream executor's
+exact `mktemp -u -d` temp-root probe to that directory, running the real utility
+inside Native. All other command arguments remain unchanged. This lets an
+original policy deny general `/tmp` writes; no additional write grant or
+upstream source modification is needed.
 
 Context requests dispatch only manager command `context-mode-call`, with a new
 UUID and process lifetime for every transaction. The native worker loads the
