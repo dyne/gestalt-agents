@@ -158,13 +158,29 @@ try {
   const rpc = rpcClient(native);
   await rpc("initialize", { clientInfo: { name: "l10-packaged-v2", version: "2" }, capabilities: { experimentalApi: true } });
   native.stdin.write(`${JSON.stringify({ method: "initialized", params: {} })}\n`);
-  const started = await rpc("thread/start", { cwd: app, permissions: profile, approvalPolicy: "never", model: "gpt-6-sol", modelProvider: "controlled" });
+  let started = await rpc("thread/start", { cwd: app, permissions: profile, approvalPolicy: "never", model: "gpt-6-sol", modelProvider: "controlled" });
   assert.equal(started.activePermissionProfile.id, profile); assert.equal(started.cwd, app);
   assert.ok(started.instructionSources.includes(join(app, "AGENTS.md")));
   const configuration = await rpc("config/read", { cwd: app, includeLayers: true });
   assert.equal(configuration.config.features.hooks, false); assert.deepEqual(configuration.config.mcp_servers ?? {}, {}); assert.deepEqual(configuration.config.plugins ?? {}, {});
   assert.deepEqual(configuration.config.permissions[profile].filesystem, { glob_scan_max_depth: null, ...Object.fromEntries(state.permissionProfile.file_system.entries.map((entry) => [entry.path.type === "special" ? ":root" : entry.path.path, entry.access])) });
   assert.equal(configuration.config.permissions[profile].network.enabled, false);
+  const preparedConfig = JSON.parse(readFileSync(config.configPath));
+  for (const descriptor of Object.values(preparedConfig.mcpServers)) assert.deepEqual(descriptor.env, {});
+  const resumePackaged = async () => {
+    const unloaded = await rpc("thread/unsubscribe", { threadId: started.thread.id });
+    assert.ok(["unsubscribed", "notSubscribed", "notLoaded"].includes(unloaded.status));
+    const resumed = await rpc("thread/resume", { threadId: started.thread.id, excludeTurns: true,
+      cwd: app, permissions: profile, approvalPolicy: "never", model: "gpt-6-sol", modelProvider: "controlled",
+      config: { mcp_servers: preparedConfig.mcpServers, plugins: {} } });
+    assert.equal(resumed.thread.id, started.thread.id);
+    return resumed;
+  };
+  await rpc("thread/name/set", { threadId: started.thread.id, name: "Packaged MCP environment proof" });
+  // Production first configures the exact descriptors while admission is still
+  // closed, then seals the resolved Native sources before reconnecting them.
+  report.stage = "native-packaged-preseal-reconfigure";
+  started = await resumePackaged();
   const pins = new Map(manifest.configFiles.map((file) => [file.path, file])), sources = [];
   for (const layer of configuration.layers) {
     assert.equal(typeof layer.version, "string");
@@ -196,19 +212,11 @@ try {
   const inventory = () => { manifest.configFiles = [join(home, "config.toml"), join(owningHome, "config.toml"), bootstrapPath, config.configPath].map((path) => ({ path, sha256: hash(readFileSync(path)) })); };
   const prepare = () => { inventory(); save(); assert.equal(managerApi("prepare", manifestPath).available, true); assert.equal(prepareAdmission(bootstrapPath).available, true); };
   prepare();
-  const preparedConfig = JSON.parse(readFileSync(config.configPath));
   report.stage = "native-launched-packaged-mcp-initialize";
-  for (const descriptor of Object.values(preparedConfig.mcpServers)) assert.deepEqual(descriptor.env, {});
   // Resume the same original Native thread through its supported API. Native's
   // real stdio launcher inherits Manager's TMPDIR=/tmp, unlike a direct proxy
   // fixture. No wrapper or descriptor environment override removes that default.
-  await rpc("thread/name/set", { threadId: started.thread.id, name: "Packaged MCP environment proof" });
-  const unloaded = await rpc("thread/unsubscribe", { threadId: started.thread.id });
-  assert.ok(["unsubscribed", "notSubscribed", "notLoaded"].includes(unloaded.status));
-  const resumed = await rpc("thread/resume", { threadId: started.thread.id, excludeTurns: true,
-    cwd: app, permissions: profile, approvalPolicy: "never", model: "gpt-6-sol", modelProvider: "controlled",
-    config: { mcp_servers: preparedConfig.mcpServers, plugins: {} } });
-  assert.equal(resumed.thread.id, started.thread.id);
+  await resumePackaged();
   let nativeMcp;
   for (let attempt = 0; attempt < 30; attempt++) {
     nativeMcp = await rpc("mcpServerStatus/list", { threadId: started.thread.id, detail: "full" });
@@ -357,6 +365,15 @@ try {
   if (proofManifest) {
     try { report.managerCurrent = managerApi("verify", proofManifest); } catch (failure) { try { const value = JSON.parse(failure.stdout); report.managerCurrent = { available: value.available, reason: value.reason }; } catch {} }
     report.failedLaunches = readdirSync(privateRoot).filter((name) => /^process-[a-f0-9-]+\.json$/.test(name)).map((name) => { const b = JSON.parse(readFileSync(join(privateRoot, name))).body; return { launchId: b.launchId, status: b.status, termination: b.termination, failure: b.failure }; });
+    try {
+      const capture = JSON.parse(readFileSync(proofManifest)).runtimeProvenance?.captureId;
+      const sealed = JSON.parse(readFileSync(join(privateRoot, `runtime-${capture}.json`))).body;
+      report.metadataChanges = Object.entries(sealed.directories).map(([path, pinned], index) => {
+        const current = existsSync(path) ? lstatSync(path) : null;
+        return { index, changed: pinned === null ? current !== null : current === null ||
+          Object.entries(pinned).some(([key, value]) => (key === "ctime" ? current.ctimeMs : key === "mtime" ? current.mtimeMs : key === "birthtime" ? current.birthtimeMs : current[key]) !== value) };
+      });
+    } catch {}
   }
   process.exitCode = 1;
 } finally {
