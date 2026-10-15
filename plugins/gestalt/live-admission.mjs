@@ -373,7 +373,7 @@ export function validateNativeProxyPath(path, authority) {
       protectedPath(parent, manifest);
       const info = lstatSync(parent);
       if (!info.isDirectory() || realpathSync(parent) !== parent || info.uid !== process.getuid() || info.mode & 0o7000
-        || (parent === aliasesRoot || parent === directory) && (info.mode & 0o777) !== 0o700) reject();
+        || (info.mode & 0o700) !== 0o700 || parent === aliasesRoot && (info.mode & 0o777) !== 0o700) reject();
     }
     const executable = canonical(native.executable.path), image = statSync(`/proc/${native.process.pid}/exe`);
     if (readlinkSync(`/proc/${native.process.pid}/exe`) !== executable
@@ -391,8 +391,8 @@ export function validateNativeProxyPath(path, authority) {
       if (!info.isSymbolicLink() || info.uid !== process.getuid() || readlinkSync(alias) !== executable || realpathSync(alias) !== executable) reject();
     }
     const lockPath = join(directory, ".lock"), lock = lstatSync(lockPath);
-    // Native creates tmp/ and .lock with the caller's umask. The private home
-    // and two 0700 alias directories protect them even with group mode bits.
+    // Native creates tmp/, the leaf and .lock with the caller's umask. Its
+    // private home and explicit 0700 arg0 parent protect their group mode bits.
     if (!lock.isFile() || lock.nlink !== 1 || lock.uid !== process.getuid() || lock.mode & 0o7111 || lock.size !== 0) reject();
     // A private matching name is insufficient. Native must hold its own exact
     // lock inode with the source-defined exclusive flock for this directory.

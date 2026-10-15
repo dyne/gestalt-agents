@@ -213,19 +213,6 @@ try {
   const prepare = () => { inventory(); save(); assert.equal(managerApi("prepare", manifestPath).available, true); assert.equal(prepareAdmission(bootstrapPath).available, true); };
   prepare();
   report.stage = "native-launched-packaged-mcp-initialize";
-  report.nativeHelperShape = readdirSync(join(owningHome, "tmp/arg0")).map((name) => {
-    const directory = join(owningHome, "tmp/arg0", name), lockPath = join(directory, ".lock");
-    const info = lstatSync(directory), lock = lstatSync(lockPath);
-    return { expectedName: /^codex-arg0[A-Za-z0-9]{6}$/.test(name), mode: info.mode & 0o7777, ownerMatches: info.uid === process.getuid(),
-      names: readdirSync(directory).sort(), aliasesMatch: readdirSync(directory).filter((n) => n !== ".lock").every((n) => { try { return readlinkSync(join(directory, n)) === binary; } catch { return false; } }),
-      lockMode: lock.mode & 0o7777, lockLinks: lock.nlink, lockSize: lock.size,
-      nativeLocks: readdirSync(`/proc/${native.pid}/fd`).flatMap((fd) => { try {
-        if (readlinkSync(`/proc/${native.pid}/fd/${fd}`) !== lockPath) return [];
-        return readFileSync(`/proc/${native.pid}/fdinfo/${fd}`, "utf8").split("\n").filter((line) => line.startsWith("lock:"))
-          .map((line) => ({ kind: line.match(/FLOCK|OFDLCK|POSIX/)?.[0], nativePid: line.split(/\s+/)[5] === String(native.pid) }));
-      } catch { return []; } }),
-    };
-  });
   // Resume the same original Native thread through its supported API. Native's
   // real stdio launcher inherits Manager's TMPDIR=/tmp, unlike a direct proxy
   // fixture. No wrapper or descriptor environment override removes that default.
