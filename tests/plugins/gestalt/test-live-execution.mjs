@@ -1,17 +1,85 @@
 import assert from "node:assert/strict";
 import { chmodSync, copyFileSync, existsSync, linkSync, mkdirSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import test from "node:test";
 import { spawn, spawnSync } from "node:child_process";
 import { createMcpTestClient } from "./mcp-test-client.mjs";
 import { fixture } from "./live-fixture.mjs";
 import { executionAuthority, executionInputsCurrent, prepareAdmission, stageAdmission } from "../../../plugins/gestalt/live-admission.mjs";
-import { liveRequest } from "../../../plugins/gestalt/live-mcp-proxy.mjs";
+import { liveRequest, validateProxyEnvironment } from "../../../plugins/gestalt/live-mcp-proxy.mjs";
 import { orgLifecycle } from "../../../plugins/gestalt/live-org-lifecycle.mjs";
 import { prepareLiveRuntime } from "../../../plugins/gestalt/scripts/prepare-live-runtime.mjs";
 
 const repo = fileURLToPath(new URL("../../..", import.meta.url));
+test("proxy accepts only Native's optional fixed TMPDIR and the existing minimal environment", () => {
+  const minimal = { PATH: "/usr/bin:/bin", HOME: "/fixed/owning/home", LANG: "C.UTF-8" };
+  assert.doesNotThrow(() => validateProxyEnvironment(minimal));
+  assert.doesNotThrow(() => validateProxyEnvironment({ ...minimal, TMPDIR: "/tmp" }));
+  for (const TMPDIR of ["", "/tmp/", "/tmp/other", "/var/tmp", "relative", "/tmp/../tmp", undefined])
+    assert.throws(() => validateProxyEnvironment({ ...minimal, TMPDIR }), /unsafe-live-proxy-environment/);
+  for (const extra of ["CODEX_HOME", "NODE_OPTIONS", "LD_PRELOAD", "TMP", "TEMP", "GESTALT_MOBILE_ORG_PLAN_CAPABILITIES", "UNRELATED"])
+    assert.throws(() => validateProxyEnvironment({ ...minimal, TMPDIR: "/tmp", [extra]: "" }), /unsafe-live-proxy-environment/);
+  for (const PATH of [undefined, "", "/usr/bin:/bin:/extra", "/bin:/usr/bin"])
+    assert.throws(() => validateProxyEnvironment({ ...minimal, PATH, TMPDIR: "/tmp" }), /unsafe-live-proxy-environment/);
+});
+test("Native helper PATH requires the exact authenticated parent, private aliases and held lock", { skip: process.platform !== "linux" }, (t) => {
+  const f = fixture(t);
+  // Offline filesystem/process contract fixture: Python stands in for the
+  // already-authenticated Native parent. The hosted proof uses real Native.
+  const python = join(f.root, "python");
+  copyFileSync("/usr/bin/python3", python); chmodSync(python, 0o700);
+  const result = spawnSync(python, ["-c", String.raw`
+import copy,fcntl,hashlib,json,os,pathlib,subprocess,sys
+node,module,home=sys.argv[1:]
+home=pathlib.Path(home);directory=home/'tmp'/'arg0'/'codex-arg0Ab1234'
+directory.mkdir(parents=True,mode=0o700)
+for p in [home,home/'tmp',directory.parent,directory]:p.chmod(0o700)
+executable=os.path.realpath(sys.executable)
+names=['apply_patch','applypatch','codex-execve-wrapper','codex-linux-sandbox']
+for name in names:(directory/name).symlink_to(executable)
+lock=open(directory/'.lock','w');os.chmod(directory/'.lock',0o600);fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
+image=os.stat('/proc/self/exe');stat=pathlib.Path('/proc/self/stat').read_text()
+identity={'pid':os.getpid(),'birth':stat[stat.rindex(')')+2:].split()[19],'uid':os.getuid(),'namespaces':{name:os.readlink('/proc/self/ns/'+name) for name in ['mnt','user','pid']}}
+binary={'path':executable,'version':'0.161.0','sha256':hashlib.sha256(pathlib.Path(executable).read_bytes()).hexdigest()}
+authority={'manifest':{'schemaVersion':2,'owningRuntime':{'home':str(home)},'binary':binary},'nativeRuntime':{'process':identity,'executable':binary,'executableIdentity':{'dev':image.st_dev,'ino':image.st_ino}}}
+environment={'PATH':str(directory)+':/usr/bin:/bin','HOME':str(home),'LANG':'C.UTF-8','TMPDIR':'/tmp'}
+script='import {validateProxyEnvironment} from '+json.dumps(module)+';const x=JSON.parse(process.argv[1]);try{validateProxyEnvironment(x.environment,x.authority);process.exit(0)}catch{process.exit(78)}'
+results={}
+def check(name,env=None,auth=None):
+ p=subprocess.run([node,'--input-type=module','-e',script,json.dumps({'environment':env or environment,'authority':auth or authority})],capture_output=True,timeout=10)
+ results[name]=p.returncode
+check('valid')
+for name,path in [('extra-prefix','/other:'+environment['PATH']),('extra-suffix',environment['PATH']+':/other'),('relative-prefix','relative:/usr/bin:/bin'),('dot-components',str(directory)+'/../'+directory.name+':/usr/bin:/bin')]:
+ env=environment.copy();env['PATH']=path;check(name,env)
+for name,key,value in [('wrong-home','HOME',str(home.parent)),('wrong-lang','LANG','C'),('wrong-tmpdir','TMPDIR','/var/tmp'),('unrelated','NODE_OPTIONS','')]:
+ env=environment.copy();env[key]=value;check(name,env)
+for name,edit in [('stale-birth',lambda a:a['nativeRuntime']['process'].update(birth='0')),('wrong-parent',lambda a:a['nativeRuntime']['process'].update(pid=1)),('wrong-namespace',lambda a:a['nativeRuntime']['process']['namespaces'].update(mnt='mnt:[0]')),('v1',lambda a:a['manifest'].update(schemaVersion=1)),('missing-runtime',lambda a:a.pop('nativeRuntime'))]:
+ a=copy.deepcopy(authority);edit(a);check(name,auth=a)
+(directory/'extra').write_text('');check('extra-alias');(directory/'extra').unlink()
+alias=directory/names[0];alias.unlink();alias.symlink_to('/usr/bin/true');check('wrong-target');alias.unlink();alias.symlink_to(executable)
+alias.unlink();alias.write_text('not an alias');check('regular-alias');alias.unlink();alias.symlink_to(executable)
+directory.chmod(0o600);check('unsafe-directory-mode');directory.chmod(0o700)
+directory.parent.chmod(0o770);check('unsafe-parent-mode');directory.parent.chmod(0o700)
+home.chmod(0o770);check('unsafe-home-mode');home.chmod(0o700)
+(home/'tmp').chmod(0o777);directory.chmod(0o777);os.chmod(directory/'.lock',0o666);check('valid-private-home-umask');(home/'tmp').chmod(0o700);directory.chmod(0o700);os.chmod(directory/'.lock',0o600)
+os.chmod(directory/'.lock',0o700);check('unsafe-lock-mode');os.chmod(directory/'.lock',0o600)
+fcntl.flock(lock,fcntl.LOCK_UN);check('unheld-lock');fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
+os.link(directory/'.lock',home/'second-lock');check('hardlinked-lock');(home/'second-lock').unlink()
+other=directory.parent/'codex-arg0Zz9999';other.mkdir(mode=0o700)
+for name in names:(other/name).symlink_to(executable)
+(other/'.lock').write_text('');(other/'.lock').chmod(0o600)
+env=environment.copy();env['PATH']=str(other)+':/usr/bin:/bin';check('fabricated-directory',env)
+check('valid-after-refusals')
+print(json.dumps(results))
+`, process.execPath, pathToFileURL(join(repo, "plugins/gestalt/live-mcp-proxy.mjs")).href, join(f.root, "owning")], {
+    encoding: "utf8", timeout: 45000, env: { PATH: "/usr/bin:/bin", LANG: "C.UTF-8" },
+  });
+  assert.equal(result.status, 0, result.stderr);
+  const results = JSON.parse(result.stdout);
+  assert.equal(results.valid, 0, result.stderr); assert.equal(results["valid-after-refusals"], 0); assert.equal(results["valid-private-home-umask"], 0);
+  for (const [name, status] of Object.entries(results)) if (!["valid", "valid-after-refusals", "valid-private-home-umask"].includes(name)) assert.equal(status, 78, name);
+});
 function lifecycleFixture(t, options) {
   const f = fixture(t, options), plan = f.input.plans[0];
   copyFileSync(join(repo, "tests/plugins/gestalt/fixtures/valid-minimal.org"), plan); chmodSync(plan, 0o600);

@@ -61,8 +61,8 @@ function rpcClient(child) {
       if (message.error) call.reject(new Error("NATIVE_RPC_REFUSED")); else call.done(message.result);
     }
   });
-  return (method, params) => new Promise((done, reject) => {
-    const id = ++counter, timer = setTimeout(() => { pending.delete(id); reject(new Error("NATIVE_RPC_TIMEOUT")); }, 20000);
+  return (method, params, timeoutMs = 20000) => new Promise((done, reject) => {
+    const id = ++counter, timer = setTimeout(() => { pending.delete(id); reject(new Error("NATIVE_RPC_TIMEOUT")); }, timeoutMs);
     pending.set(id, { done, reject, timer }); child.stdin.write(`${JSON.stringify({ jsonrpc: "2.0", id, method, params })}\n`);
   });
 }
@@ -158,13 +158,53 @@ try {
   const rpc = rpcClient(native);
   await rpc("initialize", { clientInfo: { name: "l10-packaged-v2", version: "2" }, capabilities: { experimentalApi: true } });
   native.stdin.write(`${JSON.stringify({ method: "initialized", params: {} })}\n`);
-  const started = await rpc("thread/start", { cwd: app, permissions: profile, approvalPolicy: "never", model: "gpt-6-sol", modelProvider: "controlled" });
+  let started = await rpc("thread/start", { cwd: app, permissions: profile, approvalPolicy: "never", model: "gpt-6-sol", modelProvider: "controlled" });
   assert.equal(started.activePermissionProfile.id, profile); assert.equal(started.cwd, app);
   assert.ok(started.instructionSources.includes(join(app, "AGENTS.md")));
   const configuration = await rpc("config/read", { cwd: app, includeLayers: true });
   assert.equal(configuration.config.features.hooks, false); assert.deepEqual(configuration.config.mcp_servers ?? {}, {}); assert.deepEqual(configuration.config.plugins ?? {}, {});
   assert.deepEqual(configuration.config.permissions[profile].filesystem, { glob_scan_max_depth: null, ...Object.fromEntries(state.permissionProfile.file_system.entries.map((entry) => [entry.path.type === "special" ? ":root" : entry.path.path, entry.access])) });
   assert.equal(configuration.config.permissions[profile].network.enabled, false);
+  const preparedConfig = JSON.parse(readFileSync(config.configPath));
+  for (const descriptor of Object.values(preparedConfig.mcpServers)) assert.deepEqual(descriptor.env, {});
+  const resumePackaged = async () => {
+    const unloaded = await rpc("thread/unsubscribe", { threadId: started.thread.id });
+    assert.ok(["unsubscribed", "notSubscribed", "notLoaded"].includes(unloaded.status));
+    const resumed = await rpc("thread/resume", { threadId: started.thread.id, excludeTurns: true,
+      cwd: app, permissions: profile, approvalPolicy: "never", model: "gpt-6-sol", modelProvider: "controlled",
+      config: { mcp_servers: preparedConfig.mcpServers, plugins: {} } });
+    assert.equal(resumed.thread.id, started.thread.id);
+    return resumed;
+  };
+  const owningMcpStatus = async () => {
+    const data = [];
+    // The supported serverName+threadId API reuses the owning connection.
+    // Broad discovery creates additional threadless MCP clients, which are not
+    // evidence about the original owning thread and can race its single worker.
+    for (const serverName of ["context-mode", "gestalt-org-plan"]) {
+      const page = await rpc("mcpServerStatus/list", { threadId: started.thread.id, serverName, detail: "full" }, 125000);
+      assert.equal(page.nextCursor, null);
+      assert.deepEqual(page.data.map((server) => server.name), [serverName]);
+      data.push(...page.data);
+    }
+    return { data, nextCursor: null };
+  };
+  await rpc("thread/name/set", { threadId: started.thread.id, name: "Packaged MCP environment proof" });
+  // Production first configures the exact descriptors while admission is still
+  // closed, then seals the resolved Native sources before reconnecting them.
+  report.stage = "native-packaged-preseal-reconfigure";
+  started = await resumePackaged();
+  // Production's post-reconfigure observation awaits full MCP discovery before
+  // sealing. Observe the terminal refusal here too: an asynchronously starting
+  // old proxy must not acquire newly published receipts during the cold resume.
+  const unadmitted = await owningMcpStatus();
+  assert.equal(unadmitted.nextCursor, null);
+  assert.deepEqual(unadmitted.data.map((server) => server.name).sort(), ["context-mode", "gestalt-org-plan"]);
+  for (const server of unadmitted.data) {
+    assert.equal(server.runtimeStatus, "failed");
+    assert.equal(Object.keys(server.tools).length, 0);
+  }
+  report.checks.unadmittedNativeMcpRefused = true;
   const pins = new Map(manifest.configFiles.map((file) => [file.path, file])), sources = [];
   for (const layer of configuration.layers) {
     assert.equal(typeof layer.version, "string");
@@ -196,11 +236,36 @@ try {
   const inventory = () => { manifest.configFiles = [join(home, "config.toml"), join(owningHome, "config.toml"), bootstrapPath, config.configPath].map((path) => ({ path, sha256: hash(readFileSync(path)) })); };
   const prepare = () => { inventory(); save(); assert.equal(managerApi("prepare", manifestPath).available, true); assert.equal(prepareAdmission(bootstrapPath).available, true); };
   prepare();
-  const preparedConfig = JSON.parse(readFileSync(config.configPath));
+  report.stage = "native-launched-packaged-mcp-initialize";
+  // Resume the same original Native thread through its supported API. Native's
+  // real stdio launcher inherits Manager's TMPDIR=/tmp, unlike a direct proxy
+  // fixture. No wrapper or descriptor environment override removes that default.
+  const catalogStarted = Date.now();
+  await resumePackaged();
+  let nativeMcp;
+  for (let attempt = 0; attempt < 30; attempt++) {
+    nativeMcp = await owningMcpStatus();
+    const states = nativeMcp.data.map((server) => server.runtimeStatus);
+    if (!states.includes("starting")) break;
+    await wait(1000);
+  }
+  report.nativeCatalogDurationMs = Date.now() - catalogStarted;
+  assert.equal(nativeMcp.nextCursor, null);
+  assert.deepEqual(nativeMcp.data.map((server) => server.name).sort(), ["context-mode", "gestalt-org-plan"]);
+  report.nativeMcp = nativeMcp.data.map((server) => ({ name: server.name, runtimeStatus: server.runtimeStatus,
+    toolCount: Object.keys(server.tools ?? {}).length,
+    errorMarkers: ["closed", "initialize", "spawn", "permission", "protocol", "deserialize", "invalid", "timeout", "timed out", "missing", "schema", "parse", "context-call-unavailable", "invalid-native-response", "native-policy-unavailable", "unsupported-live-method", "-32000"].filter((word) => server.toolsError?.toLowerCase().includes(word)) }));
+  for (const server of nativeMcp.data) {
+    assert.equal(server.runtimeStatus, "connected");
+    assert.equal(server.httpOrigin, null);
+    assert.equal(server.toolsError, null);
+    assert.ok(Object.keys(server.tools).length > 0);
+  }
+  report.checks.actualNativeLaunchedPackagedMcpInitialization = true;
   const proxy = (name) => {
     const descriptor = preparedConfig.mcpServers[name];
     const child = spawn(descriptor.command, descriptor.args, { cwd: descriptor.cwd,
-      env: { PATH: "/usr/bin:/bin", HOME: owningHome, LANG: "C.UTF-8" }, stdio: ["pipe", "pipe", "pipe"] });
+      env: { PATH: "/usr/bin:/bin", HOME: owningHome, LANG: "C.UTF-8", TMPDIR: "/tmp" }, stdio: ["pipe", "pipe", "pipe"] });
     child.stderr.resume(); return child;
   };
   contextProxy = proxy("context-mode"); orgProxy = proxy("gestalt-org-plan");
