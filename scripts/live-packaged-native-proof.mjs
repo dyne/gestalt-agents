@@ -176,6 +176,19 @@ try {
     assert.equal(resumed.thread.id, started.thread.id);
     return resumed;
   };
+  const owningMcpStatus = async () => {
+    const data = [];
+    // The supported serverName+threadId API reuses the owning connection.
+    // Broad discovery creates additional threadless MCP clients, which are not
+    // evidence about the original owning thread and can race its single worker.
+    for (const serverName of ["context-mode", "gestalt-org-plan"]) {
+      const page = await rpc("mcpServerStatus/list", { threadId: started.thread.id, serverName, detail: "full" }, 125000);
+      assert.equal(page.nextCursor, null);
+      assert.deepEqual(page.data.map((server) => server.name), [serverName]);
+      data.push(...page.data);
+    }
+    return { data, nextCursor: null };
+  };
   await rpc("thread/name/set", { threadId: started.thread.id, name: "Packaged MCP environment proof" });
   // Production first configures the exact descriptors while admission is still
   // closed, then seals the resolved Native sources before reconnecting them.
@@ -184,7 +197,7 @@ try {
   // Production's post-reconfigure observation awaits full MCP discovery before
   // sealing. Observe the terminal refusal here too: an asynchronously starting
   // old proxy must not acquire newly published receipts during the cold resume.
-  const unadmitted = await rpc("mcpServerStatus/list", { threadId: started.thread.id, detail: "full" }, 125000);
+  const unadmitted = await owningMcpStatus();
   assert.equal(unadmitted.nextCursor, null);
   assert.deepEqual(unadmitted.data.map((server) => server.name).sort(), ["context-mode", "gestalt-org-plan"]);
   for (const server of unadmitted.data) {
@@ -227,20 +240,21 @@ try {
   // Resume the same original Native thread through its supported API. Native's
   // real stdio launcher inherits Manager's TMPDIR=/tmp, unlike a direct proxy
   // fixture. No wrapper or descriptor environment override removes that default.
+  const catalogStarted = Date.now();
   await resumePackaged();
   let nativeMcp;
   for (let attempt = 0; attempt < 30; attempt++) {
-    nativeMcp = await rpc("mcpServerStatus/list", { threadId: started.thread.id, detail: "full" }, 125000);
+    nativeMcp = await owningMcpStatus();
     const states = nativeMcp.data.map((server) => server.runtimeStatus);
     if (!states.includes("starting")) break;
     await wait(1000);
   }
+  report.nativeCatalogDurationMs = Date.now() - catalogStarted;
   assert.equal(nativeMcp.nextCursor, null);
   assert.deepEqual(nativeMcp.data.map((server) => server.name).sort(), ["context-mode", "gestalt-org-plan"]);
   report.nativeMcp = nativeMcp.data.map((server) => ({ name: server.name, runtimeStatus: server.runtimeStatus,
     toolCount: Object.keys(server.tools ?? {}).length,
-    errorMarkers: ["closed", "initialize", "spawn", "permission", "protocol", "deserialize", "invalid", "timeout", "timed out", "missing", "schema", "parse", "context-call-unavailable", "invalid-native-response", "native-policy-unavailable", "unsupported-live-method", "-32000"].filter((word) => server.toolsError?.toLowerCase().includes(word)),
-    diagnostic: server.toolsError?.match(/diagnostic-context-(?:revoked|exit-(?:[0-9]+|signal|unverified)|inputs-changed)/)?.[0] }));
+    errorMarkers: ["closed", "initialize", "spawn", "permission", "protocol", "deserialize", "invalid", "timeout", "timed out", "missing", "schema", "parse", "context-call-unavailable", "invalid-native-response", "native-policy-unavailable", "unsupported-live-method", "-32000"].filter((word) => server.toolsError?.toLowerCase().includes(word)) }));
   for (const server of nativeMcp.data) {
     assert.equal(server.runtimeStatus, "connected");
     assert.equal(server.httpOrigin, null);

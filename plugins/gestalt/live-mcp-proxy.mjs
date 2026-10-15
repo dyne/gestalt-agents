@@ -38,10 +38,7 @@ export function runContext(authority, request, { signal } = {}) {
       closed = true; clearInterval(monitor); clearTimeout(timeout);
       signal?.removeEventListener("abort", cancel);
       try {
-        if (revoked) fail("diagnostic-context-revoked");
-        if (code !== 0) fail(`diagnostic-context-exit-${code ?? "signal"}`);
-        if (!nativeExitVerified(authority, launchId)) fail("diagnostic-context-exit-unverified");
-        if (!executionInputsCurrent(authority)) fail("diagnostic-context-inputs-changed");
+        if (revoked || code !== 0 || !nativeExitVerified(authority, launchId) || !executionInputsCurrent(authority)) fail("context-call-unavailable");
         const lines = output.toString("utf8").trim().split("\n");
         if (lines.length !== 1) fail("invalid-native-response");
         const result = JSON.parse(lines[0]);
