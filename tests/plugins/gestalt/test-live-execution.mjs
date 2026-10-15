@@ -7,11 +7,22 @@ import { spawn, spawnSync } from "node:child_process";
 import { createMcpTestClient } from "./mcp-test-client.mjs";
 import { fixture } from "./live-fixture.mjs";
 import { executionAuthority, executionInputsCurrent, prepareAdmission, stageAdmission } from "../../../plugins/gestalt/live-admission.mjs";
-import { liveRequest } from "../../../plugins/gestalt/live-mcp-proxy.mjs";
+import { liveRequest, validateProxyEnvironment } from "../../../plugins/gestalt/live-mcp-proxy.mjs";
 import { orgLifecycle } from "../../../plugins/gestalt/live-org-lifecycle.mjs";
 import { prepareLiveRuntime } from "../../../plugins/gestalt/scripts/prepare-live-runtime.mjs";
 
 const repo = fileURLToPath(new URL("../../..", import.meta.url));
+test("proxy accepts only Native's optional fixed TMPDIR and the existing minimal environment", () => {
+  const minimal = { PATH: "/usr/bin:/bin", HOME: "/fixed/owning/home", LANG: "C.UTF-8" };
+  assert.doesNotThrow(() => validateProxyEnvironment(minimal));
+  assert.doesNotThrow(() => validateProxyEnvironment({ ...minimal, TMPDIR: "/tmp" }));
+  for (const TMPDIR of ["", "/tmp/", "/tmp/other", "/var/tmp", "relative", "/tmp/../tmp", undefined])
+    assert.throws(() => validateProxyEnvironment({ ...minimal, TMPDIR }), /unsafe-live-proxy-environment/);
+  for (const extra of ["CODEX_HOME", "NODE_OPTIONS", "LD_PRELOAD", "TMP", "TEMP", "GESTALT_MOBILE_ORG_PLAN_CAPABILITIES", "UNRELATED"])
+    assert.throws(() => validateProxyEnvironment({ ...minimal, TMPDIR: "/tmp", [extra]: "" }), /unsafe-live-proxy-environment/);
+  for (const PATH of [undefined, "", "/usr/bin:/bin:/extra", "/bin:/usr/bin"])
+    assert.throws(() => validateProxyEnvironment({ ...minimal, PATH, TMPDIR: "/tmp" }), /unsafe-live-proxy-environment/);
+});
 function lifecycleFixture(t, options) {
   const f = fixture(t, options), plan = f.input.plans[0];
   copyFileSync(join(repo, "tests/plugins/gestalt/fixtures/valid-minimal.org"), plan); chmodSync(plan, 0o600);

@@ -69,12 +69,17 @@ export async function liveRequest(bootstrapPath, server, line, options = {}) {
     return { jsonrpc: "2.0", id: parsed.id, error: { code: -32000, message: error instanceof AdmissionError ? error.reason : "live-tool-unavailable" } };
   }
 }
+export function validateProxyEnvironment(environment) {
+  if (Object.keys(environment).some((key) => !["PATH", "HOME", "LANG", "TMPDIR"].includes(key))
+    || environment.PATH !== "/usr/bin:/bin"
+    || (Object.hasOwn(environment, "TMPDIR") && environment.TMPDIR !== "/tmp")) fail("unsafe-live-proxy-environment");
+}
 async function main() {
   const [bootstrapFlag, bootstrap, serverFlag, server, ...extra] = process.argv.slice(2);
   if (bootstrapFlag !== "--bootstrap" || serverFlag !== "--server" || extra.length || !LIVE_SERVERS.includes(server)) fail("invalid-live-proxy-command");
-  // The controller launches this process with a reconstructed minimal env.
-  if (Object.keys(process.env).some((key) => !["PATH", "HOME", "LANG"].includes(key))
-    || process.env.PATH !== "/usr/bin:/bin") fail("unsafe-live-proxy-environment");
+  // Native inherits the Manager's fixed TMPDIR default when launching MCP.
+  // It grants no downstream setting: manager/worker environments are rebuilt.
+  validateProxyEnvironment(process.env);
   executionAuthority(bootstrap);
   const cancellation = new AbortController();
   process.stdin.once("end", () => cancellation.abort());

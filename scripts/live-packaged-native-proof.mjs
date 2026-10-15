@@ -197,10 +197,40 @@ try {
   const prepare = () => { inventory(); save(); assert.equal(managerApi("prepare", manifestPath).available, true); assert.equal(prepareAdmission(bootstrapPath).available, true); };
   prepare();
   const preparedConfig = JSON.parse(readFileSync(config.configPath));
+  report.stage = "native-launched-packaged-mcp-initialize";
+  for (const descriptor of Object.values(preparedConfig.mcpServers)) assert.deepEqual(descriptor.env, {});
+  // Resume the same original Native thread through its supported API. Native's
+  // real stdio launcher inherits Manager's TMPDIR=/tmp, unlike a direct proxy
+  // fixture. No wrapper or descriptor environment override removes that default.
+  await rpc("thread/name/set", { threadId: started.thread.id, name: "Packaged MCP environment proof" });
+  const unloaded = await rpc("thread/unsubscribe", { threadId: started.thread.id });
+  assert.ok(["unsubscribed", "notSubscribed", "notLoaded"].includes(unloaded.status));
+  const resumed = await rpc("thread/resume", { threadId: started.thread.id, excludeTurns: true,
+    cwd: app, permissions: profile, approvalPolicy: "never", model: "gpt-6-sol", modelProvider: "controlled",
+    config: { mcp_servers: preparedConfig.mcpServers, plugins: {} } });
+  assert.equal(resumed.thread.id, started.thread.id);
+  let nativeMcp;
+  for (let attempt = 0; attempt < 30; attempt++) {
+    nativeMcp = await rpc("mcpServerStatus/list", { threadId: started.thread.id, detail: "full" });
+    const states = nativeMcp.data.map((server) => server.runtimeStatus);
+    if (!states.includes("starting")) break;
+    await wait(1000);
+  }
+  assert.equal(nativeMcp.nextCursor, null);
+  assert.deepEqual(nativeMcp.data.map((server) => server.name).sort(), ["context-mode", "gestalt-org-plan"]);
+  report.nativeMcp = nativeMcp.data.map((server) => ({ name: server.name, runtimeStatus: server.runtimeStatus,
+    toolCount: Object.keys(server.tools ?? {}).length }));
+  for (const server of nativeMcp.data) {
+    assert.equal(server.runtimeStatus, "connected");
+    assert.equal(server.httpOrigin, null);
+    assert.equal(server.toolsError, null);
+    assert.ok(Object.keys(server.tools).length > 0);
+  }
+  report.checks.actualNativeLaunchedPackagedMcpInitialization = true;
   const proxy = (name) => {
     const descriptor = preparedConfig.mcpServers[name];
     const child = spawn(descriptor.command, descriptor.args, { cwd: descriptor.cwd,
-      env: { PATH: "/usr/bin:/bin", HOME: owningHome, LANG: "C.UTF-8" }, stdio: ["pipe", "pipe", "pipe"] });
+      env: { PATH: "/usr/bin:/bin", HOME: owningHome, LANG: "C.UTF-8", TMPDIR: "/tmp" }, stdio: ["pipe", "pipe", "pipe"] });
     child.stderr.resume(); return child;
   };
   contextProxy = proxy("context-mode"); orgProxy = proxy("gestalt-org-plan");
