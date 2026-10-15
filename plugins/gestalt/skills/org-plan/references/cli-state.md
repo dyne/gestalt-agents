@@ -121,12 +121,16 @@ scrubs ambient/configured assertions. Validate actual propagation after an
 explicitly authorized compatible build activation; repository configuration
 and subprocess regression success do not establish running-host support.
 
-Live's prepared MCP proxy deliberately reconstructs an empty MCP environment
-and accepts only PATH/HOME/LANG process keys. Its canonical package inventory
-includes the normal Org MCP allowlist exactly, but does not inherit that list
-into the prepared proxy. Suspension therefore remains unavailable through Live
-under the current contract. Supporting it later requires a narrow typed,
-controller-authenticated consumer-capability input bound to bootstrap/config
-and admission receipts, exact proxy environment construction and invalidation
-on component/config changes. Do not export an arbitrary token or widen process
-environment forwarding to bypass this boundary.
+Live's prepared MCP proxy reconstructs an empty MCP environment and accepts
+only PATH/HOME/LANG process keys. Its canonical package inventory includes the
+normal Org MCP allowlist exactly, without inheriting it into that proxy. For
+Manager v2, the package's `LIVE.md` defines an optional exact private `consumer`
+bootstrap input: the fixed suspension-v1 list and matching controller component
+are authenticated through configuration, runtime/generation and admission
+receipts. The verified proxy passes the list only as typed internal context to
+the canonical state machine. A model argument or ambient token cannot grant
+that authority, and component/configuration/package changes invalidate it.
+The trusted controller supplies the assertion only after verifying its exact
+compiled consumer's support; this source contract does not establish running
+Mobile activation. Missing authority fails closed for suspension and suspended
+retained plans. Never export an arbitrary token or widen environment forwarding.
