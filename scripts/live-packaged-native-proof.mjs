@@ -211,7 +211,15 @@ try {
   Object.assign(process.env, { PATH: "/usr/bin:/bin", HOME: owningHome, LANG: "C.UTF-8" });
   let sequence = 0;
   const call = (name, args) => contextClient.request(++sequence, "tools/call", { name, arguments: args });
-  const text = (response) => { assert.equal(response.error, undefined); assert.equal(response.result?.isError, undefined); return response.result.content.filter((item) => item.type === "text").map((item) => item.text).join("\n"); };
+  const text = (response) => {
+    if (response.result?.isError) {
+      const message = (response.result.content ?? []).filter((item) => item.type === "text").map((item) => item.text).join("\n");
+      report.toolFailure = { bytes: Buffer.byteLength(message), errno: [...new Set(message.match(/\b(?:EACCES|EPERM|ENOENT|ENOTDIR|EROFS|EINVAL|EAGAIN)\b/g) ?? [])],
+        procSubstitution: /\/dev\/fd|\/proc\/self\/fd/.test(message), permissionDenied: /Permission denied|Operation not permitted/.test(message),
+        timedOut: /[Tt]imed? ?out|[Tt]imeout/.test(message), runtimeMissing: /runtime.*(?:found|available|installed)|command not found|not found.*runtime/i.test(message),
+        templates: message.split("\n").filter((line) => /Error:|error:|denied|not found|errno|failed|exit code|Unable|Cannot/i.test(line)).slice(0, 4).map((line) => line.replace(/\/[^\s:;)]+/g, "<path>").replace(/"[^"]*"|'[^']*'/g, "<quoted>").slice(0, 240)) };
+    }
+    assert.equal(response.error, undefined); assert.equal(response.result?.isError, undefined); return response.result.content.filter((item) => item.type === "text").map((item) => item.text).join("\n"); };
   report.stage = "native-packaged-ordinary";
   report.stage = "packaged-context-initialize";
   const initialized = await contextClient.request(++sequence, "initialize", {}); assert.equal(initialized.error, undefined);
@@ -240,9 +248,8 @@ try {
     try { fs.readdirSync(p.daemon); checks.daemon = false; } catch (e) { checks.daemon = ["EACCES", "EPERM", "ENOENT"].includes(e.code); }
     console.log("LIVE_PROBE:" + JSON.stringify({ depth, checks }));
     if (depth < 2) {
-      const child = cp.spawnSync(process.execPath, ["-e", `(${packagedProbe.toString()})(${JSON.stringify(p)},${depth + 1})`], { encoding: "utf8", timeout: 10000 });
+      const child = cp.spawnSync(process.execPath, ["-e", `(${packagedProbe.toString()})(${JSON.stringify(p)},${depth + 1})`], { stdio: ["ignore", "inherit", "inherit"], timeout: 10000 });
       if (child.status !== 0) throw Error("DESCENDANT_PROBE_FAILED");
-      process.stdout.write(child.stdout);
     }
   }
   const output = text(await call("ctx_execute", { language: "javascript", code: `(${packagedProbe.toString()})(${JSON.stringify(probes)},0)` }));
