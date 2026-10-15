@@ -28,7 +28,22 @@ function lifecycleFixture(t, options) {
 }
 test("authenticated Org lifecycle uses the canonical helper and only the exact signed plan", { skip: process.platform !== "linux" }, async (t) => {
   const f = lifecycleFixture(t);
-  assert.equal(orgLifecycle(f.authority, "tools/list", {}).tools.length, 10);
+  assert.equal(orgLifecycle(f.authority, "tools/list", {}).tools.length, 12);
+  const oldCapability = process.env.GESTALT_MOBILE_ORG_PLAN_CAPABILITIES;
+  delete process.env.GESTALT_MOBILE_ORG_PLAN_CAPABILITIES;
+  try {
+    for (const [name, args] of [
+      ["org_plan_suspend_reopen", { dependentId: "first-outcome", dependencyId: "first-outcome" }],
+      ["org_plan_resume", { id: "first-outcome" }],
+    ]) {
+      const before = readFileSync(f.plan);
+      assert.throws(() => orgLifecycle(f.authority, "tools/call", { name, arguments: { plan: f.plan, ...args } }), /unsupported-suspension-consumer/);
+      assert.deepEqual(readFileSync(f.plan), before);
+    }
+  } finally {
+    if (oldCapability === undefined) delete process.env.GESTALT_MOBILE_ORG_PLAN_CAPABILITIES;
+    else process.env.GESTALT_MOBILE_ORG_PLAN_CAPABILITIES = oldCapability;
+  }
   const response = await liveRequest(f.bootstrapPath, "gestalt-org-plan", JSON.stringify({ jsonrpc: "2.0", id: 7, method: "tools/call", params: {
     name: "org_plan_l1_transition", arguments: { plan: f.plan, id: "first-outcome", state: "WIP" },
   } }));
@@ -72,7 +87,7 @@ test("normal non-Live Org launcher still starts through an external symlink", as
   const client = createMcpTestClient(child);
   const initialized = await client.request(1, "initialize");
   assert.equal(initialized.result.serverInfo.name, "gestalt-org-plan");
-  assert.equal((await client.request(2, "tools/list")).result.tools.length, 10);
+  assert.equal((await client.request(2, "tools/list")).result.tools.length, 12);
 });
 test("symlinked plans/directories and hardlinks cannot turn lifecycle into private host reads", (t) => {
   const f = lifecycleFixture(t), secret = join(f.privateRoot, "secret.org");
@@ -121,4 +136,44 @@ test("Live runtime install normalizes executable aliases and rolls back failed p
   await assert.rejects(prepareLiveRuntime(source, target, { prepare, verify }));
   assert.equal(readFileSync(join(target, "server.bundle.mjs"), "utf8"), "prepared");
   assert.deepEqual(readdirSync(f.root).filter((name) => /stage-|backup-|install.lock/.test(name)), []);
+});
+
+test("v2 signed consumer capability enables the typed suspension lifecycle without ambient export", (t) => {
+  const f = lifecycleFixture(t, { schemaVersion: 2 });
+  f.input.consumer = { schemaVersion: 1, component: f.manifest.components.mobile, capabilities: ["suspension-v1"] };
+  f.saveInput(); f.savePolicy(); prepareAdmission(f.bootstrapPath);
+  const original = readFileSync(f.plan, "utf8"), header = original.slice(0, original.indexOf("* TODO"));
+  const block = original.slice(original.indexOf("* TODO"));
+  writeFileSync(f.plan, header + block.replaceAll("TODO", "DONE").replace("UNREVIEWED", "REVIEWED") +
+    block.replaceAll("first-", "second-").replaceAll("TODO", "WIP"));
+  const before = process.env.GESTALT_MOBILE_ORG_PLAN_CAPABILITIES;
+  delete process.env.GESTALT_MOBILE_ORG_PLAN_CAPABILITIES;
+  try {
+    const authority = executionAuthority(f.bootstrapPath);
+    const call = (name, args) => orgLifecycle(authority, "tools/call", { name, arguments: { plan: f.plan, ...args } });
+    call("org_plan_suspend_reopen", { dependentId: "second-outcome", dependencyId: "first-outcome" });
+    assert.match(readFileSync(f.plan, "utf8"), /\* SUSPENDED/);
+    assert.throws(() => call("org_plan_resume", { id: "second-outcome" }), /lifecycle-operation-refused/);
+    call("org_plan_l1_transition", { id: "first-outcome", state: "DONE" });
+    call("org_plan_review_transition", { id: "first-outcome", state: "REVIEWED" });
+    call("org_plan_resume", { id: "second-outcome" });
+    assert.doesNotMatch(readFileSync(f.plan, "utf8"), /SUSPENDED/);
+    assert.equal(process.env.GESTALT_MOBILE_ORG_PLAN_CAPABILITIES, undefined);
+    assert.throws(() => call("org_plan_validate", { consumerCapabilities: ["suspension-v1"] }));
+  } finally {
+    if (before === undefined) delete process.env.GESTALT_MOBILE_ORG_PLAN_CAPABILITIES;
+    else process.env.GESTALT_MOBILE_ORG_PLAN_CAPABILITIES = before;
+  }
+});
+
+test("ambient consumer assertions cannot grant Live suspension authority", (t) => {
+  const f = lifecycleFixture(t, { schemaVersion: 2 });
+  const before = process.env.GESTALT_MOBILE_ORG_PLAN_CAPABILITIES;
+  process.env.GESTALT_MOBILE_ORG_PLAN_CAPABILITIES = "suspension-v1";
+  try {
+    assert.throws(() => orgLifecycle(executionAuthority(f.bootstrapPath), "tools/call", { name: "org_plan_resume", arguments: { plan: f.plan, id: "first-outcome" } }), /unsupported-suspension-consumer/);
+  } finally {
+    if (before === undefined) delete process.env.GESTALT_MOBILE_ORG_PLAN_CAPABILITIES;
+    else process.env.GESTALT_MOBILE_ORG_PLAN_CAPABILITIES = before;
+  }
 });

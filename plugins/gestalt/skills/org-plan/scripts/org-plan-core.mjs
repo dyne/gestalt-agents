@@ -7,4 +7,4 @@ export {
   summary,
 } from "./org-plan-parser.mjs";
 export { publishStatus } from "./org-plan-publication.mjs";
-export { measure, mutate } from "./org-plan-transitions.mjs";
+export { measure, mutate, suspendReopen, resume } from "./org-plan-transitions.mjs";

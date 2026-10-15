@@ -12,6 +12,8 @@ state.
 | Select first DONE + UNREVIEWED L1 | `org-plan next PLAN review` |
 | Transition L1 | `org-plan set PLAN L1_ID WIP\|DONE` |
 | Transition L2 | `org-plan l2 PLAN L2_ID WIP\|DONE` |
+| Suspend dependent work and reopen dependency atomically | `org-plan suspend-reopen PLAN DEPENDENT_L1_ID DEPENDENCY_L1_ID` |
+| Resume suspended work after dependency acceptance | `org-plan resume PLAN DEPENDENT_L1_ID` |
 | Record review | `org-plan review PLAN L1_ID REVIEWED\|UNREVIEWED` |
 | Notify authoring | `org-plan signal PLAN authoring-start` |
 | Notify execution | `org-plan signal PLAN work-start` |
@@ -41,7 +43,7 @@ a companion `explanation` plus ordered `plan` items ready for the host-owned
 so the root passes the exact `plan` array and reports the companion explanation
 as status context. Its item statuses use tool spelling: `pending`,
 `in_progress`, and `completed` (not app-server notification spelling
-`inProgress`). It projects only L1s: `TODO` is pending, `WIP` is in progress,
+`inProgress`). It projects only L1s: `TODO` is pending, `SUSPENDED` is pending with an explicit title label, `WIP` is in progress,
 `DONE + UNREVIEWED` is in progress with “Awaiting review”, and `DONE +
 REVIEWED` is completed. The Org file remains authoritative.
 
@@ -71,3 +73,60 @@ L1: TODO -> WIP <-> DONE + UNREVIEWED -> REVIEWED
 - Before materially changing a completed REVIEWED L1 without reopening it, run
   `org-plan review PLAN ID UNREVIEWED`.
 - After an external correction to the plan, signal `resync` before continuing.
+
+## Reopen an earlier dependency while preserving active work
+
+Use `suspend-reopen` only for an approved dependency correction. It requires a
+WIP dependent L1 and an earlier DONE dependency; all L1s before that dependency
+must be DONE + REVIEWED. The helper atomically suspends the dependent L1 and
+its WIP child, leaving its DONE/TODO children, measurements, IDs, priorities,
+titles and ordering unchanged. The dependency becomes WIP + UNREVIEWED.
+Previously DONE dependency children retain historical completion and must be
+explicitly reopened before new implementation. There may be only one suspended
+L1 and one active WIP path. `--force` cannot suspend, resume or mutate suspended
+work. Ordinary transitions can reopen intervening accepted dependencies in
+order. `resume` requires every earlier L1 DONE + REVIEWED and restores precisely
+the suspended WIP path. Selection never dispatches suspended work or skips it
+to a later TODO. Root retires or idles the dependent writer before transferring
+ownership; suspension does not itself grant an executor or revoke a runtime.
+
+A suspended L1 has `:SUSPENDED_FOR: earlier-l1-id` in its property drawer. This
+property is removed on resume; existing telemetry and description remain intact.
+All transition and measurement candidates must validate AND produce a legal
+native projection before any plan write or status publication. Failed review
+reset/projection validation leaves both source and status unchanged. Root alone
+projects successful `suspend-reopen` and `resume` transitions through host
+`update_plan`, as for other lifecycle transitions.
+
+Legacy Mobile consumers parse raw Org and cannot accept SUSPENDED. When a Mobile
+status destination is configured, suspended-plan transitions and publication
+require `GESTALT_MOBILE_ORG_PLAN_CAPABILITIES` to contain comma-separated token
+`suspension-v1`. The trusted host may set it only after compatible consumer and
+control support is active; the token is a compatibility assertion, not runtime
+proof. Missing support fails before plan/status writes. With no destination,
+commands can operate on offline disposable plans; this is not permission to
+change a plan retained by an incompatible running consumer. Signals retain the
+existing schema and use `update` for these transitions.
+
+For repository development, invoke `plugins/gestalt/skills/org-plan/scripts/org-plan`
+directly. This uses colocated modules and requires no install, home mutation,
+profile setup or running-service restart. Typed MCP counterparts are
+`org_plan_suspend_reopen` and `org_plan_resume`.
+
+Normal packaged Org MCP explicitly inherits the two status variables and
+`GESTALT_MOBILE_ORG_PLAN_CAPABILITIES` through its three-entry `env_vars`
+allowlist. It does not set a capability value. A compatible compiled Mobile
+owning-session launch supplies the fixed token with its plan-status lease and
+scrubs ambient/configured assertions. Validate actual propagation after an
+explicitly authorized compatible build activation; repository configuration
+and subprocess regression success do not establish running-host support.
+
+Live's prepared MCP proxy deliberately reconstructs an empty MCP environment
+and accepts only PATH/HOME/LANG process keys. Its canonical package inventory
+includes the normal Org MCP allowlist exactly, but does not inherit that list
+into the prepared proxy. Suspension therefore remains unavailable through Live
+under the current contract. Supporting it later requires a narrow typed,
+controller-authenticated consumer-capability input bound to bootstrap/config
+and admission receipts, exact proxy environment construction and invalidation
+on component/config changes. Do not export an arbitrary token or widen process
+environment forwarding to bypass this boundary.
