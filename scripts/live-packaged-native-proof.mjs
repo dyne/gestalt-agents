@@ -228,7 +228,7 @@ try {
   assert.deepEqual(nativeMcp.data.map((server) => server.name).sort(), ["context-mode", "gestalt-org-plan"]);
   report.nativeMcp = nativeMcp.data.map((server) => ({ name: server.name, runtimeStatus: server.runtimeStatus,
     toolCount: Object.keys(server.tools ?? {}).length,
-    errorMarkers: ["closed", "initialize", "spawn", "permission", "protocol", "deserialize", "invalid", "timeout"].filter((word) => server.toolsError?.toLowerCase().includes(word)) }));
+    errorMarkers: ["closed", "initialize", "spawn", "permission", "protocol", "deserialize", "invalid", "timeout", "timed out", "missing", "schema", "parse", "context-call-unavailable", "invalid-native-response", "native-policy-unavailable", "unsupported-live-method", "-32000"].filter((word) => server.toolsError?.toLowerCase().includes(word)) }));
   for (const server of nativeMcp.data) {
     assert.equal(server.runtimeStatus, "connected");
     assert.equal(server.httpOrigin, null);
