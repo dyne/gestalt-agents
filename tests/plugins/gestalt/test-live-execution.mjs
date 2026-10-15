@@ -188,7 +188,7 @@ test("Live worker scopes runtime and interpreter temporary writes to its admitte
     import {dirname,join} from 'node:path';
     import {writeFileSync} from 'node:fs';
     const temporary=tmpdir();
-    const probeRoot=dirname(execFileSync('mktemp',['-u','-d'],{env:{...process.env,TMPDIR:undefined},encoding:'utf8'}).trim());
+    const probeRoot=process.env.CONTEXT_MODE_LIVE_TEMP_DIR;
     writeFileSync(join(temporary,'runtime-preload'),'fixture');
     writeFileSync(join(probeRoot,'interpreter-temp'),'fixture');
     export const server={async connect(t){t.onmessage=r=>t.send({id:r.id,result:{temporary,probeRoot,ambientCapability:process.env.GESTALT_MOBILE_ORG_PLAN_CAPABILITIES??null}})},async close(){}};

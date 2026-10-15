@@ -61,6 +61,12 @@ and contents while excluding generated dependencies and build artifacts.
   compilation share it. It is implementation residue, not a supported-host
   promise; extracting a Codex-only core is a separate architectural change.
 
+- Adds a Live-only `CONTEXT_MODE_LIVE_TEMP_DIR` executor temp-root input for
+  embedded workers. It must name an existing canonical absolute directory.
+  The confined Gestalt worker fixes it to app-local temporary storage so an
+  original policy need not grant general `/tmp` writes. Normal executor temp
+  discovery is unchanged; this setting conveys no sandbox or host authority.
+
 ## Updating context-mode
 
 Import a reviewed upstream revision, reapply the Codex-only changes above,

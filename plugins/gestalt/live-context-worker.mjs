@@ -12,21 +12,13 @@ export const LIVE_CONTEXT_TOOLS = Object.freeze([
 ]);
 const bridge = 'exec "$@" < <(exec /usr/bin/cat) > >(exec /usr/bin/cat) 2> >(exec /usr/bin/cat >&2)';
 const nativeSpawn = childProcess.spawn, nativeSpawnSync = childProcess.spawnSync;
-const nativeExecFileSync = childProcess.execFileSync;
 // Native restricted-network seccomp denies getsockname. Node socketpair stdio
 // is then unusable in child interpreters. Give descendants real POSIX pipes,
 // without changing any filesystem/network policy or inherited authority.
 function bridgeArgs(command, args) { return ["-c", bridge, "live-stdio", command, ...args]; }
-function installPosixStdio(temporary) {
+function installPosixStdio() {
   childProcess.spawn = (command, args = [], options = {}) => nativeSpawn("/usr/bin/bash", bridgeArgs(command, args), options);
   childProcess.spawnSync = (command, args = [], options = {}) => nativeSpawnSync("/usr/bin/bash", bridgeArgs(command, args), options);
-  // The upstream executor deliberately ignores TMPDIR when probing its OS temp
-  // root. Scope that exact probe to the admitted workspace instead of requiring
-  // /tmp write authority. The real mktemp still executes inside Native; all
-  // other commands/options retain their original behavior and permissions.
-  childProcess.execFileSync = (command, args = [], options = {}) => nativeExecFileSync(command,
-    command === "mktemp" && args.length === 2 && args[0] === "-u" && args[1] === "-d"
-      ? [...args, `--tmpdir=${temporary}`] : args, options);
   syncBuiltinESMExports();
 }
 
@@ -55,12 +47,13 @@ async function main() {
     PATH: [...new Set([dirname(process.execPath), "/usr/bin", "/bin"])].join(":"),
     HOME: state, CONTEXT_MODE_PLATFORM: "codex", CONTEXT_MODE_EMBEDDED_PLUGIN_TOOLS: "1",
     TMPDIR: temporary,
+    CONTEXT_MODE_LIVE_TEMP_DIR: temporary,
     CONTEXT_MODE_WORKSPACE: workspace, CONTEXT_MODE_PROJECT_DIR: workspace,
     CONTEXT_MODE_DIR: state, CONTEXT_MODE_DATA_DIR: join(workspace, ".gestalt"),
     CLAUDE_PROJECT_DIR: workspace,
   });
   process.chdir(workspace);
-  installPosixStdio(temporary);
+  installPosixStdio();
   const { server } = await import(pathToFileURL(join(runtime, "server.bundle.mjs")).href);
   let resolveResponse;
   const response = new Promise((done) => { resolveResponse = done; });
