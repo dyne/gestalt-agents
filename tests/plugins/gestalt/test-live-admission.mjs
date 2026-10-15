@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { createHmac, randomBytes } from "node:crypto";
-import { chmodSync, copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, copyFileSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -17,6 +17,11 @@ test("trusted tools occur exactly once in isolated configuration; receipt verifi
   assert.equal(result.available, true); assert.equal(result.liveReady, false);
   const config = JSON.parse(readFileSync(join(f.privateRoot, "live-mcp-config.json")));
   assert.deepEqual(Object.keys(config.mcpServers), ["context-mode", "gestalt-org-plan"]);
+  assert.deepEqual(config.mcpServers["gestalt-org-plan"].env, {});
+  assert.equal(Object.hasOwn(config.mcpServers["gestalt-org-plan"], "env_vars"), false);
+  assert.deepEqual(f.input.effectiveConfig.mcpServers.find((entry) => entry.name === "gestalt-org-plan").env_vars, [
+    "GESTALT_MOBILE_ORG_PLAN_STATUS_DIRECTORY", "GESTALT_MOBILE_ORG_PLAN_STATUS_FILE", "GESTALT_MOBILE_ORG_PLAN_CAPABILITIES",
+  ]);
   assert.deepEqual(config.plugins, []); assert.deepEqual(config.hooks, []);
   assert.ok(config.unavailableWorkflows.includes("remote-mcp"));
   assert.equal(readFileSync(f.bootstrapPath, "utf8"), before);
@@ -24,6 +29,8 @@ test("trusted tools occur exactly once in isolated configuration; receipt verifi
 });
 for (const [name, change, reason] of [
   ["command substitution", (f) => { f.input.effectiveConfig.mcpServers[0].command = "/bin/sh"; }, "unadmitted-launch-surface"],
+  ["extra Org inherited environment", (f) => { f.input.effectiveConfig.mcpServers.find((entry) => entry.name === "gestalt-org-plan").env_vars.push("UNTRUSTED_COMMAND"); }, "unadmitted-launch-surface"],
+  ["Org fixed capability injection", (f) => { f.input.effectiveConfig.mcpServers.find((entry) => entry.name === "gestalt-org-plan").env = { GESTALT_MOBILE_ORG_PLAN_CAPABILITIES: "suspension-v1" }; }, "unadmitted-launch-surface"],
   ["argument substitution", (f) => { f.input.effectiveConfig.mcpServers[0].args.push("--eval=evil"); }, "unadmitted-launch-surface"],
   ["duplicate alias", (f) => { f.input.effectiveConfig.mcpServers.push(f.input.effectiveConfig.mcpServers[0]); }, "unadmitted-launch-surface"],
   ["duplicate plugin", (f) => { f.input.packages[1] = f.input.packages[0]; }, "unknown-plugin"],
@@ -35,8 +42,8 @@ for (const [name, change, reason] of [
   ["interpreter checksum", (f) => { f.input.node.sha256 = "0".repeat(64); }, "interpreter-changed"],
   ["unknown bootstrap field", (f) => { f.input.command = "sh"; }, "invalid-admission-input"],
   ["arbitrary host plan", (f) => { f.input.plans = [f.bootstrapPath]; }, "invalid-lifecycle-scope"],
-]) test(`reject ${name} with a bounded error`, (t) => {
-  const f = fixture(t); change(f); f.saveInput();
+]) for (const schemaVersion of [1, 2]) test(`v${schemaVersion} reject ${name} with a bounded error`, (t) => {
+  const f = fixture(t, { schemaVersion }); change(f); f.saveInput();
   assert.deepEqual(verifyAdmission(f.bootstrapPath), { schemaVersion: 1, available: false, liveReady: false, reason });
 });
 test("project config in app or an ancestor is explicitly unavailable", (t) => {
@@ -136,4 +143,123 @@ test("a separate pinned interpreter directory cannot supply host executable alia
   const f = fixture(t);
   writeFileSync(join(f.root, "node-bin/mkdir"), "#!/bin/sh\nexit 0\n", { mode: 0o700 });
   assert.equal(verifyAdmission(f.bootstrapPath).reason, "untrusted-interpreter-directory");
+});
+
+for (const network of ["restricted", "enabled"]) test(`v2 consumes verified runtime provenance and preserves original ${network} network`, (t) => {
+  const f = fixture(t, { schemaVersion: 2, network });
+  // Metadata presence is never locally admitted on emptiness: only the current
+  // Manager receipt/report can establish its birth and source provenance.
+  const path = join(f.app, ".codex"); mkdirSync(path, { mode: 0o700 });
+  const info = lstatSync(path);
+  const identity = { dev: info.dev, ino: info.ino, uid: info.uid, mode: info.mode, ctime: info.ctimeMs, mtime: info.mtimeMs, birthtime: info.birthtimeMs };
+  f.provenance.directories[path] = identity;
+  f.provenance.inventory.sources = f.provenance.inventory.sources.map((source) => source.path === path ? { kind: "directory", role: "project", path, identity } : source);
+  const before = stable(f.manifest.sandboxState);
+  f.savePolicy(); prepareAdmission(f.bootstrapPath);
+  assert.equal(verifyAdmission(f.bootstrapPath).available, true);
+  assert.equal(stable(f.manifest.sandboxState), before);
+  const { body } = JSON.parse(readFileSync(join(f.privateRoot, "admission-receipt.json")));
+  assert.equal(body.schemaVersion, 2);
+  assert.deepEqual(body.nativeContract.generation, f.manifest.generation);
+  assert.equal(body.nativeContract.sourceInventoryDigest, digest(stable(f.provenance.inventory)));
+  assert.equal(body.nativeContract.runtimeProvenanceDigest, f.provenance.receiptDigest);
+});
+
+for (const [name, change, reason] of [
+  ["missing runtime provenance", (f) => { delete f.manifest.runtimeProvenance; }, "invalid-runtime-provenance"],
+  ["changed observed configuration", (f) => { f.manifest.runtimeProvenance.effectiveConfigDigest = "d".repeat(64); }, "invalid-runtime-provenance"],
+  ["changed session flags", (f) => { f.manifest.runtimeProvenance.sessionFlagsDigest = "d".repeat(64); }, "invalid-runtime-provenance"],
+  ["unknown source kind", (f) => { f.provenance.inventory.sources[0].kind = "snapshot"; }, "invalid-source-inventory"],
+  ["omitted ancestor", (f) => { f.provenance.inventory.sources = f.provenance.inventory.sources.filter((source) => source.path !== join(f.app, ".codex")); }, "invalid-source-inventory"],
+  ["omitted system config", (f) => { f.provenance.inventory.sources = f.provenance.inventory.sources.filter((source) => source.path !== "/etc/codex/config.toml"); }, "invalid-source-inventory"],
+  ["duplicate source", (f) => { f.provenance.inventory.sources.push(f.provenance.inventory.sources[0]); }, "invalid-source-inventory"],
+  ["unbound source file", (f) => { f.provenance.inventory.sources[0].sha256 = "d".repeat(64); }, "invalid-source-inventory"],
+  ["unsigned empty metadata", (f) => { f.provenance.inventory.sources[1] = { kind: "directory", role: "project", path: join(f.app, ".codex"), identity: {} }; }, "invalid-source-inventory"],
+]) test(`v2 refuses ${name}`, (t) => {
+  const f = fixture(t, { schemaVersion: 2 }); change(f); f.savePolicy();
+  assert.equal(verifyAdmission(f.bootstrapPath).reason, reason);
+});
+
+test("v2 instructions and unselected candidates are bound without treating them as private config files", (t) => {
+  const f = fixture(t, { schemaVersion: 2 });
+  for (const [kind, name] of [["instruction", "AGENTS.md"], ["instruction-candidate", "AGENTS.override.md"]]) {
+    const path = join(f.app, name); writeFileSync(path, "# fixture instruction\n", { mode: 0o600 });
+    const info = lstatSync(path);
+    f.provenance.inventory.sources.push({ kind, path, sha256: digest(readFileSync(path)), identity: { dev: info.dev, ino: info.ino, uid: info.uid, mode: info.mode, ctime: info.ctimeMs, mtime: info.mtimeMs } });
+  }
+  f.savePolicy(); prepareAdmission(f.bootstrapPath);
+  assert.equal(verifyAdmission(f.bootstrapPath).available, true);
+  f.provenance.inventory.sources.pop(); f.savePolicy();
+  assert.equal(verifyAdmission(f.bootstrapPath).reason, "stale-admission-receipt");
+});
+
+// Re-sign only the fixture's manager identity to isolate the per-call verifier
+// report check from the separate installed-manager-byte check.
+function managerReport(f, report) {
+  f.saveManager(report);
+  const path = join(f.privateRoot, "policy-receipt.json"), record = JSON.parse(readFileSync(path));
+  record.body.manager.sha256 = digest(readFileSync(f.manager));
+  record.mac = createHmac("sha256", readFileSync(f.manifest.keyFile)).update(stable(record.body)).digest("hex");
+  f.save(path, record);
+}
+for (const [name, change] of [
+  ["v1 response", (report) => { report.schemaVersion = 1; }],
+  ["missing contract version", (report) => { delete report.contractVersion; }],
+  ["stale source inventory", (report) => { report.sourceInventoryDigest = "d".repeat(64); }],
+  ["stale provenance", (report) => { report.runtimeProvenanceDigest = "d".repeat(64); }],
+  ["other generation", (report) => { report.generation = { ...report.generation, generation: 2 }; }],
+  ["revoked or changed instruction candidate", (report) => { report.available = false; report.reason = "source-changed"; }],
+]) test(`v2 per-call Manager verification rejects ${name}`, (t) => {
+  const f = fixture(t, { schemaVersion: 2 });
+  const report = { schemaVersion: 2, contractVersion: 2, available: true, policyDigest: "policy", configDigest: "config", sourceInventoryDigest: digest(stable(f.provenance.inventory)), runtimeProvenanceDigest: f.provenance.receiptDigest, generation: f.manifest.generation };
+  change(report); managerReport(f, report);
+  assert.equal(verifyAdmission(f.bootstrapPath).reason, "native-policy-unavailable");
+});
+
+test("v1 does not inherit v2 metadata or enabled-network admission", (t) => {
+  const f = fixture(t); f.manifest.sandboxState.permissionProfile.network = "enabled"; f.savePolicy();
+  assert.equal(verifyAdmission(f.bootstrapPath).reason, "incompatible-native-policy");
+});
+
+test("v2 generation/config receipt changes require fresh admission", (t) => {
+  const f = fixture(t, { schemaVersion: 2 });
+  f.manifest.generation.generation = 2; f.savePolicy();
+  assert.equal(verifyAdmission(f.bootstrapPath).reason, "stale-admission-receipt");
+  prepareAdmission(f.bootstrapPath);
+  assert.equal(verifyAdmission(f.bootstrapPath).available, true);
+  f.provenance.receiptDigest = "d".repeat(64); f.savePolicy();
+  assert.equal(verifyAdmission(f.bootstrapPath).reason, "stale-admission-receipt");
+});
+
+test("v2 rejects a signing key outside its elected-controller location", (t) => {
+  const f = fixture(t, { schemaVersion: 2 });
+  f.manifest.keyFile = join(f.privateRoot, "key"); f.savePolicy();
+  assert.equal(verifyAdmission(f.bootstrapPath).reason, "invalid-signing-key");
+});
+
+test("v2 uses the elected controller key above its generation directory", (t) => {
+  const f = fixture(t, { schemaVersion: 2, generationDirectory: true });
+  assert.equal(verifyAdmission(f.bootstrapPath).available, true);
+  const body = JSON.parse(readFileSync(join(f.privateRoot, "admission-receipt.json"))).body;
+  assert.equal(body.nativeContract.schemaVersion, 2);
+});
+
+for (const consumer of [
+  { schemaVersion: 1, component: "wrong", capabilities: ["suspension-v1"] },
+  { schemaVersion: 1, component: "1", capabilities: ["suspension-v1", "host-exec"] },
+  { schemaVersion: 1, component: "1", capabilities: ["suspension-v1"], command: "sh" },
+]) test("consumer assertions must match the exact v2 component and capability contract", (t) => {
+  const f = fixture(t, { schemaVersion: 2 }); f.input.consumer = consumer; f.saveInput(); f.savePolicy();
+  assert.equal(verifyAdmission(f.bootstrapPath).available, false);
+});
+test("changed consumer capability invalidates admission and v1 cannot assert it", (t) => {
+  const f = fixture(t, { schemaVersion: 2 });
+  f.input.consumer = { schemaVersion: 1, component: f.manifest.components.mobile, capabilities: ["suspension-v1"] };
+  f.saveInput(); f.savePolicy();
+  assert.equal(verifyAdmission(f.bootstrapPath).reason, "stale-admission-receipt");
+  prepareAdmission(f.bootstrapPath); assert.equal(verifyAdmission(f.bootstrapPath).available, true);
+  f.manifest.components.mobile = "changed"; f.savePolicy();
+  assert.equal(verifyAdmission(f.bootstrapPath).reason, "unsupported-lifecycle-consumer");
+  const v1 = fixture(t); v1.input.consumer = f.input.consumer; v1.saveInput(); v1.savePolicy();
+  assert.equal(verifyAdmission(v1.bootstrapPath).reason, "unsupported-lifecycle-consumer");
 });

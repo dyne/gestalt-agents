@@ -1,6 +1,6 @@
 import { spawn, execSync, execFileSync } from "node:child_process";
-import { mkdtempSync, writeFileSync, rmSync, existsSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { mkdtempSync, writeFileSync, rmSync, existsSync, lstatSync, realpathSync } from "node:fs";
+import { join, resolve, isAbsolute } from "node:path";
 import { tmpdir } from "node:os";
 import {
   detectRuntimes,
@@ -97,6 +97,17 @@ export function buildPowerShellScriptContent(code: string): string {
  * set to the project root — causing temp files to pollute the working tree.
  */
 const OS_TMPDIR = (() => {
+  // Downstream Live adapter: an original native policy may allow writes only
+  // inside its app. The confined worker supplies this fixed canonical directory;
+  // it changes storage location, never filesystem or execution authority.
+  const liveTemporary = process.env.CONTEXT_MODE_LIVE_TEMP_DIR;
+  if (liveTemporary !== undefined) {
+    if (process.env.CONTEXT_MODE_EMBEDDED_PLUGIN_TOOLS !== "1" || !isAbsolute(liveTemporary)
+      || realpathSync(liveTemporary) !== liveTemporary || !lstatSync(liveTemporary).isDirectory()) {
+      throw new Error("Invalid Live executor temporary directory");
+    }
+    return liveTemporary;
+  }
   if (isWin) return process.env.TEMP ?? process.env.TMP ?? tmpdir();
   try {
     const result = execFileSync(

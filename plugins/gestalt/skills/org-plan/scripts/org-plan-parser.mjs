@@ -2,9 +2,9 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { fail, resolvePlanPath } from "./org-plan-files.mjs";
 
-const HEADING = /^(\*{1,2}) (TODO|WIP|DONE) \[#([ABC])\] (.+)$/;
+const HEADING = /^(\*{1,2}) (TODO|WIP|DONE|SUSPENDED) \[#([ABC])\] (.+)$/;
 const REQUIRED_METADATA = ["TITLE", "SUBTITLE", "DATE", "KEYWORDS"];
-const STATES = ["TODO", "WIP", "DONE"];
+const STATES = ["TODO", "WIP", "DONE", "SUSPENDED"];
 const REVIEW_STATES = ["REVIEWED", "UNREVIEWED"];
 
 function fingerprint(text) {
@@ -148,6 +148,30 @@ function validateL2(item) {
 }
 
 function validateLifecycle(items) {
+  const milestones = items.filter((item) => item.level === 1);
+  const suspended = milestones.filter((item) => item.state === "SUSPENDED");
+  if (suspended.length > 1) fail("multiple suspended L1s");
+  for (const item of items) {
+    const dependency = item.properties.get("SUSPENDED_FOR");
+    if (item.level === 1 && item.state === "SUSPENDED") {
+      const dependencyIndex = milestones.findIndex((entry) => entry.id === dependency);
+      if (dependencyIndex < 0 || dependencyIndex >= milestones.indexOf(item))
+        fail("suspension requires an earlier L1 dependency");
+      if (item.properties.get("REVIEW_STATUS") !== "UNREVIEWED")
+        fail("suspended L1 must be UNREVIEWED");
+    } else if (dependency !== undefined) {
+      fail("SUSPENDED_FOR is only valid on a suspended L1");
+    }
+    if (item.level === 2 && item.state === "SUSPENDED" && item.parent.state !== "SUSPENDED")
+      fail("suspended child outside suspended L1");
+    if (item.parent?.state === "SUSPENDED" && item.state === "WIP")
+      fail("WIP child inside suspended L1");
+  }
+  if (items.filter((item) => item.level === 2 && item.state === "SUSPENDED").length > 1)
+    fail("multiple suspended L2s");
+  if (suspended.length && milestones.some((item) =>
+    item.state === "WIP" && milestones.indexOf(item) >= milestones.indexOf(suspended[0])))
+    fail("active work must precede suspended L1");
   if (
     items.filter((item) => item.level === 1 && item.state === "WIP").length > 1
   ) {
@@ -266,11 +290,12 @@ export function next(plan, kind) {
         item.properties.get("REVIEW_STATUS") === "UNREVIEWED",
     );
   } else if (kind === "l1") {
-    candidates = milestones.filter((item) => item.state !== "DONE");
+    const suspended = milestones.find((item) => item.state === "SUSPENDED");
+    candidates = milestones.filter((item) => ["WIP", "TODO"].includes(item.state) && (!suspended || item.line < suspended.line));
   } else if (kind === "l2") {
     const parent =
       milestones.find((item) => item.state === "WIP") ??
-      milestones.find((item) => item.state === "TODO");
+      milestones.find((item) => item.state === "TODO" && (!milestones.some((entry) => entry.state === "SUSPENDED" && entry.line < item.line)));
     candidates = parent
       ? plan.items
           .filter((item) => item.parent === parent && item.state !== "DONE")
@@ -327,9 +352,9 @@ export function projection(plan) {
   return {
     explanation,
     plan: milestones.map((item, index) => ({
-      step: `L1 ${index + 1}/${milestones.length} — ${item.title}`,
+      step: `L1 ${index + 1}/${milestones.length} — ${item.title}${item.state === "SUSPENDED" ? " (SUSPENDED)" : ""}`,
       status:
-        item.state === "TODO"
+        ["TODO", "SUSPENDED"].includes(item.state)
           ? "pending"
           : item.state === "DONE" &&
               item.properties.get("REVIEW_STATUS") === "REVIEWED"

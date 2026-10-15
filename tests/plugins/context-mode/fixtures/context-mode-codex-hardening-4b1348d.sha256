@@ -75,7 +75,7 @@
 0644 2b21a92e3e921002115cb580eac8e8c229dce7c324acd254bbe5c400892275c5  tests/core/search-project-filter.test.ts
 0644 2bfec03a291420d250959db7ccfbcf4f650c5e1ac56feb91b4e7b28b9212a0a5  tests/hooks/post-upgrade-first-hook-fire.test.ts
 0644 2cdf1f8eddccc8a28dc751d3c8c433cda13624bbc48fdd4cdb4b46ceaef06b2c  tests/adapters/omp-usage.test.ts
-0644 2dac2a09ce6f58557b48014ec65f8e999c184c90635a12fc3307fe9121437fe2  tests/core/executor.test.ts
+0644 0cf8655fd9a4c718c2ce12bc7726d32832845185027d4e49d002123582f007c1  tests/core/executor.test.ts
 0644 2e2c0cb98b4e872db5f919b4104c51478d37412f165a661cc282781387ad0c37  tests/session/session-db.test.ts
 0644 2fda3828822cb42dd62c1555634a7362e742564a4b6c1361b8d1ea2416ccec60  tests/session/lifetime-stats.test.ts
 0644 2fef748ff3ab3ee560818af3bec27ae466611969ae2f0bfe7082be79b06efe42  tests/hooks/copilot-cli-hooks.test.ts
@@ -88,7 +88,7 @@
 0644 33e37e91f704779a9389b0768c5898ee595919de2ac51f923431ada0d57e90af  tests/adapters/pi-mcp-bridge-env-scrub.test.ts
 0644 35831da595cd972e3fa59bd1f0099b55733b48a8ec5f1acd2a6fdfe98dab9dfe  tests/supervision-state-machine.test.ts
 0644 3609c2a1ce85cd0cb4888e77d4d7dbcc627a78eed64cbd76c141f6bca58f53ef  tests/session/cross-session-bleed.test.ts
-0644 37f19e41e56c8e705fc2bdf06a4a855d920a7d232dc4fd4b432215733d4d7b9d  src/executor.ts
+0644 710d2e77da08d89bc9f47af8350f9dc0217377b8e463a869cc55f334a9dba4df  src/executor.ts
 0644 386e1227dc62ded02603a66cc9c49d5b1349922d282cc9eb5c6b1852feb467f1  src/adapters/antigravity-cli/index.ts
 0644 389fbdb2cddd832d5c4d470e97cf97cfc7be096edcb97d5cc941f078a992da7a  tests/adapters/detect-ambiguity-matrix.test.ts
 0644 3a4bf98e5a9c83e6634af8eeee7381952b465a996b2e9191435789a2812ed2f9  tests/mcp-integration.ts
@@ -102,7 +102,7 @@
 0644 3ebc05d31d9ac68d3b950d05546f29b01586322660c38c8c94c4447c60cc359f  tests/fixtures/tsc-errors.txt
 0644 3f04e6ae11958ebc17545b5c69649c8a11fa0e90bc04439e179b61067b33de63  tests/adapters/opencode.test.ts
 0644 3f06cfbce24fdfde17b4ff03bb25796471c8a9eadd671c125cd8ec6ba1bacb91  configs/codex/AGENTS.md
-0644 af3b0e1da8260475841be6736e593660e70359e03ef9546b01f4a936bda0989a  UPSTREAM.md
+0644 c7858beb6ee362a5238d0d316cbce278cdd7c411628564ab88e088a807c8f34e  UPSTREAM.md
 0644 2b5421febccaf86ead6784251ca734b52c1fa0c09a85e2aae0f48b4ecd683dab  .codex-plugin/plugin.json
 0644 0bd3908bb357275d389db182641231c5d4aaa9d7b703156495b0e6636849680e  src/server.ts
 0644 41e1d42e8c132eb8260be5d6661d633c121c68211ab0ca932b3e2e40ef10f0a0  scripts/runtime-preflight.mjs

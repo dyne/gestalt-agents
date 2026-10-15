@@ -18,6 +18,8 @@ import {
   publishStatus,
   readPlan,
   summary,
+  suspendReopen,
+  resume,
 } from "./skills/org-plan/scripts/org-plan-core.mjs";
 
 const plan = {
@@ -40,6 +42,20 @@ const tool = (
   annotations: { readOnlyHint, destructiveHint, idempotentHint: readOnlyHint },
 });
 export const tools = [
+  tool(
+    "org_plan_suspend_reopen",
+    "Atomically suspend dependent WIP work and reopen an earlier DONE dependency. Requires a suspension-v1 consumer when status is configured.",
+    { properties: { plan, dependentId: id, dependencyId: id }, required: ["plan", "dependentId", "dependencyId"] },
+    false,
+    true,
+  ),
+  tool(
+    "org_plan_resume",
+    "Resume suspended work after every earlier L1 is DONE + REVIEWED.",
+    { properties: { plan, id }, required: ["plan", "id"] },
+    false,
+    true,
+  ),
   tool(
     "org_plan_validate",
     "Validate an Org Plan without changing it.",
@@ -166,12 +182,12 @@ const launchContext = {
   pluginDirectory: dirname(fileURLToPath(import.meta.url)),
   statusDirectory: process.env.GESTALT_MOBILE_ORG_PLAN_STATUS_DIRECTORY,
 };
-function call(name, args) {
+function call(name, args, context) {
   const definition = tools.find((entry) => entry.name === name);
   if (!definition) throw new ProtocolError(-32602, `Unknown tool: ${name}`);
   validate(args, definition.inputSchema);
   try {
-    return executeTool(name, args);
+    return executeTool(name, args, context);
   } catch (error) {
     return {
       isError: true,
@@ -185,9 +201,13 @@ function call(name, args) {
     };
   }
 }
-function executeTool(name, args) {
+function executeTool(name, args, context) {
   const planPath = resolveMcpPlanPath(args.plan, launchContext);
   const current = readPlan(planPath);
+  if (name === "org_plan_suspend_reopen")
+    return result(suspendReopen(planPath, args.dependentId, args.dependencyId, context));
+  if (name === "org_plan_resume")
+    return result(resume(planPath, args.id, context));
   if (name === "org_plan_validate")
     return result(envelope(current, { valid: true }));
   if (name === "org_plan_describe")
@@ -201,15 +221,15 @@ function executeTool(name, args) {
   if (name === "org_plan_l1_transition")
     return result(
       mutate(planPath, "l1", args.id, args.state, {
-        force: args.force === true,
+        ...context, force: args.force === true,
       }),
     );
   if (name === "org_plan_l2_transition")
-    return result(mutate(planPath, "l2", args.id, args.state));
+    return result(mutate(planPath, "l2", args.id, args.state, context));
   if (name === "org_plan_review_transition")
-    return result(mutate(planPath, "review", args.id, args.state));
+    return result(mutate(planPath, "review", args.id, args.state, context));
   if (name === "org_plan_measure")
-    return result(measure(planPath, args.operation, args.id, args.snapshot));
+    return result(measure(planPath, args.operation, args.id, args.snapshot, context));
   if (name === "org_plan_signal") {
     const before = summary(current);
     return result(
@@ -218,14 +238,14 @@ function executeTool(name, args) {
         after: summary(current),
         projection: projection(current),
         publication: publishStatus(planPath, args.reason ?? "signal", {
-          preserveExisting: args.reason === "supervision-start",
+          ...context, preserveExisting: args.reason === "supervision-start",
         }),
       }),
     );
   }
   throw new Error(`unknown tool ${name}`);
 }
-export function dispatch(method, params) {
+export function dispatch(method, params, context) {
   switch (method) {
     case "initialize":
       return {
@@ -238,7 +258,7 @@ export function dispatch(method, params) {
     case "tools/list":
       return { tools };
     case "tools/call":
-      return call(params.name, params.arguments ?? {});
+      return call(params.name, params.arguments ?? {}, context);
     default:
       throw new ProtocolError(-32601, `Method not found: ${method}`);
   }

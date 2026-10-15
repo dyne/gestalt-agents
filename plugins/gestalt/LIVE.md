@@ -1,4 +1,4 @@
-# Live packaged tools (contract 1)
+# Live packaged tools (bootstrap contract 1; Manager contracts 1 and 2)
 
 This is a private controller integration, not a model-accessible host execution
 API. Normal plugin manifests, context-mode startup and Org workflows are
@@ -33,7 +33,7 @@ owning-session plugin, configuration layer or hook. The exact bootstrap is:
     ],
     "mcpServers": [
       {"name":"context-mode","command":"node","args":["./start.mjs"],"cwd":"/protected/context-mode","env":{"CONTEXT_MODE_PLATFORM":"codex"},"default_tools_approval_mode":"approve"},
-      {"name":"gestalt-org-plan","command":"node","args":["./org-plan-mcp.mjs"],"cwd":"/protected/gestalt","env_vars":["GESTALT_MOBILE_ORG_PLAN_STATUS_DIRECTORY","GESTALT_MOBILE_ORG_PLAN_STATUS_FILE"],"default_tools_approval_mode":"approve"}
+      {"name":"gestalt-org-plan","command":"node","args":["./org-plan-mcp.mjs"],"cwd":"/protected/gestalt","env_vars":["GESTALT_MOBILE_ORG_PLAN_STATUS_DIRECTORY","GESTALT_MOBILE_ORG_PLAN_STATUS_FILE","GESTALT_MOBILE_ORG_PLAN_CAPABILITIES"],"default_tools_approval_mode":"approve"}
     ],
     "hooks": [], "remoteMcp": [], "executables": []
   },
@@ -51,8 +51,13 @@ owner-only file modes alone are not a same-UID sandbox boundary.
 
 There are exactly two admitted MCP aliases. Additional plugins/aliases, command
 or argument substitution, remote MCP, hooks and ambient executable surfaces are
-explicitly unavailable. Project `.codex` in any app ancestor is unavailable;
-the manager also rejects system configuration. The prepared configuration lists
+explicitly unavailable. Manager v1 rejects `.codex` in any app ancestor.
+Manager v2 permits only its authenticated, birth-verified metadata directories;
+project configuration contents and system configuration remain unavailable. The
+accepted Manager rejects all present `/etc/codex/{config,managed_config,requirements}.toml`
+files in both versions. Admission therefore requires all three as absent sources;
+the generic `file` source role `system` does not authorize those paths.
+The prepared configuration lists
 the unavailable workflows instead of modifying user plugins or hiding them.
 The controller must surface incompatibility before Live model/tool work.
 
@@ -83,11 +88,43 @@ Preparation order is bounded:
    `admission-receipt.json` with the private manager key. `verify` repeats these
    checks before admitting work.
 
+For Manager v2, the elected controller first performs Manager's
+`capture-runtime`, managed owning-runtime birth and `seal-runtime` protocol.
+Consume the accepted Manager contract in `docs/caddy-live.md`; do not adopt an
+existing PID, accept an empty directory, copy directory snapshots, or assert a
+source inventory from project input. The controller must resolve the original
+Native configuration response and session flags, including disabled layers,
+role files and every loaded/unselected instruction candidate. It validates the
+complete effective launch surfaces against this admission allowlist before
+sealing. Manager independently rechecks all present and absent instruction
+candidates at seal and every verification. Loaded files use `instruction`;
+present unselected files use `instruction-candidate`. Directories and
+instructions are provenance sources, not private regular `configFiles`.
+
+After sealing, `runtimeProvenance` contains the capture ID and the controller's
+current observed effective-config/session-flag digests. Before every Live model
+admission the controller must re-resolve those observations, update the manifest,
+and revoke on a change. A cached bootstrap or Manager filesystem checks cannot
+replace the Native RPC observation. Generated bootstrap/MCP files may enter
+`configFiles` after sealing, followed by fresh Manager preparation and package
+admission; they must not be presented as original owning-runtime sources.
+
+The bootstrap and generated MCP descriptor retain schema 1. Admission receipt
+bodies use the Manager schema (1 or 2). V2 requires a signed policy receipt with
+complete runtime provenance, source inventory and generation, plus a current
+Manager verify response whose schema/contract version, source-inventory digest,
+runtime-provenance digest and generation all match. Its `nativeContract` binds
+those identities and both original observation digests. V2 signing uses the
+exact `live-policy.key` in Manager's elected-controller directory, which can be
+an ancestor of the generation manifest directory. V1 retains its existing key,
+ancestry and restricted-network requirements. V2 preserves either original
+network state, `restricted` or `enabled`; admission never changes permissions.
+
 Receipt HMAC uses recursively sorted JSON. It binds bootstrap, full manager
 policy receipt, native command table, configuration, component pins, package
 and runtime inventories, interpreter and the exact lifecycle plan allowlist.
 Missing/forged receipts, changed configuration, packages, checksum, policy,
-controller identity or components invalidate it. The private receipt/key and
+controller identity, generation, runtime/source provenance or components invalidate it. The private receipt/key and
 bootstrap must never be forwarded to the confined interpreter. L11 must combine
 admission with owning-session authority and actual process receipts; a valid
 policy or admission receipt cannot adopt a PID or existing MCP connection.
@@ -137,7 +174,13 @@ installation copies a pinned Node binary into such a directory when Node is
 installed in a tool cache. The manager's native launch environment remains
 exactly L9's fixed PATH. Inside confinement the worker discovers that same
 admitted interpreter through `process.execPath`, without adding filesystem or
-network grants.
+network grants. The Live worker places runtime preload and interpreter temporary
+files under `appRoot/.gestalt/context-mode/tmp`. The downstream interpreter's
+explicit `CONTEXT_MODE_LIVE_TEMP_DIR` input selects that canonical existing
+absolute directory in embedded mode; invalid inputs fail closed. Normal temp
+root discovery is unchanged. This lets an original policy deny general `/tmp`
+writes without extra filesystem authority. `context-mode/UPSTREAM.md` and the
+vendor checksum fixture record the source adaptation and focused tests.
 
 Context requests dispatch only manager command `context-mode-call`, with a new
 UUID and process lifetime for every transaction. The native worker loads the
@@ -181,3 +224,40 @@ the native masked daemon directory. Its report binds the exact Agents Git tree,
 installed package/runtime hashes, binary/resource hashes and process receipts.
 This proof still does not establish production picker or owning-session model
 integration; those remain L11 requirements.
+
+## Org suspension capability
+
+The normal Org plugin explicitly inherits `GESTALT_MOBILE_ORG_PLAN_CAPABILITIES`
+from the compiled compatible owning Mobile runtime alongside its status lease.
+The canonical admission inventory pins this exact three-variable normal MCP
+allowlist. Prepared Live proxy configuration still has `env: {}`; its process
+whitelist remains PATH/HOME/LANG. It does not receive or invent the token.
+Live suspension is available only with Manager v2 and an optional exact private
+bootstrap field:
+
+```json
+"consumer": {"schemaVersion":1,"component":"EXACT_MANIFEST_COMPONENTS_MOBILE","capabilities":["suspension-v1"]}
+```
+
+The elected trusted controller supplies this only after verifying that exact
+compiled consumer's suspension support. This assertion is not a model tool
+argument, environment override or proof of running Mobile activation. It must
+match `manifest.components.mobile` and is authenticated through bootstrap/config
+hashes, the Manager policy receipt and admission receipt, including generation,
+runtime provenance and installed package identities. Changing any of those
+inputs requires current Manager verification and fresh package admission.
+Unknown capabilities, extra fields, component mismatches and v1 assertions fail
+closed. Without the field, Live cannot suspend/resume or operate on a suspended
+retained plan, even if an ambient environment token is present.
+
+The proxy passes the verified capability as a typed internal context to the
+canonical Org state machine for this call only. It is never written to
+`process.env` or inherited by context interpreters/descendants. Normal CLI/MCP
+retains its existing environment-based consumer contract. The Live bridge
+continues to accept only the signed exact plan set and strict Org tool schemas;
+it grants no filesystem/process/publication authority beyond that interface.
+The owning production bootstrap must also enumerate the same three canonical
+Org environment keys; an old two-key bootstrap is rejected, rather than adapted
+implicitly. Normal non-Live supervision can use repaired tools only after compatible Mobile
+activation and verified actual MCP propagation; no source-only check activates
+an installed runtime.

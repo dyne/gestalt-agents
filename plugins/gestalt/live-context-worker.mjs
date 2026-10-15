@@ -34,6 +34,8 @@ async function main() {
     || request.method === "tools/call" && !LIVE_CONTEXT_TOOLS.includes(request.params?.name)) throw new Error("unsupported-live-tool");
   const state = join(workspace, ".gestalt", "context-mode");
   mkdirSync(state, { recursive: true, mode: 0o700 });
+  const temporary = join(state, "tmp");
+  mkdirSync(temporary, { recursive: true, mode: 0o700 });
   // All runtime/storage settings are fixed by controller arguments. No private
   // bootstrap, signing key, credentials or host CODEX_HOME enters this process.
   for (const key of Object.keys(process.env)) {
@@ -44,6 +46,8 @@ async function main() {
     // changes no filesystem/network grants and never imports the host PATH.
     PATH: [...new Set([dirname(process.execPath), "/usr/bin", "/bin"])].join(":"),
     HOME: state, CONTEXT_MODE_PLATFORM: "codex", CONTEXT_MODE_EMBEDDED_PLUGIN_TOOLS: "1",
+    TMPDIR: temporary,
+    CONTEXT_MODE_LIVE_TEMP_DIR: temporary,
     CONTEXT_MODE_WORKSPACE: workspace, CONTEXT_MODE_PROJECT_DIR: workspace,
     CONTEXT_MODE_DIR: state, CONTEXT_MODE_DATA_DIR: join(workspace, ".gestalt"),
     CLAUDE_PROJECT_DIR: workspace,

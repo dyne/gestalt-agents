@@ -2,6 +2,8 @@
 import { constants, closeSync, fstatSync, lstatSync, mkdirSync, openSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { basename, dirname, join } from "node:path";
+import { parsePlan } from "./skills/org-plan/scripts/org-plan-core.mjs";
+import { requireSuspensionCapability } from "./skills/org-plan/scripts/org-plan-publication.mjs";
 import { dispatch, tools } from "./org-plan-mcp.mjs";
 import { AdmissionError } from "./live-admission.mjs";
 import { validate } from "./org-plan-mcp-support.mjs";
@@ -25,6 +27,13 @@ export function orgLifecycle(authority, method, params) {
   if (!definition) fail("unsupported-lifecycle-tool");
   const args = params.arguments ?? {};
   validate(args, definition.inputSchema);
+  // This controller bridge always serves a retained plan. Capability authority
+  // comes exclusively from authenticated bootstrap/Manager v2 admission, never
+  // from ambient environment or MCP arguments, and is never exported to children.
+  const context = { consumerAttached: true, consumerCapabilities: authority.consumerCapabilities ?? [] };
+  if (["org_plan_suspend_reopen", "org_plan_resume"].includes(params.name) &&
+      !context.consumerCapabilities.includes("suspension-v1"))
+    fail("unsupported-suspension-consumer");
   if (!authority.input.plans.includes(args.plan)) fail("unadmitted-lifecycle-plan");
   // Publication is controller-owned, never derived from MCP arguments or host
   // ambient variables. No destination is configured in contract 1.
@@ -43,12 +52,13 @@ export function orgLifecycle(authority, method, params) {
     const original = fstatSync(planFd);
     if (!original.isFile() || original.nlink !== 1 || original.uid !== process.getuid() || original.size > 262144) fail("unsafe-lifecycle-plan");
     const bytes = readFileSync(planFd);
+    requireSuspensionCapability(parsePlan(bytes.toString("utf8")), context);
     mkdirSync(operation, { mode: 0o700 });
     const snapshot = join(operation, "assigned.org");
     writeFileSync(snapshot, bytes, { mode: 0o600, flag: "wx" });
     // Existing typed Org helper is the only lifecycle state machine. It works
     // on a private snapshot; even a project symlink race cannot reach host data.
-    const result = dispatch("tools/call", { name: params.name, arguments: { ...args, plan: snapshot } });
+    const result = dispatch("tools/call", { name: params.name, arguments: { ...args, plan: snapshot } }, context);
     if (result.isError) fail("lifecycle-operation-refused");
     const updated = readFileSync(snapshot);
     currentFd = openSync(plan, constants.O_RDONLY | constants.O_NOFOLLOW);

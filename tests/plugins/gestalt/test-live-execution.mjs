@@ -3,7 +3,7 @@ import { chmodSync, copyFileSync, existsSync, linkSync, mkdirSync, readFileSync,
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { createMcpTestClient } from "./mcp-test-client.mjs";
 import { fixture } from "./live-fixture.mjs";
 import { executionAuthority, executionInputsCurrent, prepareAdmission, stageAdmission } from "../../../plugins/gestalt/live-admission.mjs";
@@ -28,7 +28,22 @@ function lifecycleFixture(t, options) {
 }
 test("authenticated Org lifecycle uses the canonical helper and only the exact signed plan", { skip: process.platform !== "linux" }, async (t) => {
   const f = lifecycleFixture(t);
-  assert.equal(orgLifecycle(f.authority, "tools/list", {}).tools.length, 10);
+  assert.equal(orgLifecycle(f.authority, "tools/list", {}).tools.length, 12);
+  const oldCapability = process.env.GESTALT_MOBILE_ORG_PLAN_CAPABILITIES;
+  delete process.env.GESTALT_MOBILE_ORG_PLAN_CAPABILITIES;
+  try {
+    for (const [name, args] of [
+      ["org_plan_suspend_reopen", { dependentId: "first-outcome", dependencyId: "first-outcome" }],
+      ["org_plan_resume", { id: "first-outcome" }],
+    ]) {
+      const before = readFileSync(f.plan);
+      assert.throws(() => orgLifecycle(f.authority, "tools/call", { name, arguments: { plan: f.plan, ...args } }), /unsupported-suspension-consumer/);
+      assert.deepEqual(readFileSync(f.plan), before);
+    }
+  } finally {
+    if (oldCapability === undefined) delete process.env.GESTALT_MOBILE_ORG_PLAN_CAPABILITIES;
+    else process.env.GESTALT_MOBILE_ORG_PLAN_CAPABILITIES = oldCapability;
+  }
   const response = await liveRequest(f.bootstrapPath, "gestalt-org-plan", JSON.stringify({ jsonrpc: "2.0", id: 7, method: "tools/call", params: {
     name: "org_plan_l1_transition", arguments: { plan: f.plan, id: "first-outcome", state: "WIP" },
   } }));
@@ -72,7 +87,7 @@ test("normal non-Live Org launcher still starts through an external symlink", as
   const client = createMcpTestClient(child);
   const initialized = await client.request(1, "initialize");
   assert.equal(initialized.result.serverInfo.name, "gestalt-org-plan");
-  assert.equal((await client.request(2, "tools/list")).result.tools.length, 10);
+  assert.equal((await client.request(2, "tools/list")).result.tools.length, 12);
 });
 test("symlinked plans/directories and hardlinks cannot turn lifecycle into private host reads", (t) => {
   const f = lifecycleFixture(t), secret = join(f.privateRoot, "secret.org");
@@ -121,4 +136,71 @@ test("Live runtime install normalizes executable aliases and rolls back failed p
   await assert.rejects(prepareLiveRuntime(source, target, { prepare, verify }));
   assert.equal(readFileSync(join(target, "server.bundle.mjs"), "utf8"), "prepared");
   assert.deepEqual(readdirSync(f.root).filter((name) => /stage-|backup-|install.lock/.test(name)), []);
+});
+
+test("v2 signed consumer capability enables the typed suspension lifecycle without ambient export", (t) => {
+  const f = lifecycleFixture(t, { schemaVersion: 2 });
+  f.input.consumer = { schemaVersion: 1, component: f.manifest.components.mobile, capabilities: ["suspension-v1"] };
+  f.saveInput(); f.savePolicy(); prepareAdmission(f.bootstrapPath);
+  const original = readFileSync(f.plan, "utf8"), header = original.slice(0, original.indexOf("* TODO"));
+  const block = original.slice(original.indexOf("* TODO"));
+  writeFileSync(f.plan, header + block.replaceAll("TODO", "DONE").replace("UNREVIEWED", "REVIEWED") +
+    block.replaceAll("first-", "second-").replaceAll("TODO", "WIP"));
+  const before = process.env.GESTALT_MOBILE_ORG_PLAN_CAPABILITIES;
+  delete process.env.GESTALT_MOBILE_ORG_PLAN_CAPABILITIES;
+  try {
+    const authority = executionAuthority(f.bootstrapPath);
+    const call = (name, args) => orgLifecycle(authority, "tools/call", { name, arguments: { plan: f.plan, ...args } });
+    call("org_plan_suspend_reopen", { dependentId: "second-outcome", dependencyId: "first-outcome" });
+    assert.match(readFileSync(f.plan, "utf8"), /\* SUSPENDED/);
+    assert.throws(() => call("org_plan_resume", { id: "second-outcome" }), /lifecycle-operation-refused/);
+    call("org_plan_l1_transition", { id: "first-outcome", state: "DONE" });
+    call("org_plan_review_transition", { id: "first-outcome", state: "REVIEWED" });
+    call("org_plan_resume", { id: "second-outcome" });
+    assert.doesNotMatch(readFileSync(f.plan, "utf8"), /SUSPENDED/);
+    assert.equal(process.env.GESTALT_MOBILE_ORG_PLAN_CAPABILITIES, undefined);
+    assert.throws(() => call("org_plan_validate", { consumerCapabilities: ["suspension-v1"] }));
+  } finally {
+    if (before === undefined) delete process.env.GESTALT_MOBILE_ORG_PLAN_CAPABILITIES;
+    else process.env.GESTALT_MOBILE_ORG_PLAN_CAPABILITIES = before;
+  }
+});
+
+test("ambient consumer assertions cannot grant Live suspension authority", (t) => {
+  const f = lifecycleFixture(t, { schemaVersion: 2 });
+  const before = process.env.GESTALT_MOBILE_ORG_PLAN_CAPABILITIES;
+  process.env.GESTALT_MOBILE_ORG_PLAN_CAPABILITIES = "suspension-v1";
+  try {
+    assert.throws(() => orgLifecycle(executionAuthority(f.bootstrapPath), "tools/call", { name: "org_plan_resume", arguments: { plan: f.plan, id: "first-outcome" } }), /unsupported-suspension-consumer/);
+  } finally {
+    if (before === undefined) delete process.env.GESTALT_MOBILE_ORG_PLAN_CAPABILITIES;
+    else process.env.GESTALT_MOBILE_ORG_PLAN_CAPABILITIES = before;
+  }
+});
+
+test("Live worker scopes runtime and interpreter temporary writes to its admitted workspace", { skip: process.platform !== "linux" }, (t) => {
+  const f = fixture(t, { appName: "app with spaces" });
+  // A tiny transport fixture observes runtime initialization paths. Real package
+  // and filesystem denial are independently exercised by the hosted Native proof.
+  writeFileSync(join(f.runtime, "server.bundle.mjs"), `
+    import {tmpdir} from 'node:os';
+    import {execFileSync} from 'node:child_process';
+    import {dirname,join} from 'node:path';
+    import {writeFileSync} from 'node:fs';
+    const temporary=tmpdir();
+    const probeRoot=process.env.CONTEXT_MODE_LIVE_TEMP_DIR;
+    writeFileSync(join(temporary,'runtime-preload'),'fixture');
+    writeFileSync(join(probeRoot,'interpreter-temp'),'fixture');
+    export const server={async connect(t){t.onmessage=r=>t.send({id:r.id,result:{temporary,probeRoot,ambientCapability:process.env.GESTALT_MOBILE_ORG_PLAN_CAPABILITIES??null}})},async close(){}};
+  `);
+  const worker = spawnSync(process.execPath, [join(repo, "plugins/gestalt/live-context-worker.mjs"), "--runtime", f.runtime, "--workspace", f.app], {
+    input: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "initialize", params: {} }), encoding: "utf8",
+    env: { PATH: "/usr/bin:/bin", TMPDIR: "/tmp", GESTALT_MOBILE_ORG_PLAN_CAPABILITIES: "suspension-v1" }, timeout: 15000,
+  });
+  assert.equal(worker.status, 0);
+  const result = JSON.parse(worker.stdout).result, expected = join(f.app, ".gestalt/context-mode/tmp");
+  assert.equal(result.temporary, expected); assert.equal(result.probeRoot, expected);
+  assert.equal(result.ambientCapability, null);
+  assert.equal(readFileSync(join(expected, "runtime-preload"), "utf8"), "fixture");
+  assert.equal(readFileSync(join(expected, "interpreter-temp"), "utf8"), "fixture");
 });

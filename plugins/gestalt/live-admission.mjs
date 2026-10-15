@@ -88,21 +88,29 @@ export function measureTree(root) {
 function readBootstrap(path) {
   canonical(path, false, true);
   const input = boundedJson(path);
-  exact(input, ["schemaVersion", "manifestPath", "workspaceRoot", "packages", "runtime", "node", "effectiveConfig", "plans"]);
+  exact(input, ["schemaVersion", "manifestPath", "workspaceRoot", "packages", "runtime", "node", "effectiveConfig", "plans", ...(Object.hasOwn(input, "consumer") ? ["consumer"] : [])]);
   if (input.schemaVersion !== 1) fail("unsupported-admission-version");
   canonical(input.manifestPath, false, true);
   const manifest = boundedJson(input.manifestPath);
+  if (Object.hasOwn(input, "consumer")) {
+    exact(input.consumer, ["schemaVersion", "component", "capabilities"]);
+    if (manifest.schemaVersion !== 2 || input.consumer.schemaVersion !== 1
+      || typeof input.consumer.component !== "string" || !input.consumer.component
+      || input.consumer.component !== manifest.components?.mobile
+      || stable(input.consumer.capabilities) !== stable(["suspension-v1"])) fail("unsupported-lifecycle-consumer");
+  }
   canonical(dirname(input.manifestPath), true, true);
   if (!inside(dirname(input.manifestPath), path)) fail("untrusted-bootstrap-storage");
   protectedPath(dirname(input.manifestPath), manifest);
   protectedPath(path, manifest);
   const filesystem = manifest.sandboxState?.permissionProfile?.file_system;
-  if (manifest.schemaVersion !== 1 || manifest.sandboxState?.permissionProfile?.type !== "managed" || manifest.sandboxState?.permissionProfile?.network !== "restricted"
+  if (![1, 2].includes(manifest.schemaVersion) || manifest.sandboxState?.permissionProfile?.type !== "managed"
+    || !(manifest.sandboxState?.permissionProfile?.network === "restricted" || manifest.schemaVersion === 2 && manifest.sandboxState?.permissionProfile?.network === "enabled")
     || filesystem?.type !== "restricted" || !Array.isArray(filesystem.entries) || !filesystem.entries.length) fail("incompatible-native-policy");
   canonical(manifest.appRoot, true);
   canonical(input.workspaceRoot, true);
   if (!inside(input.workspaceRoot, manifest.appRoot) || input.workspaceRoot === "/") fail("invalid-lifecycle-scope");
-  for (let ancestor = manifest.appRoot; ; ancestor = dirname(ancestor)) {
+  for (let ancestor = manifest.appRoot; manifest.schemaVersion === 1; ancestor = dirname(ancestor)) {
     // Do not parse or hide a project configuration. Its presence is unsupported.
     try { lstatSync(join(ancestor, ".codex")); fail("project-config-unavailable"); }
     catch (error) { if (error.code !== "ENOENT") throw error; }
@@ -140,7 +148,7 @@ function readBootstrap(path) {
     plugins: ["context-mode", "gestalt"].map((name) => ({ name, root: packages.get(name) })),
     mcpServers: [
       { name: "context-mode", command: "node", args: ["./start.mjs"], cwd: packages.get("context-mode"), env: { CONTEXT_MODE_PLATFORM: "codex" }, default_tools_approval_mode: "approve" },
-      { name: "gestalt-org-plan", command: "node", args: ["./org-plan-mcp.mjs"], cwd: packages.get("gestalt"), env_vars: ["GESTALT_MOBILE_ORG_PLAN_STATUS_DIRECTORY", "GESTALT_MOBILE_ORG_PLAN_STATUS_FILE"], default_tools_approval_mode: "approve" },
+      { name: "gestalt-org-plan", command: "node", args: ["./org-plan-mcp.mjs"], cwd: packages.get("gestalt"), env_vars: ["GESTALT_MOBILE_ORG_PLAN_STATUS_DIRECTORY", "GESTALT_MOBILE_ORG_PLAN_STATUS_FILE", "GESTALT_MOBILE_ORG_PLAN_CAPABILITIES"], default_tools_approval_mode: "approve" },
     ],
     hooks: [], remoteMcp: [], executables: [],
   };
@@ -192,16 +200,85 @@ function authenticate(record, key) {
   if (!timingSafeEqual(actual, Buffer.from(record.mac, "hex"))) fail("invalid-receipt");
   return record.body;
 }
+/** Consume only Manager's authenticated, freshly verified v2 observation. The
+ * Manager owns descriptor/birth/candidate revalidation; empty directories or a
+ * caller's PID/source claims never substitute for that verification.
+ */
+function provenanceBinding(policy, manifest) {
+  if (policy.schemaVersion !== manifest.schemaVersion) fail("incompatible-native-policy");
+  if (manifest.schemaVersion === 1) return undefined;
+  const provenance = policy.provenance, inventory = provenance?.inventory;
+  if (!provenance || !inventory || inventory.schemaVersion !== 2
+    || provenance.captureId !== manifest.runtimeProvenance?.captureId
+    || !/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/.test(provenance.captureId)
+    || !HASH.test(provenance.receiptDigest)
+    || !HASH.test(inventory.effectiveConfigDigest) || !HASH.test(inventory.sessionFlagsDigest)
+    || inventory.effectiveConfigDigest !== manifest.runtimeProvenance.effectiveConfigDigest
+    || inventory.sessionFlagsDigest !== manifest.runtimeProvenance.sessionFlagsDigest
+    || inventory.policyDigest !== policy.policyDigest
+    || stable(inventory.runtime) !== stable(provenance.runtime?.process)
+    || !inventory.runtime || !policy.authority?.generation
+    || stable(policy.authority.generation) !== stable(manifest.generation)
+    || !Array.isArray(inventory.sources) || !inventory.sources.length || inventory.sources.length > 128) fail("invalid-runtime-provenance");
+  exact(inventory, ["schemaVersion", "runtime", "policyDigest", "effectiveConfigDigest", "sessionFlagsDigest", "sources"]);
+  const paths = new Set(), metadata = new Set(), system = new Set();
+  for (let ancestor = manifest.appRoot; ; ancestor = dirname(ancestor)) {
+    metadata.add(join(ancestor, ".codex"));
+    if (ancestor === "/") break;
+  }
+  for (const source of inventory.sources) {
+    if (!source || typeof source.path !== "string" || !isAbsolute(source.path)
+      || resolve(source.path) !== source.path || paths.has(source.path)) fail("invalid-source-inventory");
+    paths.add(source.path);
+    switch (source.kind) {
+      case "file":
+        exact(source, ["kind", "role", "path", "sha256"]);
+        if (!["user", "system", "packaged-defaults", "managed", "agent-role", "sandbox-worker"].includes(source.role)
+          || !HASH.test(source.sha256) || !manifest.configFiles.some((file) => file.path === source.path && file.sha256 === source.sha256)) fail("invalid-source-inventory");
+        break;
+      case "instruction":
+      case "instruction-candidate":
+        exact(source, ["kind", "path", "sha256", "identity"]);
+        if (!HASH.test(source.sha256)) fail("invalid-source-inventory");
+        exact(source.identity, ["dev", "ino", "uid", "mode", "ctime", "mtime"]);
+        break;
+      case "directory":
+        exact(source, ["kind", "role", "path", "identity"]);
+        if (source.role !== "project" || !metadata.delete(source.path) || stable(source.identity) !== stable(provenance.directories?.[source.path]) || !source.identity) fail("invalid-source-inventory");
+        exact(source.identity, ["dev", "ino", "uid", "mode", "ctime", "mtime", "birthtime"]);
+        break;
+      case "absent":
+        exact(source, ["kind", "role", "path"]);
+        if (source.role === "project") {
+          if (!metadata.delete(source.path) || provenance.directories?.[source.path] !== null) fail("invalid-source-inventory");
+        } else if (source.role === "system" && ["/etc/codex/config.toml", "/etc/codex/managed_config.toml", "/etc/codex/requirements.toml"].includes(source.path)) system.add(source.path);
+        else fail("invalid-source-inventory");
+        break;
+      default: fail("invalid-source-inventory");
+    }
+  }
+  if (metadata.size || system.size !== 3 || !inventory.sources.some((source) => source.kind === "file" && source.path === join(manifest.runtimeHome, "config.toml"))) fail("invalid-source-inventory");
+  // Manager independently checks all present AND absent pre-birth instruction
+  // candidates. Keep its complete signed inventory, including unselected files.
+  return {
+    schemaVersion: 2, captureId: provenance.captureId, generation: policy.authority.generation,
+    sourceInventoryDigest: digest(stable(inventory)), runtimeProvenanceDigest: provenance.receiptDigest,
+    effectiveConfigDigest: inventory.effectiveConfigDigest, sessionFlagsDigest: inventory.sessionFlagsDigest,
+  };
+}
 function current(bootstrapPath) {
   const checked = readBootstrap(bootstrapPath), { input, manifest } = checked;
   canonical(manifest.keyFile, false, true);
-  if (!inside(dirname(input.manifestPath), manifest.keyFile)) fail("invalid-signing-key");
+  if (manifest.schemaVersion === 1 ? !inside(dirname(input.manifestPath), manifest.keyFile)
+    : manifest.keyFile !== join(dirname(manifest.election?.lockFile ?? ""), "live-policy.key")) fail("invalid-signing-key");
+  protectedPath(manifest.keyFile, manifest);
   const key = readFileSync(manifest.keyFile);
   if (key.length !== 32) fail("invalid-signing-key");
   const policyPath = join(dirname(input.manifestPath), "policy-receipt.json");
   canonical(policyPath, false, true);
   const policy = authenticate(boundedJson(policyPath), key);
   if (policy.kind !== "policy-contract" || policy.manifestDigest !== digest(readFileSync(input.manifestPath))) fail("stale-policy-receipt");
+  const nativeContract = provenanceBinding(policy, manifest);
   canonical(policy.manager?.path); protectedPath(policy.manager.path, manifest);
   if (digest(readFileSync(policy.manager.path)) !== policy.manager.sha256) fail("manager-changed");
   for (const file of manifest.configFiles ?? []) {
@@ -230,13 +307,17 @@ function current(bootstrapPath) {
       stdio: ["ignore", "pipe", "pipe"], timeout: 30000, maxBuffer: 4096,
     }));
   } catch { fail("native-policy-unavailable"); }
-  if (manager.available !== true || manager.schemaVersion !== 1 || manager.policyDigest !== policy.policyDigest || manager.configDigest !== policy.configDigest) fail("native-policy-unavailable");
+  if (manager.available !== true || manager.schemaVersion !== manifest.schemaVersion || manager.policyDigest !== policy.policyDigest || manager.configDigest !== policy.configDigest
+    || nativeContract && (manager.contractVersion !== 2 || manager.sourceInventoryDigest !== nativeContract.sourceInventoryDigest
+      || manager.runtimeProvenanceDigest !== nativeContract.runtimeProvenanceDigest || stable(manager.generation) !== stable(nativeContract.generation))) fail("native-policy-unavailable");
   const body = {
-    schemaVersion: 1, kind: "live-package-admission", bootstrapDigest: digest(readFileSync(bootstrapPath)),
+    schemaVersion: manifest.schemaVersion, kind: "live-package-admission", bootstrapDigest: digest(readFileSync(bootstrapPath)),
     manifestDigest: policy.manifestDigest, policyDigest: digest(stable(policy)),
     configDigest: digest(readFileSync(configPath)), packages: input.packages,
     runtime: input.runtime, node: input.node, components: manifest.components,
     workspaceRoot: input.workspaceRoot, plans: input.plans, servers: LIVE_SERVERS, unavailableWorkflows: UNAVAILABLE_WORKFLOWS,
+    ...(nativeContract ? { nativeContract } : {}),
+    ...(input.consumer ? { consumer: input.consumer } : {}),
   };
   return { ...checked, key, body };
 }
@@ -265,6 +346,7 @@ export function executionAuthority(bootstrapPath) {
   if (stable(authenticate(boundedJson(receiptPath), checked.key)) !== stable(checked.body)) fail("stale-admission-receipt");
   return {
     input: checked.input, manifest: checked.manifest,
+    consumerCapabilities: checked.body.consumer?.capabilities ?? [],
     manager: authenticate(boundedJson(join(dirname(checked.input.manifestPath), "policy-receipt.json")), checked.key).manager,
     bootstrapPath, bootstrapDigest: checked.body.bootstrapDigest,
     receiptPath, receiptDigest: digest(readFileSync(receiptPath)),
