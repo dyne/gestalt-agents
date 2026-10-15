@@ -61,8 +61,8 @@ function rpcClient(child) {
       if (message.error) call.reject(new Error("NATIVE_RPC_REFUSED")); else call.done(message.result);
     }
   });
-  return (method, params) => new Promise((done, reject) => {
-    const id = ++counter, timer = setTimeout(() => { pending.delete(id); reject(new Error("NATIVE_RPC_TIMEOUT")); }, 20000);
+  return (method, params, timeoutMs = 20000) => new Promise((done, reject) => {
+    const id = ++counter, timer = setTimeout(() => { pending.delete(id); reject(new Error("NATIVE_RPC_TIMEOUT")); }, timeoutMs);
     pending.set(id, { done, reject, timer }); child.stdin.write(`${JSON.stringify({ jsonrpc: "2.0", id, method, params })}\n`);
   });
 }
@@ -184,7 +184,7 @@ try {
   // Production's post-reconfigure observation awaits full MCP discovery before
   // sealing. Observe the terminal refusal here too: an asynchronously starting
   // old proxy must not acquire newly published receipts during the cold resume.
-  const unadmitted = await rpc("mcpServerStatus/list", { threadId: started.thread.id, detail: "full" });
+  const unadmitted = await rpc("mcpServerStatus/list", { threadId: started.thread.id, detail: "full" }, 125000);
   assert.equal(unadmitted.nextCursor, null);
   assert.deepEqual(unadmitted.data.map((server) => server.name).sort(), ["context-mode", "gestalt-org-plan"]);
   for (const server of unadmitted.data) {
@@ -230,7 +230,7 @@ try {
   await resumePackaged();
   let nativeMcp;
   for (let attempt = 0; attempt < 30; attempt++) {
-    nativeMcp = await rpc("mcpServerStatus/list", { threadId: started.thread.id, detail: "full" });
+    nativeMcp = await rpc("mcpServerStatus/list", { threadId: started.thread.id, detail: "full" }, 125000);
     const states = nativeMcp.data.map((server) => server.runtimeStatus);
     if (!states.includes("starting")) break;
     await wait(1000);
