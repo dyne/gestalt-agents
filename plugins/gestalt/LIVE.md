@@ -120,6 +120,27 @@ an ancestor of the generation manifest directory. V1 retains its existing key,
 ancestry and restricted-network requirements. V2 preserves either original
 network state, `restricted` or `enabled`; admission never changes permissions.
 
+Manager v2 source inventories may include an exact typed `observation` with
+`sessionFlags` and an opaque lowercase SHA-256 `accountDigest`. The consumer
+checks the pinned Native flag fields/types, canonical app/profile selection,
+and `sessionFlagsDigest` over the complete recursively sorted flags with array
+order preserved. Optional roots/instruction fields remain absent when absent
+from the actual response; no default observation or account is synthesized.
+Unknown fields, null observations, malformed types/digests and mismatched flags
+fail closed. Legacy sandbox projections are data, never permission grants.
+
+The trusted producer must obtain current actual config/session/account RPC
+observations and refuse unknown account semantics; account IDs and credentials
+do not enter this consumer contract. Manager alone compares original/fresh
+intent and verifies renewal lineage, drainage, narrowing and generation fences.
+The full inventory (including observation/account digest) and new provenance
+digest stay bound to admission, with current Manager verification on every call.
+A renewed provenance `renewalDigest` requires a typed observation. Existing
+unobserved schema2 inventories remain compatible for initial admission only;
+acceptance does not assert renewability. Renewal requires both original and
+fresh typed observations and authenticated Manager verification. No environment,
+descriptor, receipt-body schema or controller operation is widened here.
+
 Receipt HMAC uses recursively sorted JSON. It binds bootstrap, full manager
 policy receipt, native command table, configuration, component pins, package
 and runtime inventories, interpreter and the exact lifecycle plan allowlist.
@@ -268,6 +289,12 @@ canonical Org state machine for this call only. It is never written to
 retains its existing environment-based consumer contract. The Live bridge
 continues to accept only the signed exact plan set and strict Org tool schemas;
 it grants no filesystem/process/publication authority beyond that interface.
+Pinned Native annotates owning-thread tool calls with `_meta.threadId`. The
+Live Org bridge accepts this UUID annotation, Native RMCP's optional unsigned
+32-bit integer `progressToken`, and optional validated W3C `traceparent` and
+`tracestate`, then discards all annotations before typed dispatch. They
+never select a plan, capability, generation or identity;
+unknown metadata and extra arguments remain unavailable.
 The owning production bootstrap must also enumerate the same three canonical
 Org environment keys; an old two-key bootstrap is rejected, rather than adapted
 implicitly. Normal non-Live supervision can use repaired tools only after compatible Mobile

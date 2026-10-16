@@ -22,7 +22,27 @@ export function orgLifecycle(authority, method, params) {
   if (method === "tools/list") return { tools };
   if (method === "ping") return {};
   if (method !== "tools/call") fail("unsupported-lifecycle-method");
-  if (!params || Object.keys(params).some((key) => !["name", "arguments"].includes(key))) fail("invalid-lifecycle-request");
+  if (!params || Object.keys(params).some((key) => !["name", "arguments", "_meta"].includes(key))) fail("invalid-lifecycle-request");
+  // Pinned Native and its RMCP transport add these routing annotations.
+  // Neither carries authority; discard them before typed dispatch.
+  if (Object.hasOwn(params, "_meta")) {
+    const meta = params._meta;
+    if (!meta || Array.isArray(meta) || Object.keys(meta).some((key) => !["threadId", "progressToken", "traceparent", "tracestate"].includes(key))
+      || typeof meta.threadId !== "string" || !/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/.test(meta.threadId)
+      || Object.hasOwn(meta, "progressToken") && (!Number.isSafeInteger(meta.progressToken)
+        || meta.progressToken < 0 || meta.progressToken > 0xffffffff)) fail("invalid-lifecycle-request");
+    if (Object.hasOwn(meta, "traceparent") && (typeof meta.traceparent !== "string"
+      || !/^00-(?!0{32}-)[a-f0-9]{32}-(?!0{16}-)[a-f0-9]{16}-[a-f0-9]{2}$/.test(meta.traceparent))) fail("invalid-lifecycle-request");
+    if (Object.hasOwn(meta, "tracestate")) {
+      if (!Object.hasOwn(meta, "traceparent") || typeof meta.tracestate !== "string"
+        || !meta.tracestate.length || meta.tracestate.length > 512 || /[\x00-\x1f\x7f]/.test(meta.tracestate)) fail("invalid-lifecycle-request");
+      const members = meta.tracestate.split(",").map((item) => item.trim());
+      const key = "(?:[a-z][a-z0-9_*/-]{0,255}|[a-z0-9][a-z0-9_*/-]{0,240}@[a-z][a-z0-9_*/-]{0,13})";
+      const member = new RegExp(`^${key}=[\\x20-\\x2b\\x2d-\\x3c\\x3e-\\x7e]{0,255}[\\x21-\\x2b\\x2d-\\x3c\\x3e-\\x7e]$`);
+      if (members.length > 32 || members.some((item) => !member.test(item))
+        || new Set(members.map((item) => item.split("=")[0])).size !== members.length) fail("invalid-lifecycle-request");
+    }
+  }
   const definition = tools.find((tool) => tool.name === params.name);
   if (!definition) fail("unsupported-lifecycle-tool");
   const args = params.arguments ?? {};
