@@ -265,6 +265,11 @@ try {
   const connectCurrent = async () => {
     const catalogStarted = Date.now();
     started = await resumePackaged();
+    const sealed = JSON.parse(readFileSync(join(dirname(manifestPath), "sources.json")));
+    const currentConfiguration = await rpc("config/read", { cwd: app, includeLayers: true });
+    const currentObservation = controlledObservation(currentConfiguration, started, await rpc("account/read", { refreshToken: false }));
+    assert.deepEqual(currentObservation, sealed.observation);
+    assert.equal(hash(stable(currentConfiguration.config)), sealed.effectiveConfigDigest);
     let nativeMcp;
     for (let attempt = 0; attempt < 30; attempt++) {
       nativeMcp = await owningMcpStatus();
@@ -415,7 +420,10 @@ try {
   // interpreter depths. The API above cannot silently create threadless clients.
   await owningCall("gestalt-org-plan", "org_plan_validate", { plan });
   const originalWork = text({ result: await owningCall("context-mode", "ctx_execute", { language: "javascript", code: `(${packagedProbe.toString()})(${JSON.stringify(probes)},0)` }) });
-  assert.equal(originalWork.split("\n").filter((line) => line.startsWith("LIVE_PROBE:")).length, 3);
+  const originalChecks = originalWork.split("\n").filter((line) => line.startsWith("LIVE_PROBE:")).map((line) => JSON.parse(line.slice(11)));
+  assert.deepEqual(originalChecks.map((item) => item.depth), [0, 1, 2]);
+  assert.ok(originalChecks.every((item) => Object.values(item.checks).every(Boolean)));
+  report.originalOwningToolChecks = originalChecks;
   report.checks.actualOwningNativePackagedTools = true;
   report.renewal = { generations: [], quiescence: [], oldAuthorityChecks: 0,
     narrowedSurface: "Existing project subdirectory write-to-read; project-local context storage remains writable." };
@@ -463,16 +471,19 @@ try {
     const response = await owningCall("context-mode", "ctx_execute", { language: "javascript", code: `(${packagedProbe.toString()})(${JSON.stringify(probe)},0)` });
     const checks = text({ result: response }).split("\n").filter((line) => line.startsWith("LIVE_PROBE:")).map((line) => JSON.parse(line.slice(11)));
     assert.deepEqual(checks.map((item) => item.depth), [0, 1, 2]); assert.ok(checks.every((item) => Object.values(item.checks).every(Boolean)));
-    await owningCall("gestalt-org-plan", "org_plan_l2_transition", { plan, id: "second-task", state: "DONE" });
-    assert.match(readFileSync(plan, "utf8"), /\*\* DONE.*First task/);
+    const taskState = mode === "survivor" ? "DONE" : "WIP";
+    await owningCall("gestalt-org-plan", "org_plan_l2_transition", { plan, id: "second-task", state: taskState });
+    assert.ok(readFileSync(plan, "utf8").includes(`** ${taskState} [#A] First task\n:PROPERTIES:\n:ID: second-task\n`));
     await assert.rejects(rpc("mcpServer/tool/call", { threadId: started.thread.id, server: "gestalt-org-plan", tool: "org_plan_validate", arguments: { plan: auth } }, 30000), /NATIVE_RPC_REFUSED/);
     // Native's own command path also observes the same named restriction.
     const command = await rpc("command/exec", { cwd: app, permissionProfile: narrowProfile,
       command: ["/usr/bin/python3", "-c", `from pathlib import Path\np=Path(${JSON.stringify(narrowFile)})\ntry:p.write_text('unsafe');raise Exception('WRITE_BREACH')\nexcept OSError as e:assert e.errno in (1,13,30)\nprint('WRITE_DENIED')`], timeoutMs: 10000, outputBytesCap: 1024 });
     assert.equal(command.exitCode, 0); assert.match(command.stdout, /WRITE_DENIED/); assert.equal(readFileSync(narrowFile, "utf8"), "original");
-    report.renewal.generations.push({ mode, source, catalog, checks, authenticatedLifecycle: true, nativeCommandNarrowed: true,
+    const managedImage = existsSync(join(dirname(manifestPath), `image-${captureId}.json`));
+    if (mode === "replacement") assert.equal(managedImage, true);
+    report.renewal.generations.push({ mode, source, catalog, checks, authenticatedLifecycle: true, lifecycleState: taskState, nativeCommandNarrowed: true,
       bootstrapDigest: hash(readFileSync(bootstrapPath)), receiptDigest: hash(currentReceipt), manifestDigest: hash(readFileSync(manifestPath)),
-      managedImage: existsSync(join(dirname(manifestPath), `image-${captureId}.json`)) });
+      managedImage });
     generations.push(archive());
   };
   report.stage = "renewal-original-drainage";
