@@ -114,15 +114,16 @@ try {
   assert.equal(await caddyAlive(), true);
   const profile = "l10-proof", narrowProfile = "l10-narrow", daemon = `/tmp/codex-daemon-${process.getuid()}`;
   let captureId = randomUUID();
-  const narrowFile = join(app, "narrowed.txt"); writeFileSync(narrowFile, "original", { mode: 0o600 });
+  const narrowRoot = join(app, "narrowed"); mkdirSync(narrowRoot, { mode: 0o700 });
+  const narrowFile = join(narrowRoot, "protected.txt"); writeFileSync(narrowFile, "original", { mode: 0o600 });
   const metadata = []; for (let path = app; ; path = dirname(path)) { metadata.push(join(path, ".codex")); if (path === "/") break; }
   const stateFor = (write) => ({ permissionProfile: { type: "managed", file_system: { type: "restricted", entries: [
     { path: { type: "special", value: { kind: "root" } }, access: "read" },
     { path: { type: "path", path: app }, access: "write" },
-    { path: { type: "path", path: narrowFile }, access: write ? "write" : "read" },
+    { path: { type: "path", path: narrowRoot }, access: write ? "write" : "read" },
     ...[privateRoot, "/proc", daemon, ...metadata].map((path) => ({ path: { type: "path", path }, access: "deny" })),
   ] }, network: "restricted" }, sandboxCwd: pathToFileURL(app).href, useLegacyLandlock: false });
-  const nativeProfile = (name, write) => `[permissions.${name}]\nextends = ":read-only"\n[permissions.${name}.filesystem]\n":root" = "read"\n${JSON.stringify(app)} = "write"\n${JSON.stringify(narrowFile)} = "${write ? "write" : "read"}"\n${[privateRoot, "/proc", daemon, ...metadata].map((path) => `${JSON.stringify(path)} = "deny"\n`).join("")}[permissions.${name}.network]\nenabled = false\n`;
+  const nativeProfile = (name, write) => `[permissions.${name}]\nextends = ":read-only"\n[permissions.${name}.filesystem]\n":root" = "read"\n${JSON.stringify(app)} = "write"\n${JSON.stringify(narrowRoot)} = "${write ? "write" : "read"}"\n${[privateRoot, "/proc", daemon, ...metadata].map((path) => `${JSON.stringify(path)} = "deny"\n`).join("")}[permissions.${name}.network]\nenabled = false\n`;
   let modelRequests = 0;
   provider = createHttpServer((req, res) => { if (req.method === "GET" && req.url.startsWith("/v1/models")) { res.writeHead(200, { "content-type": "application/json" }); res.end(JSON.stringify({ data: [{ id: "gpt-6-sol", object: "model", owned_by: "controlled" }] })); } else { modelRequests++; res.writeHead(500); res.end("model-work-unavailable"); } });
   await new Promise((done) => provider.listen(0, "127.0.0.1", done));
@@ -417,7 +418,7 @@ try {
   assert.equal(originalWork.split("\n").filter((line) => line.startsWith("LIVE_PROBE:")).length, 3);
   report.checks.actualOwningNativePackagedTools = true;
   report.renewal = { generations: [], quiescence: [], oldAuthorityChecks: 0,
-    narrowedSurface: "Existing project test file write-to-read; project-local context storage remains writable." };
+    narrowedSurface: "Existing project subdirectory write-to-read; project-local context storage remains writable." };
   const dead = (record) => { try { return identity(record.pid).birth !== record.birth; } catch { return true; } };
   const descendants = (parent) => {
     const result = [];
