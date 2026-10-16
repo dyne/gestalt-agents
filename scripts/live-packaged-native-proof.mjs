@@ -58,12 +58,17 @@ function rpcClient(child) {
       let message; try { message = JSON.parse(line); } catch { continue; }
       const call = pending.get(message.id); if (!call) continue;
       pending.delete(message.id); clearTimeout(call.timer);
-      if (message.error) call.reject(new Error("NATIVE_RPC_REFUSED")); else call.done(message.result);
+      if (message.error) {
+        const error = new Error("NATIVE_RPC_REFUSED");
+        error.rpc = { method: call.method, code: message.error.code,
+          template: String(message.error.message).replace(/\/[^\s:;)"']+/g, "<path>").slice(0, 600) };
+        call.reject(error);
+      } else call.done(message.result);
     }
   });
   return (method, params, timeoutMs = 20000) => new Promise((done, reject) => {
     const id = ++counter, timer = setTimeout(() => { pending.delete(id); reject(new Error("NATIVE_RPC_TIMEOUT")); }, timeoutMs);
-    pending.set(id, { done, reject, timer }); child.stdin.write(`${JSON.stringify({ jsonrpc: "2.0", id, method, params })}\n`);
+    pending.set(id, { done, reject, timer, method }); child.stdin.write(`${JSON.stringify({ jsonrpc: "2.0", id, method, params })}\n`);
   });
 }
 try {
@@ -518,7 +523,8 @@ try {
   report.failure = /^[A-Z_]{1,64}$/.test(error.message) ? error.message : "PROOF_ASSERTION_FAILED";
   report.failureDetails = { stage: report.stage, operator: error.operator, code: error.code,
     actual: typeof error.actual === "boolean" || typeof error.actual === "number" ? error.actual : undefined,
-    boundedActualReason: typeof error.actual?.message === "string" && /^[a-z-]{1,64}$/.test(error.actual.message) ? error.actual.message : undefined };
+    boundedActualReason: typeof error.actual?.message === "string" && /^[a-z-]{1,64}$/.test(error.actual.message) ? error.actual.message : undefined,
+    rpc: error.rpc };
   if (proofManifest) {
     try { report.managerCurrent = managerApi("verify", proofManifest); } catch (failure) { try { const value = JSON.parse(failure.stdout); report.managerCurrent = { available: value.available, reason: value.reason }; } catch {} }
     report.failedLaunches = readdirSync(privateRoot).filter((name) => /^process-[a-f0-9-]+\.json$/.test(name)).map((name) => { const b = JSON.parse(readFileSync(join(privateRoot, name))).body; return { launchId: b.launchId, status: b.status, termination: b.termination, failure: b.failure }; });
