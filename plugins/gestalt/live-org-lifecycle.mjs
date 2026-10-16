@@ -23,12 +23,22 @@ export function orgLifecycle(authority, method, params) {
   if (method === "ping") return {};
   if (method !== "tools/call") fail("unsupported-lifecycle-method");
   if (!params || Object.keys(params).some((key) => !["name", "arguments", "_meta"].includes(key))) fail("invalid-lifecycle-request");
-  // Pinned Native adds this routing annotation to actual owning-thread calls.
-  // It carries no authority: validate and discard it before typed dispatch.
+  // Pinned Native adds thread routing and optional W3C trace annotations.
+  // None carries authority; validate and discard them before typed dispatch.
   if (Object.hasOwn(params, "_meta")) {
     const meta = params._meta;
-    if (!meta || Array.isArray(meta) || Object.keys(meta).length !== 1
+    if (!meta || Array.isArray(meta) || Object.keys(meta).some((key) => !["threadId", "traceparent", "tracestate"].includes(key))
       || typeof meta.threadId !== "string" || !/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/.test(meta.threadId)) fail("invalid-lifecycle-request");
+    if (Object.hasOwn(meta, "traceparent") && (typeof meta.traceparent !== "string"
+      || !/^00-(?!0{32}-)[a-f0-9]{32}-(?!0{16}-)[a-f0-9]{16}-(?:00|01)$/.test(meta.traceparent))) fail("invalid-lifecycle-request");
+    if (Object.hasOwn(meta, "tracestate")) {
+      if (!Object.hasOwn(meta, "traceparent") || typeof meta.tracestate !== "string"
+        || !meta.tracestate.length || meta.tracestate.length > 512 || /[\x00-\x1f\x7f]/.test(meta.tracestate)) fail("invalid-lifecycle-request");
+      const members = meta.tracestate.split(",").map((item) => item.trim());
+      const key = "(?:[a-z][a-z0-9_*/-]{0,255}|[a-z0-9][a-z0-9_*/-]{0,240}@[a-z][a-z0-9_*/-]{0,13})";
+      if (members.length > 32 || members.some((item) => !new RegExp(`^${key}=[\\x20-\\x2b\\x2d-\\x3c\\x3e-\\x7e]{0,255}[\\x21-\\x2b\\x2d-\\x3c\\x3e-\\x7e]$`).test(item))
+        || new Set(members.map((item) => item.split("=")[0])).size !== members.length) fail("invalid-lifecycle-request");
+    }
   }
   const definition = tools.find((tool) => tool.name === params.name);
   if (!definition) fail("unsupported-lifecycle-tool");
