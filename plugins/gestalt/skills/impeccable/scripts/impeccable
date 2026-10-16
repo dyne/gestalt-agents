@@ -1,0 +1,18 @@
+#!/bin/sh
+# Gestalt adaptation: resolve the verified managed engine, never download one.
+set -eu
+case "${1:-}" in
+  --help|-h|--version|-v) ;;
+  live*|generate|hook*|pin|skills|link|update|install|-*)
+    printf '%s\n' 'Use native Gestalt Live controls; this skill cannot start a controller, install hooks, or replace its managed runtime.' >&2
+    exit 2 ;;
+esac
+dir=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd -P)
+export IMPECCABLE_SKILL_DIR="$dir"
+export IMPECCABLE_SELF="$0"
+binary=$(gestalt impeccable path) || exit "$?"
+case "$binary" in
+  /*) test -f "$binary" && test -x "$binary" || exit 1 ;;
+  *) printf '%s\n' 'Managed Impeccable returned no absolute executable path.' >&2; exit 1 ;;
+esac
+exec "$binary" "$@"
