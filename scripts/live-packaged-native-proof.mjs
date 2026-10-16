@@ -90,6 +90,15 @@ try {
     return { name, root: target };
   });
   const gestaltRoot = packages.find((p) => p.name === "gestalt").root;
+  // Diagnostic-only isolated snapshot: record transport field names/types,
+  // never values. This intentional refusal cannot produce a passing proof.
+  const diagnosticPath = join(gestaltRoot, "live-org-lifecycle.mjs");
+  const diagnosticBoundary = "export function orgLifecycle(authority, method, params) {";
+  const diagnosticGuard = diagnosticBoundary + `
+    if (method === "tools/call" && params && Object.hasOwn(params, "_meta")) fail("wire-shape:" + JSON.stringify({ keys: Object.keys(params), meta: Object.fromEntries(Object.entries(params._meta).map(([key,value]) => [key, { type: typeof value, length: typeof value === "string" ? value.length : undefined }])) }));`;
+  assert.ok(readFileSync(diagnosticPath, "utf8").includes(diagnosticBoundary));
+  writeFileSync(diagnosticPath, readFileSync(diagnosticPath, "utf8").replace(diagnosticBoundary, diagnosticGuard));
+  report.provenance.wireShapeDiagnostic = true;
   // Import the INSTALLED package, not the source checkout, for admission and RPC.
   const { digest, stable, measureTree, prepareAdmission, stageAdmission, verifyAdmission } = await import(pathToFileURL(join(gestaltRoot, "live-admission.mjs")).href);
   const { liveRequest } = await import(pathToFileURL(join(gestaltRoot, "live-mcp-proxy.mjs")).href);
