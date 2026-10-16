@@ -231,6 +231,121 @@ test("v2 generation/config receipt changes require fresh admission", (t) => {
   assert.equal(verifyAdmission(f.bootstrapPath).reason, "stale-admission-receipt");
 });
 
+function observedFixture(t) {
+  const f = fixture(t, { schemaVersion: 2 });
+  f.manifest.profileId = "observed-profile";
+  f.provenance.inventory.observation = {
+    sessionFlags: { model: "fixture-model", modelProvider: "controlled", cwd: f.app, approvalPolicy: "never",
+      activePermissionProfile: { id: f.manifest.profileId, extends: ":read-only" },
+      sandbox: { type: "readOnly", networkAccess: false }, reasoningEffort: "medium",
+      runtimeWorkspaceRoots: [f.app], instructionSources: [] },
+    // Contract fixture only. Actual account RPC production/renewal proof is a
+    // separate supported-host gate; the consumer never invents this value.
+    accountDigest: digest(stable({ providerId: "controlled", accountId: null })),
+  };
+  refreshObservation(f);
+  return f;
+}
+function refreshObservation(f) {
+  const flags = f.provenance.inventory.observation?.sessionFlags;
+  if (flags !== undefined) f.manifest.runtimeProvenance.sessionFlagsDigest = f.provenance.inventory.sessionFlagsDigest = digest(stable(flags));
+  f.savePolicy();
+}
+for (const variant of ["complete", "absent optional flags", "null thinking/profile parent", "granular approval", "workspace projection", "external projection", "full-access legacy projection", "renewed capture"]) test(`v2 consumes typed observation: ${variant}`, (t) => {
+  const f = observedFixture(t), flags = f.provenance.inventory.observation.sessionFlags;
+  if (variant === "absent optional flags") { delete flags.runtimeWorkspaceRoots; delete flags.instructionSources; }
+  if (variant === "null thinking/profile parent") { flags.reasoningEffort = null; flags.activePermissionProfile.extends = null; }
+  if (variant === "granular approval") flags.approvalPolicy = { granular: { sandbox_approval: false, rules: false, skill_approval: false, request_permissions: false, mcp_elicitations: false } };
+  if (variant === "workspace projection") flags.sandbox = { type: "workspaceWrite", writableRoots: [f.app], networkAccess: false, excludeTmpdirEnvVar: true, excludeSlashTmp: true };
+  if (variant === "external projection") flags.sandbox = { type: "externalSandbox", networkAccess: "restricted" };
+  if (variant === "full-access legacy projection") flags.sandbox = { type: "dangerFullAccess" };
+  if (variant === "renewed capture") f.provenance.renewalDigest = "e".repeat(64);
+  refreshObservation(f);
+  const before = stable(f.manifest.sandboxState);
+  prepareAdmission(f.bootstrapPath);
+  assert.equal(verifyAdmission(f.bootstrapPath).available, true);
+  const receipt = JSON.parse(readFileSync(join(f.privateRoot, "admission-receipt.json"))).body;
+  assert.equal(receipt.nativeContract.sourceInventoryDigest, digest(stable(f.provenance.inventory)));
+  assert.equal(receipt.nativeContract.sessionFlagsDigest, digest(stable(flags)));
+  assert.equal(stable(f.manifest.sandboxState), before);
+  assert.deepEqual(JSON.parse(readFileSync(join(f.privateRoot, "live-mcp-config.json"))).mcpServers["context-mode"].env, {});
+});
+for (const [name, mutate] of [
+  ["null observation", (f) => { f.provenance.inventory.observation = null; }],
+  ["unknown inventory field", (f) => { f.provenance.inventory.renewable = true; }],
+  ["unknown observation field", (f, o) => { o.renewable = true; }],
+  ["raw account assertion", (f, o) => { o.account = null; }],
+  ["missing account digest", (f, o) => { delete o.accountDigest; }],
+  ["uppercase account digest", (f, o) => { o.accountDigest = "A".repeat(64); }],
+  ["coercible account array", (f, o) => { o.accountDigest = ["a".repeat(64)]; }],
+  ["missing session flags", (f, o) => { delete o.sessionFlags; }],
+  ["null flags", (f, o) => { o.sessionFlags = null; }],
+  ["unknown flags", (f, o, flags) => { flags.config = {}; }],
+  ["missing model", (f, o, flags) => { delete flags.model; }],
+  ["empty provider", (f, o, flags) => { flags.modelProvider = ""; }],
+  ["wrong cwd", (f, o, flags) => { flags.cwd = f.root; }],
+  ["wrong profile", (f, o, flags) => { flags.activePermissionProfile.id = "another"; }],
+  ["profile extension field", (f, o, flags) => { flags.activePermissionProfile.extra = true; }],
+  ["invalid profile parent", (f, o, flags) => { flags.activePermissionProfile.extends = {}; }],
+  ["object thinking", (f, o, flags) => { flags.reasoningEffort = {}; }],
+  ["unknown approval", (f, o, flags) => { flags.approvalPolicy = "always"; }],
+  ["coerced granular flag", (f, o, flags) => { flags.approvalPolicy = { granular: { sandbox_approval: 0, rules: false, skill_approval: false, request_permissions: false, mcp_elicitations: false } }; }],
+  ["null optional roots", (f, o, flags) => { flags.runtimeWorkspaceRoots = null; }],
+  ["relative roots", (f, o, flags) => { flags.runtimeWorkspaceRoots = ["relative"]; }],
+  ["noncanonical instructions", (f, o, flags) => { flags.instructionSources = [f.app + "/../AGENTS.md"]; }],
+  ["unknown sandbox projection", (f, o, flags) => { flags.sandbox = { type: "unknown" }; }],
+  ["sandbox extension field", (f, o, flags) => { flags.sandbox.extra = true; }],
+  ["coerced sandbox network", (f, o, flags) => { flags.sandbox.networkAccess = 0; }],
+  ["malformed lineage digest", (f) => { f.provenance.renewalDigest = ["e".repeat(64)]; }],
+  ["renewal without observation", (f) => { f.provenance.renewalDigest = "e".repeat(64); delete f.provenance.inventory.observation; }],
+]) test(`v2 typed observation refuses ${name} even with a matching canonical flags digest`, (t) => {
+  const f = observedFixture(t), o = f.provenance.inventory.observation;
+  mutate(f, o, o.sessionFlags); refreshObservation(f);
+  assert.equal(verifyAdmission(f.bootstrapPath).available, false);
+  assert.throws(() => prepareAdmission(f.bootstrapPath));
+});
+test("typed observation binds complete canonical flags, array order and opaque account intent without stale admission reuse", (t) => {
+  const f = observedFixture(t), o = f.provenance.inventory.observation;
+  prepareAdmission(f.bootstrapPath);
+  o.sessionFlags.model = "changed"; f.savePolicy();
+  assert.equal(verifyAdmission(f.bootstrapPath).reason, "invalid-inventory-observation");
+  refreshObservation(f); prepareAdmission(f.bootstrapPath);
+  o.sessionFlags.runtimeWorkspaceRoots.push(f.root); refreshObservation(f);
+  assert.equal(verifyAdmission(f.bootstrapPath).reason, "stale-admission-receipt");
+  prepareAdmission(f.bootstrapPath);
+  o.sessionFlags.runtimeWorkspaceRoots.reverse(); f.savePolicy();
+  assert.equal(verifyAdmission(f.bootstrapPath).reason, "invalid-inventory-observation");
+  refreshObservation(f); prepareAdmission(f.bootstrapPath);
+  o.accountDigest = "f".repeat(64); f.savePolicy();
+  assert.equal(verifyAdmission(f.bootstrapPath).reason, "stale-admission-receipt");
+});
+for (const reason of ["renewal-intent-changed", "invalid-renewal-lineage", "stale-runtime-provenance"]) test(`typed observation cannot bypass per-call Manager ${reason}`, (t) => {
+  const f = observedFixture(t); prepareAdmission(f.bootstrapPath);
+  managerReport(f, { schemaVersion: 2, contractVersion: 2, available: false, reason });
+  assert.equal(verifyAdmission(f.bootstrapPath).reason, "native-policy-unavailable");
+  assert.throws(() => prepareAdmission(f.bootstrapPath));
+});
+test("typed renewed generation requires fresh package admission and refuses an old-generation Manager report", (t) => {
+  const f = observedFixture(t); prepareAdmission(f.bootstrapPath);
+  f.manifest.generation.generation = 2;
+  f.provenance.receiptDigest = "d".repeat(64); f.provenance.renewalDigest = "e".repeat(64);
+  refreshObservation(f);
+  assert.equal(verifyAdmission(f.bootstrapPath).reason, "stale-admission-receipt");
+  prepareAdmission(f.bootstrapPath);
+  assert.equal(verifyAdmission(f.bootstrapPath).available, true);
+  managerReport(f, { schemaVersion: 2, contractVersion: 2, available: true, policyDigest: "policy", configDigest: "config",
+    sourceInventoryDigest: digest(stable(f.provenance.inventory)), runtimeProvenanceDigest: f.provenance.receiptDigest,
+    generation: { ...f.manifest.generation, generation: 1 } });
+  assert.equal(verifyAdmission(f.bootstrapPath).reason, "native-policy-unavailable");
+});
+test("unobserved legacy schema2 remains initial-admission compatible without a renewability assertion", (t) => {
+  const f = fixture(t, { schemaVersion: 2 });
+  assert.equal(verifyAdmission(f.bootstrapPath).available, true);
+  assert.equal(Object.hasOwn(f.provenance.inventory, "observation"), false);
+  const receipt = JSON.parse(readFileSync(join(f.privateRoot, "admission-receipt.json"))).body;
+  assert.equal(Object.hasOwn(receipt.nativeContract, "renewable"), false);
+});
+
 test("v2 rejects a signing key outside its elected-controller location", (t) => {
   const f = fixture(t, { schemaVersion: 2 });
   f.manifest.keyFile = join(f.privateRoot, "key"); f.savePolicy();

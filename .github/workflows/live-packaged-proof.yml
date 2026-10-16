@@ -24,13 +24,13 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: dyne/gestalt
-          ref: 1bd6e9ed43d36dc4b5ec8ab756097c59835fdd8b # accepted L9 tree d5dd7127, commit 4ea4e0c9
+          ref: dd46fb4d99780ca3d9df73480834aabc102db8a2 # accepted L9 tree 96632966, commit 19114b23
           path: .host-manager-input
           persist-credentials: false
       - name: Verify accepted Manager tree and Mobile election fixture
         run: |
           set -Eeuo pipefail
-          test "$(git -C .host-manager-input rev-parse HEAD^{tree})" = d5dd7127d67e487f09eea94911ba7999c751500c
+          test "$(git -C .host-manager-input rev-parse HEAD^{tree})" = 966329668f6b967105a4b89b69875d73e54a08f9
           npm ci --prefix .host-manager-input
           node --input-type=module <<'NODE'
           import assert from 'node:assert/strict';
@@ -136,6 +136,7 @@ jobs:
           NODE
           {
             echo "LIVE_HOST_MANAGER_BINARY=$tool_root/gestalt"
+            echo "LIVE_HOST_RENEWAL_MODULE=$GITHUB_WORKSPACE/.host-manager-input/scripts/live-host-renewal-observation.mjs"
             echo "LIVE_HOST_CODEX_BINARY=$native_binary"
             echo "LIVE_HOST_MOBILE_MODULE=$tool_root/mobile-launcher.mjs"
             echo "LIVE_HOST_ELECTION_MODULE=$tool_root/mobile-election.mjs"

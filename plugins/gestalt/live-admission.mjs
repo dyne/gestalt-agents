@@ -200,6 +200,46 @@ function authenticate(record, key) {
   if (!timingSafeEqual(actual, Buffer.from(record.mac, "hex"))) fail("invalid-receipt");
   return record.body;
 }
+function inventoryObservation(inventory, manifest) {
+  const observation = inventory.observation, flags = observation?.sessionFlags;
+  const text = (value) => typeof value === "string" && value.length > 0;
+  const paths = (value) => Array.isArray(value) && value.every((path) => text(path) && isAbsolute(path) && resolve(path) === path);
+  const booleans = (value, keys) => { exact(value, keys); return keys.every((key) => typeof value[key] === "boolean"); };
+  exact(observation, ["sessionFlags", "accountDigest"]);
+  exact(flags, ["model", "modelProvider", "cwd", "approvalPolicy", "activePermissionProfile", "sandbox", "reasoningEffort",
+    ...["runtimeWorkspaceRoots", "instructionSources"].filter((key) => Object.hasOwn(flags ?? {}, key))]);
+  const profile = flags.activePermissionProfile, sandbox = flags.sandbox;
+  exact(profile, ["id", "extends"]);
+  if (typeof observation.accountDigest !== "string" || !HASH.test(observation.accountDigest) || !text(flags.model) || !text(flags.modelProvider)
+    || flags.cwd !== manifest.appRoot || !text(profile.id) || profile.id !== manifest.profileId
+    || profile.extends !== null && !text(profile.extends)
+    || flags.reasoningEffort !== null && !text(flags.reasoningEffort)
+    || ["runtimeWorkspaceRoots", "instructionSources"].some((key) => Object.hasOwn(flags, key) && !paths(flags[key]))
+    || digest(stable(flags)) !== inventory.sessionFlagsDigest) fail("invalid-inventory-observation");
+  if (!["never", "untrusted", "on-request"].includes(flags.approvalPolicy)) {
+    exact(flags.approvalPolicy, ["granular"]);
+    if (!booleans(flags.approvalPolicy.granular, ["sandbox_approval", "rules", "skill_approval", "request_permissions", "mcp_elicitations"])) fail("invalid-inventory-observation");
+  }
+  switch (sandbox?.type) {
+    case "dangerFullAccess": exact(sandbox, ["type"]); break;
+    case "readOnly":
+      exact(sandbox, ["type", "networkAccess"]);
+      if (typeof sandbox.networkAccess !== "boolean") fail("invalid-inventory-observation");
+      break;
+    case "externalSandbox":
+      exact(sandbox, ["type", "networkAccess"]);
+      if (!["enabled", "restricted"].includes(sandbox.networkAccess)) fail("invalid-inventory-observation");
+      break;
+    case "workspaceWrite":
+      exact(sandbox, ["type", "writableRoots", "networkAccess", "excludeTmpdirEnvVar", "excludeSlashTmp"]);
+      if (!paths(sandbox.writableRoots) || ["networkAccess", "excludeTmpdirEnvVar", "excludeSlashTmp"].some((key) => typeof sandbox[key] !== "boolean")) fail("invalid-inventory-observation");
+      break;
+    default: fail("invalid-inventory-observation");
+  }
+  // Account IDs/credentials are deliberately absent. The opaque digest is
+  // authenticated with the entire inventory; Manager compares original/fresh
+  // intent and verifies renewal lineage. Never fabricate an account here.
+}
 /** Consume only Manager's authenticated, freshly verified v2 observation. The
  * Manager owns descriptor/birth/candidate revalidation; empty directories or a
  * caller's PID/source claims never substitute for that verification.
@@ -220,7 +260,10 @@ function provenanceBinding(policy, manifest) {
     || !inventory.runtime || !policy.authority?.generation
     || stable(policy.authority.generation) !== stable(manifest.generation)
     || !Array.isArray(inventory.sources) || !inventory.sources.length || inventory.sources.length > 128) fail("invalid-runtime-provenance");
-  exact(inventory, ["schemaVersion", "runtime", "policyDigest", "effectiveConfigDigest", "sessionFlagsDigest", "sources"]);
+  const observed = Object.hasOwn(inventory, "observation");
+  exact(inventory, ["schemaVersion", "runtime", "policyDigest", "effectiveConfigDigest", "sessionFlagsDigest", "sources", ...(observed ? ["observation"] : [])]);
+  if (observed) inventoryObservation(inventory, manifest);
+  if (Object.hasOwn(provenance, "renewalDigest") && (!observed || typeof provenance.renewalDigest !== "string" || !HASH.test(provenance.renewalDigest))) fail("invalid-runtime-provenance");
   const paths = new Set(), metadata = new Set(), system = new Set();
   for (let ancestor = manifest.appRoot; ; ancestor = dirname(ancestor)) {
     metadata.add(join(ancestor, ".codex"));

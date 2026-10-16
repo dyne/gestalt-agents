@@ -128,6 +128,20 @@ test("host bridge refuses arbitrary paths, commands and publication destinations
   ]) assert.throws(() => orgLifecycle(f.authority, "tools/call", { name: "org_plan_validate", arguments: args }));
   for (const name of ["exec", "readFile", "org_plan_prepare_supervision"]) assert.throws(() => orgLifecycle(f.authority, "tools/call", { name, arguments: { plan: f.plan } }));
 });
+test("Native thread routing metadata never grants Org lifecycle authority", async (t) => {
+  const f = lifecycleFixture(t, { schemaVersion: 2 }), threadId = "019ac134-1234-7123-a123-0123456789ab";
+  const request = (args, meta) => liveRequest(f.bootstrapPath, "gestalt-org-plan", JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call", params: {
+    name: "org_plan_validate", arguments: args, _meta: meta,
+  } }));
+  const valid = await request({ plan: f.plan }, { threadId });
+  assert.equal(valid.error, undefined); assert.equal(valid.result.structuredContent.valid, true);
+  for (const meta of [null, [], {}, { threadId: "" }, { threadId: 1 }, { threadId, command: "true" }, { threadId, capabilities: ["suspension-v1"] }])
+    assert.equal((await request({ plan: f.plan }, meta)).error.message, "invalid-lifecycle-request");
+  assert.equal((await request({ plan: f.bootstrapPath }, { threadId })).error.message, "unadmitted-lifecycle-plan");
+  assert.ok((await request({ plan: f.plan, command: "true" }, { threadId })).error);
+  f.manifest.generation.generation++; f.savePolicy();
+  assert.ok((await request({ plan: f.plan }, { threadId })).error);
+});
 test("signed workspace plan remains usable for an app in a nested repository", { skip: process.platform !== "linux" }, (t) => {
   const f = lifecycleFixture(t), nested = join(f.app, "nested-app");
   mkdirSync(nested, { mode: 0o700 });

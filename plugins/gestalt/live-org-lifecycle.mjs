@@ -22,7 +22,14 @@ export function orgLifecycle(authority, method, params) {
   if (method === "tools/list") return { tools };
   if (method === "ping") return {};
   if (method !== "tools/call") fail("unsupported-lifecycle-method");
-  if (!params || Object.keys(params).some((key) => !["name", "arguments"].includes(key))) fail("invalid-lifecycle-request");
+  if (!params || Object.keys(params).some((key) => !["name", "arguments", "_meta"].includes(key))) fail("invalid-lifecycle-request");
+  // Pinned Native adds this routing annotation to actual owning-thread calls.
+  // It carries no authority: validate and discard it before typed dispatch.
+  if (Object.hasOwn(params, "_meta")) {
+    const meta = params._meta;
+    if (!meta || Array.isArray(meta) || Object.keys(meta).length !== 1
+      || typeof meta.threadId !== "string" || !/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/.test(meta.threadId)) fail("invalid-lifecycle-request");
+  }
   const definition = tools.find((tool) => tool.name === params.name);
   if (!definition) fail("unsupported-lifecycle-tool");
   const args = params.arguments ?? {};
