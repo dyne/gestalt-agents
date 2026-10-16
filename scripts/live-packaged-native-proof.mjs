@@ -412,13 +412,20 @@ try {
       env: { PATH: "/usr/bin:/bin", HOME: owningHome, LANG: "C.UTF-8", TMPDIR: "/tmp" }, stdio: "ignore" });
     await until(() => restarted.exitCode !== null); assert.equal(restarted.exitCode, 78);
   };
-  const owningCall = async (server, tool, args) => {
-    const result = await rpc("mcpServer/tool/call", { threadId: started.thread.id, server, tool, arguments: args }, 125000);
+  const owningCall = async (server, tool, args, meta) => {
+    const result = await rpc("mcpServer/tool/call", { threadId: started.thread.id, server, tool, arguments: args, ...(meta ? { _meta: meta } : {}) }, 125000);
     assert.notEqual(result.isError, true); return result;
   };
   // Use the actual owning Native connection for both tools and all three
   // interpreter depths. The API above cannot silently create threadless clients.
   await owningCall("gestalt-org-plan", "org_plan_validate", { plan });
+  // Synthetic non-authority transport annotations, forwarded by actual Native.
+  // Config/session/account observations above remain genuine private RPC data.
+  await owningCall("gestalt-org-plan", "org_plan_validate", { plan }, {
+    traceparent: "00-0123456789abcdef0123456789abcdef-0123456789abcdef-01", tracestate: "fixture=transport-only",
+  });
+  await assert.rejects(owningCall("gestalt-org-plan", "org_plan_validate", { plan }, { capabilities: ["suspension-v1"] }), /NATIVE_RPC_REFUSED/);
+  report.checks.actualNativeKnownTransportMetadata = true;
   const originalWork = text({ result: await owningCall("context-mode", "ctx_execute", { language: "javascript", code: `(${packagedProbe.toString()})(${JSON.stringify(probes)},0)` }) });
   const originalChecks = originalWork.split("\n").filter((line) => line.startsWith("LIVE_PROBE:")).map((line) => JSON.parse(line.slice(11)));
   assert.deepEqual(originalChecks.map((item) => item.depth), [0, 1, 2]);

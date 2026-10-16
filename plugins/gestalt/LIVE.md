@@ -290,8 +290,9 @@ retains its existing environment-based consumer contract. The Live bridge
 continues to accept only the signed exact plan set and strict Org tool schemas;
 it grants no filesystem/process/publication authority beyond that interface.
 Pinned Native annotates owning-thread tool calls with `_meta.threadId`. The
-Live Org bridge accepts this UUID annotation and Native RMCP's optional unsigned
-32-bit integer `progressToken`, then discards both before typed dispatch. They
+Live Org bridge accepts this UUID annotation, Native RMCP's optional unsigned
+32-bit integer `progressToken`, and optional validated W3C `traceparent` and
+`tracestate`, then discards all annotations before typed dispatch. They
 never select a plan, capability, generation or identity;
 unknown metadata and extra arguments remain unavailable.
 The owning production bootstrap must also enumerate the same three canonical

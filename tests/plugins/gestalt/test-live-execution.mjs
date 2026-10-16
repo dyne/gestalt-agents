@@ -137,11 +137,21 @@ test("Native thread routing metadata never grants Org lifecycle authority", asyn
   assert.equal(valid.error, undefined); assert.equal(valid.result.structuredContent.valid, true);
   for (const progressToken of [0, 1, 0xffffffff])
     assert.equal((await request({ plan: f.plan }, { threadId, progressToken })).error, undefined);
+  const traceparent = "00-0123456789abcdef0123456789abcdef-0123456789abcdef-01";
+  for (const extra of [{ traceparent }, { traceparent: traceparent.replace(/01$/, "ff"), tracestate: "vendor=opaque,1@tenant=value" }])
+    assert.equal((await request({ plan: f.plan }, { threadId, progressToken: 1, ...extra })).error, undefined);
   for (const meta of [null, [], {}, { threadId: "" }, { threadId: 1 }, { threadId, command: "true" }, { threadId, capabilities: ["suspension-v1"] },
     { threadId, traceparent: "unknown-annotation" }, { threadId, progressToken: 1, command: "true" }])
     assert.equal((await request({ plan: f.plan }, meta)).error.message, "invalid-lifecycle-request");
   for (const progressToken of [null, "1", true, {}, [], -1, 0.5, 0x100000000, Number.MAX_SAFE_INTEGER])
     assert.equal((await request({ plan: f.plan }, { threadId, progressToken })).error.message, "invalid-lifecycle-request");
+  for (const extra of [{ traceparent: null }, { traceparent: "" }, { traceparent: traceparent.toUpperCase() },
+    { traceparent: traceparent.replace("0123456789abcdef0123456789abcdef", "0".repeat(32)) },
+    { traceparent: traceparent.replace("-0123456789abcdef-", `-${"0".repeat(16)}-`) },
+    { tracestate: "vendor=value" }, { traceparent, tracestate: "" }, { traceparent, tracestate: "vendor=value\n" },
+    { traceparent, tracestate: "vendor=value,vendor=other" }, { traceparent, tracestate: "vendor=" + "x".repeat(513) },
+    { traceparent, tracestate: Array.from({ length: 33 }, (_, i) => `v${i}=x`).join(",") }])
+    assert.equal((await request({ plan: f.plan }, { threadId, progressToken: 1, ...extra })).error.message, "invalid-lifecycle-request");
   assert.equal((await request({ plan: f.bootstrapPath }, { threadId })).error.message, "unadmitted-lifecycle-plan");
   assert.ok((await request({ plan: f.plan, command: "true" }, { threadId })).error);
   f.manifest.generation.generation++; f.savePolicy();
