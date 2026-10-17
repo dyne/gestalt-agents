@@ -4,7 +4,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { measure, mutate, next, parsePlan, projection, readPlan, resume, suspendReopen } from "../../../plugins/gestalt/skills/org-plan/scripts/org-plan-core.mjs";
+import { measure, mutate, next, parsePlan, projection, publishStatus, readPlan, resume, suspendReopen } from "../../../plugins/gestalt/skills/org-plan/scripts/org-plan-core.mjs";
+import { requireSuspensionCapability } from "../../../plugins/gestalt/skills/org-plan/scripts/org-plan-publication.mjs";
+import { dispatch } from "../../../plugins/gestalt/org-plan-mcp.mjs";
 
 const directory = mkdtempSync(join(tmpdir(), "org-nested-suspension-"));
 const path = join(directory, "plan.org");
@@ -39,9 +41,50 @@ try {
   // A single-frame consumer must never receive a nested plan/status.
   unchangedOnFailure(() => suspendReopen(path, id(11), id(9)), /nested-suspension-v1/);
   process.env.GESTALT_MOBILE_ORG_PLAN_CAPABILITIES = "suspension-v1,nested-suspension-v1";
+  const narrow = { consumerAttached: true, consumerCapabilities: ["suspension-v1"] };
+  unchangedOnFailure(() => suspendReopen(path, id(11), id(9), narrow), /nested-suspension-v1/);
   const result = suspendReopen(path, id(11), id(9));
   assert.equal(result.publication.published, true);
   const nested = readFileSync(path, "utf8");
+  assert.throws(() => requireSuspensionCapability(readPlan(path), narrow), /nested-suspension-v1/);
+  assert.throws(() => requireSuspensionCapability(readPlan(path), { consumerCapabilities: [] }), /suspension-v1/);
+  for (const consumerCapabilities of [null, "suspension-v1,nested-suspension-v1", [1]])
+    assert.throws(() => requireSuspensionCapability(readPlan(path), { consumerAttached: true, consumerCapabilities }), /explicit capability array/);
+  unchangedOnFailure(() => mutate(path, "l2", `${id(9)}-child`, "WIP", narrow), /nested-suspension-v1/);
+  unchangedOnFailure(() => measure(path, "checkpoint", id(9), { observedAt: "2026-10-16T11:00:00Z" }, narrow), /nested-suspension-v1/);
+  unchangedOnFailure(() => resume(path, id(11), narrow), /nested-suspension-v1/);
+  const publication = publishStatus(path, "signal", narrow);
+  assert.equal(publication.published, false);
+  assert.match(publication.warning, /nested-suspension-v1/);
+  const beforeSignal = readFileSync(status, "utf8");
+  const signal = dispatch("tools/call", { name: "org_plan_signal", arguments: { plan: path } }, narrow);
+  const signalResult = JSON.parse(signal.content[0].text);
+  assert.equal(signalResult.publication.published, false);
+  assert.match(signalResult.publication.warning, /nested-suspension-v1/);
+  assert.equal(readFileSync(status, "utf8"), beforeSignal);
+  assert.equal(readFileSync(path, "utf8"), nested);
+  process.env.GESTALT_MOBILE_ORG_PLAN_CAPABILITIES = "suspension-v1";
+  assert.doesNotThrow(() => requireSuspensionCapability(readPlan(path), {
+    consumerCapabilities: ["suspension-v1", "nested-suspension-v1"],
+  }));
+  process.env.GESTALT_MOBILE_ORG_PLAN_CAPABILITIES = "suspension-v1,nested-suspension-v1";
+  // Host context is separate from model-controlled tool arguments and survives
+  // every adapter path. Ambient normal-session support cannot widen it.
+  for (const [name, args] of [
+    ["org_plan_l1_transition", { id: id(9), state: "DONE" }],
+    ["org_plan_l2_transition", { id: `${id(9)}-child`, state: "WIP" }],
+    ["org_plan_review_transition", { id: id(8), state: "REVIEWED" }],
+    ["org_plan_resume", { id: id(11) }],
+    ["org_plan_suspend_reopen", { dependentId: id(9), dependencyId: id(7) }],
+    ["org_plan_measure", { id: id(9), operation: "checkpoint", snapshot: { observedAt: "2026-10-16T11:00:00Z" } }],
+  ]) {
+    unchangedOnFailure(() => {
+      const response = dispatch("tools/call", { name, arguments: { plan: path, ...args } }, narrow);
+      assert.equal(response.isError, true);
+      throw new Error(response.content[0].text);
+    }, /nested-suspension-v1/);
+  }
+  assert.throws(() => dispatch("tools/call", { name: "org_plan_resume", arguments: { plan: path, id: id(11), consumerCapabilities: ["suspension-v1", "nested-suspension-v1"] } }), /consumerCapabilities/);
   assert.equal(get(id(13)).properties.get("SUSPENDED_FOR"), id(11));
   assert.equal(get(id(11)).properties.get("SUSPENDED_FOR"), id(9));
   assert.equal(get(id(9)).state, "WIP");

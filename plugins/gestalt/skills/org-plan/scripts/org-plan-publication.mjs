@@ -11,11 +11,16 @@ import { readPlan, projection } from "./org-plan-parser.mjs";
 
 // The trusted host advertises this only after its source-reading consumer has
 // adopted suspension-v1. Legacy consumers reparse headings, ignoring metadata.
-export function requireSuspensionCapability(plan, { consumerAttached = false } = {}) {
+export function requireSuspensionCapability(plan, { consumerAttached = false, consumerCapabilities } = {}) {
   const destination = process.env.GESTALT_MOBILE_ORG_PLAN_STATUS_DIRECTORY ||
     process.env.GESTALT_MOBILE_ORG_PLAN_STATUS_FILE;
-  if (!destination && !consumerAttached) return;
-  const capabilities = (process.env.GESTALT_MOBILE_ORG_PLAN_CAPABILITIES ?? "").split(",");
+  if (!destination && !consumerAttached && consumerCapabilities === undefined) return;
+  if (consumerCapabilities !== undefined &&
+      (!Array.isArray(consumerCapabilities) || consumerCapabilities.some((value) => typeof value !== "string")))
+    fail("consumerCapabilities must be an explicit capability array");
+  const capabilities = consumerCapabilities === undefined
+    ? (process.env.GESTALT_MOBILE_ORG_PLAN_CAPABILITIES ?? "").split(",")
+    : consumerCapabilities;
   const suspended = plan.items.filter((item) => item.level === 1 && item.state === "SUSPENDED");
   if (suspended.length && !capabilities.includes("suspension-v1"))
     fail("Mobile consumer requires suspension-v1 capability; no plan or status written");
@@ -82,7 +87,7 @@ export function publishStatus(path, reason, options = {}) {
   try {
     const planPath = resolvePlanPath(path);
     const plan = readPlan(planPath);
-    requireSuspensionCapability(plan);
+    requireSuspensionCapability(plan, options);
     projection(plan);
     let directory;
     let targetName;
