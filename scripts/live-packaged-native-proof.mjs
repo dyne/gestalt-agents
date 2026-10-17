@@ -68,7 +68,7 @@ function rpcClient(child) {
       } else call.done(message.result);
     }
   });
-  return (method, params, timeoutMs = 20000) => new Promise((done, reject) => {
+  return (method, params, timeoutMs = method === "initialize" ? MANAGER_OBSERVATION_MS : 20000) => new Promise((done, reject) => {
     const id = ++counter, timer = setTimeout(() => { pending.delete(id); reject(new Error("NATIVE_RPC_TIMEOUT")); }, timeoutMs);
     pending.set(id, { done, reject, timer, method }); child.stdin.write(`${JSON.stringify({ jsonrpc: "2.0", id, method, params })}\n`);
   });
@@ -83,8 +83,9 @@ try {
   assert.equal(report.provenance.sandboxHelperSha256, "396915091a1f0387b48fd06e98d06e61d22f6ff6af33bc806891a634ee03d199");
   assert.equal(report.provenance.codeModeHostSha256, "e87096087c02aa6ab90a5a85031659665aa0bf3ee20c07ca0b8ab701c83fcd5b");
   assert.equal(report.provenance.bundledBwrapSha256, "335aa87510fc0eee1bcdbedd3d9bf4aa4d112cffed72d5f1ad7a10b6cc855066");
-  mkdirSync(join(root, "node-bin"), { mode: 0o700 });
-  const node = join(root, "node-bin/node"); copyFileSync(realpathSync(process.execPath), node); chmodSync(node, 0o700);
+  // Same interpreter for controller, Manager's private CLI verifier, original
+  // bridge and confined workers. A copied Node cannot stand in for that identity.
+  const node = realpathSync(process.execPath); assert.equal(node, "/usr/bin/node");
   admittedNode = { path: node, sha256: hash(readFileSync(node)) };
   const contextVersion = JSON.parse(readFileSync(join(repo, "plugins/context-mode/package.json"))).version;
   const packages = ["context-mode", "gestalt"].map((name) => {
@@ -176,7 +177,7 @@ try {
   const saveInput = () => writeFileSync(bootstrapPath, JSON.stringify(input), { mode: 0o600 });
   saveInput(); save(); let config = stageAdmission(bootstrapPath);
   report.stage = "managed-owning-native-birth";
-  const bootstrap = execFileSync(manager, ["cli", "--", "--live-policy-bootstrap", "--manifest", manifestPath], { cwd: app, env: managerEnvironment(admittedNode, home), timeout: 30000, stdio: ["ignore", "pipe", "pipe"] });
+  const bootstrap = execFileSync(manager, ["cli", "--", "--live-policy-bootstrap", "--manifest", manifestPath], { cwd: app, env: managerEnvironment(admittedNode, home), timeout: MANAGER_OBSERVATION_MS, stdio: ["ignore", "pipe", "pipe"] });
   assert.equal(lstatSync(daemon).mode & 0o777, 0o700);
   let captured = managerApi("capture-runtime", manifestPath, "--capture-id", captureId);
   report.capture = { available: captured.available, extensions: captured.extensions, sourceCount: captured.originalLaunchSources?.length };
@@ -629,6 +630,7 @@ try {
   report.failure = /^[A-Z_]{1,64}$/.test(error.message) ? error.message : "PROOF_ASSERTION_FAILED";
   report.failureDetails = { stage: report.stage, operator: error.operator, code: error.code,
     errorClass: error.name, sourceLine: Number(error.stack?.match(/live-packaged-native-proof\.mjs:(\d+):/)?.[1]) || undefined,
+    processStatus: Number.isInteger(error.status) ? error.status : undefined,
     actual: typeof error.actual === "boolean" || typeof error.actual === "number" ? error.actual : undefined,
     boundedActualReason: typeof error.actual?.message === "string" && /^[a-z-]{1,64}$/.test(error.actual.message) ? error.actual.message : undefined,
     rpc: error.rpc };

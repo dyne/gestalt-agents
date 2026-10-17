@@ -167,7 +167,7 @@ jobs:
         run: |
           set -Eeuo pipefail
           mkdir -p test-results/live-packaged
-          node scripts/live-packaged-native-proof.mjs > test-results/live-packaged/proof.log 2>&1
+          PATH=/usr/bin:/bin /usr/bin/node scripts/live-packaged-native-proof.mjs > test-results/live-packaged/proof.log 2>&1
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:

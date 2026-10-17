@@ -1,5 +1,5 @@
 import { createHmac } from "node:crypto";
-import { chmodSync, copyFileSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, realpathSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fixture } from "./live-fixture.mjs";
 import { configureCodexIntegration } from "../../../plugins/context-mode/scripts/configure-codex.mjs";
@@ -10,10 +10,10 @@ import test from "node:test";
 import { syncBuiltinESMExports } from "node:module";
 
 // Offline fixtures only: this filesystem namespace maps immutable root-owned
-// / and /tmp to overflow UID65534. Model their host ownership, preserving every
+// system paths to overflow UID65534. Model their host ownership, preserving every
 // other stat field. Real source paths, permissions and identities stay strict.
 const hostStat = fs.lstatSync, hostFstat = fs.fstatSync;
-const owner = (path, info) => ["/", "/tmp"].includes(path) && info.uid === 65534
+const owner = (path, info) => ["/", "/tmp", "/usr", "/usr/bin", realpathSync(process.execPath)].includes(path) && info.uid === 65534
   ? Object.assign(Object.create(Object.getPrototypeOf(info)), info, { uid: 0 }) : info;
 const statMock = test.mock.method(fs, "lstatSync", (path, ...args) => owner(path, hostStat(path, ...args)));
 const fdMock = test.mock.method(fs, "fstatSync", (fd, ...args) => owner(fs.readlinkSync(`/proc/self/fd/${fd}`), hostFstat(fd, ...args)));
@@ -51,9 +51,9 @@ export function installedFixture(t) {
     nodeModulesAbi: process.versions.modules, platform: process.platform, arch: process.arch, bun: null, files }));
   mkdirSync(join(f.manifest.runtimeHome, "bin"), { mode: 0o700 });
   const configured = configureCodexIntegration({ codexHome: f.manifest.runtimeHome, gestaltHome, pluginRoot: packageRoot, pluginId: "context-mode@dyne-gestalt-agents" });
-  // The sandbox's /usr/bin image is owned by overflow UID65534. Copy exact
-  // interpreter bytes into private fixture storage; never weaken ownership.
-  const node = join(f.root, "node-bin/node"); copyFileSync(process.execPath, node); chmodSync(node, 0o755);
+  // Manager's private CLI pins the actual controller Node. A byte-identical
+  // copied interpreter has a different identity and is not a substitute.
+  const node = realpathSync(process.execPath);
   f.input.node = { path: node, sha256: digest(readFileSync(node)) };
   f.input.runtime = { root: runtime, sha256: measureTree(runtime) }; pkg.sha256 = measureTree(packageRoot);
   f.input.effectiveConfig.plugins.find((p) => p.name === "context-mode").root = packageRoot;

@@ -28,6 +28,11 @@ for (const [name, change] of [
   ["missing descriptor", (f) => { delete f.manifest.originalLaunchSources; }],
   ["empty descriptors", (f) => { f.manifest.originalLaunchSources = []; }],
   ["unknown descriptor kind", (f) => { f.manifest.originalLaunchSources[0].kind = "arbitrary-command"; }],
+  ["byte-identical substitute for actual controller interpreter", (f) => {
+    const path = join(f.root, "node-bin/node"); copyFileSync(process.execPath, path); chmodSync(path, 0o755);
+    f.input.node = { path, sha256: digest(readFileSync(path)) }; f.manifest.originalLaunchSources[0].interpreter = f.input.node;
+    Object.assign(f.manifest.commands["context-mode-call"], { executable: path, sha256: f.input.node.sha256 });
+  }],
   ["extra descriptor authority", (f) => { f.manifest.originalLaunchSources[0].env = {}; }],
   ["missing inventory source", (f) => { f.provenance.inventory.sources = f.provenance.inventory.sources.filter((s) => s.kind !== "installed-launch-source"); }],
   ["duplicate inventory source", (f) => { f.provenance.inventory.sources.push(f.observations[0]); }],

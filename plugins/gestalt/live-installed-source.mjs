@@ -32,7 +32,7 @@ export function observeOriginalLaunchSources(manifest, input) {
   const pkgPin = input.packages.find((item) => item.name === "context-mode");
   if (!pkgPin || source.package.root !== pkgPin.root || source.package.treeDigest !== pkgPin.sha256
     || source.runtime.root !== input.runtime.root || source.runtime.treeDigest !== input.runtime.sha256
-    || stable(source.interpreter) !== stable(input.node)) reject();
+    || stable(source.interpreter) !== stable(input.node) || source.interpreter.path !== realpathSync(process.execPath)) reject();
   const writeRoots = manifest.sandboxState.permissionProfile.file_system.entries.filter((entry) => entry.access === "write").map((entry) => {
     if (entry.path?.type === "path") return entry.path.path;
     if (entry.path?.type === "special" && entry.path.value?.kind === "root") return "/";
