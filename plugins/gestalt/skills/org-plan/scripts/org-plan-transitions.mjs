@@ -30,11 +30,11 @@ const MEASURED_PROPERTIES = [
   "TOKENS_USED",
 ];
 
-function writePlan(path, plan, reason) {
+function writePlan(path, plan, reason, options = {}) {
   const text = plan.lines.join("\n");
   const candidate = parsePlan(text);
   projection(candidate);
-  requireSuspensionCapability(candidate);
+  requireSuspensionCapability(candidate, options);
   const canonicalPath = resolvePlanPath(path);
   const status = lstatSync(canonicalPath);
   const temporary = temporarySibling(canonicalPath);
@@ -51,7 +51,7 @@ function writePlan(path, plan, reason) {
   const updatedPlan = readPlan(canonicalPath);
   return {
     plan: updatedPlan,
-    publication: publishStatus(canonicalPath, reason),
+    publication: publishStatus(canonicalPath, reason, options),
   };
 }
 
@@ -108,11 +108,12 @@ function transitionReview(plan, item, id, state) {
   plan.lines[reviewLine] = `:REVIEW_STATUS: ${state}`;
 }
 
-export function mutate(path, operation, id, state, { force = false } = {}) {
+export function mutate(path, operation, id, state, options = {}) {
+  const { force = false } = options;
   const plan = readPlan(path);
   const item = findItem(plan, id);
   const before = observable(plan, id);
-  requireSuspensionCapability(plan);
+  requireSuspensionCapability(plan, options);
   if (item.state === "SUSPENDED" || item.parent?.state === "SUSPENDED")
     fail("suspended work requires resume before mutation");
   if (operation === "review") {
@@ -130,7 +131,7 @@ export function mutate(path, operation, id, state, { force = false } = {}) {
     transitionHeading(plan, item, state, force);
   }
   const reason = `${operation === "l1" ? "set" : operation}:${id}:${state}`;
-  const result = writePlan(path, plan, reason);
+  const result = writePlan(path, plan, reason, options);
   return {
     plan: { path: result.plan.path, fingerprint: result.plan.fingerprint },
     before,
@@ -228,12 +229,12 @@ function measurementUpdates(operation, properties, snapshot) {
   return updates;
 }
 
-export function measure(path, operation, id, snapshot) {
+export function measure(path, operation, id, snapshot, options = {}) {
   snapshot = validateSnapshot(operation, snapshot);
   const plan = readPlan(path);
   const item = findItem(plan, id);
   const before = observable(plan, id);
-  requireSuspensionCapability(plan);
+  requireSuspensionCapability(plan, options);
   if (item.state === "SUSPENDED" || item.parent?.state === "SUSPENDED")
     fail("suspended work cannot be measured");
   const properties = item.properties;
@@ -254,7 +255,7 @@ export function measure(path, operation, id, snapshot) {
   }
   plan.lines.splice(item.ds + 1, item.de - item.ds - 1, ...body);
 
-  const result = writePlan(path, plan, `measure:${operation}:${id}`);
+  const result = writePlan(path, plan, `measure:${operation}:${id}`, options);
   return {
     plan: { path: result.plan.path, fingerprint: result.plan.fingerprint },
     id,
@@ -269,7 +270,7 @@ export function measure(path, operation, id, snapshot) {
 
 // One atomic candidate preserves completed children and all telemetry. Dedicated
 // commands are the only way into/out of SUSPENDED; --force cannot bypass them.
-export function suspendReopen(path, dependentId, dependencyId) {
+export function suspendReopen(path, dependentId, dependencyId, options = {}) {
   const plan = readPlan(path);
   const dependent = findItem(plan, dependentId);
   const dependency = findItem(plan, dependencyId);
@@ -288,13 +289,13 @@ export function suspendReopen(path, dependentId, dependencyId) {
   }
   transitionHeading(plan, dependency, "WIP", false);
   plan.lines.splice(dependent.de, 0, `:SUSPENDED_FOR: ${dependencyId}`);
-  const result = writePlan(path, plan, "update");
+  const result = writePlan(path, plan, "update", options);
   return suspensionResult(result, before, [dependentId, dependencyId]);
 }
 
-export function resume(path, id) {
+export function resume(path, id, options = {}) {
   const plan = readPlan(path);
-  requireSuspensionCapability(plan);
+  requireSuspensionCapability(plan, options);
   const item = findItem(plan, id);
   if (item.level !== 1 || item.state !== "SUSPENDED") fail("resume requires a suspended L1");
   if (plan.items.some((entry) => entry.level === 1 && entry.line < item.line &&
@@ -307,7 +308,7 @@ export function resume(path, id) {
   }
   const propertyLine = plan.lines.findIndex((line, index) => index > item.ds && index < item.de && line.startsWith(":SUSPENDED_FOR:"));
   plan.lines.splice(propertyLine, 1);
-  const result = writePlan(path, plan, "update");
+  const result = writePlan(path, plan, "update", options);
   return suspensionResult(result, before, [id]);
 }
 

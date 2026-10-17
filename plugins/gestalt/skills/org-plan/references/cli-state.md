@@ -136,3 +136,13 @@ use a narrow typed, controller-authenticated consumer-capability input bound to
 bootstrap/configuration and admission receipts, with invalidation on component
 or configuration changes. Do not export an arbitrary token or widen process
 environment forwarding to bypass that boundary.
+
+Embedded hosts pass `{ consumerAttached: true, consumerCapabilities: [...] }`
+as the final options argument to transitions/measurement/publication, or as the
+third argument to the exported MCP `dispatch(method, params, context)`. An
+explicit capability array replaces the ambient normal-session assertion;
+an empty array grants no suspension support and malformed values are rejected.
+The context is host input, never an MCP tool argument. Every mutation validates
+it before writing the plan, and publication applies the same restriction.
+Omitting the array preserves the normal CLI environment contract. Supplying
+this context does not itself implement Live admission, hold guards or activation.
