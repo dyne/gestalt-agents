@@ -9,6 +9,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { prepareLiveRuntime } from "../plugins/gestalt/scripts/prepare-live-runtime.mjs";
 import { managerEnvironment, MANAGER_OBSERVATION_MS } from "../plugins/gestalt/live-admission.mjs";
+import { observeOriginalLaunchSources } from "../plugins/gestalt/live-installed-source.mjs";
 import { configureCodexIntegration } from "../plugins/context-mode/scripts/configure-codex.mjs";
 import { createMcpTestClient } from "../tests/plugins/gestalt/mcp-test-client.mjs";
 
@@ -183,6 +184,7 @@ try {
   report.capture = { available: captured.available, extensions: captured.extensions, sourceCount: captured.originalLaunchSources?.length };
   assert.ok(captured.extensions.includes("original-installed-launch-source-v1"));
   assert.deepEqual(captured.originalLaunchSources[0].descriptor, originalLaunchSource);
+  const originalInstalledObservation = structuredClone(captured.originalLaunchSources);
   native = spawn(manager, ["cli", "--", "--live-policy-owning-runtime", "--manifest", manifestPath, "--capture-id", captureId], { cwd: app, env: managerEnvironment(admittedNode, home), stdio: ["pipe", "pipe", "pipe"] }); native.stderr.resume();
   let rpc = rpcClient(native);
   await rpc("initialize", { clientInfo: { name: "l10-packaged-v2", version: "2" }, capabilities: { experimentalApi: true } });
@@ -276,7 +278,11 @@ try {
     }
     sources.push({ kind: "file", role: "sandbox-worker", ...pins.get(join(manifest.runtimeHome, "config.toml")) });
     const birth = JSON.parse(readFileSync(join(dirname(manifestPath), `birth-${captureId}.json`))).body;
-    assert.deepEqual(birth.originalLaunchSources, captured.originalLaunchSources);
+    // Renewal returns lineage identifiers, not the capture extension response.
+    // Its signed birth must retain the capability-checked initial source identity
+    // and match a fresh independent consumer observation before every seal.
+    assert.deepEqual(birth.originalLaunchSources, originalInstalledObservation);
+    assert.deepEqual(birth.originalLaunchSources, observeOriginalLaunchSources(manifest, input));
     sources.push(...birth.originalLaunchSources);
     const filePin = (path) => { const i = lstatSync(path); return { sha256: hash(readFileSync(path)), identity: { dev: i.dev, ino: i.ino, uid: i.uid, mode: i.mode, ctime: i.ctimeMs, mtime: i.mtimeMs } }; };
     for (const item of birth.directories) {
