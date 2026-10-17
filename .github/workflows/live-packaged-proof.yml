@@ -215,8 +215,21 @@ jobs:
       - name: Full repository, installed package and exact discovery checks
         run: |
           set -Eeuo pipefail
+          test "${RUNNER_ENVIRONMENT:?}" = github-hosted
+          test "${RUNNER_OS:?}" = Linux
+          # The source-extension fixtures require the actual supported Node,
+          # not setup-node's multi-executable directory. Preserve the remaining
+          # PATH for the separately installed Codex and Bun test dependencies.
+          proof_node=$(readlink -f -- "$(command -v node)")
+          proof_npm=$(readlink -f -- "$(command -v npm)")
+          proof_npx=$(readlink -f -- "$(command -v npx)")
+          test "$("$proof_node" -p 'process.versions.node')" = 24.21.0
+          sudo install -m0755 "$proof_node" /usr/bin/node
+          cmp -- "$proof_node" /usr/bin/node
+          sudo ln -sfn -- "$proof_npm" /usr/bin/npm
+          sudo ln -sfn -- "$proof_npx" /usr/bin/npx
           mkdir -p test-results/live-packaged-ci
-          bash tests/ci.sh > test-results/live-packaged-ci/ci.log 2>&1
+          PATH="/usr/bin:/bin:$PATH" bash tests/ci.sh > test-results/live-packaged-ci/ci.log 2>&1
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:

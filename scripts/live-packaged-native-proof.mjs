@@ -464,7 +464,7 @@ try {
     const descriptor = old.config.mcpServers["gestalt-org-plan"];
     const restarted = spawn(descriptor.command, descriptor.args, { cwd: descriptor.cwd,
       env: { PATH: "/usr/bin:/bin", HOME: owningHome, LANG: "C.UTF-8", TMPDIR: "/tmp" }, stdio: "ignore" });
-    await until(() => restarted.exitCode !== null); assert.equal(restarted.exitCode, 78);
+    await until(() => restarted.exitCode !== null, MANAGER_OBSERVATION_MS); assert.equal(restarted.exitCode, 78);
   };
   const owningCall = async (server, tool, args, meta) => {
     const began = Date.now();
@@ -491,6 +491,22 @@ try {
   report.renewal = { generations: [], quiescence: [], oldAuthorityChecks: 0,
     narrowedSurface: "Existing project subdirectory write-to-read; project-local context storage remains writable." };
   const dead = (record) => { try { return identity(record.pid).birth !== record.birth; } catch { return true; } };
+  const signedMonitorReady = async (phase) => {
+    const began = Date.now(); let active;
+    await until(() => {
+      for (const name of readdirSync(dirname(manifestPath)).filter((name) => /^process-[a-f0-9-]+\.json$/.test(name))) {
+        const record = JSON.parse(readFileSync(join(dirname(manifestPath), name)));
+        const expected = createHmac("sha256", readFileSync(keyFile)).update(stable(record.body)).digest("hex");
+        assert.equal(record.mac, expected);
+        if (record.body.status === "running" && record.body.commandId === "context-mode-call" && record.body.postSpawnValidated === true
+          && record.body.policy.manifestDigest === hash(readFileSync(manifestPath))) { active = record.body; return true; }
+      }
+      return false;
+    }, MANAGER_OBSERVATION_MS);
+    report.monitorReadiness ??= []; report.monitorReadiness.push({ phase, generation: manifest.generation.generation,
+      launchId: active.launchId, signedPostSpawnValidated: true, monitorWaitMs: Date.now() - began });
+    return active;
+  };
   const descendants = (parent) => {
     const result = [];
     for (const raw of readFileSync(`/proc/${parent}/task/${parent}/children`, "utf8").trim().split(/\s+/).filter(Boolean)) {
@@ -554,12 +570,15 @@ try {
   report.stage = "renewal-original-drainage";
   const marker = join(app, "descendant-marker"), heartbeat = join(app, "heartbeat.txt"), descendant = join(app, "descendant.mjs");
   writeFileSync(descendant, `import fs from 'node:fs';process.on('SIGTERM',()=>{});setInterval(()=>fs.writeFileSync(${JSON.stringify(heartbeat)},String(Date.now())),100);`);
-  const inFlight = call("ctx_execute", { language: "javascript", timeout: 60000, code: `const cp=require('node:child_process');cp.spawn(process.execPath,[${JSON.stringify(descendant)},${JSON.stringify(marker)}],{detached:true,stdio:'inherit'});setInterval(()=>{},1000);` });
-  await until(() => existsSync(heartbeat));
+  const inFlight = call("ctx_execute", { language: "javascript", timeout: 120000, code: `const cp=require('node:child_process');cp.spawn(process.execPath,[${JSON.stringify(descendant)},${JSON.stringify(marker)}],{detached:true,stdio:'inherit'});setInterval(()=>{},1000);` });
+  // Dispatch verification and worker birth each have one observation phase;
+  // heartbeat alone never proves post-spawn validation/monitor installation.
+  await until(() => existsSync(heartbeat), 2 * MANAGER_OBSERVATION_MS);
+  await signedMonitorReady("detached-descendant-revocation");
   const markerProcesses = () => readdirSync('/proc').filter((pid) => /^\d+$/.test(pid)).filter((pid) => { try { return readFileSync(`/proc/${pid}/cmdline`).toString().split('\0').includes(marker); } catch { return false; } });
   const originalDescendants = markerProcesses().map((pid) => identity(Number(pid))); assert.ok(originalDescendants.length > 0);
   managerApi("revoke-runtime", manifestPath, "--capture-id", captureId);
-  assert.ok((await inFlight).error); await until(() => originalDescendants.every(dead) && markerProcesses().length === 0);
+  assert.ok((await inFlight).error); await until(() => originalDescendants.every(dead) && markerProcesses().length === 0, MANAGER_OBSERVATION_MS);
   assert.ok((await orgClient.request(++sequence, "tools/call", { name: "org_plan_validate", arguments: { plan } })).error);
   await close(contextProxy); await close(orgProxy);
   report.renewal.quiescence.push(await quiesceNative(rpc, [started.thread.id]));
@@ -573,7 +592,7 @@ try {
   report.stage = "renewal-replacement-drainage";
   await revokeAndQuiesce();
   const oldOwned = descendants(native.pid); await close(native);
-  assert.ok(dead(originalBirth)); await until(() => oldOwned.every(dead));
+  assert.ok(dead(originalBirth)); await until(() => oldOwned.every(dead), MANAGER_OBSERVATION_MS);
   report.renewal.replacementOldOwner = { process: originalBirth, descendants: oldOwned, allExited: true };
   const survivor = generations.at(-1); nextGeneration(survivor);
   report.stage = "renewal-managed-replacement";
@@ -587,21 +606,10 @@ try {
   report.stage = "renewed-installed-source-lifetime-tamper";
   const tamperMarker = join(app, "source-tamper-marker"), tamperHeartbeat = join(app, "source-tamper-heartbeat");
   const tamperHeld = rpc("mcpServer/tool/call", { threadId: started.thread.id, server: "context-mode", tool: "ctx_execute", arguments: {
-    language: "javascript", timeout: 60000, code: `const fs=require('node:fs');fs.writeFileSync(${JSON.stringify(tamperMarker)},'ready');setInterval(()=>fs.writeFileSync(${JSON.stringify(tamperHeartbeat)},String(Date.now())),100);`,
+    language: "javascript", timeout: 120000, code: `const fs=require('node:fs');fs.writeFileSync(${JSON.stringify(tamperMarker)},'ready');setInterval(()=>fs.writeFileSync(${JSON.stringify(tamperHeartbeat)},String(Date.now())),100);`,
   } }, 400000).then((result) => ({ result }), (error) => ({ error: error.message }));
-  await until(() => existsSync(tamperHeartbeat), MANAGER_OBSERVATION_MS);
-  const readyStarted = Date.now();
-  let activeReceipt;
-  await until(() => {
-    for (const name of readdirSync(dirname(manifestPath)).filter((name) => /^process-[a-f0-9-]+\.json$/.test(name))) {
-      const record = JSON.parse(readFileSync(join(dirname(manifestPath), name)));
-      const expected = createHmac("sha256", readFileSync(keyFile)).update(stable(record.body)).digest("hex");
-      assert.equal(record.mac, expected);
-      if (record.body.status === "running" && record.body.postSpawnValidated === true) { activeReceipt = record.body; return true; }
-    }
-    return false;
-  }, MANAGER_OBSERVATION_MS);
-  report.tamperReadiness = { launchId: activeReceipt.launchId, signedPostSpawnValidated: true, monitorWaitMs: Date.now() - readyStarted };
+  await until(() => existsSync(tamperHeartbeat), 2 * MANAGER_OBSERVATION_MS);
+  await signedMonitorReady("installed-source-tamper");
   writeFileSync(join(runtime.root, "server.bundle.mjs"), Buffer.concat([readFileSync(join(runtime.root, "server.bundle.mjs")), Buffer.from("\n// actual source lifetime tamper\n")]));
   const tampered = await tamperHeld;
   assert.ok(tampered.error || tampered.result.isError);
