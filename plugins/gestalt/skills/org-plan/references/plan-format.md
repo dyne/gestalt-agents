@@ -113,6 +113,8 @@ Only the supported dependency-reopen transition creates `SUSPENDED`. A suspended
 L1 remains UNREVIEWED and declares `:SUSPENDED_FOR: earlier-l1-id`. Its former
 WIP L2, if any, is also SUSPENDED; other children keep DONE/TODO. A suspended
 L2 cannot exist outside a suspended L1, and a WIP child cannot exist inside one.
-Only one suspended L1/L2 is permitted. Active work must precede the suspended
-L1. See [CLI state machine](cli-state.md) for review and consumer gates; never
-hand-author suspension to bypass them.
+Suspended L1s must form one ordered dependency chain, with at most one suspended
+L2 per suspended L1. Active work must precede the innermost suspended L1.
+Nested chains require a consumer advertising `nested-suspension-v1` in addition
+to `suspension-v1`. See [CLI state machine](cli-state.md) for review and consumer
+gates; never hand-author suspension to bypass them.
