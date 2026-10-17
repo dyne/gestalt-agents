@@ -6,6 +6,9 @@ codex_home=$(mktemp -d "$root/.codex-marketplace-smoke.XXXXXX")
 gestalt_home=$(mktemp -d "$root/.gestalt-runtime-smoke.XXXXXX")
 workspace=$(mktemp -d "$root/.context-mode-workspace-smoke.XXXXXX")
 trap 'rm -rf "$codex_home" "$gestalt_home" "$workspace"' EXIT HUP INT TERM
+# Keep unrelated global skills out of this clean installation/discovery proof.
+mkdir -p "$workspace/home"
+export HOME="$workspace/home"
 
 CODEX_HOME="$codex_home" codex plugin marketplace add "$root" >/dev/null
 mkdir -p "$codex_home/agents"
@@ -75,7 +78,7 @@ PY
 
 CODEX_HOME="$codex_home" node "$root/scripts/verify-gestalt-skill-catalog.mjs" "$root" \
   >"$codex_home/skills-catalog.out"
-grep -F 'verified 14 enabled fixed Gestalt skills and 2 conditional skills in skills/list' "$codex_home/skills-catalog.out" >/dev/null
+grep -F 'verified 15 enabled fixed Gestalt skills and 2 conditional skills in skills/list' "$codex_home/skills-catalog.out" >/dev/null
 
 context_version=$(node -p "JSON.parse(require('node:fs').readFileSync(process.argv[1], 'utf8')).installed.find(x => x.name === 'context-mode').version" "$codex_home/plugins.json")
 context_cache="$codex_home/plugins/cache/dyne-gestalt-agents/context-mode/$context_version"

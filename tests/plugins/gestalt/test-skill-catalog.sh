@@ -16,7 +16,7 @@ const pluginRoot = join(root, 'plugins/gestalt');
 const catalog = readdirSync(join(pluginRoot, 'skills')).map(name => ({
   name: `gestalt:${name}`, enabled: true, path: join(pluginRoot, 'skills', name, 'SKILL.md'),
 }));
-assert.equal(catalog.length, 16);
+assert.equal(catalog.length, 17);
 const executable = join(temporary, 'codex');
 writeFileSync(executable, `#!/usr/bin/env node
 const { createInterface } = require('node:readline');
@@ -38,7 +38,7 @@ const verify = async skills => {
     environment: { ...process.env, PATH: `${temporary}:${process.env.PATH}`, CATALOG_FIXTURE: fixture } });
 };
 try {
-  assert.match(await verify(catalog), /14 enabled fixed Gestalt skills and 2 conditional skills/);
+  assert.match(await verify(catalog), /15 enabled fixed Gestalt skills and 2 conditional skills/);
   for (const disabledNames of [['gestalt:xerj'], ['gestalt:serena'], ['gestalt:xerj', 'gestalt:serena']]) {
     const disabled = catalog.map(skill => ({ ...skill, enabled: !disabledNames.includes(skill.name) }));
     assert.match(await verify(disabled), /2 conditional skills/);

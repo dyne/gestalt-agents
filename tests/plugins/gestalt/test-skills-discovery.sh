@@ -18,6 +18,7 @@ import re
 import sys
 
 expected = {
+    "impeccable",
     "context-mode",
     "ctx-doctor",
     "ctx-index",

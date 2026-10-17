@@ -3,15 +3,35 @@ import { chmodSync, copyFileSync, existsSync, linkSync, mkdirSync, readFileSync,
 import { join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import test from "node:test";
+import { createHmac, randomUUID } from "node:crypto";
 import { spawn, spawnSync } from "node:child_process";
 import { createMcpTestClient } from "./mcp-test-client.mjs";
 import { fixture } from "./live-fixture.mjs";
-import { executionAuthority, executionInputsCurrent, prepareAdmission, stageAdmission } from "../../../plugins/gestalt/live-admission.mjs";
+import { contextExecutionBudget, digest, executionAuthority, executionInputsCurrent, nativeExitVerified, prepareAdmission, stable, stageAdmission } from "../../../plugins/gestalt/live-admission.mjs";
 import { liveRequest, validateProxyEnvironment } from "../../../plugins/gestalt/live-mcp-proxy.mjs";
 import { orgLifecycle } from "../../../plugins/gestalt/live-org-lifecycle.mjs";
 import { prepareLiveRuntime } from "../../../plugins/gestalt/scripts/prepare-live-runtime.mjs";
 
 const repo = fileURLToPath(new URL("../../..", import.meta.url));
+test("successful stdout and signed exit alone cannot substitute for post-spawn monitor readiness", (t) => {
+  const f = fixture(t), authority = executionAuthority(f.bootstrapPath), launchId = randomUUID();
+  const path = join(f.privateRoot, `process-${launchId}.json`);
+  assert.equal(nativeExitVerified(authority, launchId), false);
+  const ready = { kind: "process-launch", launchId, commandId: "context-mode-call", status: "exited", termination: "leader-exit", postSpawnValidated: true,
+    policy: { manifestDigest: digest(readFileSync(f.input.manifestPath)) } };
+  const save = (body) => f.save(path, { body, mac: createHmac("sha256", readFileSync(f.manifest.keyFile)).update(stable(body)).digest("hex") });
+  for (const change of [
+    (body) => { delete body.postSpawnValidated; }, (body) => { body.postSpawnValidated = false; },
+    (body) => { body.postSpawnValidated = "true"; }, (body) => { body.status = "running"; },
+    (body) => { body.termination = "policy-changed"; }, (body) => { body.commandId = "other"; },
+    (body) => { body.policy.manifestDigest = "0".repeat(64); },
+  ]) { const body = structuredClone(ready); change(body); save(body); assert.equal(nativeExitVerified(authority, launchId), false); }
+  save(ready); assert.equal(nativeExitVerified(authority, launchId), true);
+});
+test("installed-source call deadline preserves both observation phases and the existing command clock", () => {
+  assert.equal(contextExecutionBudget({}), 125000);
+  assert.equal(contextExecutionBudget({ originalLaunchSources: [{}] }), 305000);
+});
 test("proxy accepts only Native's optional fixed TMPDIR and the existing minimal environment", () => {
   const minimal = { PATH: "/usr/bin:/bin", HOME: "/fixed/owning/home", LANG: "C.UTF-8" };
   assert.doesNotThrow(() => validateProxyEnvironment(minimal));

@@ -3,6 +3,7 @@ import { createHash, createHmac, randomUUID, timingSafeEqual } from "node:crypto
 import { execFileSync } from "node:child_process";
 import { closeSync, lstatSync, openSync, readFileSync, readdirSync, readlinkSync, realpathSync, renameSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
+import { observeOriginalLaunchSources } from "./live-installed-source.mjs";
 
 export const LIVE_SERVERS = Object.freeze(["context-mode", "gestalt-org-plan"]);
 export const UNAVAILABLE_WORKFLOWS = Object.freeze([
@@ -12,6 +13,20 @@ export const UNAVAILABLE_WORKFLOWS = Object.freeze([
 ]);
 const LIMIT = 262144;
 const HASH = /^[a-f0-9]{64}$/;
+export const MANAGER_OBSERVATION_MS = 90000;
+/** Manager bounds observation and post-spawn validation separately; its 120s
+ * command clock starts only after validation. Cancellation remains immediate.
+ */
+export function contextExecutionBudget(manifest) {
+  return 120000 + (manifest.originalLaunchSources ? 2 * MANAGER_OBSERVATION_MS : 0) + 5000;
+}
+function mcpBudgets(manifest, server) {
+  if (!manifest.originalLaunchSources) return {};
+  const dispatch = MANAGER_OBSERVATION_MS + (server === "context-mode" ? contextExecutionBudget(manifest) : 0);
+  // Proxy startup verifies once, then Native initializes and lists tools. Both
+  // requests independently verify; context requests each launch a fresh worker.
+  return { startup_timeout_sec: (MANAGER_OBSERVATION_MS + 2 * dispatch) / 1000, tool_timeout_sec: dispatch / 1000 };
+}
 export class AdmissionError extends Error {
   constructor(reason) { super(reason); this.reason = reason; }
 }
@@ -24,6 +39,10 @@ function sort(value) {
 }
 export const digest = (bytes) => createHash("sha256").update(bytes).digest("hex");
 const inside = (root, path) => path === root || path.startsWith(`${root === "/" ? "" : root}/`);
+function installedSources(manifest, input) {
+  try { return observeOriginalLaunchSources(manifest, input); }
+  catch (error) { fail(error.reason ?? "installed-launch-source-changed"); }
+}
 /** Manager's shell dispatch needs `node` on its host PATH. The native launch
  * environment remains the fixed L9 environment. Never use the caller's PATH.
  */
@@ -165,7 +184,8 @@ function readBootstrap(path) {
     canonical(plan);
     if (dirname(plan) !== join(input.workspaceRoot, ".gestalt") || !plan.endsWith(".org")) fail("invalid-lifecycle-scope");
   }
-  return { input, manifest, packages };
+  const originalLaunchSources = installedSources(manifest, input);
+  return { input, manifest, packages, originalLaunchSources };
 }
 /** Controller stages these exact bytes BEFORE L9 prepares its policy receipt. */
 export function stageAdmission(bootstrapPath) {
@@ -180,6 +200,7 @@ export function stageAdmission(bootstrapPath) {
       args: [join(packages.get("gestalt"), "live-mcp-proxy.mjs"), "--bootstrap", bootstrapPath, "--server", server],
       cwd: manifest.appRoot,
       env: {}, default_tools_approval_mode: "approve",
+      ...mcpBudgets(manifest, server),
     }])),
     plugins: [], hooks: [], unavailableWorkflows: UNAVAILABLE_WORKFLOWS,
   };
@@ -244,8 +265,9 @@ function inventoryObservation(inventory, manifest) {
  * Manager owns descriptor/birth/candidate revalidation; empty directories or a
  * caller's PID/source claims never substitute for that verification.
  */
-function provenanceBinding(policy, manifest) {
+function provenanceBinding(policy, manifest, originalLaunchSources) {
   if (policy.schemaVersion !== manifest.schemaVersion) fail("incompatible-native-policy");
+  if (stable(policy.originalLaunchSources ?? []) !== stable(originalLaunchSources)) fail("installed-launch-source-changed");
   if (manifest.schemaVersion === 1) return undefined;
   const provenance = policy.provenance, inventory = provenance?.inventory;
   if (!provenance || !inventory || inventory.schemaVersion !== 2
@@ -264,12 +286,18 @@ function provenanceBinding(policy, manifest) {
   exact(inventory, ["schemaVersion", "runtime", "policyDigest", "effectiveConfigDigest", "sessionFlagsDigest", "sources", ...(observed ? ["observation"] : [])]);
   if (observed) inventoryObservation(inventory, manifest);
   if (Object.hasOwn(provenance, "renewalDigest") && (!observed || typeof provenance.renewalDigest !== "string" || !HASH.test(provenance.renewalDigest))) fail("invalid-runtime-provenance");
-  const paths = new Set(), metadata = new Set(), system = new Set();
+  const paths = new Set(), metadata = new Set(), system = new Set(), launches = new Set();
   for (let ancestor = manifest.appRoot; ; ancestor = dirname(ancestor)) {
     metadata.add(join(ancestor, ".codex"));
     if (ancestor === "/") break;
   }
   for (const source of inventory.sources) {
+    if (source?.kind === "installed-launch-source") {
+      exact(source, ["kind", "descriptor", "observation"]);
+      if (!originalLaunchSources.some((pin) => stable(pin) === stable(source)) || launches.has(source.descriptor.path)) fail("invalid-source-inventory");
+      launches.add(source.descriptor.path);
+      continue;
+    }
     if (!source || typeof source.path !== "string" || !isAbsolute(source.path)
       || resolve(source.path) !== source.path || paths.has(source.path)) fail("invalid-source-inventory");
     paths.add(source.path);
@@ -300,13 +328,15 @@ function provenanceBinding(policy, manifest) {
       default: fail("invalid-source-inventory");
     }
   }
-  if (metadata.size || system.size !== 3 || !inventory.sources.some((source) => source.kind === "file" && source.path === join(manifest.runtimeHome, "config.toml"))) fail("invalid-source-inventory");
+  if (launches.size !== originalLaunchSources.length || metadata.size || system.size !== 3
+    || !inventory.sources.some((source) => source.kind === "file" && source.path === join(manifest.runtimeHome, "config.toml"))) fail("invalid-source-inventory");
   // Manager independently checks all present AND absent pre-birth instruction
   // candidates. Keep its complete signed inventory, including unselected files.
   return {
     schemaVersion: 2, captureId: provenance.captureId, generation: policy.authority.generation,
     sourceInventoryDigest: digest(stable(inventory)), runtimeProvenanceDigest: provenance.receiptDigest,
     effectiveConfigDigest: inventory.effectiveConfigDigest, sessionFlagsDigest: inventory.sessionFlagsDigest,
+    ...(originalLaunchSources.length ? { originalLaunchSources } : {}),
   };
 }
 function current(bootstrapPath) {
@@ -321,7 +351,7 @@ function current(bootstrapPath) {
   canonical(policyPath, false, true);
   const policy = authenticate(boundedJson(policyPath), key);
   if (policy.kind !== "policy-contract" || policy.manifestDigest !== digest(readFileSync(input.manifestPath))) fail("stale-policy-receipt");
-  const nativeContract = provenanceBinding(policy, manifest);
+  const nativeContract = provenanceBinding(policy, manifest, checked.originalLaunchSources);
   canonical(policy.manager?.path); protectedPath(policy.manager.path, manifest);
   if (digest(readFileSync(policy.manager.path)) !== policy.manager.sha256) fail("manager-changed");
   for (const file of manifest.configFiles ?? []) {
@@ -338,6 +368,7 @@ function current(bootstrapPath) {
     command: input.node.path,
     args: [join(checked.packages.get("gestalt"), "live-mcp-proxy.mjs"), "--bootstrap", bootstrapPath, "--server", server],
     cwd: manifest.appRoot, env: {}, default_tools_approval_mode: "approve",
+    ...mcpBudgets(manifest, server),
   }]));
   if (stable(config) !== stable({ schemaVersion: 1, mcpServers: expectedServers, plugins: [], hooks: [], unavailableWorkflows: UNAVAILABLE_WORKFLOWS })) fail("prepared-config-changed");
   // Only the accepted manager can establish freshness of native/controller state.
@@ -347,12 +378,16 @@ function current(bootstrapPath) {
     manager = JSON.parse(execFileSync(policy.manager.path, ["live-policy", "verify", "--manifest", input.manifestPath], {
       cwd: dirname(input.manifestPath),
       env: managerEnvironment(input.node, manifest.runtimeHome),
-      stdio: ["ignore", "pipe", "pipe"], timeout: 30000, maxBuffer: 4096,
+      // Installed-source renewal ancestry is freshly remeasured. L9's measured
+      // two-link observation exceeds 30s; use its bounded 90s observation phase.
+      stdio: ["ignore", "pipe", "pipe"], timeout: checked.originalLaunchSources.length ? MANAGER_OBSERVATION_MS : 30000, maxBuffer: LIMIT,
     }));
   } catch { fail("native-policy-unavailable"); }
   if (manager.available !== true || manager.schemaVersion !== manifest.schemaVersion || manager.policyDigest !== policy.policyDigest || manager.configDigest !== policy.configDigest
     || nativeContract && (manager.contractVersion !== 2 || manager.sourceInventoryDigest !== nativeContract.sourceInventoryDigest
       || manager.runtimeProvenanceDigest !== nativeContract.runtimeProvenanceDigest || stable(manager.generation) !== stable(nativeContract.generation))) fail("native-policy-unavailable");
+  if (checked.originalLaunchSources.length && (!Array.isArray(manager.extensions) || !manager.extensions.includes("original-installed-launch-source-v1")
+    || stable(manager.originalLaunchSources) !== stable(checked.originalLaunchSources))) fail("native-policy-unavailable");
   const body = {
     schemaVersion: manifest.schemaVersion, kind: "live-package-admission", bootstrapDigest: digest(readFileSync(bootstrapPath)),
     manifestDigest: policy.manifestDigest, policyDigest: digest(stable(policy)),
@@ -390,6 +425,7 @@ export function executionAuthority(bootstrapPath) {
   return {
     input: checked.input, manifest: checked.manifest,
     nativeRuntime: checked.nativeRuntime,
+    originalLaunchSources: checked.originalLaunchSources,
     consumerCapabilities: checked.body.consumer?.capabilities ?? [],
     manager: authenticate(boundedJson(join(dirname(checked.input.manifestPath), "policy-receipt.json")), checked.key).manager,
     bootstrapPath, bootstrapDigest: checked.body.bootstrapDigest,
@@ -462,6 +498,7 @@ export function executionInputsCurrent(authority) {
     if (digest(readFileSync(bootstrapPath)) !== bootstrapDigest || digest(readFileSync(receiptPath)) !== receiptDigest) return false;
     if (input.packages.some((item) => measureTree(item.root) !== item.sha256) || measureTree(input.runtime.root) !== input.runtime.sha256) return false;
     if (digest(readFileSync(input.node.path)) !== input.node.sha256) return false;
+    if (stable(installedSources(manifest, input)) !== stable(authority.originalLaunchSources ?? [])) return false;
     managerEnvironment(input.node, manifest.runtimeHome);
     return manifest.configFiles.every((file) => digest(readFileSync(file.path)) === file.sha256);
   } catch { return false; }
@@ -473,7 +510,7 @@ export function nativeExitVerified(authority, launchId) {
     canonical(path, false, true);
     const body = authenticate(boundedJson(path), readFileSync(authority.manifest.keyFile));
     return body.kind === "process-launch" && body.launchId === launchId && body.commandId === "context-mode-call"
-      && body.status === "exited" && body.termination === "leader-exit"
+      && body.postSpawnValidated === true && body.status === "exited" && body.termination === "leader-exit"
       && body.policy.manifestDigest === digest(readFileSync(authority.input.manifestPath));
   } catch { return false; }
 }

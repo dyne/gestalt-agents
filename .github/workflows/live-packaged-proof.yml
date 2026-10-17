@@ -3,13 +3,18 @@ on:
   push:
     branches: ['test/live-packaged-l10']
   workflow_dispatch:
+    inputs:
+      preflight:
+        description: 'Only authentic original catalog and prepared MCP admission; no model work'
+        type: boolean
+        default: false
 permissions:
   contents: read
   actions: read
 jobs:
   native:
     runs-on: ubuntu-24.04
-    timeout-minutes: 25
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -24,13 +29,13 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: dyne/gestalt
-          ref: dd46fb4d99780ca3d9df73480834aabc102db8a2 # accepted L9 tree 96632966, commit 19114b23
+          ref: 737f5f85f02ea60a26996afc2e17e176bfb2c6bc # accepted L9 tree dfdeabd2, commit 5084cf2
           path: .host-manager-input
           persist-credentials: false
       - name: Verify accepted Manager tree and Mobile election fixture
         run: |
           set -Eeuo pipefail
-          test "$(git -C .host-manager-input rev-parse HEAD^{tree})" = 966329668f6b967105a4b89b69875d73e54a08f9
+          test "$(git -C .host-manager-input rev-parse HEAD^{tree})" = dfdeabd2ffdbdb6c429a39c3e81286b611af7734
           npm ci --prefix .host-manager-input
           node --input-type=module <<'NODE'
           import assert from 'node:assert/strict';
@@ -155,6 +160,8 @@ jobs:
             sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
           fi
       - name: Installed packaged tools under actual native policy
+        env:
+          LIVE_PACKAGED_PREFLIGHT_ONLY: ${{ (github.event_name == 'push' || inputs.preflight) && '1' || '0' }}
         run: |
           set -Eeuo pipefail
           mkdir -p test-results/live-packaged
@@ -167,6 +174,7 @@ jobs:
           if-no-files-found: error
           retention-days: 30
   packages:
+    if: github.event_name == 'workflow_dispatch' && !inputs.preflight
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     steps:

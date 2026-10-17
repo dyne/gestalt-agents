@@ -34,6 +34,8 @@ assert_contains "$output" "context-mode external runtime is prepared" "prepare-o
 tmp=$(mktemp -d "${TMPDIR:-/tmp}/gestalt-setup-test.XXXXXX")
 trap 'rm -rf "$tmp"' EXIT HUP INT TERM
 tmp_real=$(CDPATH='' cd -- "$tmp" && pwd -P)
+# Installation checks must not inherit unrelated user-global skill providers.
+export HOME="$tmp"
 output=$(env -u CODEX_HOME HOME="$tmp" bash "$script" --dry-run)
 assert_contains "$output" "$tmp/.codex-gestalt" "dry-run uses the isolated default Codex home"
 assert_contains "$output" "prepare-supervision" "dry-run prepares supervision profiles"

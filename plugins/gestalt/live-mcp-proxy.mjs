@@ -5,7 +5,7 @@ import { randomUUID } from "node:crypto";
 import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { StringDecoder } from "node:string_decoder";
-import { AdmissionError, executionAuthority, executionInputsCurrent, LIVE_SERVERS, managerEnvironment, nativeExitVerified, validateNativeProxyPath } from "./live-admission.mjs";
+import { AdmissionError, contextExecutionBudget, executionAuthority, executionInputsCurrent, LIVE_SERVERS, managerEnvironment, nativeExitVerified, validateNativeProxyPath } from "./live-admission.mjs";
 import { orgLifecycle } from "./live-org-lifecycle.mjs";
 import { handleLine } from "./org-plan-mcp-support.mjs";
 
@@ -26,7 +26,7 @@ export function runContext(authority, request, { signal } = {}) {
     const cancel = () => { revoked = true; child.kill("SIGTERM"); };
     signal?.addEventListener("abort", cancel, { once: true });
     const monitor = setInterval(() => { if (!executionInputsCurrent(authority)) cancel(); }, 500);
-    const timeout = setTimeout(cancel, 125000);
+    const timeout = setTimeout(cancel, contextExecutionBudget(authority.manifest));
     child.stdout.on("data", (bytes) => {
       if (output.length + bytes.length > MAX_RESULT) cancel();
       else output = Buffer.concat([output, bytes]);

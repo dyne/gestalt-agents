@@ -1,0 +1,5 @@
+interface:
+  display_name: "Impeccable"
+  short_description: "Design interfaces and use native Gestalt Live"
+policy:
+  allow_implicit_invocation: true

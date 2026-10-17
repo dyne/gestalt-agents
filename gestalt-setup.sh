@@ -241,6 +241,10 @@ resolve_codex_root
 export CODEX_HOME=$codex_root
 agents_dir="$codex_root/agents"
 
+node "$script_dir/plugins/gestalt/scripts/check-impeccable-conflicts.mjs" \
+  "${HOME:?HOME is required}" "$codex_root" \
+  "${GESTALT_HOME:-$HOME/.gestalt}" "$PWD"
+
 if "$dry_run"; then
   run codex plugin marketplace add "$script_dir"
 else

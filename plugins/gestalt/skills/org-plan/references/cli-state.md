@@ -82,8 +82,12 @@ must be DONE + REVIEWED. The helper atomically suspends the dependent L1 and
 its WIP child, leaving its DONE/TODO children, measurements, IDs, priorities,
 titles and ordering unchanged. The dependency becomes WIP + UNREVIEWED.
 Previously DONE dependency children retain historical completion and must be
-explicitly reopened before new implementation. There may be only one suspended
-L1 and one active WIP path. `--force` cannot suspend, resume or mutate suspended
+explicitly reopened before new implementation. Suspended L1s form one strictly earlier dependency chain: each outer
+suspended L1 points to the immediately inner suspended L1; only the innermost
+points to a non-suspended earlier dependency. Forks, disconnected chains, cycles
+and forward targets are invalid. Each suspended L1 may retain at most one
+suspended child, and there is still only one active WIP path before the innermost
+suspended L1. `--force` cannot suspend, resume or mutate suspended
 work. Ordinary transitions can reopen intervening accepted dependencies in
 order. `resume` requires every earlier L1 DONE + REVIEWED and restores precisely
 the suspended WIP path. Selection never dispatches suspended work or skips it
@@ -103,7 +107,12 @@ status destination is configured, suspended-plan transitions and publication
 require `GESTALT_MOBILE_ORG_PLAN_CAPABILITIES` to contain comma-separated token
 `suspension-v1`. The trusted host may set it only after compatible consumer and
 control support is active; the token is a compatibility assertion, not runtime
-proof. Missing support fails before plan/status writes. With no destination,
+proof. Nested chains additionally require `nested-suspension-v1`; `suspension-v1`
+alone supports only a single suspended L1. The trusted host must verify matching
+parser and control/checkpoint support before advertising either capability.
+Resume the innermost frame only after its earlier dependencies are DONE +
+REVIEWED, complete/review it, then resume the next outer frame. Missing support
+fails before plan/status writes. With no destination,
 commands can operate on offline disposable plans; this is not permission to
 change a plan retained by an incompatible running consumer. Signals retain the
 existing schema and use `update` for these transitions.
