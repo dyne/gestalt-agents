@@ -146,6 +146,17 @@ receipt with literal `postSpawnValidated: true`, successful leader exit and
 unchanged admission inputs. Stdout or a signed running receipt alone cannot
 establish post-spawn validation or lifetime-monitor installation.
 
+Replacement adapter descriptors explicitly set `enabled: true, required: false`.
+Native merges per-thread descriptors with original configuration; omitting these
+fields would inherit the original bridge's `required: true` and turn the expected
+pre-seal refusal into a fatal session startup. The original configured bridge
+and its required flag remain unchanged in the complete source inventory.
+Before sealing, both replacement adapters must refuse initialization and expose
+no tools. After sealing, the controller must require both actual adapters to
+connect with their exact admitted tools before model work. Native's transport
+flag does not replace that mandatory readiness gate. No failed initialization
+or policy/admission receipt alone establishes Live readiness.
+
 After sealing, `runtimeProvenance` contains the capture ID and the controller's
 current observed effective-config/session-flag digests. Before every Live model
 admission the controller must re-resolve those observations, update the manifest,

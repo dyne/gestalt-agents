@@ -212,7 +212,9 @@ try {
   report.originalInstalledSource.catalog = { connected: true, toolCount: Object.keys(originalCatalog.data[0].tools).length, processes: originalBridges };
   report.checks.authenticOriginalInstalledNativeCatalog = true;
   let preparedConfig = JSON.parse(readFileSync(config.configPath));
-  for (const descriptor of Object.values(preparedConfig.mcpServers)) assert.deepEqual(descriptor.env, {});
+  for (const descriptor of Object.values(preparedConfig.mcpServers)) {
+    assert.deepEqual(descriptor.env, {}); assert.equal(descriptor.enabled, true); assert.equal(descriptor.required, false);
+  }
   const resumePackaged = async () => {
     const unloaded = await rpc("thread/unsubscribe", { threadId: started.thread.id });
     assert.ok(["unsubscribed", "notSubscribed", "notLoaded"].includes(unloaded.status));
@@ -331,6 +333,8 @@ try {
       assert.equal(server.httpOrigin, null);
       assert.equal(server.toolsError, null);
       assert.ok(Object.keys(server.tools).length > 0);
+      if (server.name === "context-mode") assert.deepEqual(Object.keys(server.tools).sort(),
+        ["ctx_execute", "ctx_execute_file", "ctx_batch_execute", "ctx_index", "ctx_search", "ctx_stats", "ctx_purge"].sort());
     }
     return { durationMs: Date.now() - catalogStarted, servers: report.nativeMcp };
   };

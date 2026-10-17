@@ -199,7 +199,7 @@ export function stageAdmission(bootstrapPath) {
       command: input.node.path,
       args: [join(packages.get("gestalt"), "live-mcp-proxy.mjs"), "--bootstrap", bootstrapPath, "--server", server],
       cwd: manifest.appRoot,
-      env: {}, default_tools_approval_mode: "approve",
+      env: {}, default_tools_approval_mode: "approve", enabled: true, required: false,
       ...mcpBudgets(manifest, server),
     }])),
     plugins: [], hooks: [], unavailableWorkflows: UNAVAILABLE_WORKFLOWS,
@@ -367,7 +367,7 @@ function current(bootstrapPath) {
   const expectedServers = Object.fromEntries(LIVE_SERVERS.map((server) => [server, {
     command: input.node.path,
     args: [join(checked.packages.get("gestalt"), "live-mcp-proxy.mjs"), "--bootstrap", bootstrapPath, "--server", server],
-    cwd: manifest.appRoot, env: {}, default_tools_approval_mode: "approve",
+    cwd: manifest.appRoot, env: {}, default_tools_approval_mode: "approve", enabled: true, required: false,
     ...mcpBudgets(manifest, server),
   }]));
   if (stable(config) !== stable({ schemaVersion: 1, mcpServers: expectedServers, plugins: [], hooks: [], unavailableWorkflows: UNAVAILABLE_WORKFLOWS })) fail("prepared-config-changed");
