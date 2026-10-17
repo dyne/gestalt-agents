@@ -25,6 +25,21 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.3.14
+      - name: Provision exact supported original interpreter on disposable hosted VM
+        if: runner.os == 'Linux' && runner.environment == 'github-hosted'
+        run: |
+          set -Eeuo pipefail
+          proof_node=$(readlink -f -- "$(command -v node)")
+          proof_npm=$(readlink -f -- "$(command -v npm)")
+          proof_npx=$(readlink -f -- "$(command -v npx)")
+          test "$("$proof_node" -p 'process.versions.node')" = 24.21.0
+          # Same guarded fixture prerequisite as accepted L9: the original PATH
+          # is fixed, so provision identical bytes before any owning birth.
+          sudo install -m0755 "$proof_node" /usr/bin/node
+          cmp -- "$proof_node" /usr/bin/node
+          sudo ln -sfn -- "$proof_npm" /usr/bin/npm
+          sudo ln -sfn -- "$proof_npx" /usr/bin/npx
+          PATH=/usr/bin:/bin /usr/bin/node --version
       - name: Read-only accepted manager input
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
