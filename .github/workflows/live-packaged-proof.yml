@@ -161,7 +161,9 @@ jobs:
           fi
       - name: Installed packaged tools under actual native policy
         env:
-          LIVE_PACKAGED_PREFLIGHT_ONLY: ${{ (github.event_name == 'push' || inputs.preflight) && '1' || '0' }}
+          # Pushes preflight by default. After its pass, an explicit CI-only
+          # [full-native] commit runs the complete proof without PAT dispatch.
+          LIVE_PACKAGED_PREFLIGHT_ONLY: ${{ ((github.event_name == 'push' && !contains(github.event.head_commit.message, '[full-native]')) || inputs.preflight) && '1' || '0' }}
         run: |
           set -Eeuo pipefail
           mkdir -p test-results/live-packaged
@@ -174,7 +176,7 @@ jobs:
           if-no-files-found: error
           retention-days: 30
   packages:
-    if: github.event_name == 'workflow_dispatch' && !inputs.preflight
+    if: (github.event_name == 'push' && contains(github.event.head_commit.message, '[full-native]')) || (github.event_name == 'workflow_dispatch' && !inputs.preflight)
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     steps:

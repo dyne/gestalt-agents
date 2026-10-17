@@ -179,6 +179,7 @@ try {
   const bootstrap = execFileSync(manager, ["cli", "--", "--live-policy-bootstrap", "--manifest", manifestPath], { cwd: app, env: managerEnvironment(admittedNode, home), timeout: 30000, stdio: ["ignore", "pipe", "pipe"] });
   assert.equal(lstatSync(daemon).mode & 0o777, 0o700);
   let captured = managerApi("capture-runtime", manifestPath, "--capture-id", captureId);
+  report.capture = { available: captured.available, extensions: captured.extensions, sourceCount: captured.originalLaunchSources?.length };
   assert.ok(captured.extensions.includes("original-installed-launch-source-v1"));
   assert.deepEqual(captured.originalLaunchSources[0].descriptor, originalLaunchSource);
   native = spawn(manager, ["cli", "--", "--live-policy-owning-runtime", "--manifest", manifestPath, "--capture-id", captureId], { cwd: app, env: managerEnvironment(admittedNode, home), stdio: ["pipe", "pipe", "pipe"] }); native.stderr.resume();
@@ -189,6 +190,9 @@ try {
   assert.equal(started.activePermissionProfile.id, profile); assert.equal(started.cwd, app);
   assert.ok(started.instructionSources.includes(join(app, "AGENTS.md")));
   let configuration = await rpc("config/read", { cwd: app, includeLayers: true });
+  report.stage = "original-native-config-observation";
+  report.originalInstalledSource.config = { mcpServerKeys: Object.keys(configuration.config.mcp_servers ?? {}), pluginKeys: Object.keys(configuration.config.plugins ?? {}),
+    expectedPlugin: configuration.config.plugins?.["context-mode@dyne-gestalt-agents"] ?? null };
   assert.equal(configuration.config.features.hooks, false);
   assert.deepEqual(configuration.config.mcp_servers["context-mode"].args, [originalLaunchSource.path]);
   assert.equal(configuration.config.mcp_servers["context-mode"].enabled, true); assert.equal(configuration.config.mcp_servers["context-mode"].required, true);
@@ -624,6 +628,7 @@ try {
 } catch (error) {
   report.failure = /^[A-Z_]{1,64}$/.test(error.message) ? error.message : "PROOF_ASSERTION_FAILED";
   report.failureDetails = { stage: report.stage, operator: error.operator, code: error.code,
+    errorClass: error.name, sourceLine: Number(error.stack?.match(/live-packaged-native-proof\.mjs:(\d+):/)?.[1]) || undefined,
     actual: typeof error.actual === "boolean" || typeof error.actual === "number" ? error.actual : undefined,
     boundedActualReason: typeof error.actual?.message === "string" && /^[a-z-]{1,64}$/.test(error.actual.message) ? error.actual.message : undefined,
     rpc: error.rpc };
