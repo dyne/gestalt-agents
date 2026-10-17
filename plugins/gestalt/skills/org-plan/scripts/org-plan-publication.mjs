@@ -14,10 +14,13 @@ import { readPlan, projection } from "./org-plan-parser.mjs";
 export function requireSuspensionCapability(plan, { consumerAttached = false } = {}) {
   const destination = process.env.GESTALT_MOBILE_ORG_PLAN_STATUS_DIRECTORY ||
     process.env.GESTALT_MOBILE_ORG_PLAN_STATUS_FILE;
-  if ((destination || consumerAttached) && plan.items.some((item) => item.state === "SUSPENDED") &&
-      !(process.env.GESTALT_MOBILE_ORG_PLAN_CAPABILITIES ?? "").split(",").includes("suspension-v1")) {
+  if (!destination && !consumerAttached) return;
+  const capabilities = (process.env.GESTALT_MOBILE_ORG_PLAN_CAPABILITIES ?? "").split(",");
+  const suspended = plan.items.filter((item) => item.level === 1 && item.state === "SUSPENDED");
+  if (suspended.length && !capabilities.includes("suspension-v1"))
     fail("Mobile consumer requires suspension-v1 capability; no plan or status written");
-  }
+  if (suspended.length > 1 && !capabilities.includes("nested-suspension-v1"))
+    fail("Mobile consumer requires nested-suspension-v1 capability; no plan or status written");
 }
 
 import {
