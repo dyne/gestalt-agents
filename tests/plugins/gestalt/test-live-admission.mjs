@@ -19,6 +19,9 @@ test("trusted tools occur exactly once in isolated configuration; receipt verifi
   assert.deepEqual(Object.keys(config.mcpServers), ["context-mode", "gestalt-org-plan"]);
   assert.deepEqual(config.mcpServers["gestalt-org-plan"].env, {});
   assert.equal(Object.hasOwn(config.mcpServers["gestalt-org-plan"], "env_vars"), false);
+  for (const descriptor of Object.values(config.mcpServers)) {
+    assert.equal(descriptor.enabled, true); assert.equal(descriptor.required, false);
+  }
   assert.deepEqual(f.input.effectiveConfig.mcpServers.find((entry) => entry.name === "gestalt-org-plan").env_vars, [
     "GESTALT_MOBILE_ORG_PLAN_STATUS_DIRECTORY", "GESTALT_MOBILE_ORG_PLAN_STATUS_FILE", "GESTALT_MOBILE_ORG_PLAN_CAPABILITIES",
   ]);

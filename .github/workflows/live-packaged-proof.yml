@@ -3,13 +3,18 @@ on:
   push:
     branches: ['test/live-packaged-l10']
   workflow_dispatch:
+    inputs:
+      preflight:
+        description: 'Only authentic original catalog and prepared MCP admission; no model work'
+        type: boolean
+        default: false
 permissions:
   contents: read
   actions: read
 jobs:
   native:
     runs-on: ubuntu-24.04
-    timeout-minutes: 25
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -20,17 +25,32 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.3.14
+      - name: Provision exact supported original interpreter on disposable hosted VM
+        if: runner.os == 'Linux' && runner.environment == 'github-hosted'
+        run: |
+          set -Eeuo pipefail
+          proof_node=$(readlink -f -- "$(command -v node)")
+          proof_npm=$(readlink -f -- "$(command -v npm)")
+          proof_npx=$(readlink -f -- "$(command -v npx)")
+          test "$("$proof_node" -p 'process.versions.node')" = 24.21.0
+          # Same guarded fixture prerequisite as accepted L9: the original PATH
+          # is fixed, so provision identical bytes before any owning birth.
+          sudo install -m0755 "$proof_node" /usr/bin/node
+          cmp -- "$proof_node" /usr/bin/node
+          sudo ln -sfn -- "$proof_npm" /usr/bin/npm
+          sudo ln -sfn -- "$proof_npx" /usr/bin/npx
+          PATH=/usr/bin:/bin /usr/bin/node --version
       - name: Read-only accepted manager input
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: dyne/gestalt
-          ref: dd46fb4d99780ca3d9df73480834aabc102db8a2 # accepted L9 tree 96632966, commit 19114b23
+          ref: 737f5f85f02ea60a26996afc2e17e176bfb2c6bc # accepted L9 tree dfdeabd2, commit 5084cf2
           path: .host-manager-input
           persist-credentials: false
       - name: Verify accepted Manager tree and Mobile election fixture
         run: |
           set -Eeuo pipefail
-          test "$(git -C .host-manager-input rev-parse HEAD^{tree})" = 966329668f6b967105a4b89b69875d73e54a08f9
+          test "$(git -C .host-manager-input rev-parse HEAD^{tree})" = dfdeabd2ffdbdb6c429a39c3e81286b611af7734
           npm ci --prefix .host-manager-input
           node --input-type=module <<'NODE'
           import assert from 'node:assert/strict';
@@ -155,10 +175,14 @@ jobs:
             sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
           fi
       - name: Installed packaged tools under actual native policy
+        env:
+          # Pushes preflight by default. After its pass, an explicit CI-only
+          # [full-native] commit runs the complete proof without PAT dispatch.
+          LIVE_PACKAGED_PREFLIGHT_ONLY: ${{ ((github.event_name == 'push' && !contains(github.event.head_commit.message, '[full-native]')) || inputs.preflight) && '1' || '0' }}
         run: |
           set -Eeuo pipefail
           mkdir -p test-results/live-packaged
-          node scripts/live-packaged-native-proof.mjs > test-results/live-packaged/proof.log 2>&1
+          PATH=/usr/bin:/bin /usr/bin/node scripts/live-packaged-native-proof.mjs > test-results/live-packaged/proof.log 2>&1
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:
@@ -167,6 +191,7 @@ jobs:
           if-no-files-found: error
           retention-days: 30
   packages:
+    if: (github.event_name == 'push' && contains(github.event.head_commit.message, '[full-native]')) || (github.event_name == 'workflow_dispatch' && !inputs.preflight)
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     steps:
@@ -190,8 +215,21 @@ jobs:
       - name: Full repository, installed package and exact discovery checks
         run: |
           set -Eeuo pipefail
+          test "${RUNNER_ENVIRONMENT:?}" = github-hosted
+          test "${RUNNER_OS:?}" = Linux
+          # The source-extension fixtures require the actual supported Node,
+          # not setup-node's multi-executable directory. Preserve the remaining
+          # PATH for the separately installed Codex and Bun test dependencies.
+          proof_node=$(readlink -f -- "$(command -v node)")
+          proof_npm=$(readlink -f -- "$(command -v npm)")
+          proof_npx=$(readlink -f -- "$(command -v npx)")
+          test "$("$proof_node" -p 'process.versions.node')" = 24.21.0
+          sudo install -m0755 "$proof_node" /usr/bin/node
+          cmp -- "$proof_node" /usr/bin/node
+          sudo ln -sfn -- "$proof_npm" /usr/bin/npm
+          sudo ln -sfn -- "$proof_npx" /usr/bin/npx
           mkdir -p test-results/live-packaged-ci
-          bash tests/ci.sh > test-results/live-packaged-ci/ci.log 2>&1
+          PATH="/usr/bin:/bin:$PATH" bash tests/ci.sh > test-results/live-packaged-ci/ci.log 2>&1
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:

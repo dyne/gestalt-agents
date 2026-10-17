@@ -150,7 +150,6 @@ function validateL2(item) {
 function validateLifecycle(items) {
   const milestones = items.filter((item) => item.level === 1);
   const suspended = milestones.filter((item) => item.state === "SUSPENDED");
-  if (suspended.length > 1) fail("multiple suspended L1s");
   for (const item of items) {
     const dependency = item.properties.get("SUSPENDED_FOR");
     if (item.level === 1 && item.state === "SUSPENDED") {
@@ -167,8 +166,17 @@ function validateLifecycle(items) {
     if (item.parent?.state === "SUSPENDED" && item.state === "WIP")
       fail("WIP child inside suspended L1");
   }
-  if (items.filter((item) => item.level === 2 && item.state === "SUSPENDED").length > 1)
-    fail("multiple suspended L2s");
+  // Ordered earlier-only edges exclude cycles. Requiring every outer frame to
+  // target the immediately inner suspended frame excludes forks/disconnected
+  // stacks while allowing the innermost dependency to finish review before resume.
+  for (let index = 1; index < suspended.length; index += 1) {
+    if (suspended[index].properties.get("SUSPENDED_FOR") !== suspended[index - 1].id)
+      fail("suspended L1s must form one nested dependency chain");
+  }
+  for (const parent of suspended) {
+    if (items.filter((item) => item.parent === parent && item.state === "SUSPENDED").length > 1)
+      fail("multiple suspended L2s inside one L1");
+  }
   if (suspended.length && milestones.some((item) =>
     item.state === "WIP" && milestones.indexOf(item) >= milestones.indexOf(suspended[0])))
     fail("active work must precede suspended L1");

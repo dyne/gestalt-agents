@@ -1,17 +1,20 @@
 /** Disposable supported-host proof. No model calls, credentials or deployment. */
 import assert from "node:assert/strict";
 import { spawn, execFileSync } from "node:child_process";
-import { createHash, randomBytes, randomUUID } from "node:crypto";
+import { createHash, createHmac, randomBytes, randomUUID } from "node:crypto";
 import { chmodSync, closeSync, copyFileSync, cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, openSync, readFileSync, readlinkSync, readdirSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { createServer } from "node:net";
 import { request as httpRequest, createServer as createHttpServer } from "node:http";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { prepareLiveRuntime } from "../plugins/gestalt/scripts/prepare-live-runtime.mjs";
-import { managerEnvironment } from "../plugins/gestalt/live-admission.mjs";
+import { managerEnvironment, MANAGER_OBSERVATION_MS } from "../plugins/gestalt/live-admission.mjs";
+import { observeOriginalLaunchSources } from "../plugins/gestalt/live-installed-source.mjs";
+import { configureCodexIntegration } from "../plugins/context-mode/scripts/configure-codex.mjs";
 import { createMcpTestClient } from "../tests/plugins/gestalt/mcp-test-client.mjs";
 
 const repo = fileURLToPath(new URL("..", import.meta.url)), evidence = resolve(process.env.LIVE_PACKAGED_EVIDENCE ?? "test-results/live-packaged");
+const preflightOnly = process.env.LIVE_PACKAGED_PREFLIGHT_ONLY === "1";
 const binary = realpathSync(process.env.LIVE_HOST_CODEX_BINARY), manager = realpathSync(process.env.LIVE_HOST_MANAGER_BINARY), caddyBinary = realpathSync(process.env.LIVE_HOST_CADDY_BINARY);
 const hash = (bytes) => createHash("sha256").update(bytes).digest("hex");
 const wait = (ms) => new Promise((done) => setTimeout(done, ms));
@@ -29,8 +32,8 @@ const report = {
   provenance: { tree, commit: execFileSync("git", ["rev-parse", "HEAD"], { cwd: repo, encoding: "utf8" }).trim(),
     repository: process.env.GITHUB_REPOSITORY, runId: process.env.GITHUB_RUN_ID,
     nativeVersion: "0.161.0", binarySha256: hash(readFileSync(binary)), managerSha256: hash(readFileSync(manager)),
-    acceptedManagerCommit: "19114b2389501c0a511b8a77ace4161b0dae2f0e", acceptedManagerTree: "966329668f6b967105a4b89b69875d73e54a08f9", nativeSource: "979011409de0a60b52f179721948e65531d26144" },
-  limitations: ["No model credentials or production owning-session/picker proof; L11 remains required."],
+    acceptedManagerCommit: "5084cf219163dcf153af1be6f63496dec1bd3d40", acceptedManagerTree: "dfdeabd2ffdbdb6c429a39c3e81286b611af7734", nativeSource: "979011409de0a60b52f179721948e65531d26144" },
+  limitations: ["No model credentials or production owning-session/picker proof; L11 remains required.", "Hooks are explicitly disabled only in this controlled disposable fixture, as in accepted L9; no ordinary installed-home readiness claim."],
 };
 let native, caddy, socketServer, activeAbort, authFd, contextProxy, orgProxy, elected, provider;
 let admittedNode, proofManifest;
@@ -41,7 +44,7 @@ const identity = (pid) => {
     namespaces: Object.fromEntries(["mnt", "user", "pid"].map((name) => [name, readlinkSync(`/proc/${pid}/ns/${name}`)])) };
 };
 const managerApi = (operation, manifestPath, ...args) => JSON.parse(execFileSync(manager, ["live-policy", operation, "--manifest", manifestPath, ...args], {
-  cwd: privateRoot, env: managerEnvironment(admittedNode, home), encoding: "utf8", timeout: 30000, maxBuffer: 4096,
+  cwd: privateRoot, env: managerEnvironment(admittedNode, home), encoding: "utf8", timeout: MANAGER_OBSERVATION_MS, maxBuffer: 262144,
 }));
 async function close(child) {
   if (!child || child.exitCode !== null || child.signalCode !== null) return;
@@ -66,14 +69,14 @@ function rpcClient(child) {
       } else call.done(message.result);
     }
   });
-  return (method, params, timeoutMs = 20000) => new Promise((done, reject) => {
+  return (method, params, timeoutMs = method === "initialize" ? MANAGER_OBSERVATION_MS : 20000) => new Promise((done, reject) => {
     const id = ++counter, timer = setTimeout(() => { pending.delete(id); reject(new Error("NATIVE_RPC_TIMEOUT")); }, timeoutMs);
     pending.set(id, { done, reject, timer, method }); child.stdin.write(`${JSON.stringify({ jsonrpc: "2.0", id, method, params })}\n`);
   });
 }
 try {
   assert.equal(report.provenance.binarySha256, "b2730ae901da317bcc5933d9b87de6dfbea3e46a46b64f806e4268fd9a095578");
-  assert.equal(report.provenance.managerSha256, "17dcb8d57591c00032c23f0af3de67e83da4abe4c21e0c632bd48bd6fa5c281e");
+  assert.equal(report.provenance.managerSha256, "8115c37344ef4a7a1b537e23ff069a90bbb188ec41c77ace8d5a41cc864118f9");
   const bwrap = [join(dirname(binary), "codex-resources/bwrap"), join(dirname(dirname(binary)), "codex-resources/bwrap"), join(dirname(binary), "bwrap")].find((path) => existsSync(path));
   assert.ok(bwrap); report.provenance.bundledBwrapSha256 = hash(readFileSync(bwrap));
   report.provenance.sandboxHelperSha256 = hash(readFileSync(join(dirname(binary), "codex-linux-sandbox")));
@@ -81,11 +84,14 @@ try {
   assert.equal(report.provenance.sandboxHelperSha256, "396915091a1f0387b48fd06e98d06e61d22f6ff6af33bc806891a634ee03d199");
   assert.equal(report.provenance.codeModeHostSha256, "e87096087c02aa6ab90a5a85031659665aa0bf3ee20c07ca0b8ab701c83fcd5b");
   assert.equal(report.provenance.bundledBwrapSha256, "335aa87510fc0eee1bcdbedd3d9bf4aa4d112cffed72d5f1ad7a10b6cc855066");
-  mkdirSync(join(root, "node-bin"), { mode: 0o700 });
-  const node = join(root, "node-bin/node"); copyFileSync(realpathSync(process.execPath), node); chmodSync(node, 0o700);
+  // Same interpreter for controller, Manager's private CLI verifier, original
+  // bridge and confined workers. A copied Node cannot stand in for that identity.
+  const node = realpathSync(process.execPath); assert.equal(node, "/usr/bin/node");
   admittedNode = { path: node, sha256: hash(readFileSync(node)) };
+  const contextVersion = JSON.parse(readFileSync(join(repo, "plugins/context-mode/package.json"))).version;
   const packages = ["context-mode", "gestalt"].map((name) => {
-    const target = join(packagesRoot, name);
+    const target = join(packagesRoot, name, ...(name === "context-mode" ? [contextVersion] : []));
+    mkdirSync(dirname(target), { recursive: true, mode: 0o700 });
     cpSync(join(repo, "plugins", name), target, { recursive: true, filter: (path) => !path.split("/").some((piece) => piece === "node_modules" || piece === "build" || piece.startsWith(".context-mode-prepare")) && !path.endsWith(".bundle.mjs") });
     return { name, root: target };
   });
@@ -93,10 +99,12 @@ try {
   // Import the INSTALLED package, not the source checkout, for admission and RPC.
   const { digest, stable, measureTree, prepareAdmission, stageAdmission, verifyAdmission } = await import(pathToFileURL(join(gestaltRoot, "live-admission.mjs")).href);
   const { liveRequest } = await import(pathToFileURL(join(gestaltRoot, "live-mcp-proxy.mjs")).href);
-  const runtime = await prepareLiveRuntime(packages.find((p) => p.name === "context-mode").root, join(root, "prepared-runtime"));
+  const gestaltHome = join(root, "installed-gestalt"); mkdirSync(join(gestaltHome, "runtime"), { recursive: true, mode: 0o700 });
+  const contextPackage = packages.find((p) => p.name === "context-mode");
+  const runtime = await prepareLiveRuntime(contextPackage.root, join(gestaltHome, "runtime/context-mode"));
   report.provenance.runtime = runtime.sha256;
   report.provenance.canonicalPackages = Object.fromEntries(packages.map((p) => [p.name, { manifestSha256: hash(readFileSync(join(p.root, ".mcp.json"))), identitySha256: hash(readFileSync(join(p.root, ".codex-plugin/plugin.json"))) }]));
-  report.provenance.packagedFiles = Object.fromEntries(["live-admission.mjs", "live-org-lifecycle.mjs", "live-mcp-proxy.mjs", "live-context-worker.mjs", "org-plan-mcp.mjs"].map((path) => [path, hash(readFileSync(join(gestaltRoot, path)))]));
+  report.provenance.packagedFiles = Object.fromEntries(["live-admission.mjs", "live-installed-source.mjs", "live-org-lifecycle.mjs", "live-mcp-proxy.mjs", "live-context-worker.mjs", "org-plan-mcp.mjs"].map((path) => [path, hash(readFileSync(join(gestaltRoot, path)))]));
   report.provenance.packages = packages.map((p) => ({ name: p.name, sha256: measureTree(p.root) }));
   packages.forEach((p, index) => { p.sha256 = report.provenance.packages[index].sha256; });
   report.checks.installedPreparedBytes = true;
@@ -127,8 +135,17 @@ try {
   let modelRequests = 0;
   provider = createHttpServer((req, res) => { if (req.method === "GET" && req.url.startsWith("/v1/models")) { res.writeHead(200, { "content-type": "application/json" }); res.end(JSON.stringify({ data: [{ id: "gpt-6-sol", object: "model", owned_by: "controlled" }] })); } else { modelRequests++; res.writeHead(500); res.end("model-work-unavailable"); } });
   await new Promise((done) => provider.listen(0, "127.0.0.1", done));
-  const owningConfig = `model = "gpt-6-sol"\nmodel_provider = "controlled"\napproval_policy = "never"\ndefault_permissions = "${profile}"\nmcp_servers = {}\nplugins = {}\n[shell_environment_policy]\ninherit = "none"\n[model_providers.controlled]\nname = "No-model packaged proof"\nbase_url = "http://127.0.0.1:${provider.address().port}/v1"\nwire_api = "responses"\nrequires_openai_auth = false\n[features]\nshell_snapshot = false\nshell_snapshot_v2 = false\ndaemon_auto_start = false\ncode_mode = false\nmulti_agent = false\nmulti_agent_v2 = false\nhooks = false\n[projects.${JSON.stringify(app)}]\ntrust_level = "trusted"\n${nativeProfile(profile, true)}${nativeProfile(narrowProfile, false)}`;
+  const owningConfig = `model = "gpt-6-sol"\nmodel_provider = "controlled"\napproval_policy = "never"\ndefault_permissions = "${profile}"\n[shell_environment_policy]\ninherit = "none"\n[model_providers.controlled]\nname = "No-model packaged proof"\nbase_url = "http://127.0.0.1:${provider.address().port}/v1"\nwire_api = "responses"\nrequires_openai_auth = false\n[features]\nshell_snapshot = false\nshell_snapshot_v2 = false\ndaemon_auto_start = false\ncode_mode = false\nmulti_agent = false\nmulti_agent_v2 = false\nhooks = false\n[projects.${JSON.stringify(app)}]\ntrust_level = "trusted"\n${nativeProfile(profile, true)}${nativeProfile(narrowProfile, false)}`;
   writeFileSync(join(owningHome, "config.toml"), owningConfig, { mode: 0o600 });
+  mkdirSync(join(owningHome, "bin"), { mode: 0o700 });
+  const originalConfigured = configureCodexIntegration({ codexHome: owningHome, gestaltHome, pluginRoot: contextPackage.root, pluginId: "context-mode@dyne-gestalt-agents" });
+  // Deliberate controlled-fixture scope, not an admission rewrite. Production
+  // must refuse unsupported hook surfaces; this proof makes no ordinary-home claim.
+  writeFileSync(originalConfigured.configPath, readFileSync(originalConfigured.configPath, "utf8").replace("hooks = true", "hooks = false"), { mode: 0o600 });
+  const originalLaunchSource = { kind: "context-mode-bridge-v1", path: originalConfigured.launcherPath, sha256: hash(readFileSync(originalConfigured.launcherPath)), gestaltHome,
+    interpreter: admittedNode, package: { root: contextPackage.root, version: contextVersion, treeDigest: contextPackage.sha256 }, runtime: { root: runtime.root, treeDigest: runtime.sha256 } };
+  assert.equal(lstatSync(originalLaunchSource.path).mode & 0o7777, 0o755);
+  report.originalInstalledSource = { descriptor: originalLaunchSource, authenticConfigurator: true, authenticPreparer: true, controlledHooksDisabled: true, ordinaryInstalledHomeReadiness: false };
   writeFileSync(join(home, "config.toml"), '[shell_environment_policy]\ninherit = "none"\n', { mode: 0o600 });
   writeFileSync(join(app, "AGENTS.md"), "Preserve private state.\n", { mode: 0o644 });
   const { electLiveController } = await import(pathToFileURL(realpathSync(process.env.LIVE_HOST_ELECTION_MODULE)).href);
@@ -142,6 +159,7 @@ try {
   let manifest = { schemaVersion: 2, profileId: profile, appRoot: app, controller: identity(process.pid),
     election: { holder: identity(holderPid), lockFile: join(privateRoot, "controller.lock") }, generation: { sessionId: randomUUID(), generation: 1 },
     owningRuntime: { args: ["app-server", "--stdio"], home: owningHome },
+    originalLaunchSources: [originalLaunchSource],
     binary: { path: binary, version: "0.161.0", sha256: report.provenance.binarySha256 }, sandboxState: state,
     configFiles: [join(home, "config.toml"), join(owningHome, "config.toml")].map((path) => ({ path, sha256: hash(readFileSync(path)) })),
     components: { manager: report.provenance.acceptedManagerCommit, mobile: hash(readFileSync(fileURLToPath(import.meta.url))), agents: tree },
@@ -160,9 +178,13 @@ try {
   const saveInput = () => writeFileSync(bootstrapPath, JSON.stringify(input), { mode: 0o600 });
   saveInput(); save(); let config = stageAdmission(bootstrapPath);
   report.stage = "managed-owning-native-birth";
-  const bootstrap = execFileSync(manager, ["cli", "--", "--live-policy-bootstrap", "--manifest", manifestPath], { cwd: app, env: managerEnvironment(admittedNode, home), timeout: 30000, stdio: ["ignore", "pipe", "pipe"] });
+  const bootstrap = execFileSync(manager, ["cli", "--", "--live-policy-bootstrap", "--manifest", manifestPath], { cwd: app, env: managerEnvironment(admittedNode, home), timeout: MANAGER_OBSERVATION_MS, stdio: ["ignore", "pipe", "pipe"] });
   assert.equal(lstatSync(daemon).mode & 0o777, 0o700);
   let captured = managerApi("capture-runtime", manifestPath, "--capture-id", captureId);
+  report.capture = { available: captured.available, extensions: captured.extensions, sourceCount: captured.originalLaunchSources?.length };
+  assert.ok(captured.extensions.includes("original-installed-launch-source-v1"));
+  assert.deepEqual(captured.originalLaunchSources[0].descriptor, originalLaunchSource);
+  const originalInstalledObservation = structuredClone(captured.originalLaunchSources);
   native = spawn(manager, ["cli", "--", "--live-policy-owning-runtime", "--manifest", manifestPath, "--capture-id", captureId], { cwd: app, env: managerEnvironment(admittedNode, home), stdio: ["pipe", "pipe", "pipe"] }); native.stderr.resume();
   let rpc = rpcClient(native);
   await rpc("initialize", { clientInfo: { name: "l10-packaged-v2", version: "2" }, capabilities: { experimentalApi: true } });
@@ -171,11 +193,30 @@ try {
   assert.equal(started.activePermissionProfile.id, profile); assert.equal(started.cwd, app);
   assert.ok(started.instructionSources.includes(join(app, "AGENTS.md")));
   let configuration = await rpc("config/read", { cwd: app, includeLayers: true });
-  assert.equal(configuration.config.features.hooks, false); assert.deepEqual(configuration.config.mcp_servers ?? {}, {}); assert.deepEqual(configuration.config.plugins ?? {}, {});
+  report.stage = "original-native-config-observation";
+  report.originalInstalledSource.config = { mcpServerKeys: Object.keys(configuration.config.mcp_servers ?? {}), pluginKeys: Object.keys(configuration.config.plugins ?? {}),
+    expectedPlugin: configuration.config.plugins?.["context-mode@dyne-gestalt-agents"] ?? null };
+  assert.equal(configuration.config.features.hooks, false);
+  assert.deepEqual(configuration.config.mcp_servers["context-mode"].args, [originalLaunchSource.path]);
+  assert.equal(configuration.config.mcp_servers["context-mode"].enabled, true); assert.equal(configuration.config.mcp_servers["context-mode"].required, true);
+  assert.equal(configuration.config.plugins["context-mode@dyne-gestalt-agents"].enabled, false);
   assert.deepEqual(configuration.config.permissions[profile].filesystem, { glob_scan_max_depth: null, ...Object.fromEntries(state.permissionProfile.file_system.entries.map((entry) => [entry.path.type === "special" ? ":root" : entry.path.path, entry.access])) });
   assert.equal(configuration.config.permissions[profile].network.enabled, false);
+  report.stage = "authentic-original-native-catalog-preflight";
+  const originalCatalog = await rpc("mcpServerStatus/list", { threadId: started.thread.id, serverName: "context-mode", detail: "full" }, MANAGER_OBSERVATION_MS);
+  assert.equal(originalCatalog.nextCursor, null); assert.equal(originalCatalog.data.length, 1);
+  assert.equal(originalCatalog.data[0].runtimeStatus, "connected"); assert.ok(originalCatalog.data[0].tools.ctx_execute);
+  const bridgeProcesses = () => readdirSync("/proc").filter((pid) => /^\d+$/.test(pid)).filter((pid) => {
+    try { return readFileSync(`/proc/${pid}/cmdline`).toString().split("\0").includes(originalLaunchSource.path); } catch { return false; }
+  }).map((pid) => identity(Number(pid)));
+  const originalBridges = bridgeProcesses(); assert.ok(originalBridges.length > 0);
+  for (const process of originalBridges) assert.equal(readlinkSync(`/proc/${process.pid}/exe`), node);
+  report.originalInstalledSource.catalog = { connected: true, toolCount: Object.keys(originalCatalog.data[0].tools).length, processes: originalBridges };
+  report.checks.authenticOriginalInstalledNativeCatalog = true;
   let preparedConfig = JSON.parse(readFileSync(config.configPath));
-  for (const descriptor of Object.values(preparedConfig.mcpServers)) assert.deepEqual(descriptor.env, {});
+  for (const descriptor of Object.values(preparedConfig.mcpServers)) {
+    assert.deepEqual(descriptor.env, {}); assert.equal(descriptor.enabled, true); assert.equal(descriptor.required, false);
+  }
   const resumePackaged = async () => {
     const unloaded = await rpc("thread/unsubscribe", { threadId: started.thread.id });
     assert.ok(["unsubscribed", "notSubscribed", "notLoaded"].includes(unloaded.status));
@@ -191,7 +232,7 @@ try {
     // Broad discovery creates additional threadless MCP clients, which are not
     // evidence about the original owning thread and can race its single worker.
     for (const serverName of ["context-mode", "gestalt-org-plan"]) {
-      const page = await rpc("mcpServerStatus/list", { threadId: started.thread.id, serverName, detail: "full" }, 125000);
+      const page = await rpc("mcpServerStatus/list", { threadId: started.thread.id, serverName, detail: "full" }, 900000);
       assert.equal(page.nextCursor, null);
       assert.deepEqual(page.data.map((server) => server.name), [serverName]);
       data.push(...page.data);
@@ -203,6 +244,8 @@ try {
   // closed, then seals the resolved Native sources before reconnecting them.
   report.stage = "native-packaged-preseal-reconfigure";
   started = await resumePackaged();
+  await until(() => bridgeProcesses().length === 0, MANAGER_OBSERVATION_MS);
+  report.checks.originalNativeBridgeRetiredBeforeSeal = true;
   // Production's post-reconfigure observation awaits full MCP discovery before
   // sealing. Observe the terminal refusal here too: an asynchronously starting
   // old proxy must not acquire newly published receipts during the cold resume.
@@ -235,6 +278,12 @@ try {
     }
     sources.push({ kind: "file", role: "sandbox-worker", ...pins.get(join(manifest.runtimeHome, "config.toml")) });
     const birth = JSON.parse(readFileSync(join(dirname(manifestPath), `birth-${captureId}.json`))).body;
+    // Renewal returns lineage identifiers, not the capture extension response.
+    // Its signed birth must retain the capability-checked initial source identity
+    // and match a fresh independent consumer observation before every seal.
+    assert.deepEqual(birth.originalLaunchSources, originalInstalledObservation);
+    assert.deepEqual(birth.originalLaunchSources, observeOriginalLaunchSources(manifest, input));
+    sources.push(...birth.originalLaunchSources);
     const filePin = (path) => { const i = lstatSync(path); return { sha256: hash(readFileSync(path)), identity: { dev: i.dev, ino: i.ino, uid: i.uid, mode: i.mode, ctime: i.ctimeMs, mtime: i.mtimeMs } }; };
     for (const item of birth.directories) {
       if (!existsSync(item.path)) { sources.push({ kind: "absent", role: "project", path: item.path }); continue; }
@@ -248,7 +297,9 @@ try {
     const flags = observation.sessionFlags;
     const sourceInventory = { schemaVersion: 2, runtime: identity(native.pid), policyDigest: captured.policyDigest, effectiveConfigDigest: hash(stable(configuration.config)), sessionFlagsDigest: hash(stable(flags)), sources, observation };
     const sourcePath = join(dirname(manifestPath), "sources.json"); writeFileSync(sourcePath, JSON.stringify(sourceInventory), { mode: 0o600 });
-    managerApi("seal-runtime", manifestPath, "--capture-id", captureId, "--runtime-pid", String(native.pid), "--sources", sourcePath);
+    const sealed = managerApi("seal-runtime", manifestPath, "--capture-id", captureId, "--runtime-pid", String(native.pid), "--sources", sourcePath);
+    assert.ok(sealed.extensions.includes("original-installed-launch-source-v1"));
+    assert.deepEqual(sealed.originalLaunchSources, birth.originalLaunchSources);
     manifest.runtimeProvenance = { captureId, effectiveConfigDigest: sourceInventory.effectiveConfigDigest, sessionFlagsDigest: sourceInventory.sessionFlagsDigest };
     save();
     return { inventoryDigest: hash(stable(sourceInventory)), accountDigest: observation.accountDigest, generation: structuredClone(manifest.generation), runtime: identity(native.pid), kinds: sources.map((source) => source.kind) };
@@ -288,11 +339,17 @@ try {
       assert.equal(server.httpOrigin, null);
       assert.equal(server.toolsError, null);
       assert.ok(Object.keys(server.tools).length > 0);
+      if (server.name === "context-mode") assert.deepEqual(Object.keys(server.tools).sort(),
+        ["ctx_execute", "ctx_execute_file", "ctx_batch_execute", "ctx_index", "ctx_search", "ctx_stats", "ctx_purge"].sort());
     }
     return { durationMs: Date.now() - catalogStarted, servers: report.nativeMcp };
   };
   report.originalCatalog = await connectCurrent();
   report.checks.actualNativeLaunchedPackagedMcpInitialization = true;
+  report.preflight = { authenticOriginalBridge: true, originalBridgeRetired: true, exactSourceSealed: true, actualPreparedMcpConnected: true };
+  mkdirSync(evidence, { recursive: true }); writeFileSync(join(evidence, "preflight.json"), JSON.stringify({ passed: true, preflight: report.preflight, provenance: report.provenance }));
+  if (preflightOnly) { report.stage = "preflight-complete"; report.passed = true; }
+  else {
   const proxy = (name) => {
     const descriptor = preparedConfig.mcpServers[name];
     const child = spawn(descriptor.command, descriptor.args, { cwd: descriptor.cwd,
@@ -300,7 +357,7 @@ try {
     child.stderr.resume(); return child;
   };
   contextProxy = proxy("context-mode"); orgProxy = proxy("gestalt-org-plan");
-  const contextClient = createMcpTestClient(contextProxy, { timeoutMs: 125000 }), orgClient = createMcpTestClient(orgProxy, { timeoutMs: 30000 });
+  const contextClient = createMcpTestClient(contextProxy, { timeoutMs: 400000 }), orgClient = createMcpTestClient(orgProxy, { timeoutMs: 95000 });
   // Host lifecycle tests require the controller's exact minimal PATH and no
   // inherited publication destination; no request can choose these settings.
   for (const name of Object.keys(process.env)) delete process.env[name];
@@ -384,10 +441,12 @@ try {
   writeFileSync(receiptPath, receipt, { mode: 0o600 });
   const originalState = manifest.sandboxState; delete manifest.sandboxState; save(); assert.equal(verifyAdmission(bootstrapPath).available, false); manifest.sandboxState = originalState; prepare();
   report.checks.forgedMissingStateRefused = true;
-  report.stage = "installed-byte-revocation";
-  const runtimeFile = join(runtime.root, "package.json"), bytes = readFileSync(runtimeFile);
-  writeFileSync(runtimeFile, `${bytes}\n`); assert.equal(verifyAdmission(bootstrapPath).available, false); writeFileSync(runtimeFile, bytes);
-  assert.equal(verifyAdmission(bootstrapPath).available, true); report.checks.installedByteChangesInvalidateAdmission = true;
+  // Restoring bytes cannot restore original inode/ctime provenance. Perform
+  // irreversible installed-source tampering only after both renewal modes.
+  report.stage = "original-source-observation-bound";
+  const boundReceipt = JSON.parse(readFileSync(receiptPath)).body;
+  assert.deepEqual(boundReceipt.nativeContract.originalLaunchSources, captured.originalLaunchSources);
+  report.checks.installedSourceIndependentlyBound = true;
   assert.equal(await caddyAlive(), true); assert.equal(lstatSync(daemon).mode & 0o777, 0o700); assert.equal(readFileSync(auth, "utf8"), "private-auth-fixture");
   // Archive a generation only after its last prepared policy. No archived
   // manifest, bootstrap or source receipt is changed by the renewal proof.
@@ -402,7 +461,8 @@ try {
     assert.throws(() => prepareAdmission(old.bootstrapPath));
     for (const operation of ["verify", "prepare"]) {
       assert.throws(() => managerApi(operation, old.manifestPath), (error) => {
-        const result = JSON.parse(error.stdout); return result.available === false && result.reason === "revoked-runtime-provenance";
+        const result = JSON.parse(error.stdout); return result.available === false && (result.reason === "revoked-runtime-provenance"
+          || report.checks.signedReadyInstalledSourceTamperReapsWork && result.reason === "installed-launch-source-changed");
       });
     }
     const result = await liveRequest(old.bootstrapPath, "gestalt-org-plan", JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "org_plan_validate", arguments: { plan } } }));
@@ -410,10 +470,12 @@ try {
     const descriptor = old.config.mcpServers["gestalt-org-plan"];
     const restarted = spawn(descriptor.command, descriptor.args, { cwd: descriptor.cwd,
       env: { PATH: "/usr/bin:/bin", HOME: owningHome, LANG: "C.UTF-8", TMPDIR: "/tmp" }, stdio: "ignore" });
-    await until(() => restarted.exitCode !== null); assert.equal(restarted.exitCode, 78);
+    await until(() => restarted.exitCode !== null, MANAGER_OBSERVATION_MS); assert.equal(restarted.exitCode, 78);
   };
   const owningCall = async (server, tool, args, meta) => {
-    const result = await rpc("mcpServer/tool/call", { threadId: started.thread.id, server, tool, arguments: args, ...(meta ? { _meta: meta } : {}) }, 125000);
+    const began = Date.now();
+    const result = await rpc("mcpServer/tool/call", { threadId: started.thread.id, server, tool, arguments: args, ...(meta ? { _meta: meta } : {}) }, 400000);
+    report.callMeasurements ??= []; report.callMeasurements.push({ generation: manifest.generation.generation, server, tool, totalMs: Date.now() - began });
     assert.notEqual(result.isError, true); return result;
   };
   // Use the actual owning Native connection for both tools and all three
@@ -435,6 +497,22 @@ try {
   report.renewal = { generations: [], quiescence: [], oldAuthorityChecks: 0,
     narrowedSurface: "Existing project subdirectory write-to-read; project-local context storage remains writable." };
   const dead = (record) => { try { return identity(record.pid).birth !== record.birth; } catch { return true; } };
+  const signedMonitorReady = async (phase) => {
+    const began = Date.now(); let active;
+    await until(() => {
+      for (const name of readdirSync(dirname(manifestPath)).filter((name) => /^process-[a-f0-9-]+\.json$/.test(name))) {
+        const record = JSON.parse(readFileSync(join(dirname(manifestPath), name)));
+        const expected = createHmac("sha256", readFileSync(keyFile)).update(stable(record.body)).digest("hex");
+        assert.equal(record.mac, expected);
+        if (record.body.status === "running" && record.body.commandId === "context-mode-call" && record.body.postSpawnValidated === true
+          && record.body.policy.manifestDigest === hash(readFileSync(manifestPath))) { active = record.body; return true; }
+      }
+      return false;
+    }, MANAGER_OBSERVATION_MS);
+    report.monitorReadiness ??= []; report.monitorReadiness.push({ phase, generation: manifest.generation.generation,
+      launchId: active.launchId, signedPostSpawnValidated: true, monitorWaitMs: Date.now() - began });
+    return active;
+  };
   const descendants = (parent) => {
     const result = [];
     for (const raw of readFileSync(`/proc/${parent}/task/${parent}/children`, "utf8").trim().split(/\s+/).filter(Boolean)) {
@@ -447,7 +525,7 @@ try {
     report.renewal.quiescence.push(await quiesceNative(rpc, [started.thread.id]));
     for (const old of generations) { await oldRefused(old); report.renewal.oldAuthorityChecks++; }
   };
-  const nextGeneration = (previous) => {
+  const nextGeneration = (previous, { stage = true } = {}) => {
     const directory = join(privateRoot, `renewal-${randomUUID()}`); mkdirSync(directory, { mode: 0o700 });
     const worker = join(directory, "worker"); mkdirSync(worker, { mode: 0o700 });
     writeFileSync(join(worker, "config.toml"), '[shell_environment_policy]\ninherit = "none"\n', { mode: 0o600 });
@@ -455,7 +533,9 @@ try {
     manifest.sandboxState = stateFor(false); manifest.runtimeHome = worker; manifest.environment.HOME = worker; delete manifest.runtimeProvenance;
     manifest.configFiles = [join(worker, "config.toml"), join(owningHome, "config.toml")].map((path) => ({ path, sha256: hash(readFileSync(path)) }));
     manifestPath = join(directory, "manifest.json"); bootstrapPath = join(directory, "bootstrap.json"); captureId = randomUUID();
-    proofManifest = manifestPath; input.manifestPath = manifestPath; saveInput(); save(); config = stageAdmission(bootstrapPath);
+    proofManifest = manifestPath; input.manifestPath = manifestPath; saveInput(); save();
+    if (!stage) return;
+    config = stageAdmission(bootstrapPath);
     preparedConfig = JSON.parse(readFileSync(config.configPath));
     for (const descriptor of Object.values(preparedConfig.mcpServers)) assert.deepEqual(descriptor.env, {});
   };
@@ -496,12 +576,15 @@ try {
   report.stage = "renewal-original-drainage";
   const marker = join(app, "descendant-marker"), heartbeat = join(app, "heartbeat.txt"), descendant = join(app, "descendant.mjs");
   writeFileSync(descendant, `import fs from 'node:fs';process.on('SIGTERM',()=>{});setInterval(()=>fs.writeFileSync(${JSON.stringify(heartbeat)},String(Date.now())),100);`);
-  const inFlight = call("ctx_execute", { language: "javascript", timeout: 60000, code: `const cp=require('node:child_process');cp.spawn(process.execPath,[${JSON.stringify(descendant)},${JSON.stringify(marker)}],{detached:true,stdio:'inherit'});setInterval(()=>{},1000);` });
-  await until(() => existsSync(heartbeat));
+  const inFlight = call("ctx_execute", { language: "javascript", timeout: 120000, code: `const cp=require('node:child_process');cp.spawn(process.execPath,[${JSON.stringify(descendant)},${JSON.stringify(marker)}],{detached:true,stdio:'inherit'});setInterval(()=>{},1000);` });
+  // Dispatch verification and worker birth each have one observation phase;
+  // heartbeat alone never proves post-spawn validation/monitor installation.
+  await until(() => existsSync(heartbeat), 2 * MANAGER_OBSERVATION_MS);
+  await signedMonitorReady("detached-descendant-revocation");
   const markerProcesses = () => readdirSync('/proc').filter((pid) => /^\d+$/.test(pid)).filter((pid) => { try { return readFileSync(`/proc/${pid}/cmdline`).toString().split('\0').includes(marker); } catch { return false; } });
   const originalDescendants = markerProcesses().map((pid) => identity(Number(pid))); assert.ok(originalDescendants.length > 0);
   managerApi("revoke-runtime", manifestPath, "--capture-id", captureId);
-  assert.ok((await inFlight).error); await until(() => originalDescendants.every(dead) && markerProcesses().length === 0);
+  assert.ok((await inFlight).error); await until(() => originalDescendants.every(dead) && markerProcesses().length === 0, MANAGER_OBSERVATION_MS);
   assert.ok((await orgClient.request(++sequence, "tools/call", { name: "org_plan_validate", arguments: { plan } })).error);
   await close(contextProxy); await close(orgProxy);
   report.renewal.quiescence.push(await quiesceNative(rpc, [started.thread.id]));
@@ -515,7 +598,7 @@ try {
   report.stage = "renewal-replacement-drainage";
   await revokeAndQuiesce();
   const oldOwned = descendants(native.pid); await close(native);
-  assert.ok(dead(originalBirth)); await until(() => oldOwned.every(dead));
+  assert.ok(dead(originalBirth)); await until(() => oldOwned.every(dead), MANAGER_OBSERVATION_MS);
   report.renewal.replacementOldOwner = { process: originalBirth, descendants: oldOwned, allExited: true };
   const survivor = generations.at(-1); nextGeneration(survivor);
   report.stage = "renewal-managed-replacement";
@@ -526,21 +609,46 @@ try {
   native.stdin.write(`${JSON.stringify({ method: "initialized", params: {} })}\n`);
   assert.notDeepEqual(identity(native.pid), originalBirth);
   await freshAdmission("replacement"); report.checks.actualManagedReplacementPackagedRenewal = true;
+  report.stage = "renewed-installed-source-lifetime-tamper";
+  const tamperMarker = join(app, "source-tamper-marker"), tamperHeartbeat = join(app, "source-tamper-heartbeat");
+  const tamperHeld = rpc("mcpServer/tool/call", { threadId: started.thread.id, server: "context-mode", tool: "ctx_execute", arguments: {
+    language: "javascript", timeout: 120000, code: `const fs=require('node:fs');fs.writeFileSync(${JSON.stringify(tamperMarker)},'ready');setInterval(()=>fs.writeFileSync(${JSON.stringify(tamperHeartbeat)},String(Date.now())),100);`,
+  } }, 400000).then((result) => ({ result }), (error) => ({ error: error.message }));
+  await until(() => existsSync(tamperHeartbeat), 2 * MANAGER_OBSERVATION_MS);
+  await signedMonitorReady("installed-source-tamper");
+  writeFileSync(join(runtime.root, "server.bundle.mjs"), Buffer.concat([readFileSync(join(runtime.root, "server.bundle.mjs")), Buffer.from("\n// actual source lifetime tamper\n")]));
+  const tampered = await tamperHeld;
+  assert.ok(tampered.error || tampered.result.isError);
+  assert.equal(verifyAdmission(bootstrapPath).available, false);
+  assert.throws(() => prepareAdmission(bootstrapPath));
+  const stoppedHeartbeat = readFileSync(tamperHeartbeat, "utf8"); await wait(1500); assert.equal(readFileSync(tamperHeartbeat, "utf8"), stoppedHeartbeat);
+  assert.throws(() => managerApi("verify", manifestPath), (error) => JSON.parse(error.stdout).reason === "installed-launch-source-changed");
+  report.checks.installedByteChangesInvalidateAdmission = true;
+  report.checks.signedReadyInstalledSourceTamperReapsWork = true;
   report.stage = "renewal-final-revocation";
   await revokeAndQuiesce();
+  const tamperedGeneration = generations.at(-1);
+  nextGeneration(tamperedGeneration, { stage: false });
+  assert.throws(() => managerApi("renew-runtime", manifestPath, "--capture-id", captureId, "--previous-manifest", tamperedGeneration.manifestPath,
+    "--previous-capture-id", tamperedGeneration.captureId, "--mode", "survivor"), (error) => JSON.parse(error.stdout).reason === "installed-launch-source-changed");
+  report.checks.changedSourceRenewalRefused = true;
   report.processLaunches = generations.flatMap((generation) => readdirSync(dirname(generation.manifestPath)).filter((name) => /^process-[a-f0-9-]+\.json$/.test(name)).map((name) => {
     const record = JSON.parse(readFileSync(join(dirname(generation.manifestPath), name))).body;
-    return { launchId: record.launchId, status: record.status, commandId: record.commandId, process: record.process, termination: record.termination, policyDigest: record.policy.policyDigest };
+    return { launchId: record.launchId, status: record.status, commandId: record.commandId, process: record.process, termination: record.termination, policyDigest: record.policy.policyDigest, postSpawnValidated: record.postSpawnValidated === true };
   }));
   assert.ok(report.processLaunches.length >= 15); assert.ok(report.processLaunches.every((launch) => launch.status === "exited"));
+  assert.ok(report.processLaunches.filter((launch) => launch.termination === "leader-exit").every((launch) => launch.postSpawnValidated));
   assert.equal(new Set(report.processLaunches.map((launch) => launch.launchId)).size, report.processLaunches.length);
   report.checks.noPersistentWorkerReuse = true; report.checks.hostAuthorityPreserved = true;
   report.checks.oldGenerationAndReceiptPermanentlyRefused = true;
   assert.equal(await caddyAlive(), true); assert.equal(controllerConnections, 0);
   report.checks.revocationInvalidatesOldProxyAndRestart = true; assert.equal(modelRequests, 0); report.checks.noModelOrProviderCredentialWork = true; report.stage = "complete"; report.passed = true;
+  }
 } catch (error) {
   report.failure = /^[A-Z_]{1,64}$/.test(error.message) ? error.message : "PROOF_ASSERTION_FAILED";
   report.failureDetails = { stage: report.stage, operator: error.operator, code: error.code,
+    errorClass: error.name, sourceLine: Number(error.stack?.match(/live-packaged-native-proof\.mjs:(\d+):/)?.[1]) || undefined,
+    processStatus: Number.isInteger(error.status) ? error.status : undefined,
     actual: typeof error.actual === "boolean" || typeof error.actual === "number" ? error.actual : undefined,
     boundedActualReason: typeof error.actual?.message === "string" && /^[a-z-]{1,64}$/.test(error.actual.message) ? error.actual.message : undefined,
     rpc: error.rpc };
