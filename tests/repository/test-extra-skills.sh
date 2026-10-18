@@ -13,6 +13,8 @@ tmp=$(mktemp -d "${TMPDIR:-/tmp}/extra-skills-test.XXXXXX")
 tmp=$(CDPATH='' cd -- "$tmp" && pwd -P)
 trap 'rm -rf "$tmp"' EXIT HUP INT TERM
 mkdir -p "$tmp/bin" "$tmp/home"
+# Every invocation, including negative cases, must ignore an inherited profile.
+export CODEX_HOME="$tmp/codex-home"
 TEST_REAL_NODE=$(command -v node)
 [[ $TEST_REAL_NODE == /* && -x $TEST_REAL_NODE ]] ||
   fail "cannot resolve the real Node.js executable"

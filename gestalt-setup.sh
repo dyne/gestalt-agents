@@ -56,6 +56,35 @@ run() {
   "$@"
 }
 
+resolve_gestalt_root() {
+  local requested remaining component candidate resolved=/
+
+  requested=${GESTALT_HOME:-${HOME:?HOME is required}/.gestalt}
+  [[ $requested == /* ]] || die "GESTALT_HOME must be an absolute path: $requested"
+  remaining=${requested#/}
+  # Resolve existing ancestors physically and normalize missing suffixes without
+  # creating them. Validation must precede profile setup and external tools.
+  while [[ -n $remaining ]]; do
+    component=${remaining%%/*}
+    if [[ $remaining == */* ]]; then remaining=${remaining#*/}; else remaining=; fi
+    case $component in
+      ''|.) continue ;;
+      ..) resolved=${resolved%/*}; resolved=${resolved:-/}; continue ;;
+    esac
+    candidate="${resolved%/}/$component"
+    if [[ -e $candidate || -L $candidate ]]; then
+      [[ -d $candidate ]] || die "GESTALT_HOME ancestor is not a directory: $candidate"
+      resolved=$(CDPATH='' cd -- "$candidate" && pwd -P) ||
+        die "cannot resolve GESTALT_HOME: $requested"
+    else
+      resolved=$candidate
+    fi
+  done
+  [[ -n ${resolved//\//} ]] || die "refusing unsafe resolved GESTALT_HOME: $requested"
+  gestalt_root=$resolved
+  export GESTALT_HOME=$gestalt_root
+}
+
 resolve_codex_root() {
   local home_root
 
@@ -188,6 +217,10 @@ fi
 if "$prepare_only" && "$extra_skills"; then
   die "--extra-skills cannot be combined with --prepare-only"
 fi
+
+# Even prepare-only and dry-run must reject unsafe destinations before invoking
+# a runtime installer, configurator, plugin CLI or profile-directory creation.
+resolve_gestalt_root
 
 if "$extra_skills_only"; then
   resolve_codex_root
