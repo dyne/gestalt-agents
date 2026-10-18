@@ -194,7 +194,7 @@ function cleanupTmpDir(tmpDir: string): void {
 }
 
 /** Kill process tree — on Windows uses taskkill /T; on Unix kills the process group. */
-function killTree(proc: ReturnType<typeof spawn>): void {
+export function killTree(proc: ReturnType<typeof spawn>): void {
   if (isWin && proc.pid) {
     try {
       execSync(`taskkill /F /T /PID ${proc.pid}`, { stdio: "pipe" });
