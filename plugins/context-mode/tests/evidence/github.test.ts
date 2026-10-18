@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { deflateRawSync } from "node:zlib";
@@ -45,23 +45,32 @@ if (a[0] === 'auth') {
  console.log('authenticated ghp_PRIVATE');
 } else if (endpoint.includes('/attempts/2') && !endpoint.includes('/jobs')) {
  if(scenario==='bad-json'){console.log('PRIVATE_RAW not JSON');process.exit(0);}
- console.log(JSON.stringify({id:10,run_attempt:scenario==='wrong-attempt'?1:2,head_sha:'${sha}',repository:{full_name:'owner/repo'},updated_at:'2026-10-18T01:00:00Z',status:'completed'}));
+ console.log(JSON.stringify({id:10,run_attempt:scenario==='wrong-attempt'?1:2,head_sha:process.env.FAKE_SHA||'${sha}',repository:{full_name:'owner/repo'},updated_at:'2026-10-18T01:00:00Z',status:scenario==='running'?'in_progress':'completed'}));
 } else if (endpoint.includes('/jobs?')) {
- console.log(JSON.stringify({total_count:scenario==='pagination'?101:1,jobs:[{id:20,run_id:10,run_attempt:2,head_sha:'${sha}'}]}));
+ console.log(JSON.stringify({total_count:scenario==='pagination'?101:1,jobs:[{id:20,run_id:10,run_attempt:2,head_sha:process.env.FAKE_SHA||'${sha}'}]}));
 } else if (endpoint.endsWith('/zip')) {
  const b=Buffer.from(process.env.FAKE_ZIP,'base64');
  process.stdout.write(scenario==='partial-zip'?b.subarray(0,20):b);
  if(scenario==='partial-zip')process.exitCode=4;
 } else if (endpoint.includes('/artifacts/')) {
- console.log(JSON.stringify({id:30,expired:scenario==='expired-artifact',size_in_bytes:scenario==='big-artifact'?999999999:200,workflow_run:{id:10,head_sha:'${sha}'}}));
+ console.log(JSON.stringify({id:30,expired:scenario==='expired-artifact',size_in_bytes:scenario==='big-artifact'?999999999:200,workflow_run:{id:10,head_sha:process.env.FAKE_SHA||'${sha}'}}));
 } else if(endpoint.endsWith('/logs')) {
- if(scenario==='timeout'||scenario==='cancel') { process.stdout.write('PARTIAL_PRIVATE'); setInterval(()=>{},1000); }
+ if(process.env.FAKE_GATE) {
+  const gate=process.env.FAKE_GATE;
+  fs.writeFileSync(gate+'.ready','ready');
+  const timer=setInterval(()=>{
+   if(!fs.existsSync(gate+'.release'))return;
+   clearInterval(timer);process.stdout.write(process.env.FAKE_LOG||'gated log');
+   if(scenario==='partial')process.exitCode=3;
+  },5);
+ }
+ else if(scenario==='timeout'||scenario==='cancel') { process.stdout.write('PARTIAL_PRIVATE'); setInterval(()=>{},1000); }
  else if(scenario==='rate') {console.error('HTTP 429 rate limit ghp_PRIVATE');process.exit(1);}
  else if(scenario==='missing-log') {console.error('HTTP 410 expired ghp_PRIVATE');process.exit(1);}
  else if(scenario==='exit') {console.error('PRIVATE_RAW ghp_PRIVATE');process.exit(7);}
  else if(scenario==='partial') {process.stdout.write('PARTIAL_PRIVATE');process.exitCode=3;}
  else if(scenario==='oversize') {process.stdout.write('PRIVATE_RAW'.repeat(1000));}
- else console.log('PRIVATE_RAW test log ghp_PRIVATE');
+ else console.log(process.env.FAKE_LOG||'PRIVATE_RAW test log ghp_PRIVATE');
 } else process.exit(9);
 `;
 function zip(name = "results.txt", compressed = false): Buffer {
@@ -150,7 +159,7 @@ describe("authenticated GitHub transport", () => {
   });
   it("caps simultaneous captures",async()=>{
     vi.stubEnv("FAKE_SCENARIO","timeout");
-    const a=captureGitHub(selector,{...options(),timeoutMs:200});const b=captureGitHub(selector,{...options(),timeoutMs:200});
+    const a=captureGitHub(selector,{...options(),timeoutMs:200});const b=captureGitHub({...selector,job:20},{...options(),timeoutMs:200});
     expect((await captureGitHub(selector,options())).reason).toBe("busy");await Promise.all([a,b]);
     vi.stubEnv("FAKE_SCENARIO","success");expect((await captureGitHub(selector,options())).completeness).toBe("complete");
   });
@@ -201,5 +210,89 @@ describe("bounded ZIP decoding",()=>{
   it("rejects a declared decompression bomb before inflation",()=>{
     const b=zip();const central=30+"results.txt".length+5;b.writeUInt16LE(8,central+10);b.writeUInt32LE(0x7fffffff,central+24);
     expect(()=>unpackEvidenceZip(b,100)).toThrow();
+  });
+});
+
+describe('terminal capture reuse',()=>{
+  const calls=()=>readFileSync(join(dir,'argv'),'utf8').trim().split('\n').length;
+  it('reuses identical terminal bytes without gh and preserves the original observation',async()=>{
+    const first=await captureGitHub(selector,options()),n=calls();
+    const again=await captureGitHub(selector,options());
+    expect(again.reuse).toBe('cached-terminal');expect(calls()).toBe(n);
+    expect(again.observedAt).toBe(first.observedAt);expect(again.manifest).toEqual(first.manifest);
+  });
+  it('coalesces concurrent identical captures',async()=>{
+    const [a,b]=await Promise.all([captureGitHub(selector,options()),captureGitHub(selector,options())]);
+    expect(a.manifest).toEqual(b.manifest);expect(calls()).toBe(4);
+  });
+  it.each([
+    {failed:false,order:'old-first'}, {failed:false,order:'refresh-first'},
+    {failed:true,order:'old-first'}, {failed:true,order:'refresh-first'},
+  ])('fences overlapping refresh writes and joins: $order, failed=$failed',async({failed,order})=>{
+    const oldGate=join(dir,'old'),freshGate=join(dir,'fresh');
+    const release=(gate:string)=>writeFileSync(gate+'.release','release');
+    const ready=(gate:string)=>vi.waitFor(()=>expect(existsSync(gate+'.ready')).toBe(true),{timeout:3000});
+    const work:Promise<any>[]=[];
+    try {
+      vi.stubEnv('FAKE_GATE',oldGate);vi.stubEnv('FAKE_LOG','old bytes');
+      const old=captureGitHub(selector,options());work.push(old);await ready(oldGate);
+      vi.stubEnv('FAKE_GATE',freshGate);vi.stubEnv('FAKE_SHA','b'.repeat(40));vi.stubEnv('FAKE_LOG','refreshed bytes');
+      vi.stubEnv('FAKE_SCENARIO',failed?'partial':'success');
+      const fresh=captureGitHub({...selector,refresh:true},options());work.push(fresh);await ready(freshGate);
+      // Both kinds of identical callers must join the refresh generation, not old work.
+      const joined=captureGitHub(selector,options()),refreshJoined=captureGitHub({...selector,refresh:true},options());
+      work.push(joined,refreshJoined);
+      if(order==='old-first'){release(oldGate);await old;}else{release(freshGate);await fresh;}
+      const probe=captureGitHub(selector,options());work.push(probe);
+      release(oldGate);release(freshGate);
+      const [oldResult,freshResult,joinedResult,refreshJoinedResult,probeResult]=await Promise.all(work);
+      expect(oldResult.headSha).toBe(sha);expect(freshResult.headSha).toBe('b'.repeat(40));
+      expect(freshResult.completeness).toBe(failed?'partial':'complete');
+      expect(joinedResult.manifest).toEqual(freshResult.manifest);expect(refreshJoinedResult.manifest).toEqual(freshResult.manifest);
+      expect(probeResult.headSha).toBe('b'.repeat(40));expect(probeResult.completeness).toBe(failed?'partial':'complete');
+      vi.stubEnv('FAKE_GATE','');vi.stubEnv('FAKE_SCENARIO','success');vi.stubEnv('FAKE_SHA','c'.repeat(40));
+      const final=await captureGitHub(selector,options());
+      expect(final.reuse).toBe(failed?'captured':'cached-terminal');
+      expect(final.headSha).toBe((failed?'c':'b').repeat(40));
+    }finally{release(oldGate);release(freshGate);await Promise.all(work);}
+  });
+  it('refreshes explicitly, invalidates failed refresh and retries partial captures',async()=>{
+    await captureGitHub(selector,options());let n=calls();
+    vi.stubEnv('FAKE_SCENARIO','partial');
+    expect((await captureGitHub({...selector,refresh:true},options())).completeness).toBe('partial');
+    expect(calls()).toBeGreaterThan(n);n=calls();
+    expect((await captureGitHub(selector,options())).reuse).toBe('captured');expect(calls()).toBeGreaterThan(n);
+    vi.stubEnv('FAKE_SCENARIO','success');
+    expect((await captureGitHub(selector,options())).completeness).toBe('complete');
+  });
+  it('recaptures purged or changed evidence and never reuses another attempt',async()=>{
+    const a=await captureGitHub(selector,options());const m=JSON.parse(readFileSync(a.manifest!.path,'utf8'));
+    writeFileSync(m.entries.find((e:any)=>e.kind==='logs-20').reference.path,'changed bytes');
+    expect((await captureGitHub(selector,options())).reuse).toBe('captured');
+    const n=calls();
+    expect((await captureGitHub({...selector,attempt:3},options())).completeness).not.toBe('complete');expect(calls()).toBeGreaterThan(n);
+    rmSync(join(dir,'captures'),{recursive:true,force:true});
+    expect((await captureGitHub(selector,options())).reuse).toBe('captured');
+  });
+  it('observes new SHA and artifact bytes only after explicit refresh',async()=>{
+    const a=await captureGitHub({...selector,artifact:30},options());
+    vi.stubEnv('FAKE_SHA','b'.repeat(40));vi.stubEnv('FAKE_ZIP',zip('renamed.txt').toString('base64'));
+    const b=await captureGitHub({...selector,artifact:30,refresh:true},options());
+    expect(b.headSha).toBe('b'.repeat(40));expect(b.manifest?.sha256).not.toBe(a.manifest?.sha256);
+    const m=JSON.parse(readFileSync(b.manifest!.path,'utf8'));
+    expect(readFileSync(m.entries.find((e:any)=>e.kind==='artifact-members').reference.path,'utf8')).toContain('renamed.txt');
+  });
+  it('refreshes running status instead of caching incomplete content',async()=>{
+    vi.stubEnv('FAKE_SCENARIO','running');expect((await captureGitHub(selector,options())).completeness).toBe('partial');const n=calls();
+    vi.stubEnv('FAKE_SCENARIO','success');expect((await captureGitHub(selector,options())).completeness).toBe('complete');expect(calls()).toBeGreaterThan(n);
+  });
+  it('preserves independently cancellable subscribers',async()=>{
+    const c=new AbortController();const a=captureGitHub(selector,{...options(),signal:c.signal});const b=captureGitHub(selector,options());c.abort();
+    expect((await a).reason).toBe('cancelled');expect((await b).completeness).toBe('complete');expect(calls()).toBe(4);
+  });
+  it('rechecks command authorization before returning cached bytes',async()=>{
+    await captureGitHub(selector,options());
+    const r=await captureGitHub(selector,{...options(),authorizeCommand:()=>false});
+    expect(r.completeness).toBe('failed');expect(r.reason).toBe('permission');expect(r.reuse).not.toBe('cached-terminal');
   });
 });

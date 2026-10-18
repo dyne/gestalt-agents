@@ -226,3 +226,38 @@ discovery because npm could not write its read-only home cache (`EROFS`);
 redirecting only that cache to task-local `/tmp` resolves it. This environment
 failure is separate from the original file-mode baseline and from the repaired
 per-file instruction-budget failure. No installed profile or service changed.
+
+## Final evidence delivery alignment
+
+The original lifecycle/authority map above remains unchanged. Routing now
+distinguishes already-authorized evidence storage from native source/Org edits,
+and describes explicit remote refresh and authorized receiving-session reindexing.
+E adds digest-versus-freshness verification to its existing independent review
+step. Two static scenarios cover those additions (38 total); no review gate,
+permission or checkpoint rule was removed. Current repository-owned role paths
+remain below the immutable original baseline:
+
+| Role | Final words / bytes | Original words / bytes |
+| --- | --- | --- |
+| Root | 7680 / 55435 | 8117 / 57152 |
+| Executor | 7455 / 53663 | 7668 / 54021 |
+| Terminal reviewer | 7152 / 51595 | 7332 / 51711 |
+
+These counts cover the mapped instruction sources, not full live prompts or
+subscriber allowances. Reproduce them with
+`python3 tests/plugins/gestalt/instruction-baseline.py` and the contracts with
+`bash tests/plugins/gestalt/test-instruction-contract.sh`.
+
+The executable evidence benchmark uses the same sanitized specification's
+padding/expected IDs, rendered as documented structured or opaque inputs. It
+compares identical bytes through uncached raw and bounded/cached workflows.
+Measured initial reductions are 97.45–99.66% for six cases over 20 KiB; all
+expected findings and digest references survive. Three unchanged CI questions
+fetch/index once instead of three times; a new attempt/SHA still fetches/indexes
+twice. The report includes the added description, requests, every bounded report
+page, focused unknown-format search, and measured local latency. Baseline adds
+zero new description overhead and excludes transport framing equally. This is
+an offline synthetic comparison, not a historical-binary, model-latency, token,
+API-cache or billing measurement. Reproduction and limitations are in
+`plugins/context-mode/README.md`; `npm run benchmark:evidence -- <metrics.json>`
+from that plugin exits nonzero on an unmet criterion and retains metrics only.

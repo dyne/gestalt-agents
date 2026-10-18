@@ -53,6 +53,9 @@ retrieval. These are evidence decisions, not replacements for lifecycle gates.
 2. Check observation/completion times and whether code, attempt, jobs or
    artifacts changed afterward. Reject stale evidence for the current candidate;
    refresh or rerun the affected checks. No fixed age alone proves freshness.
+   Cached GitHub captures retain their original observation; use `github.refresh`
+   when current remote state is needed. Matching digests establish local byte
+   identity, not remote freshness.
 3. Resolve cited evidence, verify digest and locators, and inspect relevant diff
    and test summaries independently. Compare exact commands, exit statuses,
    counts, failures and coverage. Rerun focused/full checks as the review gate

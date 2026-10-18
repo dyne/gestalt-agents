@@ -21,6 +21,16 @@ and contents while excluding generated dependencies and build artifacts.
   Preserves native permission hooks and represents incomplete, unsupported,
   contradictory and run-scoped artifact evidence explicitly. The server's
   tool wrapper forwards cancellation context to registered handlers.
+- Reuses digest-verified terminal GitHub captures within runtime evidence scope,
+  with explicit refresh and original observation timestamps. Coalesces identical
+  concurrent captures with independently cancellable subscribers, fencing cache
+  writes and joins when refresh invalidates earlier work. Stable source
+  identities include selected run/attempt/SHA/job/artifact or canonical local
+  path and content digest; index reuse stays within each receiving session.
+  Authorized manifest transfer rechecks source access and reindexes locally.
+- Adds a metrics-only synthetic evidence benchmark with correctness, payload,
+  followup overhead, fetch/index reuse and rerun gates. Its baseline is an
+  uncached raw workflow; it makes no billing or model-latency claims.
 - Retains only Codex plugin manifests, configuration, hook entrypoints, and
   user-facing documentation. Other host packaging, configuration, hook
   wrappers, website content, and release automation are omitted.

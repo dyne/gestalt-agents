@@ -165,10 +165,13 @@ export interface IngestOptions {
   authorizeRead:(path:string)=>boolean;
   /** Index the captured, sanitized text in this invocation's existing ContentStore. */
   index:(text:string,source:string)=>{sourceId:number|string};
+  indexExists?:(source:string)=>boolean;
+  indexScope?:string;
   source:Record<string,unknown>;
   milestone?:string;
   candidate?:Record<string,unknown>;
 }
+const indexed = new WeakMap<IngestOptions["index"], Map<string, {sourceId:number|string}>>();
 const MAX_BYTES=8*1024*1024;
 function openAuthorized(path:string,authorize:IngestOptions['authorizeRead']):number {
   if(!authorize(path))throw new Error('denied');
@@ -182,13 +185,13 @@ function openAuthorized(path:string,authorize:IngestOptions['authorizeRead']):nu
     return fd;
   }catch(error){closeSync(fd);throw error;}
 }
-function readAuthorized(path:string,authorize:IngestOptions['authorizeRead'],maxBytes=MAX_BYTES):{data:Buffer;partial:boolean} {
+function readAuthorized(path:string,authorize:IngestOptions['authorizeRead'],maxBytes=MAX_BYTES):{data:Buffer;partial:boolean;canonical:string} {
   const fd=openAuthorized(path,authorize);
   try {
     const st=fstatSync(fd),data=Buffer.alloc(Math.min(maxBytes+1,st.size+1));let length=0,n=0;
     while(length<data.length&&(n=readSync(fd,data,length,data.length-length,null))>0)length+=n;
     const after=fstatSync(fd);
-    return {data:data.subarray(0,Math.min(length,maxBytes)),partial:length>maxBytes||length!==st.size||st.size!==after.size||st.mtimeMs!==after.mtimeMs||st.ctimeMs!==after.ctimeMs};
+    return {canonical:process.platform==='linux'?realpathSync(`/proc/self/fd/${fd}`):realpathSync(path),data:data.subarray(0,Math.min(length,maxBytes)),partial:length>maxBytes||length!==st.size||st.size!==after.size||st.mtimeMs!==after.mtimeMs||st.ctimeMs!==after.ctimeMs};
   }finally{closeSync(fd);}
 }
 
@@ -209,7 +212,18 @@ export function ingestEvidence(inputs:EvidenceInput[],opts:IngestOptions):{repor
       const mismatch=input.expectedSha256!==undefined&&digest(captured.data)!==input.expectedSha256;
       const completeness=captured.partial||mismatch?'partial':input.completeness??'complete';
       let index:Record<string,unknown>;
-      try {index={...opts.index(redact(text),`evidence:${id}:${i}:${ref.sha256}`),source:`evidence:${id}:${i}:${ref.sha256}`,scope:'current invocation ContentStore'};}
+      try {
+        const identity = opts.source.kind === 'github'
+          ? {kind:'github',host:opts.source.host,repository:opts.source.repository,run:opts.source.run,attempt:opts.source.attempt,sha:opts.source.headSha,selector:input.identity}
+          : {kind:'local',path:captured.canonical};
+        const safeText=redact(text),source=`evidence:${digest(opts.indexScope??'invocation')}:${digest(JSON.stringify(identity))}:${digest(safeText)}`;
+        let cache=indexed.get(opts.index);if(!cache){cache=new Map();indexed.set(opts.index,cache);}
+        const exists=opts.indexExists?.(source)??false;
+        let entry=exists?(cache.get(source)??{sourceId:source}):undefined;
+        const reused=!!entry;
+        if(!entry){entry=opts.index(safeText,source);cache.set(source,entry);}
+        index={...entry,source,scope:'current invocation ContentStore',reused,identity,sha256:ref.sha256};
+      }
       catch {index={sourceId:null,reason:'index unavailable; captured source remains retrievable'};}
       const exitConflict=input.exit!==undefined&&parsed.exit!==null&&input.exit!==parsed.exit;
       const exit=exitConflict?null:input.exit??parsed.exit;
@@ -258,7 +272,7 @@ export function ingestGitHubCapture(capture:GitHubCapture,opts:Omit<IngestOption
   const source={kind:'github',host:capture.selector?.host??null,repository:capture.selector?.repository??null,
     run:capture.selector?.run??null,attempt:capture.selector?.attempt??null,job:capture.selector?.job??null,artifact:capture.selector?.artifact??null,
     headSha:capture.headSha,completedAt:capture.completedAt,completionTimeReason:'run completion timestamp unavailable; updated_at is retained separately',sourceUpdatedAt:capture.sourceUpdatedAt,retrievedAt:capture.observedAt,
-    captureCompleteness:capture.completeness,reason:capture.reason??null,manifest:capture.manifest??null,
+    reuse:capture.reuse??'captured',statusFreshness:capture.reuse==='cached-terminal'?'cached observation; refresh to revalidate remote state':'retrieved this invocation',captureCompleteness:capture.completeness,reason:capture.reason??null,manifest:capture.manifest??null,
     artifactAttemptBinding:capture.selector?.artifact?'run-scoped; attempt association unknown':null,omittedSources:0};
   const refSchema=z.object({path:z.string(),sha256:z.string().regex(/^[a-f0-9]{64}$/),bytes:z.number().int().nonnegative()});
   const inputs:EvidenceInput[]=[];
@@ -280,6 +294,26 @@ export function ingestGitHubCapture(capture:GitHubCapture,opts:Omit<IngestOption
   }catch{inputs.length=0;source.reason='invalid-source';}
   if(!inputs.length)inputs.push({path:join(opts.storageRoot,'unavailable-source'),completeness:'unknown'});
   return ingestEvidence(inputs,{...opts,source});
+}
+
+/** Explicit workspace-authorized manifest transfer. Never import another session's index IDs. */
+export function ingestSharedManifest(path:string,sha256:string,opts:Omit<IngestOptions,'source'>):ReturnType<typeof ingestEvidence> {
+  const bytes=readAuthorized(path,opts.authorizeRead);
+  if(bytes.partial||digest(bytes.data)!==sha256)throw new Error('invalid shared manifest');
+  const ref=z.object({path:z.string(),sha256:z.string().regex(/^[a-f0-9]{64}$/)});
+  const identity=z.number().int().positive().nullable().optional();
+  const source=z.object({kind:z.enum(['local','github']),host:z.string().max(253).nullable().optional(),
+    repository:z.string().max(4096).nullable().optional(),run:identity,attempt:identity,job:identity,artifact:identity,
+    headSha:z.string().regex(/^[a-fA-F0-9]{40}$/).nullable().optional(),
+    retrievedAt:z.string().datetime().optional(),sourceUpdatedAt:z.string().datetime().nullable().optional()});
+  const manifest=z.object({version:z.literal(1),source,checks:z.array(z.object({
+    command:z.string().nullable().optional(),cwd:z.string().nullable().optional(),exit:z.number().int().nullable().optional(),
+    completeness:z.enum(['complete','partial','unknown']),references:z.array(ref).min(1).max(1),
+    sourceIdentity:z.object({job:z.number().int().positive().optional(),artifact:z.number().int().positive().optional(),member:z.string().optional()}).nullable().optional(),
+  })).min(1).max(100)}).parse(JSON.parse(bytes.data.toString('utf8')));
+  return ingestEvidence(manifest.checks.map(c=>({path:c.references[0].path,expectedSha256:c.references[0].sha256,
+    identity:c.sourceIdentity??undefined,command:c.command??undefined,cwd:c.cwd??undefined,exit:c.exit??undefined,completeness:c.completeness})),
+    {...opts,source:{...Object.fromEntries(Object.entries(manifest.source).map(([key,value])=>[key,typeof value==='string'?redact(value):value])),sharedManifest:reference(path,bytes.data),transfer:'authorized bytes; indexed in receiving session; original candidate is not verification'}});
 }
 
 /** Only generated report IDs resolve; arbitrary paths cannot be used as followups. */

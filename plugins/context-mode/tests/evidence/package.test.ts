@@ -178,13 +178,13 @@ describe.skipIf(process.platform === "win32")("packaged test evidence MCP", () =
   });
   it("returns usable bounded authentication failure evidence", async () => {
     writeFileSync(join(root, "mode"), "auth");
-    const result = await call({ operation: "github", github: { repository: "owner/repo", run: 10, attempt: 2 } }); expect(result.isError).toBe(true); parsed(result);
+    const result = await call({ operation: "github", github: { repository: "owner/repo", run: 10, attempt: 2, refresh:true } }); expect(result.isError).toBe(true); parsed(result);
     const report = JSON.parse(readFileSync(reportPath(result), "utf8")); expect(report.source.reason).toBe("authentication"); expect(report.decision).toBe("needs-evidence");
   });
   it("forwards MCP cancellation to the gh child and releases capture permits", async () => {
     writeFileSync(join(root, "mode"), "cancel");
     const controller = new AbortController();
-    const pending = client.callTool({ name: "ctx_test_evidence", arguments: { operation: "github", github: { repository: "owner/repo", run: 10, attempt: 2 } } }, undefined, { signal: controller.signal });
+    const pending = client.callTool({ name: "ctx_test_evidence", arguments: { operation: "github", github: { repository: "owner/repo", run: 10, attempt: 2, refresh:true } } }, undefined, { signal: controller.signal });
     const rejected = expect(pending).rejects.toThrow();
     const deadline = Date.now() + 4000;
     while (!existsSync(join(root, "gh-pid")) && Date.now() < deadline) await new Promise(r => setTimeout(r, 20));
