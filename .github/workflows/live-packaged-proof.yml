@@ -44,13 +44,13 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: dyne/gestalt
-          ref: 737f5f85f02ea60a26996afc2e17e176bfb2c6bc # accepted L9 tree dfdeabd2, commit 5084cf2
+          ref: 9b11e9305eb35de32569025df2a281ed28d1bce2 # accepted L9 tree 34918294, commit 4515cf3
           path: .host-manager-input
           persist-credentials: false
       - name: Verify accepted Manager tree and Mobile election fixture
         run: |
           set -Eeuo pipefail
-          test "$(git -C .host-manager-input rev-parse HEAD^{tree})" = dfdeabd2ffdbdb6c429a39c3e81286b611af7734
+          test "$(git -C .host-manager-input rev-parse HEAD^{tree})" = 349182948619bbbeab892c9884cfb06badf13997
           npm ci --prefix .host-manager-input
           node --input-type=module <<'NODE'
           import assert from 'node:assert/strict';
@@ -182,7 +182,7 @@ jobs:
         run: |
           set -Eeuo pipefail
           mkdir -p test-results/live-packaged
-          PATH=/usr/bin:/bin /usr/bin/node scripts/live-packaged-native-proof.mjs > test-results/live-packaged/proof.log 2>&1
+          PATH=/usr/bin:/bin timeout --signal=TERM --kill-after=15s 42m /usr/bin/node scripts/live-packaged-native-proof.mjs 2>&1 | tee test-results/live-packaged/proof.log
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:

@@ -356,3 +356,30 @@ Org environment keys; an old two-key bootstrap is rejected, rather than adapted
 implicitly. Normal non-Live supervision can use repaired tools only after compatible Mobile
 activation and verified actual MCP propagation; no source-only check activates
 an installed runtime.
+### Validation-local byte work
+
+Admission and each lifetime check independently stream file SHA256 values in
+64 KiB chunks. Within that one synchronous validation, repeated observations of
+the same device/inode and complete nanosecond metadata identity reuse only the
+digest string. Every use still resolves the canonical path, opens a fresh
+NOFOLLOW descriptor and checks its identity before and after use. A final fence
+reopens every observed path. Changed path bindings, ownership, mode, size, link
+count or timestamps refuse the validation. Directory membership, protected
+parents, complete alias closure, signatures, configuration and Manager freshness
+probes remain independent checks. No authority result or executable buffer is
+cached, and the context is discarded before publication or the next call.
+
+The context bounds each file to 512 MiB, its aggregate reads to 3 GiB and distinct
+paths to 60,064. Installed-source parsing retains only the generated launcher and
+required JSON inputs, each at most 256 KiB; prepared-file digests reuse the freshly
+observed tree hashes. These changes reduce duplicate byte work and memory, not
+the number of trust checks. They do not establish a Native readiness speedup.
+
+Accepted Manager replacement now binds a separate signed private ordered
+environment receipt through its sealed provenance digest. Agents continues to
+require the authenticated current Manager verification and sealed provenance;
+it does not copy private environment values into admission or MCP configuration.
+Historical seals without the new receipt are not fresh evidence. Same/split
+HOME reconstruction, original bridge retirement and actual post-seal catalogs
+remain owning-runtime integration obligations. Ordinary installed hooks and
+genuine-provider readiness remain unwaived.
