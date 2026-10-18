@@ -47,8 +47,15 @@ SH
   chmod +x "$tmp/bin/$tool"
 done
 ln -s / "$tmp/root-link"
-unsafe=(relative / // /./ /tmp/.. "$tmp/root-link" "$tmp/root-link/." \
-  "$tmp/root-link/../" "$tmp/never-created/../../../..")
+# Resolve through a known root symlink; /tmp/.. is /private on macOS.
+missing_to_root="$tmp/never-created/.."
+ancestor=$tmp
+while [[ -n $ancestor ]]; do
+  missing_to_root+=/..
+  ancestor=${ancestor%/*}
+done
+unsafe=(relative / // /./ "$tmp/root-link/./.." "$tmp/root-link" "$tmp/root-link/." \
+  "$tmp/root-link/../" "$missing_to_root")
 case_count=0
 for destination in "${unsafe[@]}"; do
   for mode in normal --prepare-only --extra-skills --extra-skills-only --dry-run; do
