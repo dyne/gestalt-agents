@@ -1,12 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, realpathSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join, resolve, sep } from 'node:path';
 import { tmpdir } from 'node:os';
 import { evidenceFollowup, extractTests, ingestEvidence, ingestGitHubCapture, ingestSharedManifest, type IngestOptions } from '../../src/evidence/extract.js';
 import { digest, reference } from '../../src/evidence/github.js';
 
 let root:string;
-beforeEach(()=>{root=mkdtempSync(join(tmpdir(),'evidence-extract-'));});
+beforeEach(()=>{root=realpathSync(mkdtempSync(join(tmpdir(),'evidence-extract-')));});
 afterEach(()=>{vi.unstubAllEnvs();rmSync(root,{recursive:true,force:true});});
 const json=(tests:any[],extra:any={})=>JSON.stringify({version:1,tests,...extra});
 const file=(text:string,name='input.log')=>{const path=join(root,name);writeFileSync(path,text);return path;};

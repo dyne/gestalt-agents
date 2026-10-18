@@ -1,5 +1,5 @@
 /** Offline workflow replay. Persist metrics only; all evidence is synthetic and temporary. */
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, mkdtempSync, realpathSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { performance } from 'node:perf_hooks';
@@ -50,7 +50,7 @@ function validateReference(path:string,sha256:string):boolean {
 /** Replays the L1 sanitized corpus and repeated-run/rerun identities through both paths. */
 export async function runEvidenceBenchmark() {
   const fixtureBytes=readFileSync(specification),fixture=JSON.parse(fixtureBytes.toString()) as Fixture;
-  const root=mkdtempSync(join(tmpdir(),'evidence-efficiency-')),previousPath=process.env.PATH;
+  const root=realpathSync(mkdtempSync(join(tmpdir(),'evidence-efficiency-'))),previousPath=process.env.PATH;
   const cases:CaseMetrics[]=[];
   try {
     const bin=join(root,'bin');mkdirSync(bin);writeFileSync(join(bin,'gh'),fakeGh);chmodSync(join(bin,'gh'),0o755);

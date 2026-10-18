@@ -80,6 +80,9 @@ and contents while excluding generated dependencies and build artifacts.
   compilation share it. It is implementation residue, not a supported-host
   promise; extracting a Codex-only core is a separate architectural change.
 
+- Canonicalizes evidence-test temporary roots before constructing read policies,
+  so symlinked macOS temporary directories retain the same authorization checks.
+
 ## Updating context-mode
 
 Import a reviewed upstream revision, reapply the Codex-only changes above,
