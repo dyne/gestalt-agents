@@ -17,10 +17,12 @@ describe('sanitized end-to-end evidence efficiency',()=>{
       expect(c.bounded.totalVisibleBytes,c.caseId).toBeLessThan(c.baseline.totalVisibleBytes);
     }
     const repeated=report.cases.find(c=>c.caseId==='repeated-ci')!;
+    expect(repeated.sourceFormat).toBe('github-api-tap');
     expect(repeated.baseline.fetches).toBe(3);expect(repeated.bounded.fetches).toBe(1);
     expect(repeated.baseline.indexes).toBe(3);expect(repeated.bounded.indexes).toBe(1);
     expect(repeated.bounded.ghCalls).toBe(4);
     const rerun=report.cases.find(c=>c.caseId==='rerun')!;
+    expect(rerun.sourceFormat).toBe('github-api-tap');
     expect(rerun.bounded.fetches).toBe(2);expect(rerun.bounded.indexes).toBe(2);
     expect(report.cases.find(c=>c.caseId==='unknown')!.certainty).toBe('unknown');
   },30000);

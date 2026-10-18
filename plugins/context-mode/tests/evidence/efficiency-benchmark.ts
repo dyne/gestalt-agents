@@ -37,6 +37,12 @@ function render(f:Workflow, fixture:Fixture):string {
   if(f.id==='setup-failure')return JSON.stringify({numTotalTests:0,numPassedTests:0,numFailedTests:0,numPendingTests:0,numFailedTestSuites:1,padding,testResults:[{name:f.expectedFailures[0],status:'failed',message:'Synthetic dependency unavailable before tests',assertionResults:[]}]},null,2);
   return JSON.stringify({version:1,exitCode:f.exitCode,tests:[...padding.slice(f.expectedFailures.length).map(id=>({id,status:'passed'})),...f.expectedFailures.map(id=>({id,status:'failed',cause:'Synthetic expected value did not match actual value'}))]},null,2);
 }
+function renderApiLog(f:Workflow,fixture:Fixture):string {
+  const lines=['TAP version 13',...Array.from({length:fixture.padding.lines},(_,i)=>`# ${fixture.padding.template.replace('{index:04d}',String(i+1).padStart(4,'0'))}`)];
+  for(const [i,id] of f.expectedFailures.entries())lines.push(`not ok ${i+1} - ${id}`,'  cause: Synthetic expected value did not match actual value');
+  lines.push(`1..${f.expectedFailures.length}`);
+  return lines.map(line=>`2026-10-19T00:00:00.1234567Z ${line}`).join('\n');
+}
 function validateReference(path:string,sha256:string):boolean {
   try {return digest(readFileSync(path))===sha256;}catch{return false;}
 }
@@ -51,11 +57,11 @@ export async function runEvidenceBenchmark() {
     process.env.PATH=`${bin}:${previousPath??''}`;
     for(const id of ['passing','failing','setup-failure','repeated-ci','rerun','unknown']) {
       const template=fixture.cases.find(f=>f.id===(id==='repeated-ci'||id==='rerun'?'failing':id))!;
-      const text=render(template,fixture),expected=template.expectedFailures;
-      const local=join(root,`${id}.log`);writeFileSync(local,text);writeFileSync(join(bin,'ci.log'),text);
-      const sessionId=`sanitized-benchmark:${id}`,result:CaseMetrics={caseId:id,sessionId,sourceSha256:digest(text),sourceFormat:id==='unknown'?'opaque-text':id==='setup-failure'?'jest-setup-json':'normalized-test-json',expectedFindings:expected.length+(id==='unknown'?1:0),certainty:template.complete?'known':'unknown',baseline:empty(),bounded:empty(),initialReduction:0};
-      const iterations=id==='repeated-ci'?fixture.repeatedQuery.questions.length:id==='rerun'?2:1;
       const remote=id==='repeated-ci'||id==='rerun';
+      const text=remote?renderApiLog(template,fixture):render(template,fixture),expected=template.expectedFailures;
+      const local=join(root,`${id}.log`);writeFileSync(local,text);writeFileSync(join(bin,'ci.log'),text);
+      const sessionId=`sanitized-benchmark:${id}`,result:CaseMetrics={caseId:id,sessionId,sourceSha256:digest(text),sourceFormat:remote?'github-api-tap':id==='unknown'?'opaque-text':id==='setup-failure'?'jest-setup-json':'normalized-test-json',expectedFindings:expected.length+(id==='unknown'?1:0),certainty:template.complete?'known':'unknown',baseline:empty(),bounded:empty(),initialReduction:0};
+      const iterations=id==='repeated-ci'?fixture.repeatedQuery.questions.length:id==='rerun'?2:1;
       for(const path of ['baseline','bounded'] as const) {
         const metric=result[path],store=new ContentStore(join(root,`${id}-${path}.db`));
         const start=performance.now();
@@ -101,6 +107,10 @@ export async function runEvidenceBenchmark() {
             }
             const report=JSON.parse(reportText),check=report.checks[0];
             if(check.certainty!==result.certainty)throw new Error(`certainty regression: ${id}`);
+            if(remote)for(const finding of check.failures) {
+              const line=Number(finding.locator.match(/^lines:(\d+)-\d+$/)?.[1]);
+              if(!line||!text.split('\n')[line-1]?.includes(finding.id.replace(/^TAP:\d+ /,''))||finding.time!=='2026-10-19T00:00:00.1234567Z')throw new Error(`raw API location regression: ${id}`);
+            }
             for(const finding of expected)if(!check.failures.some((f:any)=>f.id.includes(finding)))metric.missingFindings.push(finding);
             for(const c of report.checks)for(const ref of c.references??[])if(!validateReference(ref.path,ref.sha256))metric.missingReferences++;
             if(!report.checks.some((c:any)=>c.references?.length))metric.missingReferences++;

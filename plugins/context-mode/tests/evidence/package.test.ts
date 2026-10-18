@@ -27,9 +27,13 @@ if(a[0]==='auth'){
  if(mode==='cancel'){
   fs.writeFileSync(process.env.FAKE_PID,String(process.pid));process.stdout.write('TAP version 13\\n');setInterval(()=>{},1000);
  }else{
- console.log('TAP version 13');
- for(let i=1;i<=20;i++)console.log('not ok '+i+' - failure-'+i+'\\n  ---\\n  message: expected true, received false\\n  context: '+('context detail '.repeat(300))+'\\n  ...');
- console.log('1..20');
+ const log=line=>console.log('2026-10-18T01:02:03.1234567Z '+line);
+ log('TAP version 13');
+ for(let i=1;i<=20;i++){
+  log('not ok '+i+' - failure-'+i);log('  ---');log('  message: expected true, received false');
+  log('  context: '+('context detail '.repeat(300)));log('  ...');
+ }
+ log('1..20');
  }
 }else process.exit(8);
 `;
@@ -108,6 +112,11 @@ describe.skipIf(process.platform === "win32")("packaged test evidence MCP", () =
     expect(report.source).toMatchObject({ host: "github.com", repository: "owner/repo", run: 10, attempt: 2, job: 20, headSha: sha });
     expect(report.checks[0].failures).toHaveLength(20); expect(report.checks[0].failures[19].id).toBe("TAP:20 failure-20"); expect(report.checks[0].exit).toBeNull();
     expect(report.checks[0].sourceIdentity.job).toBe(20);
+    expect(report.checks[0].certainty).toBe('known');
+    expect(report.checks[0].failures[0]).toMatchObject({locator:'lines:2-6',time:'2026-10-18T01:02:03.1234567Z',step:null});
+    expect(report.checks[0].failures[0].cause).toContain('\n  message: expected true, received false');
+    const captured=readFileSync(report.checks[0].references[0].path,'utf8');
+    expect(captured.split('\n')[1]).toBe('2026-10-18T01:02:03.1234567Z not ok 1 - failure-1');
     const argv = readFileSync(join(root, "argv"), "utf8"); expect(argv).toContain("actions/jobs/20/logs"); expect(argv).not.toContain("ghp_");
   });
   it("ingests authorized local files and attributes indexed chunks to this session", async () => {

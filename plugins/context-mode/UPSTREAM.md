@@ -21,6 +21,9 @@ and contents while excluding generated dependencies and build artifacts.
   Preserves native permission hooks and represents incomplete, unsupported,
   contradictory and run-scoped artifact evidence explicitly. The server's
   tool wrapper forwards cancellation context to registered handlers.
+  Normalizes raw GitHub API timestamp envelopes without changing source line
+  locators, and validates JUnit counters at every nested suite scope. Packaged
+  transport tests and remote benchmark cases use timestamped API log fixtures.
 - Reuses digest-verified terminal GitHub captures within runtime evidence scope,
   with explicit refresh and original observation timestamps. Coalesces identical
   concurrent captures with independently cancellable subscribers, fencing cache

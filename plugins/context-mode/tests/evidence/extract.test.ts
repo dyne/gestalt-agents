@@ -39,6 +39,18 @@ describe('deterministic format adapters',()=>{
     expect(r.failures[0]).toMatchObject({id:'domain::broken',cause:'bad & worse\nline 1\nline 2 <context>',time:'0.2'});
   });
   it.each(['<testsuite><testcase name="x"></testsuite>','<!DOCTYPE x [<!ENTITY x SYSTEM "file:///etc/passwd">]><testsuite/>','<testsuite tests="2"><testcase name="a"/></testsuite>'])('retains XML uncertainty %s',text=>expect(extractTests(text).certainty).toBe('unknown'));
+  it.each(['tests="2"','tests="1" failures="1"','tests="1" errors="1"','tests="1" skipped="1"'])('rejects nested JUnit counter contradictions even with exit zero: %s',attrs=>{
+    const text=`<testsuites><testsuite name="partial" ${attrs}><testcase name="passing"/></testsuite></testsuites>`;
+    const r=ingestEvidence([{path:file(text),exit:0}],opts());
+    expect(r.report.decision).toBe('contradictory');expect(r.report.checks[0].certainty).toBe('unknown');
+    expect(r.report.checks[0].counts).toEqual({passed:1,failed:0,skipped:0,total:1});
+  });
+  it('validates sibling and nested JUnit scopes without mixing their counts or dropping failures',()=>{
+    const text='<testsuites tests="3" failures="1" skipped="1"><testsuite tests="1" failures="0"><testcase name="pass"/></testsuite><testsuite tests="2" failures="1" skipped="1"><testsuite tests="1" failures="1"><testcase name="bad"><failure>cause</failure></testcase></testsuite><testcase name="skip"><skipped/></testcase></testsuite></testsuites>';
+    expect(extractTests(text)).toMatchObject({certainty:'known',counts:{passed:1,failed:1,skipped:1,total:3}});
+    const contradictory=extractTests(text.replace('<testsuite tests="1" failures="1">','<testsuite tests="2" failures="1">'));
+    expect(contradictory.certainty).toBe('unknown');expect(contradictory.failures[0]).toMatchObject({id:'bad',cause:'cause'});
+  });
   it('retains multiple TAP failures and diagnostics',()=>{
     const r=extractTests('TAP version 13\nnot ok 1 - first\n  ---\n  message: line one\n    line two\n  ...\nnot ok 2 - second\n cause two\nok 3 - skipped # SKIP reason\n1..3\n');
     expect(r.counts).toEqual({passed:0,failed:2,skipped:1,total:3});expect(r.certainty).toBe('known');expect(r.failures.map(f=>f.id)).toEqual(['TAP:1 first','TAP:2 second']);expect(r.failures[0].cause).toContain('line two');
@@ -56,6 +68,21 @@ describe('deterministic format adapters',()=>{
     expect(r.format).toBe('vitest');expect(r.certainty).toBe('known');expect(r.failures[0]).toMatchObject({id:'file.test.ts > handles Unicode',step:'unit tests',time:'2026-10-18T01:02:03Z'});expect(r.failures[0].cause).toContain('received false');
   });
   it('does not claim complete diagnosis when failure records are missing',()=>expect(extractTests('Tests 2 failed | 1 passed (3)').certainty).toBe('unknown'));
+  it.each([
+    ['tap','TAP version 13\nnot ok 1 - broken\n  cause: expected true\n1..1','TAP:1 broken','lines:2-3'],
+    ['vitest','FAIL file.test.ts > broken\n  expected true\nTests 1 failed (1)','file.test.ts > broken','lines:1-3'],
+    ['pytest','FAILED test_unit.py::test_one - AssertionError: wrong value\n=== 1 failed in 0.1s ===','test_unit.py::test_one','lines:1-1'],
+  ])('extracts raw GitHub API %s logs with original line locations and timestamps',(format,body,id,locator)=>{
+    const timestamp='2026-10-18T01:02:03.1234567Z';
+    const raw=body.split('\n').map(line=>`${timestamp} ${line}`).join('\n');
+    const r=extractTests(raw);
+    expect(r).toMatchObject({format,certainty:'known',counts:{failed:1,total:1}});
+    expect(r.failures[0]).toMatchObject({id,locator,time:timestamp,step:null});
+    expect(r.failures[0].cause).not.toContain(timestamp);
+    if(format==='tap')expect(r.failures[0].cause).toContain('\n  cause: expected true');
+    const start=Number(locator.split(':')[1].split('-')[0]);
+    expect(raw.split('\n')[start-1]).toContain(id.replace(/^TAP:1 /,'not ok 1 - '));
+  });
   it('rejects counters outside safe integer bounds',()=>expect(extractTests(`Tests ${'9'.repeat(1000)} passed (${'9'.repeat(1000)})`).counts).toBeNull());
   it('extracts pytest failure IDs without guessing from keywords',()=>{
     const r=extractTests('FAILED test_unit.py::test_one - AssertionError: wrong value\n=== 1 failed, 2 passed in 0.1s ===');expect(r.format).toBe('pytest');expect(r.certainty).toBe('known');expect(r.failures[0].id).toBe('test_unit.py::test_one');
