@@ -9,44 +9,18 @@ copying them into this file. Generated profiles in `scripts/org-plan` are
 bootstrap summaries: they establish role, startup order, and critical safety
 postconditions, then defer to those canonical documents.
 
-When testing Org Plan supervision in this repository:
+Use the canonical role names and authorization, startup, replacement, wait,
+checkpoint, review, and Git rules from those mandatory reads. Repository tests
+do not authorize execution of a user's plan or changes to a live session.
+Profile generation tests use isolated temporary agents directories; ordinary
+supervision never runs `prepare-supervision`.
 
-- Treat plan authoring and execution as separate user-authorized workflows.
-  Authoring ends after the validated plan handoff; do not signal
-  `supervision-start` or implement until the user explicitly orders execution.
-- Reuse the supplied skill directory and exact plan path. Do not search for a
-  replacement, assume a repository-local `.gestalt/`, inspect helper source, or
-  run `prepare-supervision` during ordinary execution.
-- Use the canonical terms `root`, `executor`, `terminal reviewer`, `relay
-  session`, `root turn`, `Codex runtime`, `checkpoint`, and `boundary final`.
-- Keep one writer. The root is `l0`; the L1 executor is `l<a>` and receives
-  `task_name=l<a>`. Use `l<a>_gN` only after the prior physical slot is
-  confirmed unavailable. The terminal reviewer uses
-  `agent_type=default` and `task_name=final_review`, inheriting the root model
-  and reasoning effort as specified in the canonical terminal-review contract.
-- At the start of each relay session supervising an incomplete plan, validate
-  the exact plan and signal `supervision-start` before milestone or roster
-  recovery. A retained same-session signal preserves explicit manual Off; a
-  fresh relay session publishes a new activation signal.
-- Treat executor completion, error, interruption, and idle as wake inputs.
-  Before yielding an incomplete plan, take a legal lifecycle disposition.
-  Status prose is not one. A wait lease permits yielding only after
-  `accepted:true`; otherwise continue in the same root turn.
-- A checkpoint is the last tool call of its root turn. Emit its boundary final
-  immediately and make no further tool call. A checkpoint is never a wait
-  lease; the next root turn resumes the executor or advances the lifecycle.
-  Roll up commentary, files, verification, and commands into that single chat
-  answer; later milestone work belongs to a new root turn and answer.
-- Org Plan files are workspace-local coordination state and never Git
-  deliverables. Before every accepted commit, inspect
-  `git diff --cached --name-only` and reject the active plan or any
-  `.gestalt/*.org` path.
-- Use native tools for governing instructions, bounded reads, edits, mutations,
-  and short commands. Use `$gestalt:context-mode` for large or uncertain
-  analysis; it never mutates Org state.
-- Keep generated profiles concise. Tests must enforce their bootstrap contract,
-  startup ordering, parseability, and word budgets rather than duplicating
-  every sentence of the canonical state machine.
+Keep generated profiles concise. Tests enforce the bootstrap contract, startup
+ordering, parseability, and word budgets; scenario contracts and the
+requirements ledger in `tests/plugins/gestalt/fixtures/instruction-contract.md`
+cover the canonical lifecycle. Review that ledger when moving or removing a
+rule. Native instruction/pre-edit reads and mutations, and context-mode evidence
+analysis, follow the implicit routing skill. Do not copy its tool catalog here.
 
 ## Vendoring skills for Codex and `npx skills`
 

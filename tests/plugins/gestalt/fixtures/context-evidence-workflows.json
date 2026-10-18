@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "provenance": "Synthetic public test data; no runtime records, prompts, or credentials.",
+  "padding": {"lines": 1200, "template": "PASS synthetic.case.{index:04d} deterministic harmless padding"},
+  "cases": [
+    {"id": "passing", "exitCode": 0, "tail": ["Tests: 1200 passed, 1200 total"], "expectedFailures": [], "complete": true},
+    {"id": "failing", "exitCode": 1, "tail": ["FAIL synthetic.checkout.rejects-empty-cart", "  Expected status 422; received 200", "FAIL synthetic.payment.retries-timeout", "  Cause: synthetic gateway timeout", "Tests: 2 failed, 1198 passed, 1200 total"], "expectedFailures": ["synthetic.checkout.rejects-empty-cart", "synthetic.payment.retries-timeout"], "complete": true},
+    {"id": "setup-failure", "exitCode": 2, "tail": ["SETUP_FAILURE synthetic.fixture.unavailable", "Tests did not start"], "expectedFailures": ["synthetic.fixture.unavailable"], "complete": true},
+    {"id": "unknown", "exitCode": 3, "tail": ["opaque-result: synthetic-unrecognized-record"], "expectedFailures": [], "complete": false}
+  ],
+  "repeatedQuery": {
+    "source": {"host": "github.example.invalid", "repository": "synthetic/project", "run": 101, "attempt": 1, "sha": "1111111111111111111111111111111111111111", "terminal": true},
+    "case": "failing",
+    "questions": ["failure identifiers", "checkout cause", "payment cause"],
+    "baselineFetches": 3,
+    "baselineIndexes": 3,
+    "expectedFailureIds": ["synthetic.checkout.rejects-empty-cart", "synthetic.payment.retries-timeout"]
+  }
+}

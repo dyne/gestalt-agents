@@ -10,11 +10,10 @@ analysis.
 
 ## Routing contract
 
-Choose the host-native filesystem tool first when the operation reads or
-changes the workspace. Use context-mode only to analyze evidence that is large,
-uncertain, or needs filtering, indexing, or repeated retrieval.
+Use native tools for bounded filesystem work; context-mode analyzes evidence
+that is large, uncertain, or needs filtering, indexing, or repeated retrieval.
 
-1. Use an available native `read_file` for small bounded reads and always for
+1. Use an available native reader for small bounded reads and always for
    governing `AGENTS.md`, selected `SKILL.md`, plugin manifests, and a file
    before editing it. This is pre-edit inspection, not large-file analysis.
 2. Use native `create_file`, `edit_file`, or `apply_patch` for writes. Use
@@ -37,11 +36,6 @@ uncertain, or needs filtering, indexing, or repeated retrieval.
 
 | Need | Tool |
 |---|---|
-| Small bounded filesystem read, governing instruction, manifest, or file about to edit | available native `read_file` |
-| Create or edit a workspace file | available native `create_file`, `edit_file`, or `apply_patch` |
-| Mutation or short bounded command | native `exec_command` |
-| Continue a running native command | native `write_stdin` |
-| Inspect a local image | native `view_image` |
 | One uncertain or large command, API, test, build, or log analysis | `ctx_execute` |
 | One large file analysis without loading it in full | `ctx_execute_file` |
 | Several independent large inspections | `ctx_batch_execute` |
@@ -50,9 +44,7 @@ uncertain, or needs filtering, indexing, or repeated retrieval.
 | External documentation to retrieve repeatedly | `ctx_fetch_and_index` |
 | Inspect context-mode health, usage, or stored data | `ctx_doctor`, `ctx_stats`, `ctx_purge` |
 
-Context-mode MCP methods can appear with a generated provider prefix. The short
-names in this table describe their role; use the provider-prefixed method that
-the host exposes.
+Use the methods actually exposed by the host, including provider prefixes.
 
 ## Output rules
 
@@ -68,10 +60,9 @@ the host exposes.
 
 ## Files and browser output
 
-For a one-shot question about a large file that will not be loaded in full, use
-`ctx_execute_file`. For several follow-up questions, use `ctx_index(path)` once
-and query it with `ctx_search`. Read a small file or any file before editing it
-with the native reader instead.
+For one large-file question use `ctx_execute_file`; for repeated questions,
+index its path once and query with `ctx_search`. Native pre-edit reads still
+apply.
 
 An empty `rg` result does not establish absence: confirm the search root, ignored
 paths and symlink targets. For a huge single-line JSON artifact, parse it into

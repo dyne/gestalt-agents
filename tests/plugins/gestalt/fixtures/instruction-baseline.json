@@ -1,0 +1,116 @@
+{
+  "instructions": {
+    "roles": {
+      "executor": {
+        "bytes": 54021,
+        "sources": [
+          "repository",
+          "org",
+          "supervision",
+          "routing",
+          "profile-executor"
+        ],
+        "words": 7668
+      },
+      "root": {
+        "bytes": 57152,
+        "sources": [
+          "repository",
+          "org",
+          "supervision",
+          "routing",
+          "profile-reviewer"
+        ],
+        "words": 8117
+      },
+      "terminal-reviewer": {
+        "bytes": 51711,
+        "sources": [
+          "repository",
+          "org",
+          "supervision",
+          "routing"
+        ],
+        "words": 7332
+      }
+    },
+    "sources": {
+      "org": {
+        "bytes": 17623,
+        "path": "plugins/gestalt/skills/org-plan/SKILL.md",
+        "words": 2450
+      },
+      "profile-executor": {
+        "bytes": 2310,
+        "words": 336
+      },
+      "profile-reviewer": {
+        "bytes": 5441,
+        "words": 785
+      },
+      "repository": {
+        "bytes": 5239,
+        "path": "AGENTS.md",
+        "words": 703
+      },
+      "routing": {
+        "bytes": 5832,
+        "path": "plugins/gestalt/skills/context-mode/SKILL.md",
+        "words": 829
+      },
+      "supervision": {
+        "bytes": 23017,
+        "path": "plugins/gestalt/skills/org-plan/references/supervised-execution.md",
+        "words": 3350
+      },
+      "vendor-codex-guidance-inactive": {
+        "bytes": 5280,
+        "path": "plugins/context-mode/configs/codex/AGENTS.md",
+        "words": 710
+      }
+    }
+  },
+  "schemaVersion": 1,
+  "workflows": {
+    "cases": {
+      "failing": {
+        "complete": true,
+        "exitCode": 1,
+        "expectedFailures": [
+          "synthetic.checkout.rejects-empty-cart",
+          "synthetic.payment.retries-timeout"
+        ],
+        "rawBytes": 67394,
+        "sha256": "14545d15b9b8fa4de4b04c583e5f4cb8154e012deb8c81d34a2e49627a94a374"
+      },
+      "passing": {
+        "complete": true,
+        "exitCode": 0,
+        "expectedFailures": [],
+        "rawBytes": 67231,
+        "sha256": "747e65dd245fc34fbe39230fbd9a39c9f90ee80bd2dd4f9c6fe2c7ad3989e1ac"
+      },
+      "setup-failure": {
+        "complete": true,
+        "exitCode": 2,
+        "expectedFailures": [
+          "synthetic.fixture.unavailable"
+        ],
+        "rawBytes": 67264,
+        "sha256": "219fad13cad0ff6d21e173203ce37d3409ec0f4aa54f55435d3133222487f768"
+      },
+      "unknown": {
+        "complete": false,
+        "exitCode": 3,
+        "expectedFailures": [],
+        "rawBytes": 67245,
+        "sha256": "0905c7d47d56830ff7b535211f512e06cd28782fb72c46873edf85c119afbc5b"
+      }
+    },
+    "repeatedQuery": {
+      "fetches": 3,
+      "indexes": 3,
+      "returnedBytes": 202182
+    }
+  }
+}

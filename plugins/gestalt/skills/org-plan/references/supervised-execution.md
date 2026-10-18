@@ -1,6 +1,8 @@
 # Supervised Org Plan execution
 
-Read this reference completely before launching supervised roles.
+Read this reference completely before launching supervised roles. The Org
+SKILL supplies shared state, skill-loading, projection, Git, and attention
+invariants; this reference is the canonical supervised lifecycle.
 
 ## Roles and ownership
 
@@ -79,10 +81,8 @@ without reinstalling its own profile.
    already WIP or earlier L1s are REVIEWED. In Mobile's session-directory mode,
    the helper retains an existing signal for the same plan, preventing a later
    root turn from overriding explicit manual Off; a newly resumed relay session
-   has a fresh directory and publishes its own signal. The root then
-   runs `org-plan projection PLAN`,
-   and calls host `update_plan` with its exact `plan` items, reporting the
-   companion explanation separately.
+   has a fresh directory and publishes its own signal. Project this and every
+   subsequent lifecycle mutation under SKILL invariant 4.
 2. Before each L1, verify the preceding L1 is REVIEWED, terminate the previous
    executor, confirm closure, and resolve the next milestone with
    `org-plan describe`.
@@ -91,43 +91,24 @@ without reinstalling its own profile.
    physical slot is unavailable and Mobile durably authorizes replacement, use
    its exact `l<a>_gN`; display it as `l<a>`. Never derive an identity from the
    roster or generated instructions.
-4. Gestalt skills are already loaded. The executor verifies every declared
-   optional L1 skill is available, then loads exactly those declared skills
-   before any repository inspection or edit. Missing skills block without
-   edits.
+4. Apply SKILL invariant 3: the executor loads exactly the declared optional
+   skills before repository inspection or edits; missing skills block without
+   edits. Gestalt workflows are already loaded.
 
-Both roles use host-native filesystem tools for governing instructions, small
-bounded reads, edits, mutations, and short command interaction. Context-mode
-is reserved for large or uncertain analysis, filtering, indexing, and retrieval;
-it never writes or changes Org state.
+Both roles use the implicit context-mode routing contract: native tools for
+governing instructions, bounded/pre-edit reads, edits, mutations, and short
+commands; context-mode for large or uncertain analysis. It never mutates Org
+state. The unavailable-tool evidence fallback is specified below.
 
 ## Human-attention decision table
 
-`gestalt_org_plan_attention` is an optional mobile dynamic tool, not an
-`$org-plan` dependency. Its current schema version is 1. Exhaust safe,
-in-scope checks first. When a row below still prevents safe progress and the
-tool is available, call it before sending any blocker response or yielding,
-with only the mapped `reason` and `resumeCondition`; Mobile derives the bounded
-summary and requested action from that validated pair. Blocker prose is not a
-signal. A successful call is the
-terminal disposition for that turn: issue no further lifecycle action and let
-Mobile hold Autopilot until the matching resume event. When absent, report the
-ordinary blocker concisely and continue normal supervision rather than
-requiring the tool.
-
-| Genuine blocker after safe checks | `reason` | `resumeCondition` |
-| --- | --- | --- |
-| Material plan scope, goal, or work change requires approval. | `planChange` | `planRevision` |
-| An exhausted hard block requires external repair or an alternative. | `hardBlock` | `externalStateChanged` |
-| A required system capability or declared task skill is unavailable. | `missingDependency` | `dependencyInstalled` |
-| Missing authority, credentials, or permission prevents the work. | `permissionRequired` | `permissionGranted` |
-| Verified relevant external state changed. | `externalState` | `externalStateChanged` |
-| A material ambiguity remains after plan and repository evidence are exhausted. | `materialAmbiguity` | `userGuidance` |
-
-Never call the tool for L1/L2 progress, a child report, waiting on a live child,
-review readiness, a diagnosable or recoverable failing test, an ordinary merge
-conflict, token/context pressure, elapsed time, a checkpoint, or an idle
-executor. Resume the next legal supervision action in each of those cases.
+Use only the [SKILL decision table](../SKILL.md#human-attention-decision-table)
+after exhausting safe checks. The optional tool uses schema version 1; call it
+before a genuine blocker response when available. A successful call is the
+terminal disposition: issue no further lifecycle action and let Mobile hold
+Autopilot until the matching resume event. When absent, report the blocker
+normally; its absence is not a dependency failure. All non-attention cases in
+the SKILL require the next legal supervision action.
 
 ## Activation and legal dispositions
 
@@ -156,14 +137,11 @@ the deadline resumes normal Autopilot control. This is one episode, not a pulse
 policy change. If the wait remains justified after that later turn begins, the
 root must reassess it and explicitly register another episode.
 
-The root may yield only when the tool response contains `accepted:true`. An
-unavailable tool or an `accepted:false` response means automatic continuation
-is not guaranteed, so the root continues supervision in the same turn. If the
-next action is delegated work, follow up the same executor immediately.
-For an `accepted:false` response, `reason:"wakeAlreadySatisfied"` means the
-executor event is already actionable. Do not retry the lease. Inspect the
-executor's current report and state, then take the next legal lifecycle action
-in the same turn.
+| Lease outcome | Required root action |
+| --- | --- |
+| `accepted:true` | Yield for this one episode; reassess after wake/deadline. |
+| `unavailable` or `accepted:false` | Inspect current state; continue supervision in the same turn, following up the same executor immediately when delegated work is next. |
+| `wakeAlreadySatisfied` | Inspect current executor report and state; continue in the same turn. Do not retry the lease: the event is already actionable. |
 
 For long L2 or subagent work, choose `executorChanged`. For a long observable
 process, choose its process wake conditions. Do not use the lease for ordinary
@@ -204,12 +182,8 @@ Supervision is a completion loop:
   review it immediately and return ACCEPT or REJECT. Never review an
   ineligible L1. An executor result, a review result, an accepted-L1 report,
   and terminal whole-plan acceptance are distinct boundaries.
-- A partial report, idle executor, self-described pause, or token or
-  elapsed-time notice is never a user-facing stopping condition. A validated
-  DONE L2 produces a finite boundary final; it never requests approval.
-  That final rolls up commentary outcome, files, verification, and commands
-  since the prior boundary into one chat answer. Later milestone work starts in
-  a new root turn and appears in a new answer.
+- A partial report, idle executor, self-described pause, or token/elapsed-time
+  notice is never a stopping condition or request for progress approval.
 - If a failed child initialization leaves non-working `pending_init` agents
   consuming every slot, and interrupting them does not release capacity, call
   `gestalt_agent_capacity_recovery` exactly once with version 1 and reason
@@ -225,12 +199,8 @@ Supervision is a completion loop:
 After each L2, the root verifies intended dirty paths, inspects the L2
 diff, and requires current focused-test evidence before DONE.
 
-After every successful `authoring-start`, `set`, `l2`, `review`, `suspend-reopen`,
-`resume`, or external
-`resync`, the executor reports the helper mutation to the root. The root then
-runs `org-plan projection PLAN` and calls host `update_plan`; executors never
-create a competing native projection. A missing or failed host tool produces
-one concise warning and never reverses a valid Org mutation.
+Executors report successful helper mutations; only the active root projects
+them under SKILL invariant 4. Missing host tools never reverse valid Org state.
 
 After all L2s, require a current full-suite pass and intended complete L1 diff.
 Use `org-plan next PLAN review`; request review only for the selected DONE +
@@ -248,17 +218,12 @@ REJECT. Skip already REVIEWED L1s. On REJECT, send the findings unchanged in
 substance to the same executor, which corrects the same uncommitted diff. Repeat
 the gates and review without pausing for user approval.
 
-On ACCEPT, inspect `git diff --cached --name-only`, direct the executor to
-create exactly one conventional L1 commit when files changed, then record
-`REVIEWED`. The root runs the helper projection and host `update_plan` before
-the boundary final, verifies the subject and intended scope, and terminates
-the executor. A no-change L1 explicitly records that no commit was required.
-
-Org Plan files are never Git deliverables. Immediately before every accepted
-L1 commit, the executor and root inspect `git diff --cached --name-only` and
-exclude the active Org Plan plus every `.gestalt/*.org` path, including paths
-introduced with `git add --force`. No repository instruction, release workflow,
-or user request overrides this boundary.
+On ACCEPT, both root and executor inspect `git diff --cached --name-only`
+immediately before committing and exclude the active plan and all
+`.gestalt/*.org` paths, including force-added paths, under SKILL invariant 10.
+Direct the executor to make the one conventional commit when changed, then
+record REVIEWED and project. The root verifies subject/scope and terminates
+the executor. Explicitly record when no commit was required.
 
 When no L1 review is pending, record that milestone review is current.
 
@@ -304,10 +269,14 @@ replacement. Treat `safetyPaused` as a safe terminal control state, not as
 "waiting for agent event", and resume only after Mobile or explicit manual
 recovery.
 
-Checkpoint handoff returns `recorded`, `alreadyRecorded`, or `failed`. Only
-`recorded` authorizes a new final. Replay status reconciles without another
-final; failure, rejection, termination, or no result requires same-turn
-supervision. A recycled runtime reconciles `checkpointHandoffFailed` once.
+| Checkpoint outcome | Required root action |
+| --- | --- |
+| `recorded` | Emit exactly one boundary final immediately; the checkpoint is the last tool call of the turn. |
+| `alreadyRecorded` | Reconcile without another final; do not replay the boundary. |
+| `failed`, rejected, terminated, or result-less | Continue same-turn supervision; no boundary final is authorized. |
+| `unavailable` | Use the boundary-specific fallback below; preserve every evidence/review gate. |
+
+A recycled runtime reconciles `checkpointHandoffFailed` once.
 
 After validating a DONE L2, its evidence, scope, projection, and host
 `update_plan`, call optional
@@ -360,13 +329,13 @@ Commit: conventional subject, then optional short hash; or “No commit required
 Next: automatic continuation to L<n>, or terminal review after the final L1.
 ```
 
-For non-final L1s, Autopilot starts the next root turn. For the final L1, that
-later distinct continuation starts terminal review; its accepted-L1 report is
-not whole-plan success. A missing checkpoint is not a blocker: preserve all
-gates, emit the accepted-L1 final, and end the turn. Never cross this boundary
-with continuous supervision, post-acceptance commentary, documentation, or the
-next L1. The next root turn revalidates plan and roster, then launches one fresh
-canonical executor; after the final L1, it starts terminal review.
+A missing checkpoint is not a blocker: preserve all gates, emit the accepted-L1
+final, and end the turn. Never cross this boundary with continuous supervision,
+post-acceptance commentary, documentation, or the next L1. On the next root turn,
+revalidate durable plan and roster, then launch exactly one fresh canonical
+executor; after the final L1, start terminal review. This accepted-L1 boundary
+is mandatory even when the checkpoint tool is unavailable; it is not whole-plan
+success.
 
 ## Terminal whole-plan report
 
