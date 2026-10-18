@@ -32,7 +32,7 @@ const report = {
   provenance: { tree, commit: execFileSync("git", ["rev-parse", "HEAD"], { cwd: repo, encoding: "utf8" }).trim(),
     repository: process.env.GITHUB_REPOSITORY, runId: process.env.GITHUB_RUN_ID,
     nativeVersion: "0.161.0", binarySha256: hash(readFileSync(binary)), managerSha256: hash(readFileSync(manager)),
-    acceptedManagerCommit: "5084cf219163dcf153af1be6f63496dec1bd3d40", acceptedManagerTree: "dfdeabd2ffdbdb6c429a39c3e81286b611af7734", nativeSource: "979011409de0a60b52f179721948e65531d26144" },
+    acceptedManagerCommit: "4515cf31c4d00d8ecbdfa363085315f7cb13f78c", acceptedManagerTree: "349182948619bbbeab892c9884cfb06badf13997", nativeSource: "979011409de0a60b52f179721948e65531d26144" },
   limitations: ["No model credentials or production owning-session/picker proof; L11 remains required.", "Hooks are explicitly disabled only in this controlled disposable fixture, as in accepted L9; no ordinary installed-home readiness claim."],
 };
 let native, caddy, socketServer, activeAbort, authFd, contextProxy, orgProxy, elected, provider;
@@ -76,7 +76,7 @@ function rpcClient(child) {
 }
 try {
   assert.equal(report.provenance.binarySha256, "b2730ae901da317bcc5933d9b87de6dfbea3e46a46b64f806e4268fd9a095578");
-  assert.equal(report.provenance.managerSha256, "8115c37344ef4a7a1b537e23ff069a90bbb188ec41c77ace8d5a41cc864118f9");
+  assert.equal(report.provenance.managerSha256, "b95df8ed30a5d3355502a85fabe8e5aa2d75fe415f8ebc68979e2847028dda42");
   const bwrap = [join(dirname(binary), "codex-resources/bwrap"), join(dirname(dirname(binary)), "codex-resources/bwrap"), join(dirname(binary), "bwrap")].find((path) => existsSync(path));
   assert.ok(bwrap); report.provenance.bundledBwrapSha256 = hash(readFileSync(bwrap));
   report.provenance.sandboxHelperSha256 = hash(readFileSync(join(dirname(binary), "codex-linux-sandbox")));
@@ -104,7 +104,7 @@ try {
   const runtime = await prepareLiveRuntime(contextPackage.root, join(gestaltHome, "runtime/context-mode"));
   report.provenance.runtime = runtime.sha256;
   report.provenance.canonicalPackages = Object.fromEntries(packages.map((p) => [p.name, { manifestSha256: hash(readFileSync(join(p.root, ".mcp.json"))), identitySha256: hash(readFileSync(join(p.root, ".codex-plugin/plugin.json"))) }]));
-  report.provenance.packagedFiles = Object.fromEntries(["live-admission.mjs", "live-installed-source.mjs", "live-org-lifecycle.mjs", "live-mcp-proxy.mjs", "live-context-worker.mjs", "org-plan-mcp.mjs"].map((path) => [path, hash(readFileSync(join(gestaltRoot, path)))]));
+  report.provenance.packagedFiles = Object.fromEntries(["live-admission.mjs", "live-byte-observation.mjs", "live-installed-source.mjs", "live-org-lifecycle.mjs", "live-mcp-proxy.mjs", "live-context-worker.mjs", "org-plan-mcp.mjs"].map((path) => [path, hash(readFileSync(join(gestaltRoot, path)))]));
   report.provenance.packages = packages.map((p) => ({ name: p.name, sha256: measureTree(p.root) }));
   packages.forEach((p, index) => { p.sha256 = report.provenance.packages[index].sha256; });
   report.checks.installedPreparedBytes = true;
@@ -300,6 +300,36 @@ try {
     const sealed = managerApi("seal-runtime", manifestPath, "--capture-id", captureId, "--runtime-pid", String(native.pid), "--sources", sourcePath);
     assert.ok(sealed.extensions.includes("original-installed-launch-source-v1"));
     assert.deepEqual(sealed.originalLaunchSources, birth.originalLaunchSources);
+    const privateReceipt = (name) => {
+      const path = join(dirname(manifestPath), name), info = lstatSync(path);
+      assert.ok(info.isFile()); assert.equal(info.uid, process.getuid());
+      assert.equal(info.mode & 0o7777, 0o600); assert.equal(info.nlink, 1);
+      const record = JSON.parse(readFileSync(path));
+      assert.equal(record.mac, createHmac("sha256", readFileSync(keyFile)).update(stable(record.body)).digest("hex"));
+      return record.body;
+    };
+    const runtimeReceipt = privateReceipt(`runtime-${captureId}.json`);
+    const environment = privateReceipt(`environment-${captureId}.json`);
+    assert.deepEqual(Object.keys(environment).sort(), ["schemaVersion", "kind", "captureId", "basisDigest", "process", "environmentDigest", "entries"].sort());
+    assert.equal(environment.schemaVersion, 1); assert.equal(environment.kind, "owning-runtime-environment");
+    assert.equal(environment.captureId, captureId); assert.equal(environment.basisDigest, runtimeReceipt.basisDigest);
+    assert.deepEqual(environment.process, identity(native.pid));
+    assert.deepEqual(environment.process, runtimeReceipt.runtime.process);
+    assert.equal(environment.environmentDigest, runtimeReceipt.runtime.environmentDigest);
+    assert.equal(hash(stable(environment)), runtimeReceipt.environmentReceiptDigest);
+    const allowed = ["HOME", "CODEX_HOME", "PATH", "TMPDIR", "LANG", "GESTALT_HOME", "CONTEXT_MODE_WORKSPACE", "CONTEXT_MODE_PLATFORM"];
+    assert.ok(Array.isArray(environment.entries) && environment.entries.every((pair) => Array.isArray(pair) && pair.length === 2
+      && pair.every((value) => typeof value === "string" && !value.includes("\0")) && allowed.includes(pair[0])));
+    assert.equal(new Set(environment.entries.map(([name]) => name)).size, environment.entries.length);
+    assert.equal(hash(Buffer.from(environment.entries.map(([name, value]) => `${name}=${value}`).join("\0") + "\0")), environment.environmentDigest);
+    const values = Object.fromEntries(environment.entries);
+    assert.equal(values.HOME, owningHome); assert.equal(values.CODEX_HOME, owningHome);
+    assert.equal(values.PATH, "/usr/bin:/bin"); assert.equal(values.TMPDIR, "/tmp"); assert.equal(values.LANG, "C.UTF-8");
+    report.privateEnvironmentReceipts ??= [];
+    if (report.privateEnvironmentReceipts.length) assert.equal(environment.environmentDigest, report.privateEnvironmentReceipts[0].environmentDigest);
+    // Retain digests and checks only; private values never enter proof artifacts.
+    report.privateEnvironmentReceipts.push({ generation: manifest.generation.generation, environmentDigest: environment.environmentDigest,
+      signed: true, privateMode: true, processBound: true, orderedDigestVerified: true, sameOriginalHome: true });
     manifest.runtimeProvenance = { captureId, effectiveConfigDigest: sourceInventory.effectiveConfigDigest, sessionFlagsDigest: sourceInventory.sessionFlagsDigest };
     save();
     return { inventoryDigest: hash(stable(sourceInventory)), accountDigest: observation.accountDigest, generation: structuredClone(manifest.generation), runtime: identity(native.pid), kinds: sources.map((source) => source.kind) };
@@ -609,6 +639,7 @@ try {
   native.stdin.write(`${JSON.stringify({ method: "initialized", params: {} })}\n`);
   assert.notDeepEqual(identity(native.pid), originalBirth);
   await freshAdmission("replacement"); report.checks.actualManagedReplacementPackagedRenewal = true;
+  assert.equal(report.privateEnvironmentReceipts.length, 3); report.checks.signedPrivateEnvironmentPreserved = true;
   report.stage = "renewed-installed-source-lifetime-tamper";
   const tamperMarker = join(app, "source-tamper-marker"), tamperHeartbeat = join(app, "source-tamper-heartbeat");
   const tamperHeld = rpc("mcpServer/tool/call", { threadId: started.thread.id, server: "context-mode", tool: "ctx_execute", arguments: {

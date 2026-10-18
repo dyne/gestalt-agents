@@ -2,8 +2,34 @@ import assert from "node:assert/strict";
 import { chmodSync, copyFileSync, linkSync, lstatSync, readFileSync, renameSync, symlinkSync, unlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import test from "node:test";
+import fs from "node:fs";
+import { syncBuiltinESMExports } from "node:module";
 import { installedFixture } from "./live-installed-fixture.mjs";
 import { executionAuthority, executionInputsCurrent, prepareAdmission, verifyAdmission, digest, measureTree, stable } from "../../../plugins/gestalt/live-admission.mjs";
+
+test("each admission and lifetime validation streams the actual interpreter once without reuse across calls", (t) => {
+  const f = installedFixture(t); prepareAdmission(f.bootstrapPath);
+  const authority = executionAuthority(f.bootstrapPath), node = f.input.node.path, size = lstatSync(node).size;
+  const originalRead = fs.readSync, originalFile = fs.readFileSync;
+  let bytes = 0;
+  const stream = t.mock.method(fs, "readSync", (...args) => {
+    const count = originalRead(...args);
+    if (fs.readlinkSync(`/proc/self/fd/${args[0]}`) === node) bytes += count;
+    return count;
+  });
+  const buffered = t.mock.method(fs, "readFileSync", (path, ...args) => {
+    const result = originalFile(path, ...args);
+    const resolved = typeof path === "number" ? fs.readlinkSync(`/proc/self/fd/${path}`) : path;
+    if (resolved === node) bytes += Buffer.byteLength(result);
+    return result;
+  });
+  syncBuiltinESMExports();
+  try {
+    for (const validate of [() => verifyAdmission(f.bootstrapPath).available, () => verifyAdmission(f.bootstrapPath).available, () => executionInputsCurrent(authority)]) {
+      bytes = 0; assert.equal(validate(), true); assert.equal(bytes, size);
+    }
+  } finally { stream.mock.restore(); buffered.mock.restore(); syncBuiltinESMExports(); }
+});
 
 test("authentic 0755 configured bridge is independently bound outside config roles without rewriting original configuration", (t) => {
   const f = installedFixture(t), before = readFileSync(f.configured.configPath), hooks = readFileSync(f.configured.hooksPath);

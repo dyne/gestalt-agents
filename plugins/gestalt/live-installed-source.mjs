@@ -2,8 +2,9 @@
  * No package code is executed and no observation is cached across calls.
  */
 import { createHash } from "node:crypto";
-import { closeSync, constants, fstatSync, lstatSync, openSync, readFileSync, readdirSync, realpathSync } from "node:fs";
+import { closeSync, constants, fstatSync, lstatSync, openSync, readSync, readdirSync, realpathSync } from "node:fs";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
+import { withByteObservation } from "./live-byte-observation.mjs";
 
 const stable = (value) => JSON.stringify(value, (_key, item) => item && typeof item === "object" && !Array.isArray(item)
   ? Object.fromEntries(Object.keys(item).sort().map((key) => [key, item[key]])) : item);
@@ -16,7 +17,8 @@ const inside = (root, path) => path === root || path.startsWith(`${root === "/" 
 const fileIdentity = (info) => ({ dev: info.dev, ino: info.ino, uid: info.uid, mode: info.mode,
   size: info.size, nlink: info.nlink, ctime: info.ctimeMs, mtime: info.mtimeMs });
 
-export function observeOriginalLaunchSources(manifest, input) {
+export function observeOriginalLaunchSources(manifest, input, observation) {
+  if (!observation) return withByteObservation((scope) => observeOriginalLaunchSources(manifest, input, scope));
   if (!Object.hasOwn(manifest, "originalLaunchSources")) return [];
   const reject = () => fail("invalid-installed-launch-source");
   if (manifest.schemaVersion !== 2 || !Array.isArray(manifest.originalLaunchSources) || manifest.originalLaunchSources.length !== 1) reject();
@@ -71,20 +73,30 @@ export function observeOriginalLaunchSources(manifest, input) {
       if (parent === "/") break;
     }
   };
-  const read = (path, treeMember = false) => {
+  const read = (path, treeMember = false, retain = false) => {
     checkedPath(path);
     const fd = openSync(path, constants.O_RDONLY | constants.O_NOFOLLOW);
     try {
       const before = fstatSync(fd);
-      if (!before.isFile() || before.nlink < 1 || (!treeMember && before.nlink !== 1) || before.size > 512 * 1024 * 1024) fail("installed-launch-source-changed");
-      const bytes = readFileSync(fd), identity = fileIdentity(before);
+      if (!before.isFile() || before.nlink < 1 || (!treeMember && before.nlink !== 1) || before.size > 512 * 1024 * 1024
+        || retain && before.size > 262144) fail("installed-launch-source-changed");
+      const sha256 = observation.sha256(path), identity = fileIdentity(before);
+      let bytes;
+      if (retain) {
+        const buffer = Buffer.allocUnsafe(262145);
+        let size = 0, count;
+        while (size < buffer.length && (count = readSync(fd, buffer, size, buffer.length - size, null))) size += count;
+        if (size > 262144) fail("installed-launch-source-changed");
+        bytes = buffer.subarray(0, size);
+        if (digest(bytes) !== sha256) fail("installed-launch-source-changed");
+      }
       if (realpathSync(path) !== path || stable(identity) !== stable(fileIdentity(fstatSync(fd)))
         || stable(identity) !== stable(fileIdentity(lstatSync(path)))) fail("installed-launch-source-changed");
-      return { bytes, observation: { sha256: digest(bytes), identity } };
+      return { bytes, observation: { sha256, identity } };
     } finally { closeSync(fd); }
   };
   const tree = (root) => {
-    const files = [], identities = [], contents = new Map(), groups = new Map(), directories = [];
+    const files = [], identities = [], contents = new Map(), hashes = new Map(), groups = new Map(), directories = [];
     let nodes = 0, bytes = 0;
     const walk = (directory) => {
       if (++nodes > 20000) reject();
@@ -95,11 +107,12 @@ export function observeOriginalLaunchSources(manifest, input) {
         const path = join(directory, name), info = lstatSync(path);
         if (info.isDirectory()) { walk(path); continue; }
         if (++nodes > 20000 || (bytes += info.size) > 512 * 1024 * 1024) reject();
-        const current = read(path, true), rel = relative(root, path), identity = current.observation.identity;
+        const rel = relative(root, path), current = read(path, true, ["package.json", ".context-mode-prepared.json"].includes(rel)), identity = current.observation.identity;
         const key = stable([identity.dev, identity.ino]), group = groups.get(key) ?? { identity, paths: [] };
         if (stable(group.identity) !== stable(identity)) fail("installed-launch-source-changed");
         group.paths.push(path); groups.set(key, group);
-        files.push([rel, info.mode & 0o777, current.observation.sha256]); identities.push([rel, identity]); contents.set(rel, current.bytes);
+        files.push([rel, info.mode & 0o777, current.observation.sha256]); identities.push([rel, identity]); hashes.set(rel, current.observation.sha256);
+        if (current.bytes) contents.set(rel, current.bytes);
       }
       if (stable(names) !== stable(readdirSync(directory).sort()) || stable(pin) !== stable(directoryPin(directory))) fail("installed-launch-source-changed");
     };
@@ -117,7 +130,7 @@ export function observeOriginalLaunchSources(manifest, input) {
       }
     };
     walk(root); recheck();
-    return { contents, recheck, observation: { treeDigest: digest(stable(files)), identityDigest: digest(stable(identities)) } };
+    return { contents, hashes, recheck, observation: { treeDigest: digest(stable(files)), identityDigest: digest(stable(identities)) } };
   };
   const home = manifest.owningRuntime?.home ?? manifest.runtimeHome, bin = join(home, "bin");
   checkedPath(home, true); checkedPath(bin, true); checkedPath(source.gestaltHome, true);
@@ -126,7 +139,7 @@ export function observeOriginalLaunchSources(manifest, input) {
     || source.path !== join(bin, "context-mode-mcp.mjs") || launcherInfo.uid !== process.getuid() || (launcherInfo.mode & 0o7777) !== 0o755) fail("untrusted-installed-launch-source");
   if (source.package.root.split("/").at(-1) !== source.package.version || source.package.root.split("/").at(-2) !== "context-mode"
     || source.runtime.root !== join(source.gestaltHome, "runtime/context-mode") || inside(home, source.package.root) || inside(source.package.root, source.runtime.root)) reject();
-  const interpreter = read(source.interpreter.path), launcher = read(source.path);
+  const interpreter = read(source.interpreter.path), launcher = read(source.path, false, true);
   if (!(interpreter.observation.identity.mode & 0o111) || interpreter.observation.sha256 !== source.interpreter.sha256) fail("installed-launch-source-changed");
   const pkg = tree(source.package.root), runtime = tree(source.runtime.root);
   pkg.recheck(); runtime.recheck();
@@ -139,15 +152,15 @@ export function observeOriginalLaunchSources(manifest, input) {
   const json = (contents, path) => { try { return JSON.parse(contents.get(path)?.toString()); } catch { reject(); } };
   const packageJson = json(pkg.contents, "package.json"), runtimeJson = json(runtime.contents, "package.json"), prepared = json(runtime.contents, ".context-mode-prepared.json");
   if (packageJson?.name !== "context-mode" || packageJson.version !== source.package.version || runtimeJson?.name !== "context-mode" || runtimeJson.version !== source.package.version
-    || !pkg.contents.has("start.mjs") || !exact(prepared, ["schemaVersion", "packageVersion", "preparedAt", "node", "nodeModulesAbi", "platform", "arch", "bun", "files"])
+    || !pkg.hashes.has("start.mjs") || !exact(prepared, ["schemaVersion", "packageVersion", "preparedAt", "node", "nodeModulesAbi", "platform", "arch", "bun", "files"])
     || prepared.schemaVersion !== 2 || prepared.packageVersion !== source.package.version || prepared.platform !== process.platform || prepared.arch !== process.arch
     || prepared.nodeModulesAbi !== process.versions.modules || typeof prepared.node !== "string" || typeof prepared.preparedAt !== "string"
     || !prepared.files || typeof prepared.files !== "object" || Array.isArray(prepared.files)) reject();
   const required = ["start.mjs", "scripts/codex-profile.mjs", "scripts/runtime-location.mjs", "scripts/runtime-preflight.mjs", "server.bundle.mjs", "cli.bundle.mjs",
     ...["security", "session-db", "session-extract", "session-attribution", "session-snapshot", "codex-usage"].map((name) => `hooks/${name}.bundle.mjs`),
     "node_modules/better-sqlite3/package.json", "node_modules/better-sqlite3/build/Release/better_sqlite3.node", "node_modules/turndown/package.json", "node_modules/turndown-plugin-gfm/package.json", "node_modules/@mixmark-io/domino/package.json"];
-  if (required.some((path) => !hash(prepared.files[path]) || !runtime.contents.has(path))
-    || Object.entries(prepared.files).some(([path, sha]) => !hash(sha) || !runtime.contents.has(path) || digest(runtime.contents.get(path)) !== sha)) reject();
+  if (required.some((path) => !hash(prepared.files[path]) || !runtime.hashes.has(path))
+    || Object.entries(prepared.files).some(([path, sha]) => !hash(sha) || !runtime.hashes.has(path) || runtime.hashes.get(path) !== sha)) reject();
   return [{ kind: "installed-launch-source", descriptor: source, observation: { launcher: launcher.observation, interpreter: interpreter.observation,
     package: pkg.observation, runtime: runtime.observation, parentsDigest: digest(stable([...parents].sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0))),
     home: directoryPin(home, true), bin: directoryPin(bin, true), gestaltHome: directoryPin(source.gestaltHome, true) } }];

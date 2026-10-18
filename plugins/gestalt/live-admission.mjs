@@ -4,6 +4,7 @@ import { execFileSync } from "node:child_process";
 import { closeSync, lstatSync, openSync, readFileSync, readdirSync, readlinkSync, realpathSync, renameSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { observeOriginalLaunchSources } from "./live-installed-source.mjs";
+import { withByteObservation } from "./live-byte-observation.mjs";
 
 export const LIVE_SERVERS = Object.freeze(["context-mode", "gestalt-org-plan"]);
 export const UNAVAILABLE_WORKFLOWS = Object.freeze([
@@ -39,18 +40,19 @@ function sort(value) {
 }
 export const digest = (bytes) => createHash("sha256").update(bytes).digest("hex");
 const inside = (root, path) => path === root || path.startsWith(`${root === "/" ? "" : root}/`);
-function installedSources(manifest, input) {
-  try { return observeOriginalLaunchSources(manifest, input); }
+function installedSources(manifest, input, observation) {
+  try { return observeOriginalLaunchSources(manifest, input, observation); }
   catch (error) { fail(error.reason ?? "installed-launch-source-changed"); }
 }
 /** Manager's shell dispatch needs `node` on its host PATH. The native launch
  * environment remains the fixed L9 environment. Never use the caller's PATH.
  */
-export function managerEnvironment(node, runtimeHome) {
+export function managerEnvironment(node, runtimeHome, observation) {
+  if (!observation) return withByteObservation((scope) => managerEnvironment(node, runtimeHome, scope));
   canonical(node.path);
   const directory = canonical(dirname(node.path), true);
   if (basename(node.path) !== "node" || !(lstatSync(node.path).mode & 0o111)
-    || !HASH.test(node.sha256) || digest(readFileSync(node.path)) !== node.sha256) fail("interpreter-unavailable");
+    || !HASH.test(node.sha256) || observation.sha256(node.path) !== node.sha256) fail("interpreter-unavailable");
   // A separate interpreter directory cannot add other host utility aliases.
   if (directory !== "/usr/bin" && stable(readdirSync(directory).sort()) !== stable(["node"])) fail("untrusted-interpreter-directory");
   return { PATH: [...new Set([directory, "/usr/bin", "/bin"])].join(":"), HOME: runtimeHome, LANG: "C.UTF-8" };
@@ -86,7 +88,8 @@ function protectedPath(path, manifest) {
   }
 }
 /** Complete, bounded installed-byte inventory; symlinks and special files fail closed. */
-export function measureTree(root) {
+export function measureTree(root, observation) {
+  if (!observation) return withByteObservation((scope) => measureTree(root, scope));
   canonical(root, true);
   const files = [];
   let bytes = 0;
@@ -98,13 +101,13 @@ export function measureTree(root) {
       if (!info.isFile() || info.mode & 0o022) fail("untrusted-package-file");
       bytes += info.size;
       if (files.length >= 20000 || bytes > 512 * 1024 * 1024) fail("oversized-package");
-      files.push([relative(root, path).split(sep).join("/"), info.mode & 0o777, digest(readFileSync(path))]);
+      files.push([relative(root, path).split(sep).join("/"), info.mode & 0o777, observation.sha256(path)]);
     }
   }
   walk(root);
   return digest(stable(files));
 }
-function readBootstrap(path) {
+function readBootstrap(path, observation) {
   canonical(path, false, true);
   const input = boundedJson(path);
   exact(input, ["schemaVersion", "manifestPath", "workspaceRoot", "packages", "runtime", "node", "effectiveConfig", "plans", ...(Object.hasOwn(input, "consumer") ? ["consumer"] : [])]);
@@ -141,20 +144,20 @@ function readBootstrap(path) {
     exact(item, ["name", "root", "sha256"]);
     if (!["gestalt", "context-mode"].includes(item.name) || packages.has(item.name)) fail("unknown-plugin");
     canonical(item.root, true); protectedPath(item.root, manifest);
-    if (!HASH.test(item.sha256) || measureTree(item.root) !== item.sha256) fail("package-changed");
+    if (!HASH.test(item.sha256) || measureTree(item.root, observation) !== item.sha256) fail("package-changed");
     const plugin = boundedJson(join(item.root, ".codex-plugin/plugin.json"));
     if (plugin.name !== item.name || plugin.mcpServers !== "./.mcp.json") fail("package-identity-mismatch");
     packages.set(item.name, item.root);
   }
   exact(input.runtime, ["root", "sha256"]);
   canonical(input.runtime.root, true); protectedPath(input.runtime.root, manifest);
-  if (!HASH.test(input.runtime.sha256) || measureTree(input.runtime.root) !== input.runtime.sha256) fail("runtime-changed");
+  if (!HASH.test(input.runtime.sha256) || measureTree(input.runtime.root, observation) !== input.runtime.sha256) fail("runtime-changed");
   exact(input.node, ["path", "sha256"]);
   canonical(input.node.path); protectedPath(input.node.path, manifest);
   protectedPath(dirname(input.node.path), manifest);
   if (!(lstatSync(input.node.path).mode & 0o111)) fail("interpreter-unavailable");
-  if (!HASH.test(input.node.sha256) || digest(readFileSync(input.node.path)) !== input.node.sha256) fail("interpreter-changed");
-  managerEnvironment(input.node, manifest.runtimeHome);
+  if (!HASH.test(input.node.sha256) || observation.sha256(input.node.path) !== input.node.sha256) fail("interpreter-changed");
+  managerEnvironment(input.node, manifest.runtimeHome, observation);
   const expectedCommands = {
     "context-mode-call": {
       executable: input.node.path, sha256: input.node.sha256,
@@ -184,12 +187,12 @@ function readBootstrap(path) {
     canonical(plan);
     if (dirname(plan) !== join(input.workspaceRoot, ".gestalt") || !plan.endsWith(".org")) fail("invalid-lifecycle-scope");
   }
-  const originalLaunchSources = installedSources(manifest, input);
+  const originalLaunchSources = installedSources(manifest, input, observation);
   return { input, manifest, packages, originalLaunchSources };
 }
 /** Controller stages these exact bytes BEFORE L9 prepares its policy receipt. */
 export function stageAdmission(bootstrapPath) {
-  const { input, manifest, packages } = readBootstrap(bootstrapPath);
+  const { input, manifest, packages } = withByteObservation((observation) => readBootstrap(bootstrapPath, observation));
   const root = dirname(input.manifestPath);
   try { lstatSync(join(root, "dispatch.lock")); fail("native-worker-active"); }
   catch (error) { if (error.code !== "ENOENT") throw error; }
@@ -340,7 +343,10 @@ function provenanceBinding(policy, manifest, originalLaunchSources) {
   };
 }
 function current(bootstrapPath) {
-  const checked = readBootstrap(bootstrapPath), { input, manifest } = checked;
+  return withByteObservation((observation) => currentObserved(bootstrapPath, observation));
+}
+function currentObserved(bootstrapPath, observation) {
+  const checked = readBootstrap(bootstrapPath, observation), { input, manifest } = checked;
   canonical(manifest.keyFile, false, true);
   if (manifest.schemaVersion === 1 ? !inside(dirname(input.manifestPath), manifest.keyFile)
     : manifest.keyFile !== join(dirname(manifest.election?.lockFile ?? ""), "live-policy.key")) fail("invalid-signing-key");
@@ -353,7 +359,7 @@ function current(bootstrapPath) {
   if (policy.kind !== "policy-contract" || policy.manifestDigest !== digest(readFileSync(input.manifestPath))) fail("stale-policy-receipt");
   const nativeContract = provenanceBinding(policy, manifest, checked.originalLaunchSources);
   canonical(policy.manager?.path); protectedPath(policy.manager.path, manifest);
-  if (digest(readFileSync(policy.manager.path)) !== policy.manager.sha256) fail("manager-changed");
+  if (observation.sha256(policy.manager.path) !== policy.manager.sha256) fail("manager-changed");
   for (const file of manifest.configFiles ?? []) {
     canonical(file.path, false, true); protectedPath(file.path, manifest);
     if (digest(readFileSync(file.path)) !== file.sha256) fail("configuration-changed");
@@ -377,7 +383,7 @@ function current(bootstrapPath) {
   try {
     manager = JSON.parse(execFileSync(policy.manager.path, ["live-policy", "verify", "--manifest", input.manifestPath], {
       cwd: dirname(input.manifestPath),
-      env: managerEnvironment(input.node, manifest.runtimeHome),
+      env: managerEnvironment(input.node, manifest.runtimeHome, observation),
       // Installed-source renewal ancestry is freshly remeasured. L9's measured
       // two-link observation exceeds 30s; use its bounded 90s observation phase.
       stdio: ["ignore", "pipe", "pipe"], timeout: checked.originalLaunchSources.length ? MANAGER_OBSERVATION_MS : 30000, maxBuffer: LIMIT,
@@ -494,13 +500,15 @@ export function validateNativeProxyPath(path, authority) {
  */
 export function executionInputsCurrent(authority) {
   try {
-    const { input, manifest, bootstrapPath, bootstrapDigest, receiptPath, receiptDigest } = authority;
-    if (digest(readFileSync(bootstrapPath)) !== bootstrapDigest || digest(readFileSync(receiptPath)) !== receiptDigest) return false;
-    if (input.packages.some((item) => measureTree(item.root) !== item.sha256) || measureTree(input.runtime.root) !== input.runtime.sha256) return false;
-    if (digest(readFileSync(input.node.path)) !== input.node.sha256) return false;
-    if (stable(installedSources(manifest, input)) !== stable(authority.originalLaunchSources ?? [])) return false;
-    managerEnvironment(input.node, manifest.runtimeHome);
-    return manifest.configFiles.every((file) => digest(readFileSync(file.path)) === file.sha256);
+    return withByteObservation((observation) => {
+      const { input, manifest, bootstrapPath, bootstrapDigest, receiptPath, receiptDigest } = authority;
+      if (digest(readFileSync(bootstrapPath)) !== bootstrapDigest || digest(readFileSync(receiptPath)) !== receiptDigest) return false;
+      if (input.packages.some((item) => measureTree(item.root, observation) !== item.sha256) || measureTree(input.runtime.root, observation) !== input.runtime.sha256) return false;
+      if (observation.sha256(input.node.path) !== input.node.sha256) return false;
+      if (stable(installedSources(manifest, input, observation)) !== stable(authority.originalLaunchSources ?? [])) return false;
+      managerEnvironment(input.node, manifest.runtimeHome, observation);
+      return manifest.configFiles.every((file) => digest(readFileSync(file.path)) === file.sha256);
+    });
   } catch { return false; }
 }
 export function nativeExitVerified(authority, launchId) {
