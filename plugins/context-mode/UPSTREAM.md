@@ -5,7 +5,7 @@
 - Imported commit: `4b1348d4bba530d26cfc73181a0c2f263923e334`
 - Describe: `v1.0.169-56-g4b1348d`
 - Upstream package version: `1.0.169`
-- Downstream package version: `2.17.2`
+- Downstream package version: `2.17.3`
 - License: Elastic-2.0
 - Import date: 2026-07-22
 
@@ -15,6 +15,12 @@ and contents while excluding generated dependencies and build artifacts.
 
 ## Downstream changes
 
+- Adds `ctx_test_evidence` for authenticated argv-only `gh` capture and
+  authorized local test ingestion, deterministic format adapters, private
+  digest-bound manifests, scoped indexing and 2048-byte reports/followups.
+  Preserves native permission hooks and represents incomplete, unsupported,
+  contradictory and run-scoped artifact evidence explicitly. The server's
+  tool wrapper forwards cancellation context to registered handlers.
 - Retains only Codex plugin manifests, configuration, hook entrypoints, and
   user-facing documentation. Other host packaging, configuration, hook
   wrappers, website content, and release automation are omitted.

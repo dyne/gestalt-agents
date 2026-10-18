@@ -4,7 +4,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { createRequire } from "node:module";
 import { existsSync, unlinkSync, readdirSync, readFileSync, writeFileSync, writeSync, renameSync, rmSync, mkdirSync, cpSync, statSync, symlinkSync, lstatSync, realpathSync } from "node:fs";
 import { spawnSync, type SpawnSyncOptions, type SpawnSyncReturns } from "node:child_process";
-import { join, dirname, resolve, sep, isAbsolute } from "node:path";
+import { join, dirname, resolve, relative, sep, isAbsolute } from "node:path";
 import { fileURLToPath } from "node:url";
 import { homedir, tmpdir, cpus, platform } from "node:os";
 import { request as httpsRequest } from "node:https";
@@ -12,6 +12,8 @@ import { AsyncLocalStorage } from "node:async_hooks";
 import { z } from "zod";
 import { PolyglotExecutor } from "./executor.js";
 import { runPool, type PoolJob } from "./runPool.js";
+import { createHash } from "node:crypto";
+import { registerTestEvidence, EVIDENCE_DESCRIPTION } from "./evidence/tool.js";
 import { ContentStore, cleanupStaleDBs, cleanupStaleContentDBs, type SearchResult, type IndexResult } from "./store.js";
 import { composeFetchCacheKey } from "./fetch-cache.js";
 import {
@@ -288,6 +290,7 @@ export function registerEmptyToolsListHandler(target: McpServer = server): void 
 
 /** MCP-visible selection cues; detailed recipes live in the selected skill. */
 export const COMPACT_TOOL_DESCRIPTIONS: Record<string, string> = {
+  ctx_test_evidence: EVIDENCE_DESCRIPTION,
   ctx_execute: "Run code in a sandbox. WHEN: filter, parse, compare, or summarize uncertain/large output. Use native tools for short fixed observations and writes. RETURNS: only printed derived findings; large intentional output is indexed. EXAMPLE: summarize test failures.",
   ctx_execute_file: "Run code over one file as FILE_CONTENT in a sandbox. WHEN: derive facts from a large/structured file without reading it verbatim. Use native Read before editing. RETURNS: only printed findings. EXAMPLE: count ERROR lines.",
   ctx_index: "Store content for later ctx_search retrieval. WHEN: durable docs, references, or instructions need precise recall. Do not use for one-off logs; process those in a sandbox. RETURNS: indexing metadata. EXAMPLE: index an API guide.",
@@ -308,7 +311,7 @@ const originalRegisterTool = server.registerTool.bind(server);
   const [name, config, handler] = args as [
     string,
     Record<string, unknown>,
-    (toolArgs: Record<string, unknown>) => Promise<unknown> | unknown,
+    (toolArgs: Record<string, unknown>, extra?: unknown) => Promise<unknown> | unknown,
   ];
   if (suppressMcpToolsForNativePluginHost) {
     emitSuppressionDiagnostic();
@@ -327,9 +330,9 @@ const originalRegisterTool = server.registerTool.bind(server);
 
 function wrapToolHandler(
   name: string,
-  handler: (toolArgs: Record<string, unknown>) => Promise<unknown> | unknown,
-): (toolArgs: Record<string, unknown>) => Promise<unknown> {
-  return async (toolArgs: Record<string, unknown>) => {
+  handler: (toolArgs: Record<string, unknown>, extra?: unknown) => Promise<unknown> | unknown,
+): (toolArgs: Record<string, unknown>, extra?: unknown) => Promise<unknown> {
+  return async (toolArgs: Record<string, unknown>, extra?: unknown) => {
     // #854: mark a tool call in-flight so the bridge-child idle reaper never
     // shuts the server down mid-execution during a long ctx_execute/batch that
     // emits no further inbound messages. Symmetric end in finally (success+error).
@@ -337,8 +340,8 @@ function wrapToolHandler(
     try {
       const codexContext = resolveCodexToolContext();
       return codexContext
-        ? await withProjectDirOverride(codexContext, async () => handler(toolArgs))
-        : await handler(toolArgs);
+        ? await withProjectDirOverride(codexContext, async () => handler(toolArgs, extra))
+        : await handler(toolArgs, extra);
     } catch (err) {
       const result = storageErrorResult(err);
       if (result) {
@@ -1702,6 +1705,41 @@ export async function runBatchCommands(
 // ─────────────────────────────────────────────────────────
 // Tool: execute
 // ─────────────────────────────────────────────────────────
+
+registerTestEvidence(server, {
+  projectDir: getProjectDir,
+  resolvePath: resolveProjectPath,
+  storageRoot: () => {
+    const session = currentAttribution()?.sessionId ?? `process-${process.pid}`;
+    const scope = createHash("sha256").update(session).digest("hex").slice(0, 24);
+    const parent = join(dirname(getStorePath()), "evidence");
+    const root = join(parent, scope);
+    for (const path of [parent, root]) {
+      if (existsSync(path) && lstatSync(path).isSymbolicLink()) throw new Error("evidence storage symlink");
+      mkdirSync(path, { recursive: true, mode: 0o700 });
+    }
+    return root;
+  },
+  authorizeRead: path => {
+    // Same managed policy primitives as native file analysis, fail closed here.
+    try {
+      const project = realpathSync(getProjectDir());
+      if (!isAbsolute(project)) return false;
+      const codex = detectPlatform().platform === "codex";
+      const allow = codex ? [] : readToolPermissionPatterns("Read", "allow", project);
+      if (!evaluateProjectContainment(path, project, allow).allowed) return false;
+      const deny = readToolDenyPatterns("Read", project);
+      return !evaluateFilePath(path, deny, process.platform === "win32", project).denied &&
+        !evaluateFilePath(relative(project, resolveProjectPath(path)), deny, process.platform === "win32", project).denied;
+    } catch { return false; }
+  },
+  authorizeGh: args => {
+    try { return evaluateCommandDenyOnly(["gh", ...args].join(" "), readBashPolicies(getProjectDir())).decision !== "deny"; }
+    catch { return false; }
+  },
+  index: (text, source) => getStore().indexPlainText(text, source, undefined, currentAttribution()),
+  respond: result => trackResponse("ctx_test_evidence", result),
+});
 
 server.registerTool(
   "ctx_execute",

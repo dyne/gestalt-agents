@@ -41,12 +41,20 @@ that is large, uncertain, or needs filtering, indexing, or repeated retrieval.
 | One uncertain or large command, API, test, build, or log analysis | `ctx_execute` |
 | One large file analysis without loading it in full | `ctx_execute_file` |
 | Several independent large inspections | `ctx_batch_execute` |
+| GitHub Actions evidence or existing authorized test logs | `ctx_test_evidence` |
 | Durable local corpus for later retrieval | `ctx_index` |
 | Indexed follow-up or session-memory query | `ctx_search` |
 | External documentation to retrieve repeatedly | `ctx_fetch_and_index` |
 | Inspect context-mode health, usage, or stored data | `ctx_doctor`, `ctx_stats`, `ctx_purge` |
 
 Use the methods actually exposed by the host, including provider prefixes.
+
+For shipped `ctx_test_evidence`, use `operation: "github"` with a repository,
+run and attempt, or `operation: "local"` with existing file paths and observed
+command exits. It uses existing `gh` authentication and returns at most 2048
+UTF-8 bytes. Retrieve overflow with `operation: "followup"`, its report ID and
+`nextOffset`; use returned index sources for search. Unknown formats and
+incomplete evidence remain uncertain. It does not run tests or wait for CI.
 
 ## Output rules
 

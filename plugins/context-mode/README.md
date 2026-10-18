@@ -5,6 +5,7 @@ This downstream package exposes context-mode as a Codex plugin. It provides:
 - sandboxed command and file analysis without flooding the conversation;
 - SQLite FTS5 indexing and follow-up search;
 - URL fetching into the index;
+- authenticated GitHub Actions and authorized local test-evidence ingestion;
 - session statistics, snapshots, and continuity hooks.
 
 The package intentionally ships only Codex MCP manifests, configuration, and
@@ -58,6 +59,31 @@ stable user-level launchers instead. Codex does not currently pass the session
 workspace to a plugin MCP child, while the native launcher inherits the Codex
 process workspace and completes the MCP handshake. Do not add duplicate MCP or
 hook configuration manually; rerun setup to reconcile it.
+
+## Test evidence
+
+`ctx_test_evidence` captures GitHub Actions evidence using the existing `gh`
+authentication, or reads authorized local JSON, JUnit, TAP, Vitest and pytest
+logs. It never requests credentials. Select a specific run and attempt:
+
+```json
+{"operation":"github","github":{"repository":"owner/repo","run":123,"attempt":2,"job":456}}
+```
+
+For an existing workspace log, use
+`{"operation":"local","files":[{"path":"test-results.json","command":"npm test","exit":1}]}`.
+Command and exit values describe an observation; ingestion does not run tests.
+Unknown formats, partial captures, conflicting exits and all-skipped results
+retain explicit uncertainty. GitHub artifact IDs are run-scoped and cannot
+prove a rerun attempt. Job logs retain the validated attempt's job identity.
+
+Each routine response is at most 2048 UTF-8 bytes. Full failures, source digests,
+private capture paths and scoped index references remain in a report manifest.
+Use the returned report ID with
+`{"operation":"followup","report":"report-ABC123","offset":0,"maxBytes":2048}`
+and continue at `nextOffset`. Followups stay in the current workspace/session.
+Evidence persists until its local evidence directory is removed; it is not
+uploaded or automatically polled. Native read/command restrictions still apply.
 
 ## Development
 
