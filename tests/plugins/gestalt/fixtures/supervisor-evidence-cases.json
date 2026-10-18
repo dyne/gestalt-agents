@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "cases": [
+    {"id": "success", "expected": "supported"},
+    {"id": "multiple-failures", "exit": 1, "failures": ["test-alpha: expected 2, got 1", "test-beta: missing output"], "expected": "failed"},
+    {"id": "unknown-format", "format": "unknown", "counts": null, "expected": "needs-evidence"},
+    {"id": "partial-log", "completeness": "partial", "expected": "needs-evidence"},
+    {"id": "stale-sha", "artifactSha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "expected": "stale"},
+    {"id": "contradictory-report", "artifactExit": 1, "expected": "contradictory"},
+    {"id": "missing-artifact", "missing": true, "expected": "needs-evidence"},
+    {"id": "overflow", "exit": 1, "failureCount": 180, "expected": "failed"},
+    {"id": "missing-overflow", "exit": 1, "failureCount": 180, "missing": true, "expected": "needs-evidence"},
+    {"id": "changed-diff", "artifactDiff": "old-diff", "expected": "stale"},
+    {"id": "rerun-attempt", "artifactAttempt": 1, "expected": "stale"},
+    {"id": "tampered-artifact", "tamper": true, "expected": "contradictory"},
+    {"id": "setup-failure", "exit": 2, "counts": {"passed": 0, "failed": 0, "skipped": 0, "total": 0}, "failures": ["setup: compiler unavailable"], "expected": "failed"},
+    {"id": "unknown-exit", "exit": null, "expected": "needs-evidence"},
+    {"id": "fresh-time-old-source", "artifactTime": "2026-10-17T10:00:00Z", "expected": "stale"}
+  ]
+}

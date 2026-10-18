@@ -43,6 +43,8 @@ instructions; source edits do not update or restart them.
 
 Abbreviations: **O** = Org SKILL, **S** = supervised-execution reference,
 **A** = repository AGENTS, **P** = generated profiles, **C** = context-mode SKILL.
+**E** = Org `references/evidence-report.md`, added in L2 and required before
+reporting or evaluating evidence; it is included in every measured role path.
 Section names below identify canonical destinations for consolidation. Bootstrap
 copies remain only where needed before the mandatory governing reads. This map
 covers every normative block in the four edited documents and generated text;
@@ -64,7 +66,7 @@ each row preserves all listed clauses, not just its topic name.
 | state | O/S/A/P: helper-only transitions/measurements, no hand edits; typed tool preferred, bundled helper fallback; side-effect-free help; status publication optional without destination | O Choose a workflow / Invariants; CLI reference for command syntax |
 | projection | O/S/A/P: active root alone projects after authoring-start, supervision-start, set, l2, review, suspend-reopen, resume, external resync; exact plan array, companion explanation separate, short L1 statuses; warning on host failure preserves authoritative Org | O Invariants; S points there |
 | dependencies | O: compatible consumption and single writer for suspend-reopen/resume; reopening resets review, explicit reset before material completed-reviewed correction without reopening | O Invariants and linked CLI state machine |
-| evidence | O/S/P: current focused tests and intended scope per L2; all children DONE plus fresh full suite and complete intended L1 diff before L1 DONE/review | O Invariants; S Evidence and review loop |
+| evidence | O/S/P: current focused tests and intended scope per L2; all children DONE plus fresh full suite and complete intended L1 diff before L1 DONE/review | O Invariants; S Evidence and review loop; E fields and independent verification add bounded, retrievable observations without changing gates |
 | eligibility | O/S/P: review only helper-selected DONE + UNREVIEWED L1; skip REVIEWED; no pending review means milestone review current | S Evidence and review loop |
 | reject | O/S/P: explicit independent root ACCEPT/REJECT; unchanged substantive findings to same writer, correct same uncommitted diff, repeat gates, no progress approval | S Evidence and review loop |
 | commit | O/S/A/P: uncommitted L2s through L1 review; after explicit ACCEPT exactly one conventional commit if changed, no fixup/autosquash; no-change recorded; then REVIEWED, project, root verifies subject/scope and terminates writer | O Invariants; S Evidence and review loop |
@@ -84,11 +86,11 @@ each row preserves all listed clauses, not just its topic name.
 | terminal-report | O/S: current root-side full suite and clean intended scope; optional terminalReviewAccepted only after terminal gates; sole whole-plan success reports verdict/corrections/gates/residuals/scope/all commits, not repeat L1 final/raw logs | S Terminal whole-plan report |
 | manual | O: WIP else first TODO selection, exact optional skills, helper state; focused L2 then immediately next (manual has no executor-turn boundary); all-DONE full-suite/L1 DONE/helper-selected review, same-diff corrections, one accepted commit/REVIEWED, continue all milestones | O Manual execution loop; shared gates referenced |
 | authoring | O: workspace .gestalt short kebab filename no date, legacy supplied paths readable; metadata/fields from format, validate skeleton before signal and coherent changes after; inspect optional catalog, dependency order/context/tests, remove material ambiguity, branch and baseline before handoff | O Authoring workflow |
-| bounded-evidence | O/S/C/P: governing instructions/small bounded/pre-edit reads native, native edits/mutations/short commands/live session/image; large/uncertain analysis through context-mode; fallback file capture then command/status/counts/minimal excerpt; never raw logs/transcripts upward | C Routing contract; O/S role-specific evidence duties |
+| bounded-evidence | O/S/C/P: governing instructions/small bounded/pre-edit reads native, native edits/mutations/short commands/live session/image; large/uncertain analysis through context-mode; fallback file capture then command/status/counts/minimal excerpt; never raw logs/transcripts upward | C Routing contract; O/S role-specific evidence duties; E owns 2048-byte reports, explicit unknowns, failure references and overflow |
 | tools-permission | C: actual exposed native equivalents/prefixes only, no invented aliases; context-mode never grants side effects/ownership/Org transitions/optional task skills; no implicit context-mode SKILLS declaration | C Routing contract / Org Plan execution |
 | retrieval | C: explicitly print derived findings with paths/IDs/lines/values/status, no whole objects/logs; large local path indexing vs small inline content, scoped batched specific searches, index once for repeated questions; verify empty search root/ignored/symlinks; huge single-line structured parse with original preserved | C Output rules / Files and browser output |
 | browser | C: save tool/browser output directly to filename then analyze/index, never roundtrip large response via inline content; linked browser patterns, available tools selection table and host prefixes retained | C Files and browser output |
-| session | C/S: independent agent contexts, persist conclusions not assumed transient output; role assignments self-contained exact full L1/L2/base/prior outputs/scope/tests/skills/gates/prohibitions/blockers, no inherited 'continue above' | C Org Plan execution; S Standalone assignments |
+| session | C/S: independent agent contexts, persist conclusions not assumed transient output; role assignments self-contained exact full L1/L2/base/prior outputs/scope/tests/skills/gates/prohibitions/blockers, no inherited 'continue above' | C Org Plan execution; S Standalone assignments (selected block once or exact required section reads); E assignment/review forms; tool resolution cached only for its valid session |
 | communication | S: bounded evidence ownership, no raw upward transcripts; root updates start/review/reject/accept/block; canonical position/title and goal first, conventional subject purpose then optional hash; routine review agent-to-agent, ask user only genuine ambiguity/prerequisite | S Reporting evidence ownership |
 | durable-guidance | O/A: update A only for completed durable repo instruction changes; profiles are bootstrap summaries, do not duplicate full state machine; tests cover bootstrap/startup/TOML/budgets instead of every sentence | A Org Plan development |
 | vendoring | A: single canonical nested skill tree, manifests/discovery, complete directory metadata/modes/references, pinned upstream attribution/license, no symlinks; adapted version/provenance/checksums; clean temp distributable discovery strips terminal controls/exact names once; verify all package metadata/full suite/diff; no silent plugin install/disable | A Vendoring skills (unchanged) |
@@ -165,3 +167,62 @@ the source helper and archived helper. No installed profile or service is
 changed. No vendor content, attribution, manifest, version, or checksum fixture
 needed revision. The original checkout-permission baseline failure above
 remains distinct from the now-passing suite.
+
+## L2 evidence contract and role integration
+
+E is the single report contract for local tests and GitHub results. It adds
+milestone/scope/candidate/source/checks/observation/completeness/references/overflow
+fields, unknown-versus-zero semantics, dirty-diff identity, and independently
+retrievable failures within a default 2048 UTF-8 byte report. Root verifies
+identity, freshness, relevant diff and cited test evidence. Stale, missing or
+contradictory evidence causes bounded retrieval or same-writer correction, not
+acceptance or an attention request. Existing lifecycle/checkpoint/commit gates
+remain in O/S. No fetching, ingestion, caching runtime or Mobile scheduling is
+implemented by L2.
+
+The E cost is **1033 words / 7623 bytes**, now included in the reproducible
+`instruction-baseline.py` inventory for root, executor and terminal reviewer.
+The original baseline JSON remains unchanged. The previous consolidation table
+is historical L1 evidence; current totals include the new mandatory read and
+role-integration guidance:
+
+| Role | Original words / bytes | L2 words / bytes | Word reduction |
+| --- | --- | --- | --- |
+| Root | 8117 / 57152 | 7514 / 54210 | 7.4% |
+| Executor | 7668 / 54021 | 7289 / 52438 | 4.9% |
+| Terminal reviewer | 7332 / 51711 | 6986 / 50370 | 4.7% |
+
+All three remain below original word/byte budgets. These are repository-owned
+instruction paths, not measurements of whole live prompts or allowance savings.
+The first L2 full-suite attempt exposed the existing 3100-word per-file S limit.
+After condensing integration to links and forms, S is 3133 words (58 above L1).
+Its limit is explicitly revised to 3200 to accommodate required evidence routing
+and selected-section assignment/review guidance; E has a separate 1100-word
+limit. Whole-role tests still require smaller paths than the immutable original
+baseline, including E. This is a documented instruction-cost exception, not a
+hidden omission or a claim that the first full-suite attempt passed.
+The new E reference is compared byte-for-byte against archive delivery alongside
+the existing required instruction sources. Context-mode routing resolves only
+needed tool fields and caches bindings within a valid session, invalidating on
+reconnect/tool change/unavailability. Governing reads and complete scope/diff
+checks remain native and mandatory.
+
+The maintained shell gate automatically discovers `test-evidence-contract.sh`.
+It tests 15 sanitized evidence/review decisions, local and GitHub identities,
+all omitted failure identifiers through bounded retrieval, UTF-8 byte budgets,
+and generated assignment/review forms from E (1030/915 bytes). Its artifact
+oracle reads evidence independently of report claims; this is a test-only
+contract model, not a runtime parser or simulation of model behavior. The
+instruction gate now covers 36 static scenarios, including contract fields,
+overflow, independent verification, bounded assignments/review and tool-session
+validity. Human review still assesses semantic instruction equivalence.
+
+Current L2 verification: `npm_config_cache=/tmp/context-evidence-l2-npm-cache bash
+tests/run.sh` exits 0 across 28 discovered gates (9 repository, 17 Gestalt,
+2 context-mode), including 465 Org checks, 36 instruction scenarios and the
+15 evidence decisions. Archive delivery equality includes E. Focused contract
+gates and `git diff --check` pass. An earlier default-cache attempt stopped in
+discovery because npm could not write its read-only home cache (`EROFS`);
+redirecting only that cache to task-local `/tmp` resolves it. This environment
+failure is separate from the original file-mode baseline and from the repaired
+per-file instruction-budget failure. No installed profile or service changed.

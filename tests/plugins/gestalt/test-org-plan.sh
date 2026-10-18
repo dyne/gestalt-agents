@@ -619,7 +619,10 @@ test ! -s "$tmp/out" && pass || fail 'failed preparation prints no success resul
 supervised="$root/plugins/gestalt/skills/org-plan/references/supervised-execution.md"
 
 python3 -c 'import pathlib, sys; words=len(pathlib.Path(sys.argv[1]).read_text().split()); assert words <= 1700, words' "$skill" && pass || fail 'org-plan skill stays within its prompt budget'
-python3 -c 'import pathlib, sys; words=len(pathlib.Path(sys.argv[1]).read_text().split()); assert words <= 3100, words' "$supervised" && pass || fail 'supervised reference stays within its prompt budget'
+# Evidence-contract routing adds required role integration; its separately loaded
+# reference is included in role-path budgets, not hidden behind this file limit.
+python3 -c 'import pathlib, sys; words=len(pathlib.Path(sys.argv[1]).read_text().split()); assert words <= 3200, words' "$supervised" && pass || fail 'supervised reference stays within its prompt budget'
+python3 -c 'import pathlib, sys; words=len(pathlib.Path(sys.argv[1]).read_text().split()); assert words <= 1100, words' "$root/plugins/gestalt/skills/org-plan/references/evidence-report.md" && pass || fail 'evidence reference stays within its prompt budget'
 expect_contains "$supervised" 'Never cross this boundary'
 expect_contains "$supervised" 'post-acceptance commentary, documentation, or the'
 expect_not_contains "$supervised" 'legacy continuous-root fallback'

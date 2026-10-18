@@ -18,6 +18,7 @@ ORG = ROOT / "plugins/gestalt/skills/org-plan"
 SOURCES = {
     "org": ORG / "SKILL.md",
     "supervision": ORG / "references/supervised-execution.md",
+    "evidence": ORG / "references/evidence-report.md",
     "routing": ROOT / "plugins/gestalt/skills/context-mode/SKILL.md",
 }
 
@@ -119,6 +120,8 @@ def main():
     current = baseline["inventory"]()
     before = json.loads((FIXTURES / "instruction-baseline.json").read_text())["instructions"]
     for role, data in current["roles"].items():
+        assert "evidence" in data["sources"], (role, "mandatory evidence read omitted")
+        assert current["sources"]["evidence"]["path"] == "plugins/gestalt/skills/org-plan/references/evidence-report.md"
         assert data["words"] < before["roles"][role]["words"], (role, "instruction path grew")
         assert data["bytes"] < before["roles"][role]["bytes"], (role, "instruction path grew")
     print(f"instruction contracts: {count} scenarios, bootstrap delivery, links, negative control, 3 smaller role paths")

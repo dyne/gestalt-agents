@@ -197,7 +197,8 @@ Supervision is a completion loop:
   without user input, new authority, or changed external state.
 
 After each L2, the root verifies intended dirty paths, inspects the L2
-diff, and requires current focused-test evidence before DONE.
+diff, and requires current focused-test evidence before DONE. Use the
+[evidence contract](evidence-report.md) for reports and independent root verification.
 
 Executors report successful helper mutations; only the active root projects
 them under SKILL invariant 4. Missing host tools never reverse valid Org state.
@@ -212,6 +213,9 @@ UNREVIEWED L1. The request contains:
 - exact test commands with pass/fail summaries and evidence locations;
 - UI evidence matrix when applicable;
 - preserved paths, prohibited actions, and material-ambiguity stop condition.
+
+Use its review form. Inspect selected milestone sections and relevant evidence
+fields; retain governing reads and complete intended scope/diff checks.
 
 The root independently returns structured findings plus explicit ACCEPT or
 REJECT. Skip already REVIEWED L1s. On REJECT, send the findings unchanged in
@@ -359,6 +363,8 @@ Scope: clean intended scope.
 
 ## Reporting evidence ownership
 
+Read the [evidence contract](evidence-report.md) before reporting or evaluating evidence.
+
 Potentially large or uncertain inspections, tests, and logs use context-mode or
 another context-preserving analysis path in both roles; small bounded filesystem
 work stays native.
@@ -384,5 +390,8 @@ optional skills, always-loaded Gestalt workflow skills, helper-only transitions,
 one post-ACCEPT commit rule, preserved paths, completion-driven continuation,
 and genuine external-blocker stop conditions. It explicitly forbids treating an
 L2 boundary or partial report as completion of the assigned L1.
+
+Use its assignment form: selected L1/children once or exact required section
+reads, candidate identities, report budget and evidence location.
 
 Never rely on inherited conversation context or write “continue above.”

@@ -14,6 +14,7 @@ SOURCES = {
     "repository": "AGENTS.md",
     "org": ORG + "SKILL.md",
     "supervision": ORG + "references/supervised-execution.md",
+    "evidence": ORG + "references/evidence-report.md",
     "routing": "plugins/gestalt/skills/context-mode/SKILL.md",
     "vendor-codex-guidance-inactive": "plugins/context-mode/configs/codex/AGENTS.md",
 }
@@ -32,7 +33,7 @@ def inventory():
         for role in ("reviewer", "executor"):
             profile = tomllib.loads(Path(tmp, f"org-plan-{role}.toml").read_text())
             sources[f"profile-{role}"] = counts(profile["developer_instructions"])
-    common = ["repository", "org", "supervision", "routing"]
+    common = ["repository", "org", "supervision", "evidence", "routing"]
     paths = {"root": common + ["profile-reviewer"],
              "executor": common + ["profile-executor"], "terminal-reviewer": common}
     return {"sources": sources, "roles": {

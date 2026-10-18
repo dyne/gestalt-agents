@@ -23,7 +23,9 @@ that is large, uncertain, or needs filtering, indexing, or repeated retrieval.
    native editor is available.
 3. Do not invent aliases. Hosts may expose provider-prefixed names or a native
    equivalent rather than these spellings; use only the capability actually
-   exposed by the current host.
+   exposed by the current host. Resolve needed names/argument fields once per
+   valid session; invalidate cached resolution after reconnect, tool-set change
+   or unavailable-tool errors. Inspect relevant fields instead of whole catalogs.
 4. Use context-mode for large or uncertain evidence. If it is unavailable,
    capture evidence outside the conversation and report only the command, exit
    status, counts, and smallest useful failure excerpt.
@@ -90,7 +92,8 @@ grant write ownership, or replace declared task skills.
 
 - In solo execution, use it for large or uncertain reads and command output.
 - In supervised execution, the executor returns concise evidence to the
-  supervisor; the supervisor and director never relay raw logs upward.
+  supervisor using Org's [evidence contract](../org-plan/references/evidence-report.md);
+  the supervisor independently verifies it. Neither role relays raw logs upward.
 - Treat every agent session as an independent context. Persist conclusions in
   the plan or a concise report instead of assuming another agent saw transient
   tool output.
