@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdtempSync, realpathSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { deflateRawSync } from "node:zlib";
@@ -82,7 +82,7 @@ function zip(name = "results.txt", compressed = false): Buffer {
 }
 beforeEach(() => {
   faults.mode='';faults.spawn=false;faults.fds.clear();
-  dir = mkdtempSync(join(tmpdir(), "evidence-gh-test-"));
+  dir = realpathSync(mkdtempSync(join(tmpdir(), "evidence-gh-test-")));
   writeFileSync(join(dir,"gh"),fake);chmodSync(join(dir,"gh"),0o755);
   vi.stubEnv("PATH", `${dir}:${process.env.PATH}`);
   vi.stubEnv("FAKE_ARGV",join(dir,"argv"));vi.stubEnv("FAKE_SCENARIO", "success");vi.stubEnv("FAKE_ZIP",zip().toString("base64"));
