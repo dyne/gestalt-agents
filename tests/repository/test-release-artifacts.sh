@@ -95,6 +95,7 @@ assert {f"plugins/gestalt/skills/{skill}/SKILL.md" for skill in skills} <= bundl
 instruction_paths = (
     "plugins/gestalt/skills/org-plan/SKILL.md",
     "plugins/gestalt/skills/org-plan/references/supervised-execution.md",
+    "plugins/gestalt/skills/org-plan/references/evidence-report.md",
     "plugins/gestalt/skills/context-mode/SKILL.md",
     "plugins/gestalt/skills/org-plan/scripts/org-plan",
 )
