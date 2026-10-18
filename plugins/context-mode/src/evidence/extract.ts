@@ -82,8 +82,9 @@ function parseJUnit(text:string):Extraction {
       } else {if(/&(?!(?:#x[0-9a-fA-F]+|#\d+|amp|lt|gt|quot|apos);)/.test(token))throw new Error();stack.at(-1)!.text+=decodeXml(token);}
     }
     if(stack.length!==1||root.children.length!==1||!['testsuites','testsuite'].includes(root.children[0].tag)||root.text.trim())throw new Error();
-    const states:string[]=[],failures:TestFailure[]=[];
+    const states:string[]=[],failures:TestFailure[]=[],scopes:{node:Node;start:number;end:number}[]=[];
     const walk=(n:Node,suite:string)=>{
+      const start=states.length;
       if(n.tag==='testsuite')suite=n.attrs.name??suite;
       if(n.tag==='testcase') {
         if(!n.attrs.name)throw new Error();
@@ -95,15 +96,20 @@ function parseJUnit(text:string):Extraction {
         if(n.tag==='error'||n.tag==='failure')failures.push(failure(`${suite||'suite'}::setup`,[n.attrs.message,n.text].filter(Boolean).join('\n'),`JUnit:${n.tag}`));
         for(const child of n.children)walk(child,suite);
       }
+      if(n.tag==='testsuite'||n.tag==='testsuites')scopes.push({node:n,start,end:states.length});
     };
     walk(root.children[0],'');const c=count(states);
-    const top=root.children[0];
-    for(const [attr,expected] of [['tests',c.total],['skipped',c.skipped]] as const) {
-      if(top.attrs[attr]!==undefined&&(!/^\d+$/.test(top.attrs[attr])||Number(top.attrs[attr])!==expected))return {...unknown('contradictory JUnit counters'),format:'junit',counts:c,failures};
-    }
-    if(top.attrs.failures!==undefined||top.attrs.errors!==undefined) {
-      const f=top.attrs.failures??'0',e=top.attrs.errors??'0';
-      if(!/^\d+$/.test(f)||!/^\d+$/.test(e)||Number(f)+Number(e)!==c.failed)return {...unknown('contradictory JUnit failure/error counters'),format:'junit',counts:c,failures};
+    // A wrapper may omit totals while an individual suite declares missing or
+    // contradictory records. Validate each scope against only its descendants.
+    for(const {node,start,end} of scopes) {
+      const scoped=count(states.slice(start,end));
+      for(const [attr,expected] of [['tests',scoped.total],['skipped',scoped.skipped]] as const) {
+        if(node.attrs[attr]!==undefined&&(!/^\d+$/.test(node.attrs[attr])||Number(node.attrs[attr])!==expected))return {...unknown('contradictory JUnit counters'),format:'junit',counts:c,failures};
+      }
+      if(node.attrs.failures!==undefined||node.attrs.errors!==undefined) {
+        const f=node.attrs.failures??'0',e=node.attrs.errors??'0';
+        if(!/^\d+$/.test(f)||!/^\d+$/.test(e)||Number(f)+Number(e)!==scoped.failed)return {...unknown('contradictory JUnit failure/error counters'),format:'junit',counts:c,failures};
+      }
     }
     return {format:'junit',counts:c,failures,exit:null,certainty:'known',reason:null};
   }catch{return unknown('malformed or unsupported JUnit XML');}
@@ -111,10 +117,17 @@ function parseJUnit(text:string):Extraction {
 
 function plain(text:string):Extraction {
   const raw=text.replace(/\x1b\[[0-?]*[ -/]*[@-~]/g,''),lines=raw.split(/\r?\n/);
-  // GitHub gh job logs prefix each line with job, step, and timestamp.
-  const metadata=lines.map(line=>line.match(/^([^\t]+)\t([^\t]+)\t(\d{4}-\d\d-\d\dT\S+)\s?(.*)$/));
-  const clean=lines.map((line,i)=>metadata[i]?.[4]??line);
-  const context=(index:number,id:string,end:number)=>({...failure(id,clean.slice(index,Math.min(end,index+20)).join('\n'),`lines:${index+1}-${Math.min(end,index+20)}`),step:metadata[index]?.[2]??null,time:metadata[index]?.[3]??null,contextOmittedLines:Math.max(0,end-index-20)});
+  // Raw job API logs carry a timestamp; gh run view additionally prepends
+  // job/step columns. Remove only the envelope, preserving line positions and
+  // diagnostic indentation so locators still resolve in the captured bytes.
+  const metadata=lines.map(line=>{
+    const rendered=line.match(/^([^\t]+)\t([^\t]+)\t(\d{4}-\d\d-\d\dT\S+) ?(.*)$/);
+    if(rendered)return {text:rendered[4],step:rendered[2],time:rendered[3]};
+    const raw=line.match(/^(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d+)?Z) (.*)$/);
+    return {text:raw?.[2]??line,step:null,time:raw?.[1]??null};
+  });
+  const clean=metadata.map(m=>m.text);
+  const context=(index:number,id:string,end:number)=>({...failure(id,clean.slice(index,Math.min(end,index+20)).join('\n'),`lines:${index+1}-${Math.min(end,index+20)}`),step:metadata[index].step,time:metadata[index].time,contextOmittedLines:Math.max(0,end-index-20)});
   if(clean.some(l=>/^TAP version 13\s*$/.test(l))||clean.some(l=>/^1\.\.\d+(?:\s+#.*)?$/.test(l))) {
     const states:string[]=[],failures:TestFailure[]=[],ids=new Set<string>();let plan:number|null=null,bail=false;
     for(let i=0;i<clean.length;i++) {
