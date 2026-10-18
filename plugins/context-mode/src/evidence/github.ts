@@ -1,7 +1,7 @@
 /** Authenticated, read-only GitHub capture. No source bytes enter routine results. */
 import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
-import { closeSync, mkdirSync, mkdtempSync, openSync, readFileSync, writeFileSync, writeSync } from "node:fs";
+import { closeSync, mkdirSync, mkdtempSync, openSync, readFileSync, realpathSync, statSync, unlinkSync, writeFileSync, writeSync } from "node:fs";
 import { join } from "node:path";
 import { z } from "zod";
 import { killTree } from "../executor.js";
@@ -15,6 +15,7 @@ export const githubSelectorSchema = z.object({
     .refine(v => v.split("/").every(p => p !== "." && p !== "..")),
   run: id,
   attempt: id,
+  refresh: z.boolean().optional(),
   job: id.optional(),
   artifact: id.optional(),
 }).strict();
@@ -34,6 +35,7 @@ export interface GitHubCapture {
   headSha: string | null; completedAt: string | null; sourceUpdatedAt: string | null; observedAt: string;
   completeness: CaptureState; reason?: FailureCode;
   manifest?: EvidenceReference;
+  reuse?: "cached-terminal" | "captured";
 }
 export interface CaptureOptions {
   /** Trusted runtime storage, never a model-supplied directory. OS permissions still apply. */
@@ -59,6 +61,58 @@ function classify(stderr: string): FailureCode {
 }
 
 let activeCaptures = 0;
+interface PendingCapture { promise:Promise<GitHubCapture>; controller:AbortController; users:number; refresh:boolean }
+const pending = new Map<string, PendingCapture>();
+// A refresh invalidates both cache writes and joins from earlier in-flight work.
+const generations = new Map<string, number>();
+const policies = new WeakMap<NonNullable<CaptureOptions['authorizeCommand']>,number>();
+let nextPolicy=0;
+function subscribe(work:PendingCapture, signal:AbortSignal|undefined, cancelled:GitHubCapture):Promise<GitHubCapture> {
+  work.users++;
+  return new Promise(resolve=>{
+    let done=false;
+    const finish=(result:GitHubCapture)=>{
+      if(done)return;done=true;signal?.removeEventListener('abort',abort);
+      if(--work.users===0)work.controller.abort();resolve(result);
+    };
+    const abort=()=>{
+      if(work.users===1){work.controller.abort();return;}
+      finish({...cancelled,reason:'cancelled'});
+    };
+    signal?.addEventListener('abort',abort,{once:true});
+    if(signal?.aborted)abort();
+    work.promise.then(finish);
+  });
+}
+// Cached bytes are private to the supplied runtime scope, never a global report lookup.
+function cachedCapture(path: string, root: string, opts: CaptureOptions): GitHubCapture | null {
+  try {
+    if(statSync(path).size>2*1024*1024)return null;
+    const envelope = JSON.parse(readFileSync(path, "utf8"));
+    const result = envelope.result as GitHubCapture;
+    if (envelope.key !== path.split("terminal-").at(-1)?.replace(/\.json$/, "")) return null;
+    if (result.completeness !== "complete" || !result.manifest || !result.headSha) return null;
+    const verify = (ref: EvidenceReference) => {
+      const real = realpathSync(ref.path);
+      if (!real.startsWith(realpathSync(root) + "/")) throw new Error();
+      if(!Number.isSafeInteger(ref.bytes)||ref.bytes<0||ref.bytes>16*1024*1024||statSync(real).size!==ref.bytes)throw new Error();
+      const data = readFileSync(real);
+      if (data.length !== ref.bytes || digest(data) !== ref.sha256) throw new Error();
+      return data;
+    };
+    const manifest = JSON.parse(verify(result.manifest).toString("utf8"));
+    for (const entry of manifest.entries) {
+      if (entry.kind === "auth") continue;
+      if (entry.reference) {
+        const data = verify(entry.reference);
+        if (entry.kind === "artifact-members") for (const member of JSON.parse(data.toString("utf8"))) verify(member.reference);
+      }
+    }
+    // Recheck policy for every command that would have supplied the cached bytes.
+    for (const args of envelope.commands) if (opts.authorizeCommand && !opts.authorizeCommand(args)) return null;
+    return { ...result, reuse: "cached-terminal" };
+  } catch { return null; }
+}
 /** Each gh child has bounded output, wall time, and inherited native sandbox permissions. */
 async function gh(args: string[], path: string, opts: CaptureOptions, cap: number): Promise<CaptureEntry> {
   const observedAt = new Date().toISOString();
@@ -119,11 +173,49 @@ export async function captureGitHub(input: unknown, opts: CaptureOptions): Promi
   const result: GitHubCapture = { version: 1, source: "github", selector: parsed.success ? parsed.data : null,
     headSha: null, completedAt: null, sourceUpdatedAt: null, observedAt: new Date().toISOString(), completeness: "failed" };
   if (!parsed.success) return { ...result, reason: "invalid-selector" };
+  if (opts.signal?.aborted) return { ...result, reason: "cancelled" };
+  try { mkdirSync(opts.storageRoot, { recursive: true, mode: 0o700 }); }
+  catch { return { ...result, reason:"storage" }; }
+  const { refresh, ...identity } = parsed.data;
+  const key = digest(JSON.stringify({ ...identity, host:identity.host.toLowerCase(), repository:identity.repository.toLowerCase(),maxBytes:opts.maxBytes??null }));
+  const cachePath = join(realpathSync(opts.storageRoot), `terminal-${key}.json`);
+  let policy=0;
+  if(opts.authorizeCommand){policy=policies.get(opts.authorizeCommand)??++nextPolicy;policies.set(opts.authorizeCommand,policy);}
+  const requestKey=(generation:number)=>`${cachePath}:${generation}:${opts.timeoutMs??"default"}:${opts.cwd??""}:${policy}`;
+  let generation=generations.get(cachePath)??0;
+  if (refresh) {
+    const refreshing=pending.get(requestKey(generation));
+    if(refreshing?.refresh&&!refreshing.controller.signal.aborted)return subscribe(refreshing,opts.signal,result);
+    generation++;
+    try { unlinkSync(cachePath); } catch { /* absent cache */ }
+  }
+  generations.set(cachePath,generation);
+  if (!refresh) {
+    const cached = cachedCapture(cachePath, opts.storageRoot, opts);
+    if (cached) return cached;
+  }
+  const pendingKey = requestKey(generation);
+  const existing=pending.get(pendingKey);
+  if(existing&&!existing.controller.signal.aborted)return subscribe(existing,opts.signal,result);
   if (activeCaptures >= 2) return { ...result, reason: "busy" };
-  activeCaptures++;
-  try { return await capture(parsed.data, opts, result); }
-  catch { return { ...result, completeness: "failed", reason: "storage" }; }
-  finally { activeCaptures--; }
+  const controller=new AbortController();
+  const promise = (async () => {
+    activeCaptures++;
+    const commands: string[][] = [];
+    try {
+      const captured = await capture(parsed.data, { ...opts, signal:controller.signal, authorizeCommand: args => {
+        commands.push([...args]); return opts.authorizeCommand?.(args) ?? true;
+      } }, result);
+      if (captured.completeness === "complete" && generations.get(cachePath) === generation) {
+        writeFileSync(cachePath, JSON.stringify({ key, sourceKey:digest(JSON.stringify({identity,sha:captured.headSha,manifest:captured.manifest?.sha256})), result: captured, commands }), { mode: 0o600 });
+      }
+      return { ...captured, reuse: "captured" as const };
+    } catch { return { ...result, completeness: "failed" as const, reason: "storage" as const }; }
+    finally { activeCaptures--; if(pending.get(pendingKey)?.controller===controller)pending.delete(pendingKey); }
+  })();
+  const work={promise,controller,users:0,refresh:!!refresh};
+  pending.set(pendingKey,work);
+  return subscribe(work,opts.signal,result);
 }
 
 async function capture(s: z.output<typeof githubSelectorSchema>, opts: CaptureOptions, result: GitHubCapture): Promise<GitHubCapture> {

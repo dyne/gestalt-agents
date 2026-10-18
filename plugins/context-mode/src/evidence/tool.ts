@@ -1,9 +1,9 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { captureGitHub, githubSelectorSchema } from "./github.js";
-import { evidenceFollowup, ingestEvidence, ingestGitHubCapture, type IngestOptions } from "./extract.js";
+import { evidenceFollowup, ingestEvidence, ingestGitHubCapture, ingestSharedManifest, type IngestOptions } from "./extract.js";
 
-export const EVIDENCE_DESCRIPTION = "Capture GitHub test evidence through authenticated gh, or ingest authorized local logs. Returns findings and durable references within 2048 bytes; unknown formats stay uncertain. Use followup with the returned report ID for bounded details.";
+export const EVIDENCE_DESCRIPTION = "Capture GitHub/local test evidence; findings stay within 2048 bytes. Terminal captures reuse verified bytes; github.refresh revalidates. Use reference with an authorized manifest path/digest to index in this session, or followup with a report ID for bounded details. Unknown formats stay uncertain.";
 const sha = z.string().regex(/^[a-fA-F0-9]{40}$/);
 const file = z.object({
   path: z.string().min(1).max(4096), command: z.string().max(512).optional(),
@@ -11,8 +11,9 @@ const file = z.object({
   completeness: z.enum(["complete", "partial", "unknown"]).optional(),
 }).strict();
 const evidenceShape = {
-  operation: z.enum(["github", "local", "followup"]),
+  operation: z.enum(["github", "local", "reference", "followup"]),
   github: githubSelectorSchema.optional(),
+  manifest:z.object({path:z.string().min(1).max(4096),sha256:z.string().regex(/^[a-f0-9]{64}$/)}).strict().optional(),
   files: z.array(file).min(1).max(100).optional(),
   report: z.string().regex(/^report-[A-Za-z0-9]+$/).max(100).optional(),
   offset: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER).optional(),
@@ -22,10 +23,12 @@ const evidenceShape = {
 };
 export const evidenceRequestSchema = z.object(evidenceShape).strict().superRefine((r, ctx) => {
   const invalid = r.operation === "github"
-    ? !r.github || r.files !== undefined || r.report !== undefined || r.offset !== undefined || r.maxBytes !== undefined
+    ? !r.github || r.files !== undefined || r.report !== undefined || r.offset !== undefined || r.maxBytes !== undefined || r.manifest !== undefined
     : r.operation === "local"
-      ? !r.files || r.github !== undefined || r.report !== undefined || r.offset !== undefined || r.maxBytes !== undefined
-      : !r.report || r.github !== undefined || r.files !== undefined || r.milestone !== undefined || r.candidate !== undefined;
+      ? !r.files || r.github !== undefined || r.report !== undefined || r.offset !== undefined || r.maxBytes !== undefined || r.manifest !== undefined
+      : r.operation === "reference"
+        ? !r.manifest || r.github !== undefined || r.files !== undefined || r.report !== undefined || r.offset !== undefined || r.maxBytes !== undefined
+      : r.manifest !== undefined || !r.report || r.github !== undefined || r.files !== undefined || r.milestone !== undefined || r.candidate !== undefined;
   if (invalid) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Select exactly one evidence operation and its input" });
 });
 
@@ -37,6 +40,8 @@ export interface EvidenceRuntime {
   authorizeRead(path: string): boolean;
   authorizeGh(args: readonly string[]): boolean;
   index: IngestOptions["index"];
+  indexExists?: IngestOptions["indexExists"];
+  indexScope?():string;
   respond(result: ToolResult): ToolResult;
 }
 const error = (reason: string): ToolResult => ({ content: [{ type: "text", text: JSON.stringify({ version: 1, completeness: "unknown", decision: "needs-evidence", reason }) }], isError: true });
@@ -64,7 +69,7 @@ export function registerTestEvidence(server: McpServer, runtime: EvidenceRuntime
         const text = evidenceFollowup(storageRoot, r.report!, r.offset, r.maxBytes);
         return runtime.respond({ content: [{ type: "text", text }] });
       }
-      const common = { storageRoot, authorizeRead: runtime.authorizeRead, index: runtime.index, milestone: r.milestone, candidate: r.candidate };
+      const common = { storageRoot, authorizeRead: runtime.authorizeRead, index: runtime.index, indexExists: runtime.indexExists, indexScope:runtime.indexScope?.(), milestone: r.milestone, candidate: r.candidate };
       let text: string;
       let failed = false;
       if (r.operation === "github") {
@@ -72,6 +77,8 @@ export function registerTestEvidence(server: McpServer, runtime: EvidenceRuntime
         if (!capture.manifest) return error(capture.reason ?? "GitHub capture unavailable");
         text = ingestGitHubCapture(capture, common).routine;
         failed = capture.completeness !== "complete";
+      } else if(r.operation === "reference") {
+        text=ingestSharedManifest(runtime.resolvePath(r.manifest!.path),r.manifest!.sha256,common).routine;
       } else {
         text = ingestEvidence(r.files!.map(f => ({ ...f, path: runtime.resolvePath(f.path) })), {
           ...common, source: { kind: "local", repository: runtime.projectDir(), run: null, attempt: null, job: null, reason: "local evidence; remote run identity inapplicable" },

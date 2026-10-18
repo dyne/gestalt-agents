@@ -1738,6 +1738,8 @@ registerTestEvidence(server, {
     catch { return false; }
   },
   index: (text, source) => getStore().indexPlainText(text, source, undefined, currentAttribution()),
+  indexExists: source => getStore().getSourceMeta(source) !== null,
+  indexScope: () => currentAttribution()?.sessionId ?? `process-${process.pid}`,
   respond: result => trackResponse("ctx_test_evidence", result),
 });
 

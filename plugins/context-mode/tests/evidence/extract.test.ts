@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join, resolve, sep } from 'node:path';
 import { tmpdir } from 'node:os';
-import { evidenceFollowup, extractTests, ingestEvidence, ingestGitHubCapture, type IngestOptions } from '../../src/evidence/extract.js';
+import { evidenceFollowup, extractTests, ingestEvidence, ingestGitHubCapture, ingestSharedManifest, type IngestOptions } from '../../src/evidence/extract.js';
 import { digest, reference } from '../../src/evidence/github.js';
 
 let root:string;
@@ -157,5 +157,71 @@ describe('authorized capture and bounded reporting',()=>{
     for(const id of ['../input.log','report-../../etc/passwd','/etc/passwd'])expect(()=>evidenceFollowup(join(root,'evidence'),id)).toThrow();
     expect(()=>evidenceFollowup(join(root,'evidence'),r.id,-1)).toThrow();expect(()=>evidenceFollowup(join(root,'evidence'),r.id,0,10000)).toThrow();
     const page=evidenceFollowup(join(root,'evidence'),r.id,0,512);expect(Buffer.byteLength(page)).toBeLessThanOrEqual(512);
+  });
+});
+
+describe('stable scoped index references',()=>{
+  it('reuses canonical source plus digest and resolves failure locators',()=>{
+    const path=file('TAP version 13\nnot ok 1 - regression\n cause\n1..1');
+    const sources=new Map<string,string>();const index=vi.fn((text:string,source:string)=>{sources.set(source,text);return {sourceId:sources.size};});
+    const options=opts({index,indexExists:source=>sources.has(source)});
+    const a=ingestEvidence([{path}],options),b=ingestEvidence([{path}],options);
+    expect(index).toHaveBeenCalledTimes(1);expect(b.report.checks[0].index.sourceId).toBe(a.report.checks[0].index.sourceId);
+    expect(b.report.checks[0].index.reused).toBe(true);expect(b.report.checks[0].failures[0].locator).toBe('lines:2-3');
+    expect(sources.get(b.report.checks[0].index.source)).toContain('not ok 1 - regression');
+    sources.clear();ingestEvidence([{path}],options);expect(index).toHaveBeenCalledTimes(2);
+    writeFileSync(path,'TAP version 13\nok 1 - fixed\n1..1');ingestEvidence([{path}],options);expect(index).toHaveBeenCalledTimes(3);
+  });
+  it('reindexes an authorized shared capture locally, without sharing session source IDs',()=>{
+    const a=ingestEvidence([{path:file('TAP version 13\nok 1 - works\n1..1')}],opts());
+    const captured=a.report.checks[0].references[0].path,index=vi.fn(()=>({sourceId:'root-session'}));
+    const b=ingestEvidence([{path:captured,expectedSha256:a.report.checks[0].references[0].sha256}],opts({index}));
+    expect(index).toHaveBeenCalledTimes(1);expect(b.report.checks[0].index.sourceId).toBe('root-session');
+    const denied=ingestEvidence([{path:captured}],opts({authorizeRead:()=>false,index}));
+    expect(denied.report.decision).toBe('needs-evidence');expect(index).toHaveBeenCalledTimes(1);
+  });
+  it('does not let a partial capture establish complete evidence on reuse',()=>{
+    const path=file('TAP version 13\nok 1 - works\n1..1'),sources=new Set<string>(),index=vi.fn((_text:string,source:string)=>{sources.add(source);return {sourceId:1};});
+    const options=opts({index,indexExists:source=>sources.has(source)});
+    const a=ingestEvidence([{path,exit:0,completeness:'partial'}],options);
+    const b=ingestEvidence([{path,exit:0,completeness:'complete'}],options);
+    expect(a.report.decision).toBe('needs-evidence');expect(b.report.decision).toBe('supported');expect(index).toHaveBeenCalledTimes(1);
+  });
+});
+
+
+describe('session scope and durable source labels',()=>{
+  it('resolves existing labels after process-local cache loss and isolates sessions',()=>{
+    const path=file('TAP version 13\nok 1 - works\n1..1'),sources=new Set<string>();
+    const first=vi.fn((_text:string,source:string)=>{sources.add(source);return {sourceId:1};});
+    const a=ingestEvidence([{path}],opts({index:first,indexScope:'executor',indexExists:s=>sources.has(s)}));
+    const restarted=vi.fn(()=>({sourceId:2}));
+    const b=ingestEvidence([{path}],opts({index:restarted,indexScope:'executor',indexExists:s=>sources.has(s)}));
+    expect(restarted).not.toHaveBeenCalled();expect(b.report.checks[0].index.sourceId).toBe(a.report.checks[0].index.source);
+    ingestEvidence([{path}],opts({index:restarted,indexScope:'root',indexExists:s=>sources.has(s)}));expect(restarted).toHaveBeenCalledTimes(1);
+  });
+});
+
+
+describe('authorized manifest transfers',()=>{
+  it('does not reflect arbitrary provenance or credential-like identity strings',()=>{
+    const a=ingestEvidence([{path:file('TAP version 13\nok 1 - shared\n1..1')}],opts());
+    const path=join(root,'evidence',a.id,'report.json'),manifest=JSON.parse(readFileSync(path,'utf8'));
+    manifest.source={kind:'local',repository:'ghp_PRIVATE_REPOSITORY',ghp_PRIVATE_KEY:'PRIVATE_BODY'};
+    writeFileSync(path,JSON.stringify(manifest));
+    const b=ingestSharedManifest(path,digest(readFileSync(path)),opts());
+    expect(JSON.stringify(b.report.source)).not.toMatch(/ghp_PRIVATE|PRIVATE_BODY/);
+    expect(b.report.source.repository).toBe('[REDACTED]');
+  });
+  it('verifies the shared manifest digest, reauthorizes sources and reindexes locally',()=>{
+    const a=ingestEvidence([{path:file('TAP version 13\nnot ok 1 - shared failure\n1..1')}],opts());
+    const path=join(root,'evidence',a.id,'report.json'),sha=digest(readFileSync(path));
+    const index=vi.fn(()=>({sourceId:'receiving-session'}));
+    const b=ingestSharedManifest(path,sha,opts({index}));
+    expect(b.report.checks[0].failures[0].id).toContain('shared failure');expect(index).toHaveBeenCalledTimes(1);
+    expect(()=>ingestSharedManifest(path,'0'.repeat(64),opts({index}))).toThrow();
+    const denied=ingestSharedManifest(path,sha,opts({index,authorizeRead:p=>p===path}));
+    expect(denied.report.decision).toBe('needs-evidence');expect(index).toHaveBeenCalledTimes(1);
+    expect(()=>ingestSharedManifest(path,sha,opts({authorizeRead:()=>false}))).toThrow();
   });
 });

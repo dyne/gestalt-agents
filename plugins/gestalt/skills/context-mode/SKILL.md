@@ -31,8 +31,10 @@ that is large, uncertain, or needs filtering, indexing, or repeated retrieval.
    status, counts, and smallest useful failure excerpt.
 5. Print derived findings, not raw datasets. Include exact paths, identifiers,
    line numbers, values, and exit status needed to verify the conclusion.
-6. Context-mode never writes and never authorizes a mutation, deletion,
-   install, push, network call, or other external side effect.
+6. Context-mode never authorizes a mutation, deletion, install, push, network
+   call, or other external side effect. Ingestion/indexing store evidence only
+   within already authorized runtime scope; source edits and Org mutations
+   remain native operations.
 
 ## Tool selection
 
@@ -55,6 +57,11 @@ command exits. It uses existing `gh` authentication and returns at most 2048
 UTF-8 bytes. Retrieve overflow with `operation: "followup"`, its report ID and
 `nextOffset`; use returned index sources for search. Unknown formats and
 incomplete evidence remain uncertain. It does not run tests or wait for CI.
+Completed GitHub captures reuse verified local bytes with their original
+observation time; set `github.refresh: true` to revalidate remote state.
+For an authorized shared report, use `operation: "reference"` with
+`manifest: {path, sha256}`; it reauthorizes source reads and indexes in the
+receiving session. A report ID alone grants no cross-session access.
 
 ## Output rules
 
