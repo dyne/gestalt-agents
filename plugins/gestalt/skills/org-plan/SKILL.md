@@ -61,16 +61,9 @@ For mobile interoperability, see the versioned
 
 ## Invariants
 
-Use one-based canonical position labels in plan communication: L1 position `a`
-is `L<a>` and its L2 child position `b` is `L<a>.<b>`. IDs remain machine state
-keys. Agent-roster identity is exact: the root is `l0`; the executor for L1
-position `a` is exactly `l<a>`. Pass that literal value as `task_name` (`l1`,
-then `l2`, and so on). Do not append a title, role, nickname, plan name, L2
-position, or generated display label. For a replacement, use the exact
-physical identity supplied by Mobile's durable replacement authorization.
-Never infer, choose, or increment a generation locally. Without that exact
-authorization, resume the assigned physical executor or report the control
-state conflict to Mobile; generated prose cannot authorize a replacement.
+Use one-based labels `L<a>` and `L<a>.<b>` in plan communication; IDs remain
+machine state keys. Supervised roles use the exact identities and replacement
+authorization in [Canonical positions and agent names](references/supervised-execution.md#canonical-positions-and-agent-names).
 
 1. Every L1 has exactly one non-empty `:SKILLS:` property and one
    `:REVIEW_STATUS:` property. New L1s start `UNREVIEWED`; L2s have neither.
@@ -108,84 +101,22 @@ state conflict to Mobile; generated prose cannot authorize a replacement.
     repository instruction, release workflow, or claim that the plan
     is a deliverable. Do not mention that the local `.gestalt` Org
     plan remains intentionally untracked.
-11. Execution is completion-driven with explicit report boundaries. One
-    executor owns the whole assigned L1, not one L2, and returns concise
-    evidence whenever an L2 reaches DONE. The root validates the L2 state,
-    focused evidence, and changed-file scope, then projects it. When supported,
-    call `gestalt_org_plan_checkpoint` once with `l2Completed` and return one
-    compact L2 final. It is the turn's last tool call; only status `recorded`
-    authorizes the final. `alreadyRecorded` reconciles without another final;
-    `failed`, missing, rejected, terminated, or result-less calls require
-    same-turn supervision. Autopilot's next root turn resumes the executor or
-    begins review. Without checkpointing, summarize in commentary and call
-    `followup_task` before any root response. Review only DONE + UNREVIEWED
-    L1s. After an L1 is ACCEPTED, committed when changed, REVIEWED, and
-    projected, one concise root accepted-L1 final must end that root turn; it
-    never ends the plan. This accepted-L1 boundary is mandatory even when the
-    checkpoint tool is unavailable: do not continue into the next L1, emit
-    documentation as ongoing commentary, or launch its executor in that turn.
-    A later root turn revalidates durable state, selects the next L1, and
-    launches exactly one fresh canonical executor. Continue through every L1
-    and a later terminal review until final gates pass.
-    A checkpoint is a short, idempotent persist-and-ack boundary, never a wait
-    episode. Do not register a wait lease or wait for `executorChanged` after
-    it. Mobile starts the next fenced continuation from durable
-    `checkpointChanged` after the matching root final. If a later turn observes
-    `checkpointHandoffFailed`, re-read durable plan and control state; do not
-    blindly replay the checkpoint, request attention, or invent a replacement.
-    Treat `safetyPaused` as a safe terminal control state and resume only after
-    Mobile or explicit manual recovery.
-    If Codex reports `agent thread limit reached` after child initialization
-    failed, inspect the roster. When stale, non-working `pending_init` entries
-    still consume every slot and interrupting them does not release capacity,
-    call `gestalt_agent_capacity_recovery` exactly once with version 1 and
-    reason `agentThreadLimit`. Its accepted response recycles only the current
-    Codex runtime while preserving the durable root thread and Org Plan;
-    Autopilot resumes supervision after restoration. Do not request human
-    attention or retry spawning during that handoff. Report an execution
-    blocker only when the recovery tool is unavailable or rejects the
-    root-owned request.
-12. Final acceptance requires a fresh depth-one whole-branch reviewer after
-    every L1 is REVIEWED and its executor terminated. Spawn with
-    `fork_turns=none`, `agent_type=default`, and `task_name=final_review`.
-    Omit `model` and `reasoning_effort` to inherit the active root settings;
-    avoid roles that pin them. Assign terminal-reviewer duties and provide
-    the implemented-plan overview. Require severity-ranked findings. For
-    P0/P1 issues, make that reviewer the sole writer: fix every P0/P1, add
-    regression coverage, and run focused plus full-suite checks before root
-    acceptance and one conventional final-review correction commit. Never
-    finish with unresolved P0/P1.
-13. At the beginning of every new or resumed relay session that supervises an
-    incomplete plan, validate the exact plan and run `org-plan signal PLAN
-    supervision-start` before milestone-state recovery, roster recovery,
-    executor follow-up, or executor spawn. This is session-scoped, not
-    plan-scoped: run it even when an L1 is already WIP or earlier L1s are
-    REVIEWED. In Mobile's session-directory mode the helper retains an existing
-    signal for the same plan, so a later root turn cannot re-enable control
-    after explicit manual Off; a newly resumed relay session has a fresh
-    directory and publishes its own signal. `supervision-start` has a verifiable postcondition:
-    Mobile either reports
-    enabled, healthy control for the retained plan, or the root records one
-    bounded compatibility warning and remains in same-turn continuous
-    supervision. At every would-be yield on an incomplete plan, the root must
-    take one legal disposition: do actionable work, follow up the same
-    executor, checkpoint and report a DONE L2, review/correct, checkpoint and
-    report an accepted L1, register a
-    one-shot wait lease, declare table-qualified attention, or confirm
-    explicit manual Off. Status prose alone is never a disposition. Executor
-    completion, error, interruption, idle state, process result, and a user
-    status question are root wake inputs; an immediate action never requires a
-    probe or lease first.
+11. Supervision is completion-driven. Read the entire
+    [supervision reference](references/supervised-execution.md) for startup,
+    ownership, continuation, capacity recovery, and report boundaries. Its
+    completed-L2, accepted-L1, and terminal-report sections govern checkpoint
+    outcomes and fallbacks; a boundary never grants review authority.
+12. Final acceptance requires the
+    [terminal whole-branch review](references/supervised-execution.md#terminal-whole-branch-review)
+    and final gates after all L1s are REVIEWED. Read that contract before
+    terminal review, including its sole-writer P0/P1 correction procedure.
 
 ## One-shot long waits
 
-Use a version 2 wait lease only for work expected to exceed the ordinary
-Autopilot interval. Supply unique IDs, the smallest observable wake set, and a
-60000–86400000 ms deadline. Yield only after `accepted:true`. On tool absence,
-`accepted:false`, or `wakeAlreadySatisfied`, inspect current state and continue
-in the same root turn. A lease covers one episode; it never waits for a
-checkpoint or hides an idle executor. Supervised roles read the exact event and
-CI-watcher rules in [Supervised execution](references/supervised-execution.md).
+Before using a lease, read the
+[one-shot long-wait contract](references/supervised-execution.md#one-shot-long-wait-lease),
+including rejection/unavailable-tool behavior and the owned CI watcher. A lease
+never replaces actionable work or a checkpoint boundary.
 
 ## Human-attention decision table
 
@@ -205,8 +136,9 @@ a signal.
 | Relevant external state changed after safe refresh or verification. | `externalState` | `externalStateChanged` |
 | A material ambiguity remains after the plan and repository evidence are exhausted. | `materialAmbiguity` | `userGuidance` |
 
-Progress, review readiness, recoverable failures, checkpoints, elapsed time,
-and executor idleness are not attention conditions.
+L1/L2 progress, child reports, waiting on a live child, review readiness,
+recoverable test failures, merge conflicts, token/context pressure, elapsed
+time, checkpoints, and executor idleness are not attention conditions.
 
 ## Authoring workflow
 
@@ -258,22 +190,13 @@ writes or changes Org state.
    accepted-L1 checkpoint is a boundary final, not a request for user
    approval and not plan completion.
 
-The root performs the native projection after every successful lifecycle
-boundary named above; executors only report their successful helper mutation.
-Never ask Bash, an MCP server, or a generated profile to invoke `update_plan`.
-
-In checkpoint-capable sessions, after validating and projecting an L2, call
-`gestalt_org_plan_checkpoint` once with `l2Completed`. Its `recorded` return
-authorizes one concise root final with no intervening tool call. After an
-accepted L1's commit, review, and projection, do the same with `l1Accepted`.
-That final ends the turn; later milestone work is forbidden there. A later turn
-performs final-L1 terminal review. Only after it and final gates may the root
-checkpoint `terminalReviewAccepted` and emit terminal success. Without
-checkpointing, retain every gate; completed L2s may use continuous supervision,
-but an accepted L1 still ends its root turn before the next L1 begins.
-
-Each L2/L1 boundary final rolls new outcomes, files, commands, and verification
-into one answer; later work starts in a new root turn.
+Only the active root invokes host `update_plan` per invariant 4; executors
+report mutations. Never ask Bash, an MCP server, or a generated profile to
+invoke it. When using checkpoint/report boundaries, first read the mandatory
+[completed-L2](references/supervised-execution.md#completed-l2-boundary),
+[accepted-L1](references/supervised-execution.md#accepted-l1-boundary), and
+[terminal-report](references/supervised-execution.md#terminal-whole-plan-report)
+contracts. Manual execution otherwise continues immediately through L2s.
 
 Stop before plan completion, except at a validated L2 or accepted-L1 report
 boundary, only for a genuine external blocker that cannot be

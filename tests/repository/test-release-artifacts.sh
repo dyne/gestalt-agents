@@ -52,8 +52,10 @@ artifacts="$tmp/dist"
 
 python3 - "$root" "$artifacts" "$tag" <<'PY'
 import hashlib
+import json
 import subprocess
 import sys
+import tomllib
 import zipfile
 from pathlib import Path, PurePosixPath
 
@@ -87,6 +89,38 @@ assert "plugins/context-mode/.codex-plugin/plugin.json" in bundle_entries
 assert "plugins/context-mode/.mcp.json" in bundle_entries
 assert "plugins/context-mode/package.json" in bundle_entries
 assert {f"plugins/gestalt/skills/{skill}/SKILL.md" for skill in skills} <= bundle_entries
+
+# Check delivered bytes, not only filenames. Generate profiles from the actual
+# archive helper in isolation so a stale bootstrap cannot pass source tests.
+instruction_paths = (
+    "plugins/gestalt/skills/org-plan/SKILL.md",
+    "plugins/gestalt/skills/org-plan/references/supervised-execution.md",
+    "plugins/gestalt/skills/context-mode/SKILL.md",
+    "plugins/gestalt/skills/org-plan/scripts/org-plan",
+)
+delivered = artifacts / "instruction-delivery"
+delivered.mkdir()
+with zipfile.ZipFile(artifacts / f"gestalt-agents-{tag}.zip") as bundle:
+    for relative in instruction_paths:
+        assert bundle.read(relative) == (root / relative).read_bytes(), relative
+        bundle.extract(relative, delivered)
+    gestalt = json.loads(bundle.read("plugins/gestalt/.codex-plugin/plugin.json"))
+    context = json.loads(bundle.read("plugins/context-mode/.codex-plugin/plugin.json"))
+    assert gestalt["skills"] == "./skills/"
+    assert "skills" not in context, "duplicate active routing-skill provider"
+
+helper = "plugins/gestalt/skills/org-plan/scripts/org-plan"
+for source, destination in ((root, artifacts / "source-profiles"),
+                            (delivered, artifacts / "delivered-profiles")):
+    subprocess.run(["bash", str(source / helper), "prepare-supervision",
+                    "--agents-dir", str(destination)], check=True, capture_output=True)
+for role in ("reviewer", "executor"):
+    relative = f"org-plan-{role}.toml"
+    source = (artifacts / "source-profiles" / relative).read_bytes()
+    actual = (artifacts / "delivered-profiles" / relative).read_bytes()
+    assert actual == source, f"stale delivered profile: {role}"
+    profile = tomllib.loads(actual.decode())
+    assert "supervised-execution reference" in profile["developer_instructions"]
 
 checksum_lines = (artifacts / "SHA256SUMS").read_text().splitlines()
 assert len(checksum_lines) == len(expected)
