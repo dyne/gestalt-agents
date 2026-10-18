@@ -18,8 +18,26 @@ const preflightOnly = process.env.LIVE_PACKAGED_PREFLIGHT_ONLY === "1";
 const binary = realpathSync(process.env.LIVE_HOST_CODEX_BINARY), manager = realpathSync(process.env.LIVE_HOST_MANAGER_BINARY), caddyBinary = realpathSync(process.env.LIVE_HOST_CADDY_BINARY);
 const hash = (bytes) => createHash("sha256").update(bytes).digest("hex");
 const wait = (ms) => new Promise((done) => setTimeout(done, ms));
+// Successful three-generation catalogs measured 114/184/258s. Share 395s
+// across both servers and every poll, rather than restarting 15m per RPC.
+const CATALOG_PHASE_MS = 395000, PROOF_BUDGET_MS = 40 * 60000, CLEANUP_BUDGET_MS = 45000;
+const proofDeadline = Date.now() + PROOF_BUDGET_MS;
+function remaining(deadline, cap = Infinity) {
+  const budget = Math.min(cap, deadline - Date.now());
+  if (budget <= 0) throw new Error("PROOF_DEADLINE");
+  return budget;
+}
+async function bounded(action, deadline, code = "PROOF_DEADLINE") {
+  let timer;
+  try {
+    const budget = remaining(deadline);
+    return await Promise.race([Promise.resolve().then(action), new Promise((_, reject) => {
+      timer = setTimeout(() => reject(new Error(code)), budget);
+    })]);
+  } finally { clearTimeout(timer); }
+}
 async function until(predicate, budget = 15000) {
-  const deadline = Date.now() + budget;
+  const deadline = Date.now() + remaining(proofDeadline, budget);
   while (Date.now() < deadline) { try { if (predicate()) return; } catch {} await wait(50); }
   throw new Error("PROOF_DEADLINE");
 }
@@ -35,6 +53,50 @@ const report = {
     acceptedManagerCommit: "4515cf31c4d00d8ecbdfa363085315f7cb13f78c", acceptedManagerTree: "349182948619bbbeab892c9884cfb06badf13997", nativeSource: "979011409de0a60b52f179721948e65531d26144" },
   limitations: ["No model credentials or production owning-session/picker proof; L11 remains required.", "Hooks are explicitly disabled only in this controlled disposable fixture, as in accepted L9; no ordinary installed-home readiness claim."],
 };
+// Emit only fixed phase/method names and timings; never arguments, environments,
+// native output or private receipt contents. Persist before potentially long work.
+const proofBegan = Date.now();
+let phase = report.stage, phaseBegan = proofBegan, operationSequence = 0;
+function progress(event, details = {}) {
+  const entry = { event, stage: phase, elapsedMs: Date.now() - proofBegan, ...details };
+  mkdirSync(evidence, { recursive: true });
+  writeFileSync(join(evidence, "progress.json"), `${JSON.stringify(entry)}\n`);
+  process.stdout.write(`${JSON.stringify(entry)}\n`);
+}
+Object.defineProperty(report, "stage", { enumerable: true, get: () => phase, set(value) {
+  progress("phase-end", { durationMs: Date.now() - phaseBegan });
+  phase = value; phaseBegan = Date.now(); progress("phase-start");
+} });
+function operationStarted(operation) {
+  const id = ++operationSequence, began = Date.now();
+  progress("operation-start", { operation, id });
+  return (outcome) => progress("operation-end", { operation, id, outcome, durationMs: Date.now() - began });
+}
+function persistReport() {
+  mkdirSync(evidence, { recursive: true });
+  writeFileSync(join(evidence, "native-proof.json"), `${JSON.stringify(report, null, 2)}\n`);
+}
+async function cleanupOwned(steps) {
+  const deadline = Date.now() + CLEANUP_BUDGET_MS;
+  report.cleanup = { completed: false, failures: [] }; persistReport();
+  for (const [name, action] of steps) {
+    const finished = operationStarted(`cleanup/${name}`);
+    try {
+      await bounded(action, Math.min(deadline, Date.now() + 8000), "CLEANUP_DEADLINE");
+      finished("returned");
+    } catch (error) {
+      report.cleanup.failures.push({ resource: name, reason: ["CLEANUP_DEADLINE", "CLEANUP_CHILD_ALIVE", "PROOF_DEADLINE"].includes(error.message) ? error.message : "CLEANUP_FAILED" });
+      finished("failed");
+    }
+    persistReport();
+  }
+  report.cleanup.completed = report.cleanup.failures.length === 0;
+  if (!report.cleanup.completed) {
+    report.passed = false; report.failure ??= "CLEANUP_FAILED"; process.exitCode = 1;
+  }
+  persistReport();
+}
+progress("phase-start");
 let native, caddy, socketServer, activeAbort, authFd, contextProxy, orgProxy, elected, provider;
 let admittedNode, proofManifest;
 const minimal = { PATH: "/usr/bin:/bin", HOME: owningHome, CODEX_HOME: owningHome, TMPDIR: "/tmp", LANG: "C.UTF-8" };
@@ -43,14 +105,25 @@ const identity = (pid) => {
   return { pid, birth: stat.slice(stat.lastIndexOf(")") + 2).split(" ")[19], uid: process.getuid(),
     namespaces: Object.fromEntries(["mnt", "user", "pid"].map((name) => [name, readlinkSync(`/proc/${pid}/ns/${name}`)])) };
 };
-const managerApi = (operation, manifestPath, ...args) => JSON.parse(execFileSync(manager, ["live-policy", operation, "--manifest", manifestPath, ...args], {
-  cwd: privateRoot, env: managerEnvironment(admittedNode, home), encoding: "utf8", timeout: MANAGER_OBSERVATION_MS, maxBuffer: 262144,
-}));
+const managerApi = (operation, manifestPath, ...args) => {
+  const finished = operationStarted(`manager/${operation}`);
+  try {
+    const result = JSON.parse(execFileSync(manager, ["live-policy", operation, "--manifest", manifestPath, ...args], {
+      cwd: privateRoot, env: managerEnvironment(admittedNode, home), encoding: "utf8", timeout: remaining(proofDeadline, MANAGER_OBSERVATION_MS), maxBuffer: 262144,
+    }));
+    finished("returned"); return result;
+  } catch (error) { finished("failed"); throw error; }
+};
 async function close(child) {
   if (!child || child.exitCode !== null || child.signalCode !== null) return;
+  const waitExit = async () => {
+    const deadline = Date.now() + 4000;
+    while (child.exitCode === null && child.signalCode === null && Date.now() < deadline) await wait(50);
+    if (child.exitCode === null && child.signalCode === null) throw new Error("CLEANUP_CHILD_ALIVE");
+  };
   child.kill("SIGTERM");
-  try { await until(() => child.exitCode !== null || child.signalCode !== null, 4000); }
-  catch { child.kill("SIGKILL"); await until(() => child.exitCode !== null || child.signalCode !== null, 4000); }
+  try { await waitExit(); }
+  catch { child.kill("SIGKILL"); await waitExit(); }
 }
 function rpcClient(child) {
   let counter = 0, buffer = ""; const pending = new Map();
@@ -61,6 +134,7 @@ function rpcClient(child) {
       let message; try { message = JSON.parse(line); } catch { continue; }
       const call = pending.get(message.id); if (!call) continue;
       pending.delete(message.id); clearTimeout(call.timer);
+      call.finished(message.error ? "refused" : "returned");
       if (message.error) {
         const error = new Error("NATIVE_RPC_REFUSED");
         error.rpc = { method: call.method, code: message.error.code,
@@ -70,8 +144,10 @@ function rpcClient(child) {
     }
   });
   return (method, params, timeoutMs = method === "initialize" ? MANAGER_OBSERVATION_MS : 20000) => new Promise((done, reject) => {
-    const id = ++counter, timer = setTimeout(() => { pending.delete(id); reject(new Error("NATIVE_RPC_TIMEOUT")); }, timeoutMs);
-    pending.set(id, { done, reject, timer, method }); child.stdin.write(`${JSON.stringify({ jsonrpc: "2.0", id, method, params })}\n`);
+    timeoutMs = remaining(proofDeadline, timeoutMs);
+    const finished = operationStarted(`rpc/${method}`);
+    const id = ++counter, timer = setTimeout(() => { pending.delete(id); finished("timeout"); reject(new Error("NATIVE_RPC_TIMEOUT")); }, timeoutMs);
+    pending.set(id, { done, reject, timer, method, finished }); child.stdin.write(`${JSON.stringify({ jsonrpc: "2.0", id, method, params })}\n`);
   });
 }
 try {
@@ -118,7 +194,7 @@ try {
   await new Promise((done, reject) => { socketServer.once("error", reject); socketServer.listen(controlSocket, done); });
   writeFileSync(caddyConfig, JSON.stringify({ admin: { listen: `unix/${caddySocket}` }, apps: { http: { servers: { fixture: { listen: ["127.0.0.1:0"], routes: [{ handle: [{ handler: "static_response", body: "fixture" }] }] } } } } }), { mode: 0o600 });
   caddy = spawn(caddyBinary, ["run", "--config", caddyConfig], { env: minimal, stdio: "ignore" }); await until(() => lstatSync(caddySocket).isSocket());
-  const caddyAlive = () => new Promise((done, reject) => { const req = httpRequest({ socketPath: caddySocket, path: "/config/" }, (response) => { response.resume(); response.once("end", () => done(response.statusCode === 200)); }); req.once("error", reject); req.end(); });
+  const caddyAlive = () => bounded(() => new Promise((done, reject) => { const req = httpRequest({ socketPath: caddySocket, path: "/config/" }, (response) => { response.resume(); response.once("end", () => done(response.statusCode === 200)); }); req.once("error", reject); req.end(); }), proofDeadline);
   assert.equal(await caddyAlive(), true);
   const profile = "l10-proof", narrowProfile = "l10-narrow", daemon = `/tmp/codex-daemon-${process.getuid()}`;
   let captureId = randomUUID();
@@ -178,7 +254,7 @@ try {
   const saveInput = () => writeFileSync(bootstrapPath, JSON.stringify(input), { mode: 0o600 });
   saveInput(); save(); let config = stageAdmission(bootstrapPath);
   report.stage = "managed-owning-native-birth";
-  const bootstrap = execFileSync(manager, ["cli", "--", "--live-policy-bootstrap", "--manifest", manifestPath], { cwd: app, env: managerEnvironment(admittedNode, home), timeout: MANAGER_OBSERVATION_MS, stdio: ["ignore", "pipe", "pipe"] });
+  const bootstrap = execFileSync(manager, ["cli", "--", "--live-policy-bootstrap", "--manifest", manifestPath], { cwd: app, env: managerEnvironment(admittedNode, home), timeout: remaining(proofDeadline, MANAGER_OBSERVATION_MS), stdio: ["ignore", "pipe", "pipe"] });
   assert.equal(lstatSync(daemon).mode & 0o777, 0o700);
   let captured = managerApi("capture-runtime", manifestPath, "--capture-id", captureId);
   report.capture = { available: captured.available, extensions: captured.extensions, sourceCount: captured.originalLaunchSources?.length };
@@ -217,22 +293,23 @@ try {
   for (const descriptor of Object.values(preparedConfig.mcpServers)) {
     assert.deepEqual(descriptor.env, {}); assert.equal(descriptor.enabled, true); assert.equal(descriptor.required, false);
   }
-  const resumePackaged = async () => {
-    const unloaded = await rpc("thread/unsubscribe", { threadId: started.thread.id });
+  const resumePackaged = async (call = rpc) => {
+    const unloaded = await call("thread/unsubscribe", { threadId: started.thread.id });
     assert.ok(["unsubscribed", "notSubscribed", "notLoaded"].includes(unloaded.status));
-    const resumed = await rpc("thread/resume", { threadId: started.thread.id, excludeTurns: true,
+    const resumed = await call("thread/resume", { threadId: started.thread.id, excludeTurns: true,
       cwd: app, permissions: manifest.profileId, approvalPolicy: "never", model: "gpt-6-sol", modelProvider: "controlled",
       config: { mcp_servers: preparedConfig.mcpServers, plugins: {} } });
     assert.equal(resumed.thread.id, started.thread.id);
     return resumed;
   };
-  const owningMcpStatus = async () => {
+  const owningMcpStatus = async (deadline = Math.min(proofDeadline, Date.now() + CATALOG_PHASE_MS)) => {
     const data = [];
     // The supported serverName+threadId API reuses the owning connection.
     // Broad discovery creates additional threadless MCP clients, which are not
     // evidence about the original owning thread and can race its single worker.
     for (const serverName of ["context-mode", "gestalt-org-plan"]) {
-      const page = await rpc("mcpServerStatus/list", { threadId: started.thread.id, serverName, detail: "full" }, 900000);
+      const page = await rpc("mcpServerStatus/list", { threadId: started.thread.id, serverName, detail: "full" }, remaining(deadline));
+      remaining(deadline);
       assert.equal(page.nextCursor, null);
       assert.deepEqual(page.data.map((server) => server.name), [serverName]);
       data.push(...page.data);
@@ -345,20 +422,23 @@ try {
   // fixture. No wrapper or descriptor environment override removes that default.
   const connectCurrent = async () => {
     const catalogStarted = Date.now();
-    started = await resumePackaged();
+    const deadline = Math.min(proofDeadline, catalogStarted + CATALOG_PHASE_MS);
+    const call = (method, params, budget = 20000) => rpc(method, params, remaining(deadline, budget));
+    started = await resumePackaged(call);
     const sealed = JSON.parse(readFileSync(join(dirname(manifestPath), "sources.json")));
-    const currentConfiguration = await rpc("config/read", { cwd: app, includeLayers: true });
-    const currentObservation = controlledObservation(currentConfiguration, started, await rpc("account/read", { refreshToken: false }));
+    const currentConfiguration = await call("config/read", { cwd: app, includeLayers: true });
+    const currentObservation = controlledObservation(currentConfiguration, started, await call("account/read", { refreshToken: false }));
     assert.deepEqual(currentObservation, sealed.observation);
     assert.equal(hash(stable(currentConfiguration.config)), sealed.effectiveConfigDigest);
     let nativeMcp;
     for (let attempt = 0; attempt < 30; attempt++) {
-      nativeMcp = await owningMcpStatus();
+      nativeMcp = await owningMcpStatus(deadline);
       const states = nativeMcp.data.map((server) => server.runtimeStatus);
       if (!states.includes("starting")) break;
-      await wait(1000);
+      await wait(remaining(deadline, 1000));
     }
     report.nativeCatalogDurationMs = Date.now() - catalogStarted;
+    remaining(deadline);
     assert.equal(nativeMcp.nextCursor, null);
     assert.deepEqual(nativeMcp.data.map((server) => server.name).sort(), ["context-mode", "gestalt-org-plan"]);
     report.nativeMcp = nativeMcp.data.map((server) => ({ name: server.name, runtimeStatus: server.runtimeStatus,
@@ -387,7 +467,11 @@ try {
     child.stderr.resume(); return child;
   };
   contextProxy = proxy("context-mode"); orgProxy = proxy("gestalt-org-plan");
-  const contextClient = createMcpTestClient(contextProxy, { timeoutMs: 400000 }), orgClient = createMcpTestClient(orgProxy, { timeoutMs: 95000 });
+  const deadlineClient = (child, timeoutMs) => {
+    const client = createMcpTestClient(child, { timeoutMs });
+    return { request: (...args) => bounded(() => client.request(...args), proofDeadline) };
+  };
+  const contextClient = deadlineClient(contextProxy, 400000), orgClient = deadlineClient(orgProxy, 95000);
   // Host lifecycle tests require the controller's exact minimal PATH and no
   // inherited publication destination; no request can choose these settings.
   for (const name of Object.keys(process.env)) delete process.env[name];
@@ -689,14 +773,23 @@ try {
   }
   process.exitCode = 1;
 } finally {
+  // Preserve the proof outcome even if owned-resource cleanup stalls or throws.
+  // Keep the proof phase intact and report cleanup separately.
+  report.cleanup = { completed: false, failures: [] };
+  persistReport();
+  progress("cleanup-start");
   activeAbort?.abort();
-  await close(contextProxy); await close(orgProxy);
-  await close(native); await close(caddy);
-  await elected?.close();
-  if (provider?.listening) await new Promise((done) => provider.close(done));
-  if (authFd !== undefined) closeSync(authFd);
-  if (socketServer) await new Promise((done) => socketServer.close(done));
-  mkdirSync(evidence, { recursive: true }); writeFileSync(join(evidence, "native-proof.json"), `${JSON.stringify(report, null, 2)}\n`);
-  rmSync(root, { recursive: true, force: true });
-  process.stdout.write(`${JSON.stringify({ passed: report.passed, stage: report.stage, checks: Object.keys(report.checks), failure: report.failure })}\n`);
+  await cleanupOwned([
+    ["context-proxy", () => close(contextProxy)], ["org-proxy", () => close(orgProxy)],
+    ["native", () => close(native)], ["caddy", () => close(caddy)],
+    ["elected-controller", () => elected?.close()],
+    ["provider", () => provider?.listening ? new Promise((done) => { provider.close(done); provider.closeAllConnections(); }) : undefined],
+    ["auth-fd", () => { if (authFd !== undefined) closeSync(authFd); }],
+    ["socket-server", () => socketServer ? new Promise((done) => socketServer.close(done)) : undefined],
+  ]);
+  // Retain failed fixture state until the disposable runner reaps it. Never
+  // advertise incomplete cleanup as a successful proof or linger on open handles.
+  if (report.cleanup.completed) rmSync(root, { recursive: true, force: true });
+  progress("cleanup-end");
+  process.stdout.write(`${JSON.stringify({ passed: report.passed, cleanupCompleted: report.cleanup.completed, stage: report.stage, checks: Object.keys(report.checks), failure: report.failure })}\n`, () => process.exit(process.exitCode ?? 0));
 }
