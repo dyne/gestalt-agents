@@ -5,6 +5,12 @@ import { tmpdir } from 'node:os';
 import { evidenceFollowup, extractTests, ingestEvidence, ingestGitHubCapture, ingestSharedManifest, type IngestOptions } from '../../src/evidence/extract.js';
 import { digest, reference } from '../../src/evidence/github.js';
 
+const io=vi.hoisted(()=>({bytes:0}));
+vi.mock('node:fs',async()=>{
+  const fs=await vi.importActual<typeof import('node:fs')>('node:fs');
+  return {...fs,readSync:(...args:any[])=>{const n=(fs.readSync as any)(...args);io.bytes+=n;return n;}};
+});
+
 let root:string;
 beforeEach(()=>{root=realpathSync(mkdtempSync(join(tmpdir(),'evidence-extract-')));});
 afterEach(()=>{vi.unstubAllEnvs();rmSync(root,{recursive:true,force:true});});
@@ -250,5 +256,57 @@ describe('authorized manifest transfers',()=>{
     const denied=ingestSharedManifest(path,sha,opts({index,authorizeRead:p=>p===path}));
     expect(denied.report.decision).toBe('needs-evidence');expect(index).toHaveBeenCalledTimes(1);
     expect(()=>ingestSharedManifest(path,sha,opts({authorizeRead:()=>false}))).toThrow();
+  });
+});
+
+
+describe('PR review evidence integrity regressions',()=>{
+  it.each([[0,1],[1,0]])('preserves conflicting embedded %i and supplied %i exits through repeated transfers',(embedded,supplied)=>{
+    let r=ingestEvidence([{path:file(json([{id:'pass',status:'passed'}],{exitCode:embedded})),exit:supplied}],opts());
+    for(let i=0;i<3;i++){
+      expect(r.report.decision).toBe('contradictory');
+      expect(r.report.checks[0]).toMatchObject({exit:null,suppliedExit:supplied,embeddedExit:embedded});
+      const path=join(root,'evidence',r.id,'report.json');
+      r=ingestSharedManifest(path,digest(readFileSync(path)),opts());
+    }
+  });
+  it('preserves original observation times and records transfer time separately',()=>{
+    const observedAt='2020-01-01T00:00:00.000Z',checkAt='2020-01-01T00:00:01.000Z';
+    let r=ingestEvidence([{path:file(json([{id:'pass',status:'passed'}],{exitCode:0})),observedAt:checkAt}],opts({observedAt}));
+    for(let i=0;i<2;i++){
+      const path=join(root,'evidence',r.id,'report.json');
+      r=ingestSharedManifest(path,digest(readFileSync(path)),opts());
+      expect(r.report.observedAt).toBe(observedAt);expect(r.report.checks[0].observedAt).toBe(checkAt);
+      expect(Date.parse(r.report.transferredAt)).toBeGreaterThan(Date.parse(checkAt));
+    }
+  });
+  it('does not invent observation times for legacy manifests',()=>{
+    const r=ingestEvidence([{path:file('TAP version 13\nok 1 - pass\n1..1'),exit:0}],opts());
+    const path=join(root,'evidence',r.id,'report.json'),manifest=JSON.parse(readFileSync(path,'utf8'));
+    delete manifest.observedAt;delete manifest.checks[0].observedAt;
+    writeFileSync(path,JSON.stringify(manifest));
+    const shared=ingestSharedManifest(path,digest(readFileSync(path)),opts());
+    expect(shared.report.observedAt).toBeNull();expect(shared.report.checks[0].observedAt).toBeNull();
+  });
+  it.each(['ok 2 - pass\n1..1','ok 0 - pass\n1..1','ok 1 - pass\nok 3 - pass\n1..2','ok 1 - pass\nok 01 - duplicate\n1..2','ok 9007199254740993 - unsafe\n1..1'])(
+    'rejects incomplete or invalid TAP numeric coverage: %s',body=>{
+      const r=ingestEvidence([{path:file('TAP version 13\n'+body),exit:0}],opts());
+      expect(r.report.checks[0].certainty).toBe('unknown');expect(r.report.decision).not.toBe('supported');
+    });
+  it('accepts exactly the planned TAP range even when reordered',()=>{
+    expect(extractTests('TAP version 13\nok 2 - second\nok 1 - first\n1..2').certainty).toBe('known');
+  });
+  it('paginates with linear read cost and detects report mutation',()=>{
+    const r=ingestEvidence([{path:file(json(Array.from({length:300},(_,i)=>({id:String(i),status:'failed',cause:'detail '.repeat(50)}))))}],opts());
+    const path=join(root,'evidence',r.id,'report.json'),original=readFileSync(path),parts:Buffer[]=[];
+    io.bytes=0;let offset=0;
+    do {
+      const page=JSON.parse(evidenceFollowup(join(root,'evidence'),r.id,offset));
+      expect(page.sha256).toBe(digest(original));parts.push(Buffer.from(page.data));offset=page.nextOffset;
+    }while(offset!==null);
+    expect(Buffer.concat(parts)).toEqual(original);
+    expect(io.bytes).toBeLessThan(original.length*8);
+    const changed=Buffer.from(original);changed[100]^=1;writeFileSync(path,changed);
+    expect(()=>evidenceFollowup(join(root,'evidence'),r.id)).toThrow('evidence changed');
   });
 });

@@ -1727,10 +1727,11 @@ registerTestEvidence(server, {
       if (!isAbsolute(project)) return false;
       const codex = detectPlatform().platform === "codex";
       const allow = codex ? [] : readToolPermissionPatterns("Read", "allow", project);
-      if (!evaluateProjectContainment(path, project, allow).allowed) return false;
+      const supplied = resolveProjectPath(path), canonical = realpathSync(supplied);
+      if (!evaluateProjectContainment(canonical, project, allow).allowed) return false;
       const deny = readToolDenyPatterns("Read", project);
-      return !evaluateFilePath(path, deny, process.platform === "win32", project).denied &&
-        !evaluateFilePath(relative(project, resolveProjectPath(path)), deny, process.platform === "win32", project).denied;
+      return [path, supplied, canonical, relative(project, canonical), relative(resolve(getProjectDir()), supplied)]
+        .every(candidate => !evaluateFilePath(candidate, deny, process.platform === "win32", project).denied);
     } catch { return false; }
   },
   authorizeGh: args => {

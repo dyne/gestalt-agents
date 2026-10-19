@@ -7,14 +7,21 @@ import { captureGitHub, digest } from "../../src/evidence/github.js";
 import { unpackEvidenceZip } from "../../src/evidence/zip.js";
 import { ingestGitHubCapture } from "../../src/evidence/extract.js";
 
-const faults = vi.hoisted(() => ({ mode: "", spawn: false, fds: new Map<number,string>() }));
+const faults = vi.hoisted(() => ({ mode: "", spawn: false, windows: false, fds: new Map<number,string>() }));
+vi.mock("node:path", async () => {
+  const path=await vi.importActual<typeof import("node:path")>("node:path");
+  return {...path,get sep(){return faults.windows?"\\":path.sep;}};
+});
 vi.mock("node:fs", async () => {
   const fs = await vi.importActual<typeof import("node:fs")>("node:fs");
+  const native=(p:any)=>faults.windows&&typeof p==='string'&&p.startsWith('C:')?p.slice(2).replaceAll('\\','/'):p;
   return { ...fs,
+    realpathSync:(...args:any[])=>{const p=(fs.realpathSync as any)(...args);return faults.windows?'C:'+p.replaceAll('/','\\'):p;},
+    statSync:(p:any,...args:any[])=>(fs.statSync as any)(native(p),...args),
     openSync: (...args: any[]) => { if(faults.mode==='open'){faults.mode='';throw new Error('PRIVATE open failure');}const fd=(fs.openSync as any)(...args);faults.fds.set(fd,String(args[0]));return fd; },
     readFileSync: (...args: any[]) => {
       if(faults.mode==='read' && String(args[0]).endsWith('-logs-20.capture')) {faults.mode='';throw new Error('PRIVATE storage read failure');}
-      return (fs.readFileSync as any)(...args);
+      return (fs.readFileSync as any)(native(args[0]),...args.slice(1));
     },
     closeSync: (fd:number) => {
       if(faults.fds.get(fd)?.endsWith('-logs-20.capture') && faults.mode.startsWith('close')) {
@@ -220,6 +227,14 @@ describe('terminal capture reuse',()=>{
     const again=await captureGitHub(selector,options());
     expect(again.reuse).toBe('cached-terminal');expect(calls()).toBe(n);
     expect(again.observedAt).toBe(first.observedAt);expect(again.manifest).toEqual(first.manifest);
+  });
+  it('reuses terminal captures with Windows canonical path separators',async()=>{
+    const first=await captureGitHub(selector,options()),n=calls();
+    faults.windows=true;
+    try {
+      const again=await captureGitHub(selector,options());
+      expect(again.reuse).toBe('cached-terminal');expect(calls()).toBe(n);expect(again.manifest).toEqual(first.manifest);
+    } finally {faults.windows=false;}
   });
   it('coalesces concurrent identical captures',async()=>{
     const [a,b]=await Promise.all([captureGitHub(selector,options()),captureGitHub(selector,options())]);

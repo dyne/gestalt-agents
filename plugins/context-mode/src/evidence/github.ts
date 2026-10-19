@@ -2,7 +2,7 @@
 import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import { closeSync, mkdirSync, mkdtempSync, openSync, readFileSync, realpathSync, statSync, unlinkSync, writeFileSync, writeSync } from "node:fs";
-import { join } from "node:path";
+import { join, sep } from "node:path";
 import { z } from "zod";
 import { killTree } from "../executor.js";
 import { runPool } from "../runPool.js";
@@ -94,7 +94,7 @@ function cachedCapture(path: string, root: string, opts: CaptureOptions): GitHub
     if (result.completeness !== "complete" || !result.manifest || !result.headSha) return null;
     const verify = (ref: EvidenceReference) => {
       const real = realpathSync(ref.path);
-      if (!real.startsWith(realpathSync(root) + "/")) throw new Error();
+      if (!real.startsWith(realpathSync(root) + sep)) throw new Error();
       if(!Number.isSafeInteger(ref.bytes)||ref.bytes<0||ref.bytes>16*1024*1024||statSync(real).size!==ref.bytes)throw new Error();
       const data = readFileSync(real);
       if (data.length !== ref.bytes || digest(data) !== ref.sha256) throw new Error();

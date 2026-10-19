@@ -127,6 +127,17 @@ describe.skipIf(process.platform === "win32")("packaged test evidence MCP", () =
     const db = new Database(join(contentRoot, readdirSync(contentRoot).find(p => p.endsWith(".db"))!), { readonly: true });
     try { const rows = db.prepare("SELECT DISTINCT session_id FROM chunks WHERE source_id=?").all(report.checks[0].index.sourceId); expect(rows).toEqual([{ session_id: "package-evidence-a" }]); } finally { db.close(); }
   });
+  it("accepts workspace aliases while retaining supplied and canonical Read denies", async () => {
+    const alias=join(root,'workspace-alias');symlinkSync(workspace,alias,'dir');
+    const body=JSON.stringify({version:1,tests:[{id:'alias',status:'passed'}],exitCode:0});
+    writeFileSync(join(workspace,'alias-source.json'),body);
+    expect(parsed(await call({operation:'local',files:[{path:join(alias,'alias-source.json')}]})).decision).toBe('supported');
+    writeFileSync(policy,JSON.stringify({permissions:{deny:['Read(alias-source.json)']}}));
+    expect(parsed(await call({operation:'local',files:[{path:join(alias,'alias-source.json')}]})).decision).toBe('needs-evidence');
+    symlinkSync(join(workspace,'alias-source.json'),join(workspace,'alias-denied.json'));
+    writeFileSync(policy,JSON.stringify({permissions:{deny:['Read(alias-denied.json)']}}));
+    expect(parsed(await call({operation:'local',files:[{path:'alias-denied.json'}]})).decision).toBe('needs-evidence');
+  });
   it("denies external, symlink-escaped and Read-denied local files", async () => {
     const outside = join(root, "outside.json"); writeFileSync(outside, "PRIVATE_OUTSIDE"); symlinkSync(outside, join(workspace, "escaped.json"));
     writeFileSync(join(workspace, "denied.json"), "PRIVATE_DENIED"); writeFileSync(policy, JSON.stringify({ permissions: { deny: ["Read(denied.json)"] } }));
