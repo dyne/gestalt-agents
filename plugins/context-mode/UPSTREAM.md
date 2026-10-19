@@ -83,6 +83,14 @@ and contents while excluding generated dependencies and build artifacts.
 - Canonicalizes evidence-test temporary roots before constructing read policies,
   so symlinked macOS temporary directories retain the same authorization checks.
 
+- Preserves supplied command exits and original observation timestamps across
+  evidence transfers, records transfer time separately, and validates complete
+  numeric TAP coverage before asserting certainty.
+- Verifies paginated report bytes against a bounded cache of chunk digests,
+  avoiding repeated full-report hashing while detecting changed reports.
+- Resolves evidence candidates before containment and checks deny rules on both
+  supplied and canonical paths; uses native separators for terminal-cache roots.
+
 ## Updating context-mode
 
 Import a reviewed upstream revision, reapply the Codex-only changes above,

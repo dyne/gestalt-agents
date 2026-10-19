@@ -129,16 +129,17 @@ function plain(text:string):Extraction {
   const clean=metadata.map(m=>m.text);
   const context=(index:number,id:string,end:number)=>({...failure(id,clean.slice(index,Math.min(end,index+20)).join('\n'),`lines:${index+1}-${Math.min(end,index+20)}`),step:metadata[index].step,time:metadata[index].time,contextOmittedLines:Math.max(0,end-index-20)});
   if(clean.some(l=>/^TAP version 13\s*$/.test(l))||clean.some(l=>/^1\.\.\d+(?:\s+#.*)?$/.test(l))) {
-    const states:string[]=[],failures:TestFailure[]=[],ids=new Set<string>();let plan:number|null=null,bail=false;
+    const states:string[]=[],failures:TestFailure[]=[],ids=new Set<number>();let plan:number|null=null,bail=false;
     for(let i=0;i<clean.length;i++) {
       const p=clean[i].match(/^1\.\.(\d+)(?:\s+#.*)?$/);if(p){if(plan!==null)return unknown('multiple TAP plans or subtests unsupported');plan=Number(p[1]);}
       const b=clean[i].match(/^Bail out!\s*(.*)/i);if(b){bail=true;failures.push(context(i,'TAP::bailout',i+1));}
       const m=clean[i].match(/^(not ok|ok)\s+(\d+)(?:\s+-?\s*(.*))?$/);if(!m)continue;
-      if(ids.has(m[2]))return unknown('duplicate TAP test number');ids.add(m[2]);
+      const number=Number(m[2]);
+      if(!Number.isSafeInteger(number)||number<1||ids.has(number))return unknown('invalid or duplicate TAP test number');ids.add(number);
       const skip=/#\s*(SKIP|TODO)\b/i.test(m[3]??'');states.push(skip?'skipped':m[1]==='ok'?'passed':'failed');
       if(m[1]==='not ok'&&!skip){let end=i+1;while(end<clean.length&&!/^(?:not ok|ok)\s+\d+|^1\.\./.test(clean[end]))end++;failures.push(context(i,`TAP:${m[2]} ${m[3]??''}`,end));}
     }
-    const c=count(states),known=plan===c.total&&!bail;
+    const c=count(states),known=plan===c.total&&!bail&&[...ids].every(id=>id<=plan!);
     return {format:'tap',counts:c,failures,exit:null,certainty:known?'known':'unknown',reason:known?null:bail?'TAP bailout; coverage incomplete':'missing or incomplete TAP plan'};
   }
   const summary=[...clean].reverse().find(l=>/^\s*Tests\s+/.test(l));
@@ -171,7 +172,7 @@ export function extractTests(text:string):Extraction {
   return {...r,failures:r.failures.map(f=>({...f,id:redact(f.id),cause:redact(f.cause),step:f.step?redact(f.step):null}))};
 }
 
-export interface EvidenceInput { path:string; command?:string; cwd?:string; exit?:number; completeness?:'complete'|'partial'|'unknown'; expectedSha256?:string; identity?:{job?:number;artifact?:number;member?:string} }
+export interface EvidenceInput { path:string; observedAt?:string|null; command?:string; cwd?:string; exit?:number; completeness?:'complete'|'partial'|'unknown'; expectedSha256?:string; identity?:{job?:number;artifact?:number;member?:string} }
 export interface IngestOptions {
   storageRoot:string;
   /** Mandatory host read authorization; called on supplied and resolved/opened paths. */
@@ -182,6 +183,8 @@ export interface IngestOptions {
   indexScope?:string;
   source:Record<string,unknown>;
   milestone?:string;
+  observedAt?:string|null;
+  transferredAt?:string;
   candidate?:Record<string,unknown>;
 }
 const indexed = new WeakMap<IngestOptions["index"], Map<string, {sourceId:number|string}>>();
@@ -212,10 +215,10 @@ function readAuthorized(path:string,authorize:IngestOptions['authorizeRead'],max
 export function ingestEvidence(inputs:EvidenceInput[],opts:IngestOptions):{report:Record<string,any>;routine:string;id:string} {
   if(!inputs.length||inputs.length>100)throw new Error('invalid evidence count');
   mkdirSync(opts.storageRoot,{recursive:true,mode:0o700});const dir=mkdtempSync(join(opts.storageRoot,'report-')),id=basename(dir);
-  const checks:Record<string,any>[]=[],observedAt=new Date().toISOString();
+  const checks:Record<string,any>[]=[],observedAt=opts.observedAt===undefined?new Date().toISOString():opts.observedAt;
   let remainingBytes=16*1024*1024;
   for(const [i,input] of inputs.entries()) {
-    const checkObservedAt=new Date().toISOString();
+    const checkObservedAt=input.observedAt===undefined?new Date().toISOString():input.observedAt;
     try {
       if(remainingBytes<=0)throw new Error('capture budget exhausted');
       const captured=readAuthorized(input.path,opts.authorizeRead,Math.min(MAX_BYTES,remainingBytes)),path=join(dir,`source-${i}.capture`);
@@ -253,7 +256,7 @@ export function ingestEvidence(inputs:EvidenceInput[],opts:IngestOptions):{repor
     }
   }
   const report={version:1,milestone:opts.milestone??null,scope:inputs.map((_,i)=>`source-${i}`).sort(),candidate:opts.candidate??null,
-    identityReason:opts.candidate?null:'candidate identity not supplied; source capture is not candidate verification',source:opts.source,checks,observedAt,
+    identityReason:opts.candidate?null:'candidate identity not supplied; source capture is not candidate verification',source:opts.source,checks,observedAt,...(opts.transferredAt?{transferredAt:opts.transferredAt}:{}),
     completeness:checks.every(c=>c.completeness==='complete')?'complete':'partial',decision:checks.some(c=>c.decision==='contradictory')?'contradictory':checks.some(c=>c.decision==='failed')?'failed':checks.some(c=>c.decision==='needs-evidence')?'needs-evidence':'supported',references:{access:'local-private',retention:'until local evidence directory is removed'},overflow:'none'};
   const text=JSON.stringify(report),path=join(dir,'report.json');writeFileSync(path,text,{mode:0o600});
   const manifest={id,...reference(path,text,'JSON:checks')};
@@ -271,7 +274,7 @@ function boundedRoutine(report:Record<string,any>,manifest:EvidenceReference&{id
   const failures=report.checks.flatMap((c:any)=>c.failures??[]),failureCount=report.checks.reduce((n:number,c:any)=>n+(c.failureCount??0),0),first=report.checks.find((c:any)=>c.firstActionableFailure)?.firstActionableFailure;
   let excerpt:Record<string,unknown>|null=first?{id:first.id,cause:first.cause,locator:first.locator,step:first.step,time:first.time}:null;
   if(excerpt&&Buffer.byteLength(JSON.stringify(excerpt))>400)excerpt={locator:'JSON:checks[*].firstActionableFailure',reason:'failure identifier/context exceed inline budget; retrieve bounded details'};
-  const compact={version:1,milestone:report.milestone,source:report.source,candidate:report.candidate,observedAt:report.observedAt,completeness:report.completeness,decision:report.decision,
+  const compact={version:1,milestone:report.milestone,source:report.source,candidate:report.candidate,observedAt:report.observedAt,transferredAt:report.transferredAt,completeness:report.completeness,decision:report.decision,
     checks:report.checks.slice(0,1).map((c:any)=>({command:c.command,exit:c.exit,counts:c.counts,certainty:c.certainty,decision:c.decision,reason:c.reason,index:c.index})),
     firstActionableFailure:excerpt,failureCount,overflow:{omittedChecks:Math.max(0,report.checks.length-1),omittedFailureDetails:failures.length,reportBytes:manifest.bytes,manifest,followup:{id:manifest.id,offset:0,maxBytes:2048}}};
   const routine=JSON.stringify(compact);if(Buffer.byteLength(routine)<=2048)return routine;
@@ -319,15 +322,27 @@ export function ingestSharedManifest(path:string,sha256:string,opts:Omit<IngestO
     repository:z.string().max(4096).nullable().optional(),run:identity,attempt:identity,job:identity,artifact:identity,
     headSha:z.string().regex(/^[a-fA-F0-9]{40}$/).nullable().optional(),
     retrievedAt:z.string().datetime().optional(),sourceUpdatedAt:z.string().datetime().nullable().optional()});
-  const manifest=z.object({version:z.literal(1),source,checks:z.array(z.object({
+  const timestamp=z.string().datetime().nullable().optional();
+  const manifest=z.object({version:z.literal(1),source,observedAt:timestamp,checks:z.array(z.object({
     command:z.string().nullable().optional(),cwd:z.string().nullable().optional(),exit:z.number().int().nullable().optional(),
+    suppliedExit:z.number().int().nullable().optional(),observedAt:timestamp,
     completeness:z.enum(['complete','partial','unknown']),references:z.array(ref).min(1).max(1),
     sourceIdentity:z.object({job:z.number().int().positive().optional(),artifact:z.number().int().positive().optional(),member:z.string().optional()}).nullable().optional(),
   })).min(1).max(100)}).parse(JSON.parse(bytes.data.toString('utf8')));
   return ingestEvidence(manifest.checks.map(c=>({path:c.references[0].path,expectedSha256:c.references[0].sha256,
-    identity:c.sourceIdentity??undefined,command:c.command??undefined,cwd:c.cwd??undefined,exit:c.exit??undefined,completeness:c.completeness})),
-    {...opts,source:{...Object.fromEntries(Object.entries(manifest.source).map(([key,value])=>[key,typeof value==='string'?redact(value):value])),sharedManifest:reference(path,bytes.data),transfer:'authorized bytes; indexed in receiving session; original candidate is not verification'}});
+    identity:c.sourceIdentity??undefined,command:c.command??undefined,cwd:c.cwd??undefined,exit:c.suppliedExit===undefined?c.exit??undefined:c.suppliedExit??undefined,observedAt:c.observedAt??null,completeness:c.completeness})),
+    {...opts,observedAt:manifest.observedAt??null,transferredAt:new Date().toISOString(),source:{...Object.fromEntries(Object.entries(manifest.source).map(([key,value])=>[key,typeof value==='string'?redact(value):value])),sharedManifest:reference(path,bytes.data),transfer:'authorized bytes; indexed in receiving session; original candidate is not verification'}});
 }
+
+// Bounded integrity metadata, never raw report bytes. Each page verifies only its
+// overlapping chunks after the first full scan. Metadata changes invalidate the
+// snapshot; chunk hashes also detect content changes with unchanged timestamps.
+const PAGE_CHUNK_BYTES=4096;
+const reportSnapshots=new Map<string,{stamp:string;sha256:string;chunks:string[]}>();
+const snapshotStamp=(fd:number)=>{
+  const st=fstatSync(fd,{bigint:true});
+  return [st.dev,st.ino,st.size,st.mtimeNs,st.ctimeNs].join(':');
+};
 
 /** Only generated report IDs resolve; arbitrary paths cannot be used as followups. */
 export function evidenceFollowup(storageRoot:string,id:string,offset=0,maxBytes=2048):string {
@@ -336,14 +351,32 @@ export function evidenceFollowup(storageRoot:string,id:string,offset=0,maxBytes=
   const fd=openAuthorized(path,p=>resolve(p)===path);
   let totalBytes:number,sha256:string,data:Buffer;
   try {
-    const before=fstatSync(fd);totalBytes=before.size;
+    const stamp=snapshotStamp(fd),before=fstatSync(fd);totalBytes=before.size;
     if(totalBytes>128*1024*1024||offset>totalBytes)throw new Error('invalid evidence size/offset');
-    const hash=createHash('sha256'),chunk=Buffer.alloc(64*1024);let read=0,position=0;
-    while(position<totalBytes&&(read=readSync(fd,chunk,0,Math.min(chunk.length,totalBytes-position),position))>0){hash.update(chunk.subarray(0,read));position+=read;}
-    const after=fstatSync(fd);if(position!==totalBytes||before.size!==after.size||before.mtimeMs!==after.mtimeMs||before.ctimeMs!==after.ctimeMs)throw new Error('evidence changed');
-    sha256=hash.digest('hex');data=Buffer.alloc(Math.min(totalBytes-offset,maxBytes));
-    const length=readSync(fd,data,0,data.length,offset);data=data.subarray(0,length);
-    const final=fstatSync(fd);if(before.size!==final.size||before.mtimeMs!==final.mtimeMs||before.ctimeMs!==final.ctimeMs)throw new Error('evidence changed');
+    let snapshot=reportSnapshots.get(path);
+    if(snapshot&&snapshot.stamp!==stamp)throw new Error('evidence changed');
+    const chunk=Buffer.alloc(PAGE_CHUNK_BYTES);
+    if(!snapshot) {
+      const hash=createHash('sha256'),chunks:string[]=[];
+      for(let position=0;position<totalBytes;position+=PAGE_CHUNK_BYTES) {
+        const size=Math.min(PAGE_CHUNK_BYTES,totalBytes-position);
+        if(readSync(fd,chunk,0,size,position)!==size)throw new Error('evidence changed');
+        const bytes=chunk.subarray(0,size);hash.update(bytes);chunks.push(digest(bytes));
+      }
+      if(snapshotStamp(fd)!==stamp)throw new Error('evidence changed');
+      snapshot={stamp,sha256:hash.digest('hex'),chunks};
+      if(reportSnapshots.size>=8)reportSnapshots.delete(reportSnapshots.keys().next().value!);
+      reportSnapshots.set(path,snapshot);
+    }
+    sha256=snapshot.sha256;data=Buffer.alloc(Math.min(totalBytes-offset,maxBytes));
+    const end=offset+data.length;
+    for(let position=Math.floor(offset/PAGE_CHUNK_BYTES)*PAGE_CHUNK_BYTES;position<end;position+=PAGE_CHUNK_BYTES) {
+      const size=Math.min(PAGE_CHUNK_BYTES,totalBytes-position);
+      if(readSync(fd,chunk,0,size,position)!==size||digest(chunk.subarray(0,size))!==snapshot.chunks[position/PAGE_CHUNK_BYTES])throw new Error('evidence changed');
+      const start=Math.max(offset,position),stop=Math.min(end,position+size);
+      chunk.copy(data,start-offset,start-position,stop-position);
+    }
+    if(snapshotStamp(fd)!==stamp)throw new Error('evidence changed');
   }finally{closeSync(fd);}
   // Text pages remain readable, preserve UTF-8 boundaries, and count JSON escaping.
   if(data.length && (data[0]&0xc0)===0x80)throw new Error('offset is not a UTF-8 boundary');
