@@ -189,6 +189,9 @@ requires reviewed amendment metadata for increases against the supplied base,
 and retains complete digest-bound diagnostics behind a bounded summary. Its
 invented wake-trace contract supplements Mobile's owning production tests and
 does not simulate runtime scheduling.
+Its temporary artifact scope is canonicalized for macOS symlinked temporary
+directories, with a CLI regression case. Live provenance tests await server
+termination before removing their workspace to avoid teardown write races.
 
 Import a reviewed upstream revision, reapply the Codex-only changes above,
 choose a distinct downstream package version, regenerate the checksum fixture,

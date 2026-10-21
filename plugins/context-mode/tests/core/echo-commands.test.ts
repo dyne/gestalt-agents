@@ -6,6 +6,7 @@
 
 import { createHash } from "node:crypto";
 import { spawn, type ChildProcess } from "node:child_process";
+import { once } from "node:events";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { tmpdir } from "node:os";
@@ -124,6 +125,18 @@ function sendRpc(proc: ChildProcess, msg: Record<string, unknown>): void {
   proc.stdin!.write(JSON.stringify(msg) + "\n");
 }
 
+async function stopServer(proc: ChildProcess): Promise<void> {
+  if (proc.exitCode !== null || proc.signalCode !== null) return;
+  const closed = once(proc, "close");
+  const timeout = setTimeout(() => proc.kill("SIGKILL"), 5000);
+  try {
+    proc.kill("SIGTERM");
+    await closed;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 async function awaitRpc(
   proc: ChildProcess,
   id: number,
@@ -199,7 +212,7 @@ describe("issue #717 — ctx_execute retains language and source identity", () =
       expect(text).not.toContain(code);
       expect(resp?.result?.content?.map(part => part.text).join("\n")).toContain(marker);
     } finally {
-      try { proc.kill("SIGTERM"); } catch { /* best effort */ }
+      await stopServer(proc);
     }
   }, 30_000);
 });
@@ -251,7 +264,7 @@ describe("issue #736 — ctx_batch_execute summary includes a Commands inventory
       expect(secIdx).toBeGreaterThan(-1);
       expect(cmdIdx).toBeLessThan(secIdx);
     } finally {
-      try { proc.kill("SIGTERM"); } catch { /* best effort */ }
+      await stopServer(proc);
     }
   }, 30_000);
 });
@@ -290,7 +303,7 @@ describe("issue #717 — ctx_execute_file retains source identity and audit acce
       expect(text).not.toContain(code);
       expect(resp?.result?.content?.map(part => part.text).join("\n")).toContain(marker);
     } finally {
-      try { proc.kill("SIGTERM"); } catch { /* best effort */ }
+      await stopServer(proc);
     }
   }, 30_000);
 });

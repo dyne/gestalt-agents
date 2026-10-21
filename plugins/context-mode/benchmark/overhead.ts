@@ -1,6 +1,6 @@
 /** Deterministic CI budgets; bounded diagnostics retain every failure. */
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -93,7 +93,8 @@ export function collectOverhead() {
     content: "alpha beta FAIL-DEDUP-FIXTURE" };
   const queries = Array.from({ length: 30 }, (_, index) => ({ query: index % 2 ? "alpha" : "beta", results: [source] }));
   const windows = deduplicateQueryWindows(queries);
-  const root = mkdtempSync(join(tmpdir(), "overhead-ci-"));
+  // macOS temporary roots can contain symlinks; artifact scopes require canonical paths.
+  const root = realpathSync(mkdtempSync(join(tmpdir(), "overhead-ci-")));
   let overflowRecoveryFailures = 0, explicitExpansionFailures = 0;
   try {
     const scope = { root: join(root, "reports"), authorizeRead: () => true };
