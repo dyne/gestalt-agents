@@ -81,7 +81,8 @@ export function omitExecutableSource<T extends ExecutionResponse>(response: T, a
   let omitted = 0;
   const content = response.content.map(part => {
     const text = part.text.split("\n").map(line => {
-      if (!excerpts.has(line.trim())) return line;
+      const excerpt = line.replace(/^\s*\d+\s*\|\s?/, "").trim();
+      if (!excerpts.has(line.trim()) && !excerpts.has(excerpt)) return line;
       omitted++;
       return "[source excerpt retained in audit]";
     }).join("\n");
