@@ -250,3 +250,49 @@ export function extractCodexUsageSince(
 
   return { events, cursor };
 }
+
+/**
+ * Metrics-only companion to the legacy pricing adapter. Preserve raw cumulative
+ * counters, omitted fields, timestamps and source identity; output already
+ * includes reasoning, which is retained separately as a subset. No conversation
+ * fields or rate-limit/account-quota guesses enter these local observations.
+ * The hook supplies its authoritative session identity. Role topology is not
+ * established by usage notifications, so attribution remains unknown.
+ */
+export function extractCodexMeasurementsSince(
+  rollout: string,
+  sinceCursor: string | null,
+  sourceId: string,
+): SessionEvent[] {
+  const parsed = sinceCursor === null ? -1 : Number(sinceCursor);
+  const since = Number.isSafeInteger(parsed) && parsed >= 0 ? parsed : -1;
+  const events: SessionEvent[] = [];
+  for (const [index, line] of rollout.split("\n").entries()) {
+    if (index <= since) continue;
+    try {
+      const record = JSON.parse(line);
+      if (record?.type !== "event_msg" || record.payload?.type !== "token_count") continue;
+      const info = record.payload.info;
+      if (!info || typeof info !== "object") continue;
+      const cumulative = info.total_token_usage;
+      // last_token_usage can recur in repeated notifications; without the
+      // cumulative snapshot its delta identity is not established. Preserve an
+      // empty cumulative observation rather than inventing a unique turn.
+      const values = cumulative && typeof cumulative === "object" ? cumulative : {};
+      const counters: Record<string, unknown> = {};
+      for (const [raw, key] of [
+        ["input_tokens", "inputTokens"], ["output_tokens", "outputTokens"],
+        ["cached_input_tokens", "cacheReadTokens"], ["reasoning_output_tokens", "reasoningTokens"],
+      ]) {
+        if (Object.hasOwn(values, raw)) counters[key] = values[raw];
+      }
+      const timestamp = typeof record.timestamp === "string" ? Date.parse(record.timestamp) : NaN;
+      events.push({ type: "efficiency_usage", category: "cost", priority: 4,
+        data: JSON.stringify({ v: 1, captureId: `line-${index}`, sourceId, role: "unknown",
+          scope: "source_cumulative",
+          observedAtMs: Number.isFinite(timestamp) ? timestamp : null, counters }),
+      });
+    } catch { /* Incomplete rollout lines do not become measured zero. */ }
+  }
+  return events;
+}

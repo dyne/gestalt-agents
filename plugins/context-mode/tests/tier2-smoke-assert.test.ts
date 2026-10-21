@@ -53,6 +53,18 @@ describe("tier-2 assert-stats.mjs", () => {
     expect(r.stdout).toContain("Tier-2 smoke PASSED");
   });
 
+  it("accepts schema 3 unknown savings and rejects fabricated or incomplete claims", () => {
+    const measured = {
+      schemaVersion: 3, tokens_saved: null, comparison_coverage: "unavailable",
+      bytes_returned_scope: "known_only", errors: 0,
+      by_tool: { ctx_search: { calls: 1 }, ctx_execute: { calls: 1 }, ctx_index: { calls: 1 } },
+    };
+    expect(runAssert(measured).code).toBe(0);
+    expect(runAssert({ ...measured, tokens_saved: 100 }).code).toBe(1);
+    expect(runAssert({ ...measured, comparison_coverage: "complete" }).code).toBe(1);
+    expect(runAssert({ ...measured, bytes_returned_scope: undefined }).code).toBe(1);
+  });
+
   it("fails when no ctx_* tool was invoked", () => {
     const r = runAssert({
       tokens_saved: 0,

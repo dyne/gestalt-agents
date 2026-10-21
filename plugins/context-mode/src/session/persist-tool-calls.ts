@@ -18,6 +18,8 @@
  * boot the MCP server.
  */
 
+import { randomUUID } from "node:crypto";
+import type { VisibleResponseMeasurement } from "./response-accounting.js";
 import { existsSync } from "node:fs";
 import { SessionDB } from "./db.js";
 
@@ -50,12 +52,13 @@ export function persistToolCallCounter(
   sessionDbPath: string,
   toolName: string,
   bytes: number,
+  sessionId?: string,
 ): void {
   try {
     if (!existsSync(sessionDbPath)) return;
     const sdb = new SessionDB({ dbPath: sessionDbPath });
     try {
-      const sid = sdb.getLatestSessionId();
+      const sid = sessionId ?? sdb.getLatestSessionId();
       if (!sid) return;
       sdb.incrementToolCall(sid, toolName, bytes);
     } finally {
@@ -77,12 +80,13 @@ export function persistToolCallCounter(
  */
 export function restoreSessionStats(
   sessionDbPath: string,
+  sessionId?: string,
 ): RestoredSessionStats | null {
   try {
     if (!existsSync(sessionDbPath)) return null;
     const sdb = new SessionDB({ dbPath: sessionDbPath });
     try {
-      const sid = sdb.getLatestSessionId();
+      const sid = sessionId ?? sdb.getLatestSessionId();
       if (!sid) return null;
 
       const stats = sdb.getToolCallStats(sid);
@@ -125,4 +129,27 @@ export function restoreSessionStats(
   } catch {
     return null;
   }
+}
+
+/** Persist counters and digest only. A unique capture prevents event deduplication
+ * from erasing repeated equal responses. The boundary captures the session ID
+ * before deferred persistence, so a newer sibling session cannot steal a call.
+ */
+export function persistToolResponseMeasurement(
+  sessionDbPath: string,
+  sessionId: string | undefined,
+  toolName: string,
+  measurement: VisibleResponseMeasurement,
+): void {
+  if (!sessionId) return;
+  try {
+    const sdb = new SessionDB({ dbPath: sessionDbPath });
+    try {
+      sdb.ensureSession(sessionId, "");
+      sdb.insertEvent(sessionId, {
+        type: "tool_response_measurement", category: "mcp", priority: 4,
+        data: JSON.stringify({ v: 1, captureId: randomUUID(), tool: toolName, ...measurement }),
+      }, "ctx-server");
+    } finally { sdb.close(); }
+  } catch { /* A failed observation must never break the tool response. */ }
 }

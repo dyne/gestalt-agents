@@ -56,7 +56,9 @@ import {
   emitIndexWriteEvent,
   emitSandboxExecuteEvent,
 } from "./session/event-emit.js";
-import { persistToolCallCounter, restoreSessionStats } from "./session/persist-tool-calls.js";
+import { persistToolCallCounter, persistToolResponseMeasurement, restoreSessionStats } from "./session/persist-tool-calls.js";
+import { measureVisibleToolResponse } from "./session/response-accounting.js";
+import { formatEfficiencySummary, readEfficiencySummary } from "./session/efficiency-report.js";
 import { appendRetrievalBytes } from "./session/retrieval-marker.js";
 import { searchAllSources } from "./search/unified.js";
 import {
@@ -74,7 +76,7 @@ import { resolveClaudeConfigDir } from "./util/claude-config.js";
 import { resolveProjectDir } from "./util/project-dir.js";
 import { loadDatabase } from "./db-base.js";
 import { probeMcpHandshake, resolveMcpProbeLaunch } from "./util/mcp-handshake.js";
-import { AnalyticsEngine, formatReport, getConversationStats, getContentBytesAllSessions, getConversationWindowStats, getLifetimeStats, getMultiAdapterLifetimeStats, getRealBytesStats, pricePerToken } from "./session/analytics.js";
+import { AnalyticsEngine, getLifetimeStats } from "./session/analytics.js";
 const __pkg_dir = dirname(fileURLToPath(import.meta.url));
 const VERSION: string = (() => {
   for (const rel of ["../package.json", "./package.json"]) {
@@ -297,7 +299,7 @@ export const COMPACT_TOOL_DESCRIPTIONS: Record<string, string> = {
   ctx_search: "Search indexed content and session memory. WHEN: recall prior decisions, indexed sources, or timeline context; batch related queries. Capture unseen data first. RETURNS: ranked snippets. EXAMPLE: search decisions with sort: timeline.",
   ctx_fetch_and_index: "Fetch URL content and index it for ctx_search. WHEN: docs or pages need later retrieval without raw bytes in context; batch related URLs. It is plain HTTP, not browser rendering. RETURNS: previews and cache/index metadata. EXAMPLE: fetch a framework guide.",
   ctx_batch_execute: "Run related commands, auto-index output, and optionally return query matches in one call. WHEN: gather several commands or large output; use concurrency only for independent I/O. RETURNS: labeled sections and matches, not raw logs. EXAMPLE: inspect git history and query failures.",
-  ctx_stats: "Return session context-use statistics: bytes, calls, estimated tokens, and savings ratio.",
+  ctx_stats: "Return a metrics-only efficiency summary within 2048 UTF-8 bytes. Shows known bytes, provider counters, coverage and unknown quota. Use report and offset for authorized overflow pages in this session.",
   ctx_doctor: "Run installation diagnostics, including a fresh spawned MCP handshake, PolyglotExecutor, and FTS5 self-checks, and return renderer-safe [OK]/[FAIL]/[WARN] results.",
   ctx_upgrade: "Return the platform-appropriate upgrade command. Run it with the native shell and restart the session afterward.",
   ctx_purge: "DESTRUCTIVE: permanently delete indexed data. Requires confirm:true and exactly one session or project scope. Ask when scope is unclear.",
@@ -328,7 +330,9 @@ const originalRegisterTool = server.registerTool.bind(server);
   return (originalRegisterTool as unknown as (...callArgs: unknown[]) => unknown)(...args);
 };
 
-function wrapToolHandler(
+const responseTrackingContext = new AsyncLocalStorage<boolean>();
+
+export function wrapToolHandler(
   name: string,
   handler: (toolArgs: Record<string, unknown>, extra?: unknown) => Promise<unknown> | unknown,
 ): (toolArgs: Record<string, unknown>, extra?: unknown) => Promise<unknown> {
@@ -339,9 +343,13 @@ function wrapToolHandler(
     noteRequestStart();
     try {
       const codexContext = resolveCodexToolContext();
-      return codexContext
-        ? await withProjectDirOverride(codexContext, async () => handler(toolArgs, extra))
-        : await handler(toolArgs, extra);
+      const invoke = async () => {
+        // Existing handlers may call trackResponse internally. Defer observation
+        // until the complete handler result, once, including wrapper additions.
+        const response = await responseTrackingContext.run(true, async () => handler(toolArgs, extra));
+        return trackResponse(name, response as ToolResult);
+      };
+      return codexContext ? await withProjectDirOverride(codexContext, invoke) : await invoke();
     } catch (err) {
       const result = storageErrorResult(err);
       if (result) {
@@ -500,6 +508,11 @@ let _store: ContentStore | null = null;
 export function currentAttribution(): { sessionId?: string } | undefined {
   const override = projectDirOverride.getStore();
   if (override?.sessionId) return { sessionId: override.sessionId };
+
+  // Codex identity must be authoritative; a newer sibling is not this caller.
+  if (detectPlatform().platform === "codex") {
+    return process.env.CODEX_THREAD_ID ? { sessionId: process.env.CODEX_THREAD_ID } : undefined;
+  }
 
   // CLAUDE_SESSION_ID env var is NOT propagated to MCP servers (only to hooks).
   // Cross-adapter resolution: every adapter (15 of them) sets *_PROJECT_DIR env
@@ -819,6 +832,7 @@ const sessionStats = {
 type ToolResult = {
   content: Array<{ type: "text"; text: string }>;
   isError?: boolean;
+  structuredContent?: Record<string, unknown>;
 };
 
 function storageErrorResult(err: unknown): ToolResult | null {
@@ -944,25 +958,29 @@ function healCacheMidSession(): void {
 }
 
 function trackResponse(toolName: string, response: ToolResult): ToolResult {
+  if (responseTrackingContext.getStore()) return response;
   // #854: a response is activity too — refresh the bridge-child idle clock so a
   // chatty/streaming call keeps its server alive even between inbound frames.
   noteMcpActivity();
   // Mid-session cache heal — one-shot, first tool call
   healCacheMidSession();
   // Prepend version outdated warning if needed
-  if (shouldShowVersionWarning() && response.content.length > 0) {
+  if (toolName !== "ctx_stats" && shouldShowVersionWarning() && response.content.length > 0) {
     const hint = getUpgradeHint();
     response.content[0].text =
       `⚠️ context-mode v${VERSION} outdated → v${_latestVersion} available. Upgrade: ${hint}\n\n` +
       response.content[0].text;
   }
 
-  const bytes = response.content.reduce(
-    (sum, c) => sum + Buffer.byteLength(c.text),
-    0,
-  );
+  const measurement = measureVisibleToolResponse(response);
+  const bytes = measurement.serializedVisibleBytes;
+  const sessionDbPath = getSessionDbPath();
+  const sessionId = currentAttribution()?.sessionId;
+  setImmediate(() => persistToolResponseMeasurement(sessionDbPath, sessionId, toolName, measurement));
   sessionStats.calls[toolName] = (sessionStats.calls[toolName] || 0) + 1;
-  sessionStats.bytesReturned[toolName] =
+  // Legacy statusline totals are known bytes only. Coverage is retained in
+  // measurement records; null is never persisted as a measured-zero response.
+  if (bytes !== null) sessionStats.bytesReturned[toolName] =
     (sessionStats.bytesReturned[toolName] || 0) + bytes;
 
   // Persist a sidecar JSON snapshot for the statusline — read at ~3-5 Hz by
@@ -975,16 +993,16 @@ function trackResponse(toolName: string, response: ToolResult): ToolResult {
   // upgrade. Re-introduces the write path 4742160 added and b392c2f dropped.
   // setImmediate keeps this off the response hot path; the helper itself
   // is best-effort (never throws).
-  setImmediate(() => persistToolCallCounter(getSessionDbPath(), toolName, bytes));
+  if (sessionId) setImmediate(() => persistToolCallCounter(sessionDbPath, toolName, bytes ?? 0, sessionId));
 
   // D2 Phase 5/7 — sandbox-execute event emission. Tracks the bytes the
   // user actually saw from sandboxed runs so getRealBytesStats() can
   // replace the conservative `events × 256` estimate. Best-effort and
   // off the hot path, same shape as persistToolCallCounter above.
   if (
-    toolName === "ctx_execute"
+    bytes !== null && (toolName === "ctx_execute"
     || toolName === "ctx_execute_file"
-    || toolName === "ctx_batch_execute"
+    || toolName === "ctx_batch_execute")
   ) {
     setImmediate(() =>
       emitSandboxExecuteEvent({
@@ -1002,7 +1020,7 @@ function trackResponse(toolName: string, response: ToolResult): ToolResult {
   // was 0/124454 in prod). Drop the count into a marker keyed by the session
   // DB; the next ordinary-tool PostToolUse consumes it and emits a forwardable
   // bytes_retrieved event. Off the hot path; never throws.
-  if (toolName === "ctx_search" || toolName === "ctx_fetch_and_index") {
+  if (bytes !== null && (toolName === "ctx_search" || toolName === "ctx_fetch_and_index")) {
     setImmediate(() => appendRetrievalBytes(getSessionDbPath(), bytes));
   }
 
@@ -1037,17 +1055,9 @@ const STATS_PERSIST_THROTTLE_MS = 500;
 // Bump when a field is added/renamed/removed. Statusline reads `schemaVersion ?? 0` and warns when
 // it sees a future schema, so legacy bundles degrade gracefully on upgrade rather than silently
 // rendering missing fields (PR #401 architect review P1.3).
-// v2: added tokens_saved_lifetime + dollars_saved_lifetime.
-const STATS_SCHEMA_VERSION = 2;
-// pricePerToken() intentionally NOT defined here — single source in
-// src/session/analytics.ts re-exported above. (P1.1 — pricing constant dedup,
-// PR #401 architect + ops 2-vote convergence.)
-const LIFETIME_REFRESH_MS = 30_000;
-// Matches the conversion factor in src/session/analytics.ts renderBottomLine:
-// ~1KB per session event ÷ 4 bytes/token = 256 tokens/event.
-const TOKENS_PER_EVENT = 256;
+// v3: byte totals are known lower bounds; incomparable savings fields are null.
+const STATS_SCHEMA_VERSION = 3;
 let _lastStatsPersist = 0;
-let _lifetimeCache: { tokens: number; computedAt: number } | undefined;
 
 /**
  * Resolve the per-session stats file path.
@@ -1095,27 +1105,6 @@ function persistStats(): void {
       sessionStats.bytesSandboxed +
       sessionStats.cacheBytesSaved;
     const totalProcessed = keptOut + totalReturned;
-    const reductionPct =
-      totalProcessed > 0
-        ? Math.round((1 - totalReturned / totalProcessed) * 100)
-        : 0;
-    const tokensSaved = Math.round(keptOut / 4);
-
-    // Lifetime savings — cached separately because getLifetimeStats() scans
-    // disk (per-project SessionDBs + auto-memory dirs) and is too expensive
-    // for the 500ms persist throttle. Refresh every 30s; the statusline
-    // doesn't need second-by-second lifetime accuracy.
-    let lifetimeTokens = _lifetimeCache?.tokens ?? 0;
-    if (!_lifetimeCache || now - _lifetimeCache.computedAt > LIFETIME_REFRESH_MS) {
-      try {
-        const life = getLifetimeStats({ sessionsDir: getSessionDir() });
-        lifetimeTokens = (life?.totalEvents ?? 0) * TOKENS_PER_EVENT;
-        _lifetimeCache = { tokens: lifetimeTokens, computedAt: now };
-      } catch {
-        // best-effort — keep stale cache or 0
-      }
-    }
-
     const payload = {
       schemaVersion: STATS_SCHEMA_VERSION,
       version: VERSION,
@@ -1124,21 +1113,22 @@ function persistStats(): void {
       uptime_ms: now - sessionStats.sessionStart,
       total_calls: totalCalls,
       bytes_returned: totalReturned,
+      bytes_returned_scope: "known_only",
       bytes_indexed: sessionStats.bytesIndexed,
       bytes_sandboxed: sessionStats.bytesSandboxed,
       cache_hits: sessionStats.cacheHits,
       cache_bytes_saved: sessionStats.cacheBytesSaved,
       kept_out: keptOut,
       total_processed: totalProcessed,
-      reduction_pct: reductionPct,
-      tokens_saved: tokensSaved,
-      // statusline-facing $ values — pre-computed at the current per-token
-      // rate (dynamic when PI_CONTEXT_MODE_PRICE_OUTPUT_PER_TOKEN is set by a
-      // Pi host; Opus $15/1M otherwise). Resolved on every persist via
-      // pricePerToken() so the env override picks up without an MCP restart.
-      dollars_saved_session: +(tokensSaved * pricePerToken()).toFixed(2),
-      tokens_saved_lifetime: lifetimeTokens,
-      dollars_saved_lifetime: +(lifetimeTokens * pricePerToken()).toFixed(2),
+      // Indexed/sandboxed input and observed result bytes are different scopes.
+      // They cannot establish a savings comparison or billing/quota conversion.
+      comparison_coverage: "unavailable",
+      reduction_pct: null,
+      tokens_saved: null,
+      // No byte-to-token, pricing, or account-quota conversion is measured.
+      dollars_saved_session: null,
+      tokens_saved_lifetime: null,
+      dollars_saved_lifetime: null,
       by_tool: Object.fromEntries(
         Object.keys({ ...sessionStats.calls, ...sessionStats.bytesReturned }).map(
           (t) => [
@@ -4036,202 +4026,48 @@ function createMinimalDb(): import("./session/analytics.js").DatabaseAdapter {
 server.registerTool(
   "ctx_stats",
   {
-    title: "Session Statistics",
-    // #846: read-only diagnostics. Was cancelled by Codex when unannotated.
-    annotations: {
-      readOnlyHint: true,
-      destructiveHint: false,
-      idempotentHint: true,
-      openWorldHint: false,
-    },
-    description:
-      "Returns context consumption statistics for the current session. " +
-      "Shows total bytes returned to context, breakdown by tool, call counts, " +
-      "estimated token usage, and context savings ratio.",
-    inputSchema: z.object({}),
+    title: "Session Efficiency",
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    description: COMPACT_TOOL_DESCRIPTIONS.ctx_stats,
+    inputSchema: z.object({
+      report: z.string().regex(/^report-[a-f0-9]{64}$/).optional().catch(""),
+      offset: z.number().int().nonnegative().optional().catch(-1),
+    }),
   },
-  async () => {
-    // ONE call, ONE source — AnalyticsEngine.queryAll()
-    let text: string;
-    try {
-      const projectDir = getProjectDir();
-      // Canonical hash + migration-aware path. The downstream
-      // getConversationStats / getRealBytesStats reconstruct the DB
-      // filename from worktreeHash; pass the SAME canonical hash that
-      // resolveSessionDbPath used so they hit the same file.
-      const dbHash = hashProjectDirCanonical(projectDir);
-      const sessionDbPath = resolveSessionDbPath({
-        projectDir,
-        sessionsDir: getSessionDir(),
-      });
-
-      if (existsSync(sessionDbPath)) {
-        const Database = loadDatabase();
-        const sdb = new Database(sessionDbPath, { readonly: true });
-        try {
-          const engine = new AnalyticsEngine(sdb);
-          const report = engine.queryAll(sessionStats);
-          // MCP usage is read-only and cheap; only available when DB exists.
-          const mcpUsage = engine.getMcpToolUsage();
-          // Lifetime stats span every project's SessionDB + auto-memory dir
-          // (Bugs #3/#4); failures are absorbed inside getLifetimeStats so a
-          // corrupt sidecar can never break ctx_stats.
-          // B3b Slice 3.1: scope to active adapter via getSessionDir() so
-          // non-Claude platforms (Cursor, OpenCode, JetBrains, ...) read
-          // from THEIR sessions dir — not the hardcoded ~/.claude/ default.
-          // Mirrors the statusline contract at src/server.ts:540.
-          const lifetime = getLifetimeStats({ sessionsDir: getSessionDir() });
-          // B3b Slices 3.2-3.6: cross-adapter aggregation so the renderer
-          // can show "Where it came from" + the "across N AI tools"
-          // headline. Best-effort — failures absorbed so a corrupt
-          // sidecar in any adapter dir cannot break ctx_stats.
-          let multiAdapter;
-          try { multiAdapter = getMultiAdapterLifetimeStats(); } catch { /* never block ctx_stats */ }
-          // F1: wire conversation + realBytes opts so formatReport renders the
-          // narrative 5-section "kitap gibi" layout (timeline, ladder, receipt,
-          // example cost, auto-memory). Without these, formatReport falls back
-          // to the legacy active-session header. Best-effort — failures absorbed.
-          // Resolve session_id: prefer env (CLAUDE_SESSION_ID), else most-recent
-          // UUID session_id from session_events in this DB.
-          let conversation;
-          let realBytes;
-          try {
-            let sid = process.env.CLAUDE_SESSION_ID;
-            if (!sid) {
-              const row = sdb.prepare(
-                "SELECT session_id FROM session_events WHERE session_id LIKE '________-____-____-____-____________' ORDER BY created_at DESC LIMIT 1"
-              ).get() as { session_id: string } | undefined;
-              sid = row?.session_id;
-            }
-            if (sid) {
-              conversation = getConversationStats({ sessionId: sid, sessionsDir: getSessionDir(), worktreeHash: dbHash });
-              // v1.0.133 Slice 3: pass contentDbPath so getRealBytesStats can
-              // join chunks WHERE session_id = sid and fold the indexed
-              // content bytes into the per-conversation bar. Without this,
-              // Mert's session showed ~200B (event metadata only) even with
-              // 49 MB of indexed content sitting in the content DB.
-              // Render-time read-only — no DB mutation, no backfill.
-              const contentDbPath = getStorePath();
-              // v1.0.148 Bug E+F: a conversation typically spans many
-              // session_ids (resume cycles, /compact rebirths, PID
-              // sub-process sessions launched by ctx_execute). Scoping
-              // per-session loses sandbox-burst bytes_avoided that the
-              // PID-sessions own. Look up THIS session's project_dir
-              // from META and aggregate via META subquery so all
-              // sibling sessions in the same cwd attribute together.
-              // Fallback to sessionId scope if the META lookup fails
-              // (best-effort — the original metric is still defensible).
-              let convReal;
-              try {
-                const Database = loadDatabase();
-                const dbFiles = (await import("node:fs"))
-                  .readdirSync(getSessionDir())
-                  .filter((f) => f.endsWith(".db") && (!dbHash || f.startsWith(dbHash)));
-                let projectDirForSid: string | undefined;
-                for (const file of dbFiles) {
-                  try {
-                    const sdb = new Database(
-                      (await import("node:path")).join(getSessionDir(), file),
-                      { readonly: true },
-                    );
-                    try {
-                      const r = sdb
-                        .prepare("SELECT project_dir FROM session_meta WHERE session_id = ?")
-                        .get(sid) as { project_dir: string } | undefined;
-                      if (r?.project_dir) {
-                        projectDirForSid = r.project_dir;
-                        break;
-                      }
-                    } finally {
-                      sdb.close();
-                    }
-                  } catch { /* skip unreadable DB */ }
-                }
-                // Section 1 "Where you are now" = the LIVE conversation window.
-                // Sub-agents + ctx_execute sub-process sessions write to this
-                // SAME worktree DB (same worktreeHash = sha256(cwd)) under their
-                // own session_ids; their retrieval hit their own disposable
-                // windows, not yours. getConversationWindowStats credits the
-                // whole worktree's kept-out bytes while counting only THIS
-                // session's retrieval as "With context-mode", and the
-                // worktreeHash scope keeps the user's OTHER parallel worktrees
-                // out. projectDirForSid is intentionally dropped — it
-                // under-counted (missed empty-project_dir sub-process sessions)
-                // and could not separate sub-agent retrieval from the window's.
-                void projectDirForSid;
-                convReal = getConversationWindowStats({ sessionId: sid, worktreeHash: dbHash, sessionsDir: getSessionDir(), contentDbPath });
-              } catch {
-                convReal = getConversationWindowStats({ sessionId: sid, worktreeHash: dbHash, sessionsDir: getSessionDir(), contentDbPath });
-              }
-              const lifeRealBase = getRealBytesStats({ sessionsDir: getSessionDir() });
-              // v1.0.134 SLICE C: lifetime tier sums ALL chunks (no
-              // session_id filter). Without this fold, lifetime "kept out"
-              // only counts session_events.bytes_avoided and ignores the
-              // bulk of indexed payload across every prior conversation.
-              const lifeContentBytes = getContentBytesAllSessions(contentDbPath);
-              const lifeReal = {
-                ...lifeRealBase,
-                contentBytes: lifeRealBase.contentBytes + lifeContentBytes,
-                bytesAvoided: lifeRealBase.bytesAvoided + lifeContentBytes,
-                totalSavedTokens: Math.floor(
-                  (lifeRealBase.eventDataBytes
-                    + lifeRealBase.bytesAvoided
-                    + lifeContentBytes
-                    + lifeRealBase.snapshotBytes) / 4,
-                ),
-              };
-              realBytes = { conversation: convReal, lifetime: lifeReal };
-            }
-          } catch { /* never block ctx_stats */ }
-          // Pi byte accounting: patch lifetime from stats-*.json files
-          // (actual bytes_sandboxed, not events × 256 heuristic).
-          if (_detectedAdapter?.name === "Pi") {
-            patchPiLifetimeFromStatsFiles(lifetime, getSessionDir());
-          }
-          // v1.0.117: pass projectDir as cwd so the narrative renderer's
-          // "started in <path>" line matches the user's actual project.
-          // Snapshot the persistent store so the renderer can show
-          // total_chunks / last_indexed_at without callers having to query
-          // separately. Best-effort — getStore() is process-local and may
-          // be unavailable on cold paths; failures are absorbed.
-          let indexState;
-          try { indexState = getStore().getIndexState(); } catch { /* never block ctx_stats */ }
-          text = formatReport(report, VERSION, _latestVersion, { lifetime, mcpUsage, multiAdapter, conversation, realBytes, indexState, cwd: projectDir });
-        } finally {
-          sdb.close();
-        }
-      } else {
-        // No session DB — build a minimal report from runtime stats only.
-        // Lifetime still meaningful (other projects, auto-memory) so include it.
-        const engine = new AnalyticsEngine(createMinimalDb());
-        const report = engine.queryAll(sessionStats);
-        const lifetime = getLifetimeStats({ sessionsDir: getSessionDir() });
-        if (_detectedAdapter?.name === "Pi") {
-          patchPiLifetimeFromStatsFiles(lifetime, getSessionDir());
-        }
-        let multiAdapter;
-        try { multiAdapter = getMultiAdapterLifetimeStats(); } catch { /* never block ctx_stats */ }
-        let indexState;
-        try { indexState = getStore().getIndexState(); } catch { /* never block ctx_stats */ }
-        text = formatReport(report, VERSION, _latestVersion, { lifetime, multiAdapter, indexState });
-      }
-    } catch {
-      // Session DB not available or incompatible — build minimal report from runtime stats
-      const engine = new AnalyticsEngine(createMinimalDb());
-      const report = engine.queryAll(sessionStats);
-      let lifetime;
-      try { lifetime = getLifetimeStats({ sessionsDir: getSessionDir() }); } catch { /* never block ctx_stats */ }
-      if (_detectedAdapter?.name === "Pi" && lifetime) {
-        patchPiLifetimeFromStatsFiles(lifetime, getSessionDir());
-      }
-      let multiAdapter;
-      try { multiAdapter = getMultiAdapterLifetimeStats(); } catch { /* never block ctx_stats */ }
-      text = formatReport(report, VERSION, _latestVersion, (lifetime || multiAdapter) ? { lifetime, multiAdapter } : undefined);
+  async ({ report, offset }) => {
+    const unavailable = (reason: string) => ({ content: [{ type: "text" as const,
+      text: JSON.stringify({ version: 1, evidenceCompleteness: "partial", reason,
+        accountQuotaTokens: null, savingsPercent: null }) }], isError: true });
+    if (report === "" || offset === -1 || (offset !== undefined && report === undefined)) {
+      return unavailable("invalid efficiency request");
     }
-
-    return trackResponse("ctx_stats", {
-      content: [{ type: "text" as const, text }],
-    });
+    try {
+      const sessionId = currentAttribution()?.sessionId;
+      if (!sessionId) return unavailable("current session attribution unavailable");
+      const root = join(getSessionDir(), "efficiency", createHash("sha256").update(sessionId).digest("hex"));
+      const scope = { root, authorizeRead: (path: string) => {
+        try {
+          // Only this generated session root is addressable. Native Read deny
+          // rules still apply to absolute and project-relative artifact paths.
+          const rel = relative(root, path);
+          if (!/^report-[a-f0-9]{64}\.json$/.test(rel)) return false;
+          const deny = readToolDenyPatterns("Read", getProjectDir());
+          return [path, relative(getProjectDir(), path)]
+            .every(candidate => !evaluateFilePath(candidate, deny, process.platform === "win32", getProjectDir()).denied);
+        } catch { return false; }
+      } };
+      if (report !== undefined) return readEfficiencySummary(scope, report, offset);
+      const path = getSessionDbPath();
+      if (!existsSync(path)) {
+        const summary = new AnalyticsEngine(createMinimalDb()).getEfficiencySummary({ sessionId, captureCutoffMs: Date.now(), allowedTools: REGISTERED_CTX_TOOLS.map(tool => tool.name) });
+        return formatEfficiencySummary(summary, scope);
+      }
+      const Database = loadDatabase();
+      const db = new Database(path, { readonly: true });
+      try {
+        return formatEfficiencySummary(new AnalyticsEngine(db).getEfficiencySummary({ sessionId, captureCutoffMs: Date.now(), allowedTools: REGISTERED_CTX_TOOLS.map(tool => tool.name) }), scope);
+      } finally { db.close(); }
+    } catch { return unavailable("efficiency measurements or authorized storage unavailable"); }
   },
 );
 
@@ -5061,7 +4897,8 @@ async function main() {
   // `0 calls / $0.00` until the user makes another MCP tool call. Wrapped
   // in try/catch — a stats-restore failure must never block server startup.
   try {
-    const restored = restoreSessionStats(getSessionDbPath());
+    const restoreSessionId = currentAttribution()?.sessionId;
+    const restored = restoreSessionId ? restoreSessionStats(getSessionDbPath(), restoreSessionId) : null;
     if (restored) {
       for (const [tool, count] of Object.entries(restored.calls)) {
         sessionStats.calls[tool] = count;

@@ -15,6 +15,26 @@ and contents while excluding generated dependencies and build artifacts.
 
 ## Downstream changes
 
+- Adds provider-counter accounting with source-scoped capture identities,
+  explicit per-counter coverage across gaps/resets, and unknown quota. Measures
+  MCP result JSON fields once after registered handlers return, including
+  structured content and explicit error flags. Persists only numeric metadata,
+  unique capture IDs and digests; unmeasurable observations remain null through
+  analytics. Host rendering/transport framing, nested calls and delivery lack
+  authoritative runtime visibility and remain estimates or explicitly unknown.
+  Integration tests exercise the production wrapper, registered handlers,
+  persistence and analytics with independently authored UTF-8 envelopes.
+- Replaces the legacy `ctx_stats` savings narrative with a 2048-byte metrics
+  summary, explicit coverage and null quota/savings when no compatible comparison
+  exists. Retains full metrics behind session-scoped, digest-verified overflow
+  pages that honor native Read denies and reject changed or symlinked artifacts.
+  Raw provider counters are captured locally through the existing Codex Stop
+  hook without forwarding conversations, collapsing missing fields or adding
+  reasoning to output. Legacy pricing records remain excluded from raw coverage.
+  Advances the stats sidecar to schema 3: byte counts are known lower bounds;
+  incomparable token/dollar savings stay null, and obsolete lifetime estimation
+  scans are removed from the response hot path.
+
 - Adds `ctx_test_evidence` for authenticated argv-only `gh` capture and
   authorized local test ingestion, deterministic format adapters, private
   digest-bound manifests, scoped indexing and 2048-byte reports/followups.
@@ -90,6 +110,16 @@ and contents while excluding generated dependencies and build artifacts.
   avoiding repeated full-report hashing while detecting changed reports.
 - Resolves evidence candidates before containment and checks deny rules on both
   supplied and canonical paths; uses native separators for terminal-cache roots.
+
+- Freezes an invented model-payload corpus with independent byte/counter
+  expectations, source digests, the actual workspace baseline revision and
+  dependency/environment identities. Replays production handlers in isolated
+  baseline/candidate processes, counts overflow requests and envelopes, and
+  keeps unsupported baseline measurements or serialization failures unknown.
+
+- Keeps the tier-2 smoke assertion compatible with schema 3 null savings and
+  restores legacy counters only for the authoritative Codex session, preserving
+  unknown identity instead of borrowing the newest sibling session.
 
 ## Updating context-mode
 
