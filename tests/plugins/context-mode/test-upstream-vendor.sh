@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-root=$(CDPATH= cd -- "$(dirname -- "$0")/../../.." && pwd)
+root=$(CDPATH='' cd -- "$(dirname -- "$0")/../../.." && pwd)
 vendor=${VENDOR_DIR:-"$root/plugins/context-mode"}
 fixture=${FIXTURE:-"$root/tests/plugins/context-mode/fixtures/context-mode-codex-hardening-4b1348d.sha256"}
 provenance=${PROVENANCE:-"$root/plugins/context-mode/UPSTREAM.md"}
@@ -26,6 +26,7 @@ expected = {}
 for line in fixture.read_text().splitlines():
     mode, remainder = line.split(" ", 1)
     digest, relative = remainder.split("  ", 1)
+    assert mode in {"0644", "0755"}, f"non-portable Git mode in checksum fixture: {relative}: {mode}"
     expected[relative] = (int(mode, 8), digest)
 
 actual = {}
@@ -53,7 +54,9 @@ for directory, names, files in os.walk(vendor, followlinks=False):
         metadata = path.lstat()
         assert not stat.S_ISLNK(metadata.st_mode), f"vendored symlink is forbidden: {relative}"
         assert stat.S_ISREG(metadata.st_mode), f"non-regular vendor path: {relative}"
-        actual[relative] = (stat.S_IMODE(metadata.st_mode), hashlib.sha256(path.read_bytes()).hexdigest())
+        # Git preserves executable status, not local umask/group-write bits.
+        mode = 0o755 if metadata.st_mode & stat.S_IXUSR else 0o644
+        actual[relative] = (mode, hashlib.sha256(path.read_bytes()).hexdigest())
 
 assert actual == expected, (
     f"vendor differs from checksum: missing={sorted(expected.keys() - actual.keys())[:5]}, "
@@ -68,6 +71,10 @@ test "${TEST_DRIFT_CASE:-0}" = 1 && exit 0
 tmp=$(mktemp -d "${TMPDIR:-/tmp}/context-mode-vendor-test.XXXXXX")
 trap 'rm -rf "$tmp"' EXIT HUP INT TERM
 cp -a "$vendor" "$tmp/vendor"
+
+# A different checkout umask must not change the portable Git identity.
+chmod 600 "$tmp/vendor/LICENSE"
+TEST_DRIFT_CASE=1 VENDOR_DIR="$tmp/vendor" "$0"
 
 expect_failure() {
   if TEST_DRIFT_CASE=1 VENDOR_DIR="$tmp/vendor" "$0" >"$tmp/out" 2>"$tmp/err"; then
