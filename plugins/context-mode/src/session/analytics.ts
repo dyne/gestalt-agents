@@ -9,6 +9,7 @@
  *   const report = engine.queryAll(runtimeStats);
  */
 
+import { collectEfficiencySummary } from "./efficiency-summary.js";
 import { execFileSync } from "node:child_process";
 import { existsSync, readdirSync, statSync } from "node:fs";
 import { homedir } from "node:os";
@@ -287,6 +288,41 @@ export class AnalyticsEngine {
    */
   constructor(db: DatabaseAdapter) {
     this.db = db;
+  }
+
+  getEfficiencySummary(opts: Parameters<typeof collectEfficiencySummary>[1]) {
+    return collectEfficiencySummary(this.db, opts);
+  }
+
+  /** Result-byte counts. Legacy calls provide the denominator, including
+   * observations missing after persistence failure or session-event eviction.
+   */
+  getToolResponseMeasurements(sessionId: string): {
+    calls: number; measuredCalls: number; unmeasurableCalls: number;
+    missingCalls: number; knownBytes: number; totalBytes: number | null;
+    coverage: "complete" | "partial";
+  } {
+    const rows = this.db.prepare(
+      "SELECT data FROM session_events WHERE session_id = ? AND type = 'tool_response_measurement' ORDER BY id",
+    ).all(sessionId) as Array<{ data: string }>;
+    let measuredCalls = 0, unmeasurableCalls = 0, knownBytes = 0;
+    for (const row of rows) {
+      try {
+        const value = JSON.parse(row.data).serializedVisibleBytes;
+        if (typeof value === "number" && Number.isSafeInteger(value) && value >= 0) {
+          measuredCalls++; knownBytes += value;
+        } else { unmeasurableCalls++; }
+      } catch { unmeasurableCalls++; }
+    }
+    const counter = this.db.prepare(
+      "SELECT SUM(calls) AS calls FROM tool_calls WHERE session_id = ?",
+    ).get(sessionId) as { calls: number | null } | undefined;
+    const observed = measuredCalls + unmeasurableCalls;
+    const calls = Math.max(counter?.calls ?? 0, observed);
+    const missingCalls = calls - observed;
+    const complete = calls > 0 && missingCalls === 0 && unmeasurableCalls === 0;
+    return { calls, measuredCalls, unmeasurableCalls, missingCalls, knownBytes,
+      totalBytes: complete ? knownBytes : null, coverage: complete ? "complete" : "partial" };
   }
 
   // ═══════════════════════════════════════════════════════

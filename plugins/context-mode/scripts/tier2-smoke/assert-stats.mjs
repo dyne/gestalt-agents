@@ -4,7 +4,7 @@
  *
  * Reads a JSON `ctx-stats` payload from STDIN (or from $1) and asserts:
  *   - At least one ctx_* tool was actually invoked (calls > 0)
- *   - tokens_saved is a positive integer
+ *   - schema 3 reports unknown savings honestly; legacy savings are positive
  *   - No tool reported an error
  *
  * Designed to be host-agnostic: Pi, Claude Code, OpenCode all emit
@@ -54,7 +54,7 @@ function main() {
   console.log("=========================\n");
 
   let failed = 0;
-  const tools = payload.tools ?? {};
+  const tools = payload.schemaVersion === 3 ? (payload.by_tool ?? {}) : (payload.tools ?? {});
   const totalCalls = Object.values(tools).reduce(
     (sum, t) => sum + (Number(t?.calls) || 0),
     0,
@@ -76,9 +76,12 @@ function main() {
   }
 
   const tokensSaved = Number(payload.tokens_saved);
+  const measuredSchema = payload.schemaVersion === 3;
   failed += assert(
-    "tokens_saved is a positive integer",
-    Number.isFinite(tokensSaved) && tokensSaved > 0,
+    "tokens_saved follows the declared measurement schema",
+    measuredSchema
+      ? payload.tokens_saved === null && payload.comparison_coverage === "unavailable" && payload.bytes_returned_scope === "known_only"
+      : Number.isInteger(tokensSaved) && tokensSaved > 0,
     `tokens_saved = ${payload.tokens_saved}`,
   );
 

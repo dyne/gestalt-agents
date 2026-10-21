@@ -117,6 +117,13 @@ try {
             // platform (gated on ~/.context-mode/platform.json).
             attributeAndInsertEvents(db, sessionId, events, input, projectDir, "Stop", resolveProjectAttributions);
           }
+          // Local counters only: never forward this companion observation to
+          // the platform or export rollout conversation fields.
+          if (typeof usageMod.extractCodexMeasurementsSince === "function") {
+            for (const measurement of usageMod.extractCodexMeasurementsSince(rollout, cursor, sessionId)) {
+              db.insertEvent(sessionId, measurement, "Stop");
+            }
+          }
           if (next) db.setUsageCursor(sessionId, next);
         }
       }

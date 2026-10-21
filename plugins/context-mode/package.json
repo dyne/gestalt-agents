@@ -19,12 +19,13 @@
     "doctor": "npx tsx src/cli.ts doctor",
     "typecheck": "tsc --noEmit",
     "pretest": "npm run build",
-    "test": "vitest run tests/plugins/codex-manifest.test.ts tests/scripts/configure-codex.test.ts tests/scripts/prepare-runtime.test.ts tests/scripts/runtime-location.test.ts tests/scripts/start-mjs-mcp-boot.test.ts tests/adapters/codex.test.ts tests/adapters/codex-usage.test.ts tests/adapters/codex-invocation-context.test.ts tests/adapters/codex-external-mcp-routing.test.ts tests/hooks/codex-goal-compact.test.ts tests/hooks/codex-sessionstart-rule-capture.test.ts tests/util/mcp-handshake.test.ts tests/evidence/github.test.ts tests/evidence/extract.test.ts tests/evidence/package.test.ts tests/evidence/efficiency.test.ts",
+    "test": "vitest run tests/plugins/codex-manifest.test.ts tests/scripts/configure-codex.test.ts tests/scripts/prepare-runtime.test.ts tests/scripts/runtime-location.test.ts tests/scripts/start-mjs-mcp-boot.test.ts tests/adapters/codex.test.ts tests/adapters/codex-usage.test.ts tests/adapters/codex-invocation-context.test.ts tests/adapters/codex-external-mcp-routing.test.ts tests/hooks/codex-goal-compact.test.ts tests/hooks/codex-sessionstart-rule-capture.test.ts tests/util/mcp-handshake.test.ts tests/evidence/github.test.ts tests/evidence/extract.test.ts tests/evidence/package.test.ts tests/evidence/efficiency.test.ts tests/session/measurement-semantics.test.ts tests/session/response-accounting.test.ts tests/session/server-tool-call-wiring.test.ts tests/session/efficiency-summary.test.ts tests/benchmark/model-payloads.test.ts tests/tier2-smoke-assert.test.ts",
     "test:watch": "vitest",
     "benchmark": "npx tsx tests/benchmark.ts",
     "test:use-cases": "npx tsx tests/use-cases.ts",
     "test:compare": "npx tsx tests/context-comparison.ts",
     "test:ecosystem": "npx tsx tests/ecosystem-benchmark.ts",
+    "benchmark:payloads": "tsx benchmark/model-payloads.ts",
     "benchmark:evidence": "tsx scripts/benchmark-evidence.ts"
   },
   "dependencies": {
