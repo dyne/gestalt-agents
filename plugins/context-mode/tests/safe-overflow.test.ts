@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, mkdirSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
@@ -10,7 +10,7 @@ import { observedExecutionState } from "../src/execution-provenance.js";
 import { boundResponse, readResponsePage, retainAuthorizedReport } from "../src/response-budget.js";
 import { summarizeFailures, type ResponseEvidence } from "../src/response-evidence.js";
 
-const root = mkdtempSync(join(tmpdir(), "safe-overflow-")), workspace = join(root, "workspace");
+const root = realpathSync(mkdtempSync(join(tmpdir(), "safe-overflow-"))), workspace = join(root, "workspace");
 const scope = { root: join(root, "reports"), authorizeRead: () => true };
 const tap = `TAP version 13\nok 1 passing\n# ${"é😀 padding ".repeat(10000)}\nnot ok 2 LATE-FAIL-α\n  message: expected alpha\nnot ok 3 LATE-FAIL-β\n  message: expected beta\n1..3\n`;
 const bytes = (value: unknown) => Buffer.byteLength(JSON.stringify(value), "utf8");

@@ -1,4 +1,4 @@
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -7,7 +7,7 @@ import { ContentStore } from "../src/store.js";
 import { deduplicateQueryWindows, formatQueryWindows, type WindowResult } from "../src/search/query-windows.js";
 import { readResponsePage } from "../src/response-budget.js";
 
-const root = mkdtempSync(join(tmpdir(), "query-windows-"));
+const root = realpathSync(mkdtempSync(join(tmpdir(), "query-windows-")));
 const scope = { root: join(root, "reports"), authorizeRead: () => true };
 const result = (patch: Partial<WindowResult> = {}): WindowResult => ({ source: "a.txt", title: "section",
   content: "alpha beta finding\nsecond line", chunkId: 1, sourceId: 1, sourceRevision: "revision-one", ...patch });
