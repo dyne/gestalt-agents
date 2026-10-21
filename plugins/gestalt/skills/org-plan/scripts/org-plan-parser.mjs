@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { fail, resolvePlanPath } from "./org-plan-files.mjs";
+import { parseModelPolicy, describeModelPolicy } from "./org-plan-model-schema.mjs";
 
 const HEADING = /^(\*{1,2}) (TODO|WIP|DONE|SUSPENDED) \[#([ABC])\] (.+)$/;
 const REQUIRED_METADATA = ["TITLE", "SUBTITLE", "DATE", "KEYWORDS"];
@@ -17,7 +18,7 @@ function parseHeadings(lines, metadata) {
   let lastL1;
 
   for (let index = 0; index < lines.length; index += 1) {
-    const metadataMatch = /^#\+([A-Z]+):/.exec(lines[index]);
+    const metadataMatch = /^#\+([A-Z_]+):/.exec(lines[index]);
     if (metadataMatch) {
       const key = metadataMatch[1];
       metadata.set(key, (metadata.get(key) ?? 0) + 1);
@@ -214,10 +215,22 @@ export function parsePlan(text) {
   }
   if (!items.length) fail("no executable headings");
 
+  const versions = lines.map((line, index) => ({ line, index }))
+    .filter(({ line }) => /^#\+MODEL_POLICY_VERSION:/i.test(line));
+  if (versions.length > 1) fail("metadata MODEL_POLICY_VERSION must appear at most once");
+  const modelPolicyVersion = versions.length ? 1 : null;
+  if (versions.length && (versions[0].index >= items[0].line ||
+      versions[0].line !== "#+MODEL_POLICY_VERSION: 1")) {
+    fail("MODEL_POLICY_VERSION must be exactly 1 in document metadata before headings");
+  }
+
   const ids = new Set();
-  for (const item of items) parseItem(lines, item, ids);
+  for (const item of items) {
+    parseItem(lines, item, ids);
+    item.modelPolicy = parseModelPolicy(item, modelPolicyVersion);
+  }
   validateLifecycle(items);
-  return { text, lines, items, fingerprint: fingerprint(text) };
+  return { text, lines, items, modelPolicyVersion, fingerprint: fingerprint(text) };
 }
 
 export function readPlan(path) {
@@ -257,6 +270,7 @@ export function describe(plan, id) {
     state: item.state,
     goal: item.fields.get(item.level === 1 ? "Goal" : "Why") ?? null,
     ...(item.level === 1 ? { skills: item.properties.get("SKILLS") } : {}),
+    ...(item.modelPolicy ? { modelPolicy: describeModelPolicy(item.modelPolicy) } : {}),
   };
 }
 

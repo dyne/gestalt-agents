@@ -21,11 +21,12 @@ This methodology is based on Emacs org-mode and concepts by Ludwig Wittgenstein
 This method optimizes on token usage and quality of code by leveraging
 org-mode as planning format and context-mode as token saving memory
 system. It adopts a light multi-agent setup to keep the workflow and
-avoid stall. The prepared agents default to:
+avoid stall. Source profiles default to `gpt-6.1-sol` / `medium`; versioned L1s
+select their own validated settings through the [policy handoff contract](plugins/gestalt/skills/org-plan/references/model-policy-workflow.md):
 
 ```text
-root (depth 0, org-plan-reviewer, Sol or Terra, read-only)
-└── executor (depth 1, org-plan-executor, Terra, only code writer)
+root (depth 0, org-plan-reviewer, gpt-6.1-sol/medium, read-only)
+└── executor (depth 1, L1 model/effort, only code writer)
 ```
 
 The root also performs the director, supervisor, and routine reviewer duties.
@@ -38,8 +39,9 @@ conversational context. The root gives brief user-facing updates such as
 `L1 2/5 — Validate release metadata: in review`.
 
 After all L1s are REVIEWED and their executors have closed, the root launches
-one fresh subagent inheriting the root model and reasoning effort for a
-terminal whole-branch review. That agent
+one fresh default subagent with explicit `gpt-6.1-sol` / `medium` for a
+terminal whole-branch review, validating catalog/effective settings and never
+inheriting Astra. That agent
 fixes any P0/P1 findings as the sole writer before final acceptance.
 
 Supervision is completion-driven. An executor owns its entire L1 but returns a

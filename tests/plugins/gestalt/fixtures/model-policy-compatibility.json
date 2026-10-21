@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "provenance": "Invented mixed-version peers; schema/local-contract compatibility only, not live runtime enforcement.",
+  "cases": [
+    { "id": "legacy-old-consumer", "planVersion": null, "consumerCapabilities": [], "allowed": true },
+    { "id": "legacy-new-consumer", "planVersion": null, "consumerCapabilities": ["l1-model-policy-v1"], "allowed": true },
+    { "id": "new-old-consumer", "planVersion": 1, "consumerCapabilities": [], "allowed": false },
+    { "id": "new-partial-upgrade", "planVersion": 1, "consumerCapabilities": ["suspension-v1"], "allowed": false },
+    { "id": "new-false-token", "planVersion": 1, "consumerCapabilities": ["not-l1-model-policy-v1"], "allowed": false },
+    { "id": "new-compatible-consumer", "planVersion": 1, "consumerCapabilities": ["l1-model-policy-v1"], "allowed": true },
+    { "id": "new-combined-consumer", "planVersion": 1, "consumerCapabilities": ["suspension-v1", "l1-model-policy-v1"], "allowed": true }
+  ]
+}

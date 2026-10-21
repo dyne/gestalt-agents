@@ -1,0 +1,18 @@
+{
+  "provenance": "Invented controller/runtime observations. Contract evidence only; not actual runtime fields or live host integration.",
+  "policy": { "version": 1, "model": "gpt-6-luna", "reasoningEffort": "medium", "necessity": null },
+  "binding": { "l1Id": "simple-fixture", "position": 1, "threadId": "child-fixture-1", "executionEpoch": "launch-1", "settingsRevision": "settings-1" },
+  "runtime": {
+    "source": "runtime-thread-metadata",
+    "l1Id": "simple-fixture", "position": 1, "threadId": "child-fixture-1",
+    "executionEpoch": "launch-1", "settingsRevision": "settings-1",
+    "policyDigest": "0bc1a81fe73c239a15509e00a0b2f1f81768d6f550f6fa6e2d5e3f8e474fad7b",
+    "model": "gpt-6-luna", "reasoningEffort": "medium", "catalogRevision": "catalog-1",
+    "observedAt": "2026-10-21T10:00:00Z"
+  },
+  "catalog": { "source": "runtime", "revision": "catalog-1", "models": [
+    { "id": "gpt-6-luna", "reasoningEfforts": ["medium", "high"] },
+    { "id": "gpt-6-sol", "reasoningEfforts": ["medium", "high"] },
+    { "id": "gpt-6.1-sol", "reasoningEfforts": ["medium", "high", "xhigh"] }
+  ] }
+}

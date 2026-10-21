@@ -18,6 +18,7 @@ compact JSON or prose retaining these fields and explicit unknowns:
 | Milestone | Canonical L1/L2 positions and exact IDs. |
 | Candidate | Repository, branch, HEAD/start/base, dirty digest including untracked scope; relevant dependency/config and environment identities. Unknown identities prevent test reuse. |
 | Instructions read | Exact governing/selected skill/reference paths and content digests for the revisions actually read. A current file hash alone does not prove a prior read. |
+| Model policy | Exact current choices/rationale, necessity/return condition and complete [policy packet](model-policy-workflow.md) reference; requested/effective evidence stays distinct. |
 | Tested state | Exact command/cwd, candidate identity, observed exit/counts and original UTC time; digest-bound evidence path/locator. Unknown, failed and incomplete checks stay explicit. |
 | Findings | Short supported observations with evidence references; preserve uncertainty and invalidation. |
 | Open hypotheses | Question, next focused check, observed result/evidence, status and next decision; not reasoning transcripts. |
@@ -71,6 +72,8 @@ automatically splits an active approved milestone or adds progress approvals.
    SHA, dirty scope, dependency/config or environment invalidates affected tested
    state; retain it as historical and rerun affected checks. A fixed age alone
    proves neither validity nor staleness. Unknown identities require verification.
+   For versioned policy, read the complete packet and current choices/rationale;
+   use its continuation decisions and refresh admission before edits.
 4. Resolve evidence paths/digests/locators and original observations. Unsupported
    ledger assertions remain unverified; contradictions require source inspection
    and focused checks. Ledger assertions never replace independent verification,

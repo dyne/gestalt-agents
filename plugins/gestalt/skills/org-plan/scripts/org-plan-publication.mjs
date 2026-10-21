@@ -8,10 +8,11 @@ import {
 } from "node:fs";
 import { basename, dirname, isAbsolute, join } from "node:path";
 import { readPlan, projection } from "./org-plan-parser.mjs";
+import { MODEL_POLICY_CAPABILITY } from "./org-plan-model-schema.mjs";
 
-// The trusted host advertises this only after its source-reading consumer has
-// adopted suspension-v1. Legacy consumers reparse headings, ignoring metadata.
-export function requireSuspensionCapability(plan, { consumerAttached = false, consumerCapabilities } = {}) {
+// Trusted host assertions are independent: schema support does not prove model
+// availability or effective launch settings. Legacy consumers ignore metadata.
+export function requireConsumerCapabilities(plan, { consumerAttached = false, consumerCapabilities } = {}) {
   const destination = process.env.GESTALT_MOBILE_ORG_PLAN_STATUS_DIRECTORY ||
     process.env.GESTALT_MOBILE_ORG_PLAN_STATUS_FILE;
   if (!destination && !consumerAttached && consumerCapabilities === undefined) return;
@@ -21,12 +22,17 @@ export function requireSuspensionCapability(plan, { consumerAttached = false, co
   const capabilities = consumerCapabilities === undefined
     ? (process.env.GESTALT_MOBILE_ORG_PLAN_CAPABILITIES ?? "").split(",")
     : consumerCapabilities;
+  if (plan.modelPolicyVersion !== null && !capabilities.includes(MODEL_POLICY_CAPABILITY))
+    fail(`Mobile consumer requires ${MODEL_POLICY_CAPABILITY} capability; no plan or status written`);
   const suspended = plan.items.filter((item) => item.level === 1 && item.state === "SUSPENDED");
   if (suspended.length && !capabilities.includes("suspension-v1"))
     fail("Mobile consumer requires suspension-v1 capability; no plan or status written");
   if (suspended.length > 1 && !capabilities.includes("nested-suspension-v1"))
     fail("Mobile consumer requires nested-suspension-v1 capability; no plan or status written");
 }
+
+// Preserve the exported compatibility entrypoint used by existing hosts.
+export const requireSuspensionCapability = requireConsumerCapabilities;
 
 import {
   chmodThroughPath,
@@ -87,7 +93,7 @@ export function publishStatus(path, reason, options = {}) {
   try {
     const planPath = resolvePlanPath(path);
     const plan = readPlan(planPath);
-    requireSuspensionCapability(plan, options);
+    requireConsumerCapabilities(plan, options);
     projection(plan);
     let directory;
     let targetName;
@@ -130,6 +136,10 @@ export function publishStatus(path, reason, options = {}) {
         planPath,
         reason,
         updatedAt: new Date().toISOString(),
+        ...(plan.modelPolicyVersion === null ? {} : {
+          modelPolicyVersion: plan.modelPolicyVersion,
+          requiredCapabilities: [MODEL_POLICY_CAPABILITY],
+        }),
       };
       writeFileSync(temporary, `${JSON.stringify(record)}\n`, { mode: 0o600 });
       chmodThroughPath(temporary, 0o600);

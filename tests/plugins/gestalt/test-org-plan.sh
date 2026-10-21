@@ -37,6 +37,11 @@ for runtime_file in \
   org-plan-core.mjs \
   org-plan-files.mjs \
   org-plan-parser.mjs \
+  org-plan-model-policy.mjs \
+  org-plan-model-schema.mjs \
+  org-plan-executor-launch.mjs \
+  org-plan-effective-settings.mjs \
+  org-plan-model-comparison.mjs \
   org-plan-publication.mjs \
   org-plan-transitions.mjs; do
   install -m 0644 "$root/plugins/gestalt/skills/org-plan/scripts/$runtime_file" \
@@ -533,7 +538,7 @@ expect_ok "$helper" prepare-executor --agents-dir "$encoded_dir" --profile-name 
 test "$(wc -l < "$tmp/out")" = 1 && pass || fail 'legacy encoded success output is exactly one record'
 python3 -c 'import sys, urllib.parse; fields=dict(item.split("=", 1) for item in open(sys.argv[1], encoding="ascii").read().strip().split(" ")); assert urllib.parse.unquote(fields["profile"]) == sys.argv[2] + "/encoded-executor.toml"' "$tmp/out" "$encoded_dir" && pass || fail 'legacy encoded profile path round-trips without eval'
 expect_contains "$encoded_dir/encoded-executor.toml" 'Own the entire assigned L1 and report only to the root.'
-expect_contains "$encoded_dir/encoded-executor.toml" 'model_reasoning_effort = "high"'
+expect_contains "$encoded_dir/encoded-executor.toml" 'model_reasoning_effort = "medium"'
 expect_contains "$encoded_dir/encoded-executor.toml" 'Gestalt workflow skills are already loaded'
 expect_contains "$encoded_dir/encoded-executor.toml" 'load exactly the optional L1 Skills'
 expect_contains "$encoded_dir/encoded-executor.toml" 'First tool call: read the org-plan skill completely and do nothing else.'
@@ -544,10 +549,10 @@ test ! -e "$tmp/.codex/agents/org-plan-executor.toml" && pass || fail 'tests avo
 
 supervision_dir="$tmp/supervision-agents"
 expect_ok "$helper" prepare-supervision --agents-dir "$supervision_dir"
-expect_contains "$tmp/out" 'executor=org-plan-executor executor_model=gpt-5.6-terra'
-expect_contains "$tmp/out" 'root_reviewer=org-plan-reviewer root_reviewer_model=gpt-5.6-sol'
-expect_contains "$supervision_dir/org-plan-executor.toml" 'model = "gpt-5.6-terra"'
-expect_contains "$supervision_dir/org-plan-executor.toml" 'model_reasoning_effort = "high"'
+expect_contains "$tmp/out" 'executor=org-plan-executor executor_model=gpt-6.1-sol'
+expect_contains "$tmp/out" 'root_reviewer=org-plan-reviewer root_reviewer_model=gpt-6.1-sol'
+expect_contains "$supervision_dir/org-plan-executor.toml" 'model = "gpt-6.1-sol"'
+expect_contains "$supervision_dir/org-plan-executor.toml" 'model_reasoning_effort = "medium"'
 expect_contains "$supervision_dir/org-plan-executor.toml" 'You are the depth-one executor and only code writer.'
 expect_contains "$supervision_dir/org-plan-executor.toml" 'Own the entire assigned L1 and report only to the root.'
 expect_contains "$supervision_dir/org-plan-executor.toml" 'Gestalt workflow skills are already loaded'
@@ -560,7 +565,7 @@ expect_contains "$supervision_dir/org-plan-executor.toml" 'Never include an Org 
 expect_not_contains "$supervision_dir/org-plan-executor.toml" 'At the start of each new or resumed relay session'
 expect_not_contains "$supervision_dir/org-plan-executor.toml" 'Use task_name l<a>'
 expect_not_contains "$supervision_dir/org-plan-executor.toml" 'sandbox_mode ='
-expect_contains "$supervision_dir/org-plan-reviewer.toml" 'model = "gpt-5.6-sol"'
+expect_contains "$supervision_dir/org-plan-reviewer.toml" 'model = "gpt-6.1-sol"'
 expect_contains "$supervision_dir/org-plan-reviewer.toml" 'model_reasoning_effort = "medium"'
 expect_contains "$supervision_dir/org-plan-reviewer.toml" 'sandbox_mode = "read-only"'
 expect_contains "$supervision_dir/org-plan-reviewer.toml" 'You are the depth-zero read-only root: director, supervisor, and routine reviewer.'
@@ -594,7 +599,7 @@ expect_ok "$helper" prepare-supervision --agents-dir "$override_dir" \
   --executor-model terra-test --reviewer-model sol-test \
   --executor-profile-name test-executor --reviewer-profile-name test-reviewer
 expect_contains "$override_dir/test-executor.toml" 'model = "terra-test"'
-expect_contains "$override_dir/test-executor.toml" 'model_reasoning_effort = "high"'
+expect_contains "$override_dir/test-executor.toml" 'model_reasoning_effort = "medium"'
 expect_contains "$override_dir/test-reviewer.toml" 'model = "sol-test"'
 expect_contains "$override_dir/test-reviewer.toml" 'model_reasoning_effort = "medium"'
 expect_contains "$tmp/out" 'executor=test-executor executor_model=terra-test'
@@ -628,7 +633,7 @@ expect_contains "$supervised" 'post-acceptance commentary, documentation, or the
 expect_not_contains "$supervised" 'legacy continuous-root fallback'
 expect_not_contains "$readme" 'root session'
 expect_contains "$readme" 'Every new or resumed relay session signals supervision'
-expect_contains "$readme" 'root (depth 0, org-plan-reviewer, Sol or Terra, read-only)'
+expect_contains "$readme" 'root (depth 0, org-plan-reviewer, gpt-6.1-sol/medium, read-only)'
 expect_contains "$readme" 'Context-mode transports evidence; it does not spawn agents'
 expect_contains "$readme" 'Each L1 also declares a non-empty `:SKILLS:` property'
 expect_contains "$readme" 'Supervision is completion-driven. An executor owns its entire L1'
