@@ -84,6 +84,15 @@ describe('durable source maps', () => {
     expect(wider.windows[0]).toMatchObject({start: 15, end: 50});
     expect(request({operation: 'read', map: saved.map, range: {start: 100, end: 140}}).error).toBe(true);
   });
+  it('executes the published wider-source example against current authorized bytes', () => {
+    const documentation = readFileSync(new URL('../../gestalt/skills/context-mode/references/bounded-retrieval.md', import.meta.url), 'utf8');
+    const example = JSON.parse([...documentation.matchAll(/```json\n([^`]+)```/g)][0][1]);
+    const saved = capture();
+    const result = full({...example, map: saved.map});
+    expect(result.state).toBe('current');
+    expect(result.windows[0]).toMatchObject({start: 15, end: 50});
+    expect(result.windows[0].text).toBe(source().split('\n').slice(14, 50).join('\n'));
+  });
   it('binds every bounded Unicode page to current content and reauthorizes after policy changes', () => {
     const saved = capture(), args = {operation: 'read', map: saved.map, range: {start: 1, end: 120}, maxBytes: 1024};
     const first = request(args);expect(first.nextOffset).toBeGreaterThan(0);

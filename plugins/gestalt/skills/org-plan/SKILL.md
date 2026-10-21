@@ -10,20 +10,10 @@ fresh lesser-reasoning executor to complete from the plan and repository alone.
 
 ## Route planning work
 
-Use Codex's native planning surfaces when useful for small
-single-session, bounded work. Straightforward implementation tasks do
-not require a persisted plan.
-
-Select Org Plan only when the user explicitly requests it or the work genuinely
-needs at least one of these capabilities:
-
-- execution across sessions or context compaction;
-- inspectable workspace-local durability;
-- L1/L2 milestone hierarchy or explicit skill assignment;
-- supervised subagent ownership;
-- review, accept, or reject transitions and evidence gates;
-- one commit per accepted milestone;
-- mobile attention or supervision.
+Use native planning for ordinary bounded work. Select Org Plan when explicitly
+requested or when work needs durable cross-session state, L1/L2 milestones,
+assigned skills/owners, supervised review and evidence gates, milestone commits,
+or mobile attention.
 
 Once an Org workflow is active, its Org file and helper state machine are
 authoritative. Continue projecting it to host `update_plan` for UI progress,
@@ -163,10 +153,8 @@ time, checkpoints, and executor idleness are not attention conditions.
    required baseline checks before implementation handoff.
 ## Manual execution loop
 
-Use host-native filesystem tools for governing instructions, small bounded
-reads, edits, mutations, and short command interaction. Use context-mode only
-for large or uncertain analysis, filtering, indexing, and retrieval; it never
-writes or changes Org state.
+Follow the required [context-mode routing contract](../context-mode/SKILL.md#routing-contract)
+for native reads/mutations and evidence analysis. Context-mode never changes Org state.
 
 1. Confirm the assigned branch and choose the next WIP L1, otherwise the first
    TODO L1. Transition it with `org-plan set`.

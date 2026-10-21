@@ -261,3 +261,189 @@ an offline synthetic comparison, not a historical-binary, model-latency, token,
 API-cache or billing measurement. Reproduction and limitations are in
 `plugins/context-mode/README.md`; `npm run benchmark:evidence -- <metrics.json>`
 from that plugin exits nonzero on an unmet criterion and retains metrics only.
+
+## L5.1 delivery inventory
+
+`instruction-baseline.py --json` now separates repository bootstrap, skill
+entrypoints, generated profile instructions, required references, discovery
+name/description values, deferred Org references, and the inactive vendor
+example. Catalog bytes measure the 16 source entries, not host-rendered catalog
+framing. Deferred references are available bytes, not startup reads. Host
+instructions and tool schemas are explicitly unknown; these measurements cannot
+explain the whole initial context or establish token/billing savings.
+
+Against starting commit `359dfdaab35b9c18ef23d74755a83c3c483d2ee0`, this child
+removes the executor's repeated already-loaded-skill explanation and redundant
+helper instruction (104 bytes); the shared bootstrap still supplies both rules.
+The Org entrypoint routes its repeated native/evidence-tool explanation to the
+required context-mode routing contract, retaining the Org mutation prohibition.
+It also compresses planning-selection prose without changing its conditions.
+Authority, startup order, missing-skill stop, review, commit, checkpoint, and
+root-only projection postconditions remain in generated bootstrap instructions.
+
+| Role path | Starting bytes | L5.1 bytes |
+| --- | --- | --- |
+| Root | 55435 | 55016 |
+| Executor | 53663 | 53140 |
+| Terminal reviewer | 51595 | 51176 |
+
+Current categories: repository bootstrap 3504 bytes; skill entrypoints 18283;
+both generated profiles 5804; required references 29389; discovery metadata
+4255; deferred Org references 17005; inactive vendor example 5280. Categories
+are separate delivery surfaces, not a sum for one live prompt. The immutable
+original baseline above remains unchanged. Missing-reference negative control
+and inactive-vendor exclusion now complement existing startup/profile budgets,
+canonical-source verification, TOML parsing, and exact discovery checks.
+
+## L5.2 bounded retrieval
+
+Context-mode's required entrypoint now targets 2048 serialized UTF-8 bytes for
+routine analysis/search, with the smallest sufficient query set, focused
+contradiction followups, explicit source/range/budget expansion, and complete
+authorized overflow. Native governing/pre-edit reads and mutation authority
+remain in its routing contract. `ctx-search` uses the implemented default of
+three results rather than five. Source query descriptions remove blanket
+all-question collection; installed sessions retain their existing schema.
+
+The conditional `context-mode/references/bounded-retrieval.md` is required when
+using budget/continuation/source-window parameters, not at startup. It maps
+actual shipped `response_bytes`, `response_report`/`response_offset`, separate
+evidence `maxBytes` and failure offsets, and source-map range/context/revision
+fields. It explains older-host fallback, full-failure coverage and changed or
+denied overflow. Tests execute its wider-source example against authorized
+live bytes and validate its continuation examples against shipped schemas.
+
+Four added instruction decisions cover routine budgets, scoped expansion,
+field variants and complete-failure/fallback behavior (42 total scenarios).
+Runtime suites additionally exercise Unicode/escaping envelope limits, late
+log failures, denied/changed overflow, source edits and contradictory evidence.
+The measured common role paths are 55528/53652/51688 bytes for
+root/executor/terminal reviewer; conditional retrieval adds its own disclosed
+reference bytes only when selected. These are source-byte counts, not the
+whole live prompt or token/billing savings.
+
+## L5.3 actionable supervision wakes
+
+S's Actionable wakes section requires one authoritative retained-state snapshot
+per actionable wake, current event facts reused, affected facts refreshed after
+mutation/change/contradiction, and delta evidence inspection with invalidated
+checks rerun. Independent verification still governs acceptance. Running work
+uses observable agent/process waits within the turn or the existing accepted
+long-wait lease contract, without repeated health/list/status loops. Followups
+carry next work, missing evidence/corrections or idle-incomplete continuation.
+Recoverable errors stay in-turn; only exhausted table-qualified blockers use
+attention. User status questions still require a legal lifecycle disposition.
+
+The role descriptions and routing explanation now defer to their required
+canonical contracts. Shared assignment/review task-input fields moved from S's
+duplicated lists into E's Assignment and review forms, retaining full plan
+identity/L1/L2 sections, criteria, prior outputs, scope/impact, preserved paths,
+prohibitions, ambiguity stop and applicable UI matrix. E and S remain mandatory
+and counted; this does not hide the new rules in an optional startup path.
+
+Four new static instruction decisions cover snapshots/deltas, running work,
+decision-only followups and actionable error recovery (46 total). A reversed
+no-polling instruction is a negative control. Existing decisions cover DONE L2,
+partial idle, accepted/rejected/missing/already-satisfied leases, manual Off,
+status questions, recovery, mandatory checkpoint finals and terminal review.
+These are instruction-preservation checks, not a claim to simulate model or
+Mobile runtime behavior. Measured root/executor/terminal paths remain below
+their immutable baseline at 55542/53666/51702 bytes, respectively.
+
+## L5.4 continuity recovery
+
+S now routes changed findings/checks/decisions to the conditional
+`org-plan/references/continuity-ledger.md`, required before ledger writes or
+recovery. It defines a 2048-byte summary with complete authorized overflow,
+milestone/candidate/tested observations, read instruction revisions, supported
+findings, open hypotheses, source navigation and next decision. Updates follow
+changed facts, not every turn. Native ledger writes do not mutate Org state.
+No prompts, conversations, raw logs or reasoning transcripts belong in it.
+
+Recovery preserves mandatory fresh-session startup reads, rereads changed or
+missing-context instructions in full, refreshes candidate/ownership and verifies
+digest-bound evidence. Unknown identities prevent reuse; invalidated tests stay
+historical until affected checks rerun. Source-map leads never replace current
+native pre-edit inspection. Assertions do not grant acceptance or waive gates.
+
+The new automatically discovered continuity gate exercises 16 sanitized cases:
+current recovery, SHA/dirty/dependency/config/environment invalidation, unknown
+environment, changed skill, hash without a read record, missing context,
+fresh-session startup, unsupported check/finding, missing evidence, lossless
+Unicode failure overflow, missing overflow and forbidden transcript fields.
+Its oracle independently reads artifacts and preserves original observations;
+all 30 overflow failure IDs/causes survive. Largest summary: 796 UTF-8 bytes.
+Three static instruction decisions add field/overflow, recovery and update
+cadence coverage (49 total). These fixtures model contract decisions, not model
+memory or controller execution. The conditional reference is disclosed in
+deferred Org reference bytes; common role paths remain below the original
+baseline at 55549/53673/51709 bytes.
+
+## L5.5 cohesive milestones and investigations
+
+Plan-format now requires authors to split independent acceptance outcomes before
+execution and keep inseparable contracts together, preserving one writer per L1
+and coupled steps as L2s. Checkout-retry versus unrelated navigation and a
+schema/producer/consumer change illustrate the distinction. Active approved
+milestones never split automatically; neither compaction count nor elapsed
+time supplies a mechanical threshold or authority to replan or waive gates.
+
+The existing continuity reference now owns focused investigations: one compact
+hypothesis/check/result/evidence/next-decision record, reused after compaction.
+Focused iteration expands affected regression checks after shared-source or
+dependency/config/environment changes; full suite, complete scope and review
+remain mandatory at L1 completion/acceptance. One-off commands introduce no
+helper. Repeated proven extraction patterns reuse fitting existing helpers;
+only an unmet repeated need warrants considering a scoped verified helper.
+
+The existing continuity oracle/gate now exercises 17 recovery cases (including
+an actual shared-source fixture change), 3 authoring/active-plan examples and
+4 diagnostic decisions. Hypothesis/results survive bounded recovery without
+reconstruction. Fixture-declared inseparability expresses author judgement;
+the oracle does not infer production coupling or mutate an active plan.
+Five net added instruction scenarios cover authoring, active boundaries,
+focused/full tests and diagnostic proportionality (54 total). Common role paths
+are 55535/53659/51695 bytes; conditional reference bytes remain disclosed.
+
+## L5.6 delivery and scripted gates
+
+The immutable L5 starting snapshot is `359dfdaab35b9c18ef23d74755a83c3c483d2ee0`.
+`instruction-l5-baseline.json` retains source-byte/word counts and the digest of
+the unchanged sanitized role-input fixture. Gates require smaller combined
+bootstrap instructions, smaller measured role paths and smaller filled
+assignment/review forms. Required report fields remain defined once in E;
+forms reference that mandatory contract and preserve explicit unknowns,
+independent verification and ACCEPT/REJECT authority.
+
+| Measured surface | L5 start bytes | Current bytes |
+| --- | --- | --- |
+| Reviewer + executor bootstrap | 5908 | 5804 |
+| Filled assignment | 1030 | 934 |
+| Filled review request | 915 | 870 |
+| Root required path | 55435 | 55394 |
+| Executor required path | 53663 | 53518 |
+| Terminal reviewer required path | 51595 | 51554 |
+
+Developer-instruction word ceilings tighten to reviewer 540/executor 300;
+complete TOML file ceilings are 560/315. Parseability, startup, source precedence,
+missing references and critical authority postconditions remain covered. Exact
+16-skill discovery now copies only Git-visible distributable source and checks
+required links there. Archive delivery compares current bytes for new conditional
+references, authoring guidance and the search skill as well as bootstrap sources.
+
+The new scripted supervision gate runs disposable helper lifecycle transitions
+with generated profile parsing and independent fixture evidence. Eleven actor
+wakes cover running work, rejected lease, partial idle, status question,
+recoverable error, DONE L2, replay/failed checkpoints, same-executor continuation,
+accepted-L1 final and terminal prerequisites. Seven negative controls reject
+premature review/completion, stale/contradictory evidence, missing full evidence,
+REJECT commit authority and forbidden staged-path inputs. No Git staging/commit,
+live agent spawn, installed profile update or Mobile control call occurs in this
+scenario. Lease/checkpoint actions are scripted contract fixtures; they do not
+establish runtime controller or model behaviour. Its report is 985 UTF-8 bytes.
+
+These measurements concern repository-owned instruction and fixture message
+bytes only. Conditional references add separately disclosed retrieval costs.
+Host instructions/schemas, provider/model token savings, latency, account quota
+and billing savings remain unmeasured. Current package-level transport tests
+exercise actual serialized response limits separately from these fixtures.

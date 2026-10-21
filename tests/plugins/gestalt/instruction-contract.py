@@ -4,6 +4,7 @@ These checks exercise generated delivery and canonical scenario branches. They
 do not claim to simulate an agent or the Mobile runtime.
 """
 import json
+import hashlib
 from pathlib import Path
 import re
 import runpy
@@ -20,6 +21,9 @@ SOURCES = {
     "supervision": ORG / "references/supervised-execution.md",
     "evidence": ORG / "references/evidence-report.md",
     "routing": ROOT / "plugins/gestalt/skills/context-mode/SKILL.md",
+    "retrieval": ROOT / "plugins/gestalt/skills/context-mode/references/bounded-retrieval.md",
+    "continuity": ORG / "references/continuity-ledger.md",
+    "format": ORG / "references/plan-format.md",
 }
 
 
@@ -53,8 +57,8 @@ def check_scenarios(documents):
     return len(ids)
 
 
-def check_links():
-    for path in [*SOURCES.values(), ROOT / "AGENTS.md"]:
+def check_links(paths=None):
+    for path in paths if paths is not None else [*SOURCES.values(), ROOT / "AGENTS.md"]:
         for target in re.findall(r"\]\(([^)]+)\)", path.read_text()):
             if "://" in target:
                 continue
@@ -79,7 +83,7 @@ def check_profiles(directory):
         assert "inspect git diff --cached --name-only" in text and ".gestalt/*.org" in text
         assert "Context-mode never mutates Org state" in text
         assert text.count("gestalt_org_plan_attention") == 1
-        assert len(text.split()) <= {"reviewer": 550, "executor": 320}[role]
+        assert len(text.split()) <= {"reviewer": 540, "executor": 300}[role]
         if role == "reviewer":
             assert profile["sandbox_mode"] == "read-only"
             for rule in ("Your roster name is l0", "durable Mobile replacement authorization",
@@ -100,6 +104,16 @@ def main():
     documents = {key: path.read_text() for key, path in SOURCES.items()}
     count = check_scenarios(documents)
     check_links()
+    # Required references fail closed; a plausible link label is insufficient.
+    with tempfile.TemporaryDirectory(prefix="instruction-missing-reference-") as directory:
+        entrypoint = Path(directory) / "SKILL.md"
+        entrypoint.write_text("Read [required lifecycle](references/supervised-execution.md).\n")
+        try:
+            check_links([entrypoint])
+        except AssertionError:
+            pass
+        else:
+            raise AssertionError("missing required reference accepted")
     # A lost critical action must fail even if its outcome key survives.
     damaged = dict(documents)
     damaged["supervision"] = documents["supervision"].replace("Do not retry the lease", "Retry the lease")
@@ -109,6 +123,15 @@ def main():
         pass
     else:
         raise AssertionError("scenario contract accepted reversed lease action")
+    damaged = dict(documents)
+    damaged["supervision"] = documents["supervision"].replace(
+        "No repeated\nhealth/list/status loops", "Create repeated\nhealth/list/status loops")
+    try:
+        check_scenarios(damaged)
+    except AssertionError:
+        pass
+    else:
+        raise AssertionError("scenario contract accepted a running-worker polling loop")
     if "--profiles" in sys.argv:
         check_profiles(Path(sys.argv[sys.argv.index("--profiles") + 1]))
     else:
@@ -118,6 +141,23 @@ def main():
             check_profiles(Path(directory))
     baseline = runpy.run_path(str(Path(__file__).with_name("instruction-baseline.py")))
     current = baseline["inventory"]()
+    l5 = json.loads((FIXTURES / "instruction-l5-baseline.json").read_text())
+    assert l5["version"] == 1
+    assert hashlib.sha256((FIXTURES / "supervisor-role-inputs.json").read_bytes()).hexdigest() == l5["roleInputsSha256"]
+    for unit in ("words", "bytes"):
+        assert sum(current["sources"][f"profile-{role}"][unit] for role in l5["profiles"]) < sum(
+            profile[unit] for profile in l5["profiles"].values()), (unit, "L5 bootstrap did not decrease")
+        for role, starting in l5["roles"].items():
+            assert current["roles"][role][unit] < starting[unit], (role, unit, "L5 required path did not decrease")
+    delivery = current["delivery"]
+    assert delivery["hostInstructions"] is None and delivery["toolSchemas"] is None
+    assert delivery["discoveryCatalog"]["count"] == 16
+    categories = delivery["categories"]
+    assert categories["required-references"]["sources"] == ["supervision", "evidence"]
+    assert categories["inactive-vendor-example"]["sources"] == ["vendor-codex-guidance-inactive"]
+    # Inactive vendor guidance cannot be counted as delivered savings.
+    for data in current["roles"].values():
+        assert "vendor-codex-guidance-inactive" not in data["sources"]
     before = json.loads((FIXTURES / "instruction-baseline.json").read_text())["instructions"]
     for role, data in current["roles"].items():
         assert "evidence" in data["sources"], (role, "mandatory evidence read omitted")

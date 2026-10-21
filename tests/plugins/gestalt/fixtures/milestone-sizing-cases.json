@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "plans": [
+    {"id":"unrelated-acceptance-outcomes","phase":"authoring","outcomes":["checkout-retry","report-navigation"],"inseparable":[],"expected":[["checkout-retry"],["report-navigation"]]},
+    {"id":"inseparable-contract-change","phase":"authoring","outcomes":["schema","producer","consumer"],"inseparable":[["schema","producer"],["schema","consumer"]],"expected":[["schema","producer","consumer"]]},
+    {"id":"active-approved-milestone","phase":"active","outcomes":["checkout-retry","report-navigation"],"inseparable":[],"expected":"retain-approved-scope"}
+  ],
+  "diagnostics": [
+    {"id":"one-off-count","existingHelperFits":false,"repeatedStructureProven":false,"expected":"bounded-command"},
+    {"id":"repeated-existing-selector","existingHelperFits":true,"repeatedStructureProven":true,"expected":"reuse-existing"},
+    {"id":"repeated-no-fitting-helper","existingHelperFits":false,"repeatedStructureProven":true,"expected":"consider-scoped-helper"},
+    {"id":"different-questions-are-not-proof","existingHelperFits":false,"repeatedStructureProven":false,"expected":"bounded-command"}
+  ]
+}

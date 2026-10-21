@@ -5,7 +5,40 @@ root=$(CDPATH= cd -- "$(dirname -- "$0")/../../.." && pwd)
 tmp=$(mktemp -d "${TMPDIR:-/tmp}/agent-plugins-skills-test.XXXXXX")
 trap 'rm -rf "$tmp"' EXIT HUP INT TERM
 mkdir -p "$tmp/repository/plugins"
-cp -a "$root/plugins/gestalt" "$tmp/repository/plugins/gestalt"
+python3 - "$root" "$tmp/repository" <<'PY'
+from pathlib import Path
+import shutil
+import subprocess
+import sys
+
+source, target = map(Path, sys.argv[1:])
+paths = subprocess.check_output(["git", "-C", str(source), "ls-files", "--cached",
+                                 "--others", "--exclude-standard", "-z", "--", "plugins/gestalt"])
+for name in filter(None, paths.decode().split("\0")):
+    path = source / name
+    if path.is_file():
+        destination = target / name
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(path, destination, follow_symlinks=False)
+PY
+
+python3 - "$tmp/repository/plugins/gestalt/skills" <<'PY'
+from pathlib import Path
+import re
+import sys
+
+skills = Path(sys.argv[1])
+# New conditional instructions must resolve in the distributable tree as well
+# as the working checkout. Discovery must not depend on development fixtures.
+for entry in [skills / "org-plan/SKILL.md", skills / "context-mode/SKILL.md",
+              skills / "ctx-search/SKILL.md",
+              skills / "org-plan/references/supervised-execution.md"]:
+    for target in re.findall(r"\]\(([^)]+)\)", entry.read_text()):
+        if "://" not in target:
+            relative = target.split("#", 1)[0]
+            destination = entry.parent / relative if relative else entry
+            assert destination.is_file(), (entry, target)
+PY
 
 test "$(sed -n 's/^  allow_implicit_invocation: //p' "$tmp/repository/plugins/gestalt/skills/org-plan/agents/openai.yaml")" = true
 test "$(sed -n 's/^  allow_implicit_invocation: //p' "$tmp/repository/plugins/gestalt/skills/self-debug/agents/openai.yaml")" = true

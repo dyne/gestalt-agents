@@ -124,6 +124,9 @@ def main():
     templates = re.findall(r"```text\n(.*?)\n```", contract, re.S)
     assert len(templates) == 2
     assignment, request = [text.format_map(inputs) for text in templates]
+    baseline = json.loads((FIXTURES / "instruction-l5-baseline.json").read_text())
+    assert len(assignment.encode()) < baseline["forms"]["assignmentBytes"]
+    assert len(request.encode()) < baseline["forms"]["reviewBytes"]
     for rendered in (assignment, request):
         assert len(rendered.encode()) <= BUDGET
         assert inputs["milestone"] in rendered and inputs["plan_section"] in rendered

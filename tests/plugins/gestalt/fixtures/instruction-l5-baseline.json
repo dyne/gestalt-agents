@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "startingCommit": "359dfdaab35b9c18ef23d74755a83c3c483d2ee0",
+  "units": "UTF-8 bytes and whitespace-delimited words; not tokens or provider usage",
+  "profiles": {
+    "executor": {"words": 303, "bytes": 2068},
+    "reviewer": {"words": 528, "bytes": 3840}
+  },
+  "roles": {
+    "root": {"words": 7680, "bytes": 55435},
+    "executor": {"words": 7455, "bytes": 53663},
+    "terminal-reviewer": {"words": 7152, "bytes": 51595}
+  },
+  "forms": {"assignmentBytes": 1030, "reviewBytes": 915},
+  "roleInputsSha256": "2bd52d8c15ac70b7a2288c58991415e7961029248e7ddcaf876d77342ce0a81b"
+}

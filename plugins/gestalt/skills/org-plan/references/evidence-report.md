@@ -76,10 +76,12 @@ unavailable evidence as verified; preserve uncertainty in the report and review.
 
 ## Assignment and review forms
 
-These compact forms complement the required assignment/review fields in the
-supervised lifecycle; reference those rules instead of copying them. Replace
-placeholders with current values. Use section references only when accessible
-and require the recipient to read them. These are task data, not governing reads.
+Use accessible section references; require recipients to read them. Task inputs
+identify plan path, L1 ID/position/title and full L1/L2 blocks with Goal, Tests,
+Done-when, accepted prior outputs, scope/impact, preserved paths, prohibitions,
+material-ambiguity stop and applicable UI evidence matrix. Replace placeholders
+with current values. These are task data, not governing reads; lifecycle gates
+remain in supervised-execution.md.
 
 ```text
 Assignment: {milestone}; task_name {executor}; sole writer for entire L1.
@@ -87,9 +89,8 @@ Inputs: {plan_section}; {governing_reads}; optional skills {skills}.
 Candidate: {repository}; {branch}; base {base}; starting SHA {sha}.
 Scope/tests/prior outputs/prohibitions: {task_sections}.
 Evidence: read {contract}; default 2048 UTF-8 bytes; artifacts {evidence_location}.
-Report: milestone, scope, candidate, source, checks, observedAt, completeness,
-references, overflow; explicit unknowns. Root verifies independently.
-Lifecycle/boundaries/corrections/commit: supervised-execution.md.
+Report: required contract fields + explicit unknowns. Root verifies independently.
+Lifecycle: supervised-execution.md.
 ```
 
 ```text
@@ -97,9 +98,8 @@ Review: {milestone}; {plan_section}; DONE + UNREVIEWED.
 Candidate: {repository}; {branch}; base {base}; starting SHA {sha}; {dirty_digest}.
 Criteria/scope/impact/prohibitions: {task_sections}.
 Evidence: {report_reference}; {exact_commands_and_results}; {observed_at}.
-Root: verify identities/freshness, relevant diff and cited test evidence;
-retrieve missing/conflicting sections before deciding. Return findings and
-explicit ACCEPT or REJECT under supervised-execution.md.
+Root: independently verify per this contract; resolve missing/conflicting evidence.
+Return findings and explicit ACCEPT or REJECT under supervised-execution.md.
 ```
 
 L2 reports use the fields above; L1 review adds complete scope and full-suite

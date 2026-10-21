@@ -64,6 +64,27 @@ Partition L1s into cohesive reviewable use cases sized for one fresh executor.
 Include starting context, dependencies on prior L1s, expected prior outputs,
 allowed scope, invariants, required tests, and acceptance criteria.
 
+## Milestone size before execution
+
+During authoring, split independent acceptance outcomes into separate cohesive
+L1s before execution. Each should be understandable and reviewable by one fresh
+executor from its starting context and criteria. Keep coupled changes together
+when separate acceptance would leave an invalid intermediate contract. Preserve
+one writer per L1 and express internal dependent steps as L2s.
+
+| Candidate milestone | Authoring decision |
+| --- | --- |
+| Repair checkout retry behavior and redesign unrelated reporting navigation | Split: either outcome can be accepted independently, with separate context, tests and owners. |
+| Change a request schema and its inseparable producer/consumer validation in one repository | Keep one L1: acceptance requires the shared contract and regression checks together; use L2s for coupled implementation steps. |
+
+Signals to reassess before handoff include unrelated criteria, repeated need to
+rediscover separate subsystems, or an assignment that cannot supply sufficient
+starting context. Complexity, elapsed time or compaction count alone is not a
+mechanical split threshold. Do not split an active approved L1 automatically.
+Executors stay within its scope; material replanning follows existing authority
+and lifecycle gates. Smaller milestones never waive focused/full checks, review,
+commit or checkpoint requirements.
+
 ## L2 contract
 
 L2 property drawers contain an `:ID:` but no `:SKILLS:` and no
