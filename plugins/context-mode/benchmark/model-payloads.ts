@@ -24,8 +24,8 @@ export function loadFrozenCorpus(directory = join(HERE, "fixtures")) {
   }
   return { corpus, manifest };
 }
-interface Observation { tool: string; requestBytes: number; responseBytes: number | null; responseSha256: string | null; overflow: boolean }
-interface CaseResult { id: string; quality: "complete" | "unsupported"; missingFindings: string[]; observations: Observation[]; knownReturnedBytes: number; returnedBytes: number | null; requestBytes: number; descriptionBytes: number; knownTotalVisibleBytes: number; totalVisibleBytes: number | null; overflowRequestBytes: number; overflowResponseBytes: number; overflowCalls: number }
+interface Observation { tool: string; requestBytes: number; responseBytes: number | null; responseSha256: string | null; overflow: boolean; reportKind?: "audit" | "overflow" }
+interface CaseResult { id: string; quality: "complete" | "unsupported"; missingFindings: string[]; observations: Observation[]; knownReturnedBytes: number; returnedBytes: number | null; requestBytes: number; descriptionBytes: number; knownTotalVisibleBytes: number; totalVisibleBytes: number | null; overflowRequestBytes: number; overflowResponseBytes: number; overflowCalls: number; routineReturnedBytes: number; routineVisibleBytes: number | null; routineDescriptionBytes: number; routineRequestBytes: number; auditRetrievalBytes: number; overflowRetrievalBytes: number; routineMissingFindings: string[] }
 const text = (response: any) => response.content?.filter((block: any) => block.type === "text").map((block: any) => block.text).join("\n") ?? "";
 const flush = () => new Promise<void>(done => setImmediate(done));
 
@@ -101,9 +101,45 @@ async function worker(pluginRoot: string) {
         responseSha256: bytes === null ? null : digest(JSON.stringify(response)), overflow });
       return response;
     };
-    const finish = (id: string, quality: CaseResult["quality"], findings: string[], seen: string) => {
+    // Follow only handles returned by the real handler, rechecking authorization
+    // through its public continuation path. Every request/envelope is measured.
+    const recover = async (response: any) => {
+      let seen = text(response), pending = seen;
+      const visited = new Set<string>();
+      for (;;) {
+        const handles = [...new Set(pending.match(/report-[a-f0-9]{64}/g) ?? [])].filter(id => !visited.has(id));
+        if (!handles.length) return seen;
+        pending = "";
+        for (const handle of handles) {
+          visited.add(handle);
+          let offset: number | null = 0, body = "";
+          const start = records.length;
+          while (offset !== null) {
+            assert.ok(records.length - start < 10000, "continuation failed to terminate");
+            const page = await call("ctx_search", { response_report: handle, response_offset: offset }, true);
+            assert.ok(byteLength(page)! <= 2048, "continuation exceeds whole-envelope budget");
+            const value = JSON.parse(text(page));
+            assert.equal(value.offset, offset); assert.equal(typeof value.chunk, "string");
+            body += value.chunk;
+            assert.ok(value.nextOffset === null || value.nextOffset > offset, "continuation did not advance");
+            offset = value.nextOffset;
+          }
+          assert.equal(digest(body), handle.slice(7), "retrieved evidence digest mismatch");
+          const parsed = JSON.parse(body);
+          const reportKind = Array.isArray(parsed.sources) && parsed.operationId ? "audit" : "overflow";
+          for (const record of records.slice(start)) record.reportKind = reportKind;
+          seen += "\n" + body; pending += "\n" + body;
+        }
+      }
+    };
+    const finish = (id: string, quality: CaseResult["quality"], findings: string[], seen: string, routineSeen = seen) => {
       const descriptions = [...new Set(records.map(row => row.tool))].reduce((sum, name) =>
         sum + Buffer.byteLength(tools.find(tool => tool.name === name)?.config.description ?? ""), 0);
+      const routine = records.filter(row => !row.overflow);
+      const routineDescriptionBytes = [...new Set(routine.map(row => row.tool))].reduce((sum, name) =>
+        sum + Buffer.byteLength(tools.find(tool => tool.name === name)?.config.description ?? ""), 0);
+      const routineVisibleBytes = routine.every(row => row.responseBytes !== null)
+        ? routine.reduce((sum, row) => sum + row.requestBytes + row.responseBytes!, routineDescriptionBytes) : null;
       const known = records.reduce((sum, row) => sum + (row.responseBytes ?? 0), 0);
       const requests = records.reduce((sum, row) => sum + row.requestBytes, 0);
       const completeBytes = records.every(row => row.responseBytes !== null);
@@ -115,7 +151,13 @@ async function worker(pluginRoot: string) {
         knownTotalVisibleBytes: known + requests + descriptions, totalVisibleBytes: completeBytes ? known + requests + descriptions : null,
         overflowRequestBytes: records.filter(row => row.overflow).reduce((sum, row) => sum + row.requestBytes, 0),
         overflowResponseBytes: records.filter(row => row.overflow).reduce((sum, row) => sum + (row.responseBytes ?? 0), 0),
-        overflowCalls: records.filter(row => row.overflow).length });
+        overflowCalls: records.filter(row => row.overflow).length,
+        routineVisibleBytes, routineDescriptionBytes,
+        routineReturnedBytes: records.filter(row => !row.overflow).reduce((sum, row) => sum + (row.responseBytes ?? 0), 0),
+        routineRequestBytes: records.filter(row => !row.overflow).reduce((sum, row) => sum + row.requestBytes, 0),
+        auditRetrievalBytes: records.filter(row => row.reportKind === "audit").reduce((sum, row) => sum + row.requestBytes + (row.responseBytes ?? 0), 0),
+        overflowRetrievalBytes: records.filter(row => row.overflow && row.reportKind !== "audit").reduce((sum, row) => sum + row.requestBytes + (row.responseBytes ?? 0), 0),
+        routineMissingFindings: findings.filter(id => !routineSeen.includes(id)) });
       records = [];
     };
     const evidence = async (scenario: any) => {
@@ -142,17 +184,18 @@ async function worker(pluginRoot: string) {
       return JSON.stringify(report.checks[0].failures.map((failure: any) => failure.id));
     };
     for (const scenario of corpus.scenarios) {
-      let seen = "", quality: CaseResult["quality"] = "complete";
+      let seen = "", routineSeen = "", quality: CaseResult["quality"] = "complete";
       if (scenario.kind === "retrieval") {
         await call("ctx_index", { path: scenario.source, source: `synthetic:${scenario.id}` });
-        seen = text(await call("ctx_search", { queries: scenario.queries, source: `synthetic:${scenario.id}`, limit: 5 }));
+        const response = await call("ctx_search", { queries: scenario.queries, source: `synthetic:${scenario.id}`, limit: 5 });
+        routineSeen = text(response); seen = await recover(response);
       } else if (scenario.kind === "revision") {
         const args = { path: scenario.source, language: "javascript", code: "console.log(FILE_CONTENT)" };
-        await call("ctx_execute_file", args); writeFileSync(join(workspace, scenario.source), scenario.replacement);
-        seen = text(await call("ctx_execute_file", args));
+        await recover(await call("ctx_execute_file", args)); writeFileSync(join(workspace, scenario.source), scenario.replacement);
+        const response = await call("ctx_execute_file", args); routineSeen = text(response); seen = await recover(response);
         for (const forbidden of scenario.forbiddenAfterChange) assert.ok(!seen.includes(forbidden), "stale revision returned");
       } else if (scenario.kind === "ci") {
-        for (const state of scenario.states) await call("ctx_execute", { language: "javascript", code: `console.log(${JSON.stringify(JSON.stringify(state))})` });
+        for (const state of scenario.states) await recover(await call("ctx_execute", { language: "javascript", code: `console.log(${JSON.stringify(JSON.stringify(state))})` }));
         seen = await evidence(scenario);
       } else if (scenario.kind === "review") {
         seen = await evidence(scenario);
@@ -175,7 +218,7 @@ async function worker(pluginRoot: string) {
           assert.equal(report.savings ? report.savings.percent : report.savingsPercent, null);
         }
       }
-      finish(scenario.id, quality, scenario.expectedFindings ?? [], seen);
+      finish(scenario.id, quality, scenario.expectedFindings ?? [], seen, scenario.kind === "retrieval" || scenario.kind === "revision" ? routineSeen : seen);
     }
 
     const semanticsPath = join(pluginRoot, "src/session/measurement-semantics.ts");
@@ -256,12 +299,32 @@ export function compareModelPayloads(baselinePlugin: string, candidatePlugin: st
   assert.ok(candidate.responseCoverage.every((row: any) => row.supported), "candidate response accounting unavailable");
   const cases = candidate.cases.map((next: CaseResult) => {
     const prior = baseline.cases.find((row: CaseResult) => row.id === next.id)!;
-    const comparable = prior.quality === "complete" && next.quality === "complete"
+    const findingsComparable = prior.quality === "complete" && next.quality === "complete"
       && prior.totalVisibleBytes !== null && next.totalVisibleBytes !== null;
-    return { id: next.id, comparable, baselineBytes: prior.totalVisibleBytes, candidateBytes: next.totalVisibleBytes,
+    // New complete source/audit retrieval has broader evidence scope than a
+    // baseline snippet-only response. Its costs are known, its savings are not.
+    const evidenceScopeComparable = !next.observations.some(row => row.reportKind)
+      && JSON.stringify(prior.observations.map(row => [row.tool, row.overflow]))
+        === JSON.stringify(next.observations.map(row => [row.tool, row.overflow]));
+    const comparable = findingsComparable && evidenceScopeComparable;
+    const routineReduction = findingsComparable && prior.routineReturnedBytes > 0 ? 1 - next.routineReturnedBytes / prior.routineReturnedBytes : null;
+    const routineVisibleReduction = findingsComparable && prior.routineVisibleBytes !== null && next.routineVisibleBytes !== null
+      && prior.routineVisibleBytes > 0 ? 1 - next.routineVisibleBytes / prior.routineVisibleBytes : null;
+    if (next.id === "broad-retrieval") assert.ok(routineReduction !== null && routineReduction >= 0.5
+      && routineVisibleReduction !== null && routineVisibleReduction >= 0.5,
+      "routine broad-query response must reduce visible bytes by at least 50% with recoverable findings");
+    return { id: next.id, comparable, findingsComparable, evidenceScopeComparable,
+      scopeNote: evidenceScopeComparable ? "same measured workflow scope" : "complete candidate evidence/audit retrieval adds scope; total savings incomparable",
+      baselineBytes: prior.totalVisibleBytes, candidateBytes: next.totalVisibleBytes,
       visibleByteReduction: comparable && prior.totalVisibleBytes! > 0 ? 1 - next.totalVisibleBytes! / prior.totalVisibleBytes! : null,
       baselineOverflowBytes: prior.overflowRequestBytes + prior.overflowResponseBytes,
-      candidateOverflowBytes: next.overflowRequestBytes + next.overflowResponseBytes };
+      candidateOverflowBytes: next.overflowRequestBytes + next.overflowResponseBytes,
+      baselineRoutineReturnedBytes: prior.routineReturnedBytes, candidateRoutineReturnedBytes: next.routineReturnedBytes,
+      routineReturnedByteReduction: routineReduction,
+      baselineRoutineVisibleBytes: prior.routineVisibleBytes, candidateRoutineVisibleBytes: next.routineVisibleBytes,
+      routineVisibleByteReduction: routineVisibleReduction,
+      candidateAuditRetrievalBytes: next.auditRetrievalBytes, candidateNonAuditRetrievalBytes: next.overflowRetrievalBytes,
+      candidateRoutineMissingFindings: next.routineMissingFindings };
   });
   return { schemaVersion: 1, baselineRevision: manifest.baselineRevision, corpusSha256: manifest.corpusSha256,
     referenceEnvironment: manifest.referenceEnvironment,

@@ -34,6 +34,8 @@ import {
 import { classifyNonZeroExit } from "./exit-classify.js";
 import { startLifecycleGuard, noteMcpActivity, noteRequestStart, noteRequestEnd, attachMcpActivityTap } from "./lifecycle.js";
 import { charSafePrefix } from "./truncate.js";
+import { boundResponse, budgetedTools, readResponsePage, responseBudgetError, responseBudgetFields, responseBudgetSchema, type ExecutionState } from "./response-budget.js";
+import { createExecutionAudit, executionAuditField, executionProvenance, omitExecutableSource, observedExecutionState, aggregateExecutionState, type ExecutionAudit } from "./execution-provenance.js";
 import { resolveWorkspaceStateRoot } from "./workspace-state.js";
 import {
   describeStorageDirectorySource,
@@ -66,6 +68,9 @@ import {
   CTX_SEARCH_SHARED_MODE,
   resolveProjectScope,
 } from "./search/ctx-search-schema.js";
+import type { ResponseEvidence } from "./response-evidence.js";
+import { formatQueryWindows, type QueryGroup } from "./search/query-windows.js";
+import type { EfficiencyArtifactScope } from "./session/efficiency-report.js";
 import { FloodGuard } from "./search/flood-guard.js";
 import { buildNodeCommand, type HookAdapter, type PlatformId, isInProcessPluginPlatform } from "./adapters/types.js";
 import { detectPlatform, getSessionDirSegments } from "./adapters/detect.js";
@@ -293,12 +298,12 @@ export function registerEmptyToolsListHandler(target: McpServer = server): void 
 /** MCP-visible selection cues; detailed recipes live in the selected skill. */
 export const COMPACT_TOOL_DESCRIPTIONS: Record<string, string> = {
   ctx_test_evidence: EVIDENCE_DESCRIPTION,
-  ctx_execute: "Run code in a sandbox. WHEN: filter, parse, compare, or summarize uncertain/large output. Use native tools for short fixed observations and writes. RETURNS: only printed derived findings; large intentional output is indexed. EXAMPLE: summarize test failures.",
-  ctx_execute_file: "Run code over one file as FILE_CONTENT in a sandbox. WHEN: derive facts from a large/structured file without reading it verbatim. Use native Read before editing. RETURNS: only printed findings. EXAMPLE: count ERROR lines.",
+  ctx_execute: "Run sandboxed code to derive findings from large output. Use native tools for short reads/writes. Returns execution state and authorized audit reference. Whole response defaults to 2048 UTF-8 bytes; response_bytes:1024–65536 expands it. audit:true displays bounded source.",
+  ctx_execute_file: "Derive findings from one file as FILE_CONTENT. Use native Read before editing. Returns execution provenance and authorized audit reference. Whole response defaults to 2048 bytes; response_bytes expands it; audit:true displays bounded source.",
   ctx_index: "Store content for later ctx_search retrieval. WHEN: durable docs, references, or instructions need precise recall. Do not use for one-off logs; process those in a sandbox. RETURNS: indexing metadata. EXAMPLE: index an API guide.",
-  ctx_search: "Search indexed content and session memory. WHEN: recall prior decisions, indexed sources, or timeline context; batch related queries. Capture unseen data first. RETURNS: ranked snippets. EXAMPLE: search decisions with sort: timeline.",
+  ctx_search: "Search indexed content/session memory with related queries. Returns deduplicated source windows, locators and query attribution within 2048 UTF-8 bytes. response_bytes:1024–65536 expands it. Retrieve authorized overflow/audit with response_report and response_offset, without queries.",
   ctx_fetch_and_index: "Fetch URL content and index it for ctx_search. WHEN: docs or pages need later retrieval without raw bytes in context; batch related URLs. It is plain HTTP, not browser rendering. RETURNS: previews and cache/index metadata. EXAMPLE: fetch a framework guide.",
-  ctx_batch_execute: "Run related commands, auto-index output, and optionally return query matches in one call. WHEN: gather several commands or large output; use concurrency only for independent I/O. RETURNS: labeled sections and matches, not raw logs. EXAMPLE: inspect git history and query failures.",
+  ctx_batch_execute: "Run commands, index output and query related findings. Use concurrency for independent I/O. Returns truthful exit states, deduplicated matches and an authorized audit reference within 2048 bytes. response_bytes expands it; audit:true displays bounded source.",
   ctx_stats: "Return a metrics-only efficiency summary within 2048 UTF-8 bytes. Shows known bytes, provider counters, coverage and unknown quota. Use report and offset for authorized overflow pages in this session.",
   ctx_doctor: "Run installation diagnostics, including a fresh spawned MCP handshake, PolyglotExecutor, and FTS5 self-checks, and return renderer-safe [OK]/[FAIL]/[WARN] results.",
   ctx_upgrade: "Return the platform-appropriate upgrade command. Run it with the native shell and restart the session afterward.",
@@ -310,7 +315,7 @@ export const MCP_TOOL_DESCRIPTION_BUDGET_BYTES = 3_000;
 
 const originalRegisterTool = server.registerTool.bind(server);
 (server as unknown as { registerTool: (...args: unknown[]) => unknown }).registerTool = (...args: unknown[]) => {
-  const [name, config, handler] = args as [
+  let [name, config, handler] = args as [
     string,
     Record<string, unknown>,
     (toolArgs: Record<string, unknown>, extra?: unknown) => Promise<unknown> | unknown,
@@ -318,6 +323,9 @@ const originalRegisterTool = server.registerTool.bind(server);
   if (suppressMcpToolsForNativePluginHost) {
     emitSuppressionDiagnostic();
     return undefined;
+  }
+  if (budgetedTools.has(name) && config.inputSchema instanceof z.ZodObject) {
+    config = { ...config, inputSchema: config.inputSchema.extend({ ...responseBudgetFields, ...(name === "ctx_search" ? {} : { audit: executionAuditField }) }) };
   }
   const wrappedHandler = wrapToolHandler(name, handler);
   const compactDescription = COMPACT_TOOL_DESCRIPTIONS[name];
@@ -331,6 +339,20 @@ const originalRegisterTool = server.registerTool.bind(server);
 };
 
 const responseTrackingContext = new AsyncLocalStorage<boolean>();
+const executionStateContext = new AsyncLocalStorage<{ execution?: ExecutionState; audit?: ExecutionAudit; responseBudget?: number; evidence?: ResponseEvidence }>();
+
+function responseArtifactScope() {
+  const session = currentAttribution()?.sessionId ?? `process-${process.pid}`;
+  const root = join(getSessionDir(), "responses", createHash("sha256").update(session).digest("hex"));
+  return { root, authorizeRead: (path: string) => {
+    try {
+      if (!/^report-[a-f0-9]{64}\.json$/.test(relative(root, path))) return false;
+      const deny = readToolDenyPatterns("Read", getProjectDir());
+      return [path, relative(getProjectDir(), path)].every(candidate =>
+        !evaluateFilePath(candidate, deny, process.platform === "win32", getProjectDir()).denied);
+    } catch { return false; }
+  } };
+}
 
 export function wrapToolHandler(
   name: string,
@@ -346,11 +368,48 @@ export function wrapToolHandler(
       const invoke = async () => {
         // Existing handlers may call trackResponse internally. Defer observation
         // until the complete handler result, once, including wrapper additions.
-        const response = await responseTrackingContext.run(true, async () => handler(toolArgs, extra));
-        return trackResponse(name, response as ToolResult);
+        if (!budgetedTools.has(name)) {
+          const response = await responseTrackingContext.run(true, async () => handler(toolArgs, extra));
+          return trackResponse(name, response as ToolResult);
+        }
+        // Direct embedded callers can bypass the SDK input schema.
+        const parsed = responseBudgetSchema.safeParse(toolArgs);
+        if (name !== "ctx_search" && !executionAuditField.safeParse(toolArgs.audit).success)
+          return trackResponse(name, responseBudgetError("invalid audit display flag"));
+        if (!parsed.success) return trackResponse(name, responseBudgetError("invalid response budget or continuation"));
+        const { response_bytes, response_report, response_offset } = parsed.data;
+        const scope = responseArtifactScope();
+        if (response_report !== undefined) {
+          return trackResponse(name, { content: [{ type: "text", text: "" }] }, (_response, notice) =>
+            readResponsePage(scope, response_report, response_offset, response_bytes, notice));
+        }
+        const state: { execution?: ExecutionState; audit?: ExecutionAudit; responseBudget?: number; evidence?: ResponseEvidence } = { responseBudget: response_bytes ?? 2048 };
+        const response = await executionStateContext.run(state, () =>
+          responseTrackingContext.run(true, async () => handler(toolArgs, extra)));
+        return trackResponse(name, response as ToolResult, (value, notice) => {
+          if (state.audit && !state.execution)
+            state.execution = aggregateExecutionState(state.audit.sources);
+          const displayAudit = toolArgs.audit === true;
+          const compact = state.audit && !displayAudit ? omitExecutableSource(value, state.audit) : { response: value, omitted: 0 };
+          const provenance = state.audit ? executionProvenance(state.audit, state.execution, scope, displayAudit, value, compact.omitted, state.evidence) : undefined;
+          const withProvenance = provenance ? { ...compact.response, content: [{ type: "text" as const, text: provenance.text }, ...compact.response.content] } : value;
+          return boundResponse(addVersionWarning(withProvenance, notice), scope, response_bytes, state.execution, provenance?.evidence ?? state.evidence);
+        });
       };
       return codexContext ? await withProjectDirOverride(codexContext, invoke) : await invoke();
     } catch (err) {
+      if (budgetedTools.has(name)) {
+        const original = storageErrorResult(err) ?? { content: [{ type: "text" as const,
+          text: `Tool error: ${err instanceof Error ? err.message : String(err)}` }], isError: true };
+        let scope: ReturnType<typeof responseArtifactScope>;
+        try { scope = responseArtifactScope(); }
+        catch { scope = { root: "", authorizeRead: () => false }; }
+        const parsed = responseBudgetSchema.safeParse(toolArgs);
+        const finish = (value: ToolResult, notice?: string) =>
+          boundResponse(addVersionWarning(value, notice), scope, parsed.success ? parsed.data.response_bytes : undefined);
+        try { return trackResponse(name, original, finish); }
+        catch (trackErr) { if (trackErr instanceof StorageDirectoryError) return finish(original); throw trackErr; }
+      }
       const result = storageErrorResult(err);
       if (result) {
         try {
@@ -874,6 +933,11 @@ async function fetchLatestVersion(): Promise<string> {
   });
 }
 
+export async function refreshLatestVersion(): Promise<void> {
+  const latest = await fetchLatestVersion();
+  if (latest !== "unknown") _latestVersion = latest;
+}
+
 function getUpgradeHint(): string {
   const name = _detectedAdapter?.name;
   if (name === "Claude Code") return "/ctx-upgrade";
@@ -957,20 +1021,26 @@ function healCacheMidSession(): void {
   } catch { /* best effort */ }
 }
 
-function trackResponse(toolName: string, response: ToolResult): ToolResult {
+function addVersionWarning(response: ToolResult, notice?: string): ToolResult {
+  if (!notice || response.content.length === 0) return response;
+  return { ...response, content: response.content.map((part, i) =>
+    i === 0 ? { ...part, text: `${notice}\n\n${part.text}` } : part) };
+}
+
+function trackResponse(toolName: string, response: ToolResult,
+  finish?: (response: ToolResult, notice?: string) => ToolResult): ToolResult {
   if (responseTrackingContext.getStore()) return response;
   // #854: a response is activity too — refresh the bridge-child idle clock so a
   // chatty/streaming call keeps its server alive even between inbound frames.
   noteMcpActivity();
   // Mid-session cache heal — one-shot, first tool call
   healCacheMidSession();
-  // Prepend version outdated warning if needed
-  if (toolName !== "ctx_stats" && shouldShowVersionWarning() && response.content.length > 0) {
-    const hint = getUpgradeHint();
-    response.content[0].text =
-      `⚠️ context-mode v${VERSION} outdated → v${_latestVersion} available. Upgrade: ${hint}\n\n` +
-      response.content[0].text;
-  }
+  // Select decorations before final sizing. JSON continuations embed the
+  // notice in their page object, so the chunk and cursor stay machine-readable.
+  const notice = toolName !== "ctx_stats" && response.content.length > 0 && shouldShowVersionWarning()
+    ? `⚠️ context-mode v${VERSION} outdated → v${_latestVersion} available. Upgrade: ${getUpgradeHint()}`
+    : undefined;
+  response = finish ? finish(response, notice) : addVersionWarning(response, notice);
 
   const measurement = measureVisibleToolResponse(response);
   const bytes = measurement.serializedVisibleBytes;
@@ -1424,49 +1494,17 @@ export function formatBatchQueryResults(
   store: ContentStore,
   queries: string[],
   source: string,
-  maxOutput = 80 * 1024,
+  maxOutput = 2048,
   scope: BatchQueryScope = "batch",
+  artifactScope?: EfficiencyArtifactScope,
+  onEvidence?: (evidence: ResponseEvidence) => void,
 ): string[] {
-  const sections: string[] = [];
-  let outputSize = 0;
-
-  // When scope is "global", searchWithFallback receives `undefined` for the
-  // source filter, which makes it query the entire persistent index instead
-  // of only the chunks just produced by this batch's commands. Default
-  // remains "batch" to preserve the historical behavior.
   const searchSource = scope === "global" ? undefined : source;
-
-  for (const query of queries) {
-    if (outputSize > maxOutput) {
-      sections.push(`## ${query}\n(output cap reached — use ctx_search(queries: ["${query}"]) for details)\n`);
-      continue;
-    }
-
-    const results = store.searchWithFallback(query, 3, searchSource, undefined, "exact");
-    sections.push(`## ${query}`);
-    sections.push("");
-    if (results.length > 0) {
-      for (const result of results) {
-        const snippet = extractSnippet(result.content, query, 3000, result.highlighted);
-        sections.push(`### ${result.title}`);
-        sections.push(snippet);
-        sections.push("");
-        outputSize += snippet.length + result.title.length;
-      }
-      continue;
-    }
-
-    sections.push("No matching sections found.");
-    sections.push("");
-  }
-
-  if (scope === "global") {
-    sections.push(`\n> **Scope:** Queries searched the entire persistent index (query_scope: "global").`);
-  } else {
-    sections.push(`\n> **Tip:** Results are scoped to this batch only. To search across all indexed sources, use \`ctx_search(queries: [...])\` or call ctx_batch_execute with \`query_scope: "global"\`.`);
-  }
-
-  return sections;
+  const groups = queries.map(query => ({ query, results: query.trim()
+    ? store.searchWithFallback(query, 3, searchSource, undefined, "exact") : [] }));
+  return [formatQueryWindows(groups, maxOutput, artifactScope, onEvidence), scope === "global"
+    ? `\n> **Scope:** Queries searched the entire persistent index (query_scope: "global").`
+    : `\n> **Tip:** Results are scoped to this batch only. To search across all indexed sources, use \`ctx_search(queries: [...])\` or call ctx_batch_execute with \`query_scope: "global"\`.`];
 }
 
 // ─────────────────────────────────────────────────────────
@@ -1494,7 +1532,7 @@ export interface BatchRunOptions {
 }
 
 interface BatchExecutor {
-  execute(input: { language: "shell"; code: string; timeout: number | undefined; cwd?: string }): Promise<{ stdout: string; timedOut?: boolean }>;
+  execute(input: { language: "shell"; code: string; timeout: number | undefined; cwd?: string; onScript?: (source: string) => void }): Promise<{ stdout: string; timedOut?: boolean; exitCode?: number }>;
 }
 
 function quotePosixSingle(value: string): string {
@@ -1522,19 +1560,6 @@ export function buildBatchNodeOptionsPrefix(shellPath: string, preloadPath: stri
 }
 
 /**
- * Per-section budget for the echoed `$ <command>` line so a 50KB heredoc
- * payload cannot dominate the response body. The full command always reaches
- * the executor — only the echo is clipped (Issues #717 + #736).
- */
-const COMMAND_ECHO_MAX = 500;
-
-function truncateCommandForEcho(command: string): string {
-  const cleaned = command.replace(/\s+/g, " ").trim();
-  if (cleaned.length <= COMMAND_ECHO_MAX) return cleaned;
-  return cleaned.slice(0, COMMAND_ECHO_MAX) + "…";
-}
-
-/**
  * Default execution timeout (ms) applied ONLY under Antigravity CLI (`agy`).
  * agy does not enforce an MCP RPC timeout, so a ctx_execute with a runaway or
  * blocking script hangs forever — the host never kills it and the user must
@@ -1553,31 +1578,6 @@ export function resolveExecTimeout(timeout: number | undefined): number | undefi
   return Number.isFinite(override) && override > 0 ? override : AGY_DEFAULT_EXEC_TIMEOUT_MS;
 }
 
-/**
- * Per-call budget for the source-code echo prepended by `ctx_execute` and
- * `ctx_execute_file` (Issues #717 + #736). The full code always reaches the
- * sandbox — only the echo is clipped so massive payloads don't dominate
- * the response. Multi-line preserved (unlike command echo) so the user
- * sees the actual program shape.
- */
-const CODE_ECHO_MAX = 2000;
-
-function truncateCodeForEcho(code: string): string {
-  if (code.length <= CODE_ECHO_MAX) return code;
-  return code.slice(0, CODE_ECHO_MAX) + "\n… (truncated)";
-}
-
-/**
- * Build the source-code preamble surfaced before tool stdout. Provenance
- * survives in indexed chunks (FTS5 sees the fenced block) so later
- * ctx_search hits remember what ran.
- */
-function buildExecuteEcho(language: string, code: string, path?: string): string {
-  const header = path ? `path=${path}\n` : "";
-  const fenced = `\`\`\`${language}\n${truncateCodeForEcho(code)}\n\`\`\``;
-  return `${header}${fenced}\n\n`;
-}
-
 function formatCommandOutput(label: string, command: string, raw: string, onFsBytes?: (bytes: number) => void): string {
   let output = raw || "(no output)";
   const fsMatches = output.matchAll(/__CM_FS__:(\d+)/g);
@@ -1587,11 +1587,10 @@ function formatCommandOutput(label: string, command: string, raw: string, onFsBy
     onFsBytes?.(cmdFsBytes);
     output = output.replace(/__CM_FS__:\d+\n?/g, "");
   }
-  // Echo the executed command below the section heading so per-chunk
-  // indexed content retains provenance for later ctx_search hits
-  // (Issues #717 + #736).
-  const echoed = truncateCommandForEcho(command);
-  return `# ${label}\n\n$ ${echoed}\n\n${output}\n`;
+  // Searchable output keeps source identity without repeating executable text.
+  const digest = createHash("sha256").update(command).digest("hex");
+  const operation = executionStateContext.getStore()?.audit?.operationId;
+  return `# ${label}\n\nSource sha256=${digest}${operation ? ` operation=${operation}` : ""}\n\n${output}\n`;
 }
 
 function combineExecOutput(result: { stdout?: string; stderr?: string }): string {
@@ -1600,6 +1599,32 @@ function combineExecOutput(result: { stdout?: string; stderr?: string }): string
   if (!stderr) return stdout;
   if (!stdout) return stderr;
   return `${stdout}${stdout.endsWith("\n") ? "" : "\n"}${stderr}`;
+}
+
+function recordBatchExecution(index: number, result?: { stdout?: string; stderr?: string; exitCode?: number; timedOut?: boolean; outputCapped?: boolean; observedOutputBytes?: number; capturedOutputBytes?: number; exitCodeObserved?: boolean; processError?: string }, error?: unknown): void {
+  const source = executionStateContext.getStore()?.audit?.sources[index];
+  if (!source) return;
+  if (result) {
+    source.state = observedExecutionState(result);
+    source.diagnostics = { stdout: result.stdout, stderr: result.stderr,
+      ...(result.outputCapped ? { outputCapped: true, observedOutputBytes: result.observedOutputBytes, capturedOutputBytes: result.capturedOutputBytes } : {}) };
+  } else {
+    const diagnostic = error instanceof Error ? { name: error.name, message: error.message, stack: error.stack }
+      : { name: "Error", message: String(error) };
+    source.state = { exitCode: null, timedOut: false, status: "failed", completeness: "partial", reason: diagnostic.message };
+    source.diagnostics = { error: diagnostic };
+  }
+}
+
+async function observeBatchExecution(index: number, execute: () => ReturnType<BatchExecutor["execute"]>) {
+  try {
+    const result = await execute(); recordBatchExecution(index, result); return result;
+  } catch (error) { recordBatchExecution(index, undefined, error); throw error; }
+}
+
+function recordBatchSkip(index: number): void {
+  const source = executionStateContext.getStore()?.audit?.sources[index];
+  if (source) source.state = { exitCode: null, timedOut: false, status: "not-started", completeness: "partial", reason: "batch timeout exceeded" };
 }
 
 /**
@@ -1630,22 +1655,26 @@ export async function runBatchCommands(
         const elapsed = Date.now() - startTime;
         const remaining = timeout - elapsed;
         if (remaining <= 0) {
+          recordBatchSkip(i);
           outputs.push(`# ${cmd.label}\n\n(skipped — batch timeout exceeded)\n`);
           timedOut = true;
           continue;
         }
         perCmdTimeout = remaining;
       }
-      const result = await executor.execute({
+      const result = await observeBatchExecution(i, () => executor.execute({
         language: "shell",
         code: `${nodeOptsPrefix}${cmd.command}`,
         timeout: perCmdTimeout,
         cwd,
-      });
+        onScript: source => { const audit = executionStateContext.getStore()?.audit;
+          if (audit?.sources[i]) audit.sources[i].executed = source; },
+      }));
       outputs.push(formatCommandOutput(cmd.label, cmd.command, combineExecOutput(result), onFsBytes));
       if (result.timedOut) {
         timedOut = true;
         for (let j = i + 1; j < commands.length; j++) {
+          recordBatchSkip(j);
           outputs.push(`# ${commands[j].label}\n\n(skipped — batch timeout exceeded)\n`);
         }
         break;
@@ -1657,14 +1686,16 @@ export async function runBatchCommands(
   // Parallel path — delegated to the shared runPool primitive.
   // Each job returns { output, timedOut }; runPool handles in-flight cap,
   // throw isolation (Promise.allSettled semantics), and order preservation.
-  const jobs: PoolJob<{ output: string; timedOut: boolean }>[] = commands.map((cmd) => ({
+  const jobs: PoolJob<{ output: string; timedOut: boolean }>[] = commands.map((cmd, i) => ({
     run: async () => {
-      const result = await executor.execute({
+      const result = await observeBatchExecution(i, () => executor.execute({
         language: "shell",
         code: `${nodeOptsPrefix}${cmd.command}`,
         timeout,
         cwd,
-      });
+        onScript: source => { const audit = executionStateContext.getStore()?.audit;
+          if (audit?.sources[i]) audit.sources[i].executed = source; },
+      }));
       // Always route partial output through formatCommandOutput so __CM_FS__
       // markers are stripped + counted, even when the command timed out.
       const formatted = formatCommandOutput(cmd.label, cmd.command, combineExecOutput(result), onFsBytes);
@@ -1909,12 +1940,14 @@ __cm_main().catch(e=>{console.error(e);process.exitCode=1});${background ? '\nse
 })(typeof require!=='undefined'?require:null);`;
       }
       const effTimeout = resolveExecTimeout(timeout);
-      const result = await executor.execute({ language, code: instrumentedCode, timeout: effTimeout, background, cwd });
-
-      // Echo the executed source code before stdout so users can audit
-      // and tooling can block command patterns (Issues #717 + #736).
-      // Built from the user-supplied `code`, NOT the instrumented variant.
-      const echo = buildExecuteEcho(language, code);
+      const auditState = executionStateContext.getStore();
+      if (auditState) auditState.audit = createExecutionAudit(language, [{ submitted: code, executed: null }]);
+      const result = await executor.execute({ language, code: instrumentedCode, timeout: effTimeout, background, cwd,
+        onScript: source => { if (auditState?.audit) auditState.audit.sources[0].executed = source; },
+      });
+      recordBatchExecution(0, result);
+      const executionState = executionStateContext.getStore();
+      if (executionState) executionState.execution = observedExecutionState(result);
 
       // Parse sandbox network metrics from stderr
       const netMatch = result.stderr?.match(/__CM_NET__:(\d+)/);
@@ -1939,7 +1972,7 @@ __cm_main().catch(e=>{console.error(e);process.exitCode=1});${background ? '\nse
             content: [
               {
                 type: "text" as const,
-                text: `${echo}${partialOutput}\n\n_(process backgrounded after ${effTimeout}ms — still running)_`,
+                text: `${partialOutput}\n\n_(process backgrounded after ${effTimeout}ms — still running)_`,
               },
             ],
           });
@@ -1950,7 +1983,7 @@ __cm_main().catch(e=>{console.error(e);process.exitCode=1});${background ? '\nse
             content: [
               {
                 type: "text" as const,
-                text: `${echo}${partialOutput}\n\n_(timed out after ${effTimeout}ms — partial output shown above)_`,
+                text: `${partialOutput}\n\n_(timed out after ${effTimeout}ms — partial output shown above)_`,
               },
             ],
           });
@@ -1959,7 +1992,7 @@ __cm_main().catch(e=>{console.error(e);process.exitCode=1});${background ? '\nse
           content: [
             {
               type: "text" as const,
-              text: `${echo}Execution timed out after ${effTimeout}ms\n\nstderr:\n${result.stderr}`,
+              text: `Execution timed out after ${effTimeout}ms\n\nstderr:\n${result.stderr}`,
             },
           ],
           isError: true,
@@ -1974,7 +2007,7 @@ __cm_main().catch(e=>{console.error(e);process.exitCode=1});${background ? '\nse
           trackIndexed(Buffer.byteLength(output));
           return trackResponse("ctx_execute", {
             content: [
-              { type: "text" as const, text: `${echo}${intentSearch(output, intent, isError ? `execute:${language}:error` : `execute:${language}`)}` },
+              { type: "text" as const, text: `${intentSearch(output, intent, isError ? `execute:${language}:error` : `execute:${language}`)}` },
             ],
             isError,
           });
@@ -1984,14 +2017,14 @@ __cm_main().catch(e=>{console.error(e);process.exitCode=1});${background ? '\nse
           trackIndexed(Buffer.byteLength(output));
           return trackResponse("ctx_execute", {
             content: [
-              { type: "text" as const, text: `${echo}${intentSearch(output, "errors failures exceptions", isError ? `execute:${language}:error` : `execute:${language}`)}` },
+              { type: "text" as const, text: `${intentSearch(output, "errors failures exceptions", isError ? `execute:${language}:error` : `execute:${language}`)}` },
             ],
             isError,
           });
         }
         return trackResponse("ctx_execute", {
           content: [
-            { type: "text" as const, text: `${echo}${output}` },
+            { type: "text" as const, text: `${output}` },
           ],
           isError,
         });
@@ -2004,7 +2037,7 @@ __cm_main().catch(e=>{console.error(e);process.exitCode=1});${background ? '\nse
         trackIndexed(Buffer.byteLength(stdout));
         return trackResponse("ctx_execute", {
           content: [
-            { type: "text" as const, text: `${echo}${intentSearch(stdout, intent, `execute:${language}`)}` },
+            { type: "text" as const, text: `${intentSearch(stdout, intent, `execute:${language}`)}` },
           ],
         });
       }
@@ -2012,24 +2045,16 @@ __cm_main().catch(e=>{console.error(e);process.exitCode=1});${background ? '\nse
       // Auto-index large stdout into FTS5 — return pointer, not raw content
       if (Buffer.byteLength(stdout) > LARGE_OUTPUT_THRESHOLD) {
         const indexed = indexStdout(stdout, `execute:${language}`);
-        // Prepend echo to the first text content so provenance still surfaces
-        const echoed = {
-          ...indexed,
-          content: indexed.content.map((c, i) =>
-            i === 0 && c.type === "text"
-              ? { ...c, text: `${echo}${(c as { text: string }).text}` }
-              : c,
-          ),
-        };
-        return trackResponse("ctx_execute", echoed);
+        return trackResponse("ctx_execute", indexed);
       }
 
       return trackResponse("ctx_execute", {
         content: [
-          { type: "text" as const, text: `${echo}${stdout}` },
+          { type: "text" as const, text: `${stdout}` },
         ],
       });
     } catch (err: unknown) {
+      recordBatchExecution(0, undefined, err);
       const message = err instanceof Error ? err.message : String(err);
       return trackResponse("ctx_execute", {
         content: [
@@ -2223,23 +2248,26 @@ EXAMPLE: ctx_execute_file(path: "data.csv", language: "javascript", code: "const
 
     try {
       const effTimeout = resolveExecTimeout(timeout);
+      const auditState = executionStateContext.getStore();
+      if (auditState) auditState.audit = createExecutionAudit(language, [{ submitted: code, executed: null, path }]);
       const result = await executor.executeFile({
         path,
         language,
         code,
         timeout: effTimeout,
+        onScript: source => { if (auditState?.audit) auditState.audit.sources[0].executed = source; },
       });
 
-      // Echo path + executed source code before stdout for audit/debug
-      // (Issues #717 + #736).
-      const echo = buildExecuteEcho(language, code, path);
+      recordBatchExecution(0, result);
+      const executionState = executionStateContext.getStore();
+      if (executionState) executionState.execution = observedExecutionState(result);
 
       if (result.timedOut) {
         return trackResponse("ctx_execute_file", {
           content: [
             {
               type: "text" as const,
-              text: `${echo}Timed out processing ${path} after ${effTimeout}ms`,
+              text: `Timed out processing ${path} after ${effTimeout}ms`,
             },
           ],
           isError: true,
@@ -2254,7 +2282,7 @@ EXAMPLE: ctx_execute_file(path: "data.csv", language: "javascript", code: "const
           trackIndexed(Buffer.byteLength(output));
           return trackResponse("ctx_execute_file", {
             content: [
-              { type: "text" as const, text: `${echo}${intentSearch(output, intent, isError ? `file:${path}:error` : `file:${path}`)}` },
+              { type: "text" as const, text: `${intentSearch(output, intent, isError ? `file:${path}:error` : `file:${path}`)}` },
             ],
             isError,
           });
@@ -2264,14 +2292,14 @@ EXAMPLE: ctx_execute_file(path: "data.csv", language: "javascript", code: "const
           trackIndexed(Buffer.byteLength(output));
           return trackResponse("ctx_execute_file", {
             content: [
-              { type: "text" as const, text: `${echo}${intentSearch(output, "errors failures exceptions", isError ? `file:${path}:error` : `file:${path}`)}` },
+              { type: "text" as const, text: `${intentSearch(output, "errors failures exceptions", isError ? `file:${path}:error` : `file:${path}`)}` },
             ],
             isError,
           });
         }
         return trackResponse("ctx_execute_file", {
           content: [
-            { type: "text" as const, text: `${echo}${output}` },
+            { type: "text" as const, text: `${output}` },
           ],
           isError,
         });
@@ -2283,7 +2311,7 @@ EXAMPLE: ctx_execute_file(path: "data.csv", language: "javascript", code: "const
         trackIndexed(Buffer.byteLength(stdout));
         return trackResponse("ctx_execute_file", {
           content: [
-            { type: "text" as const, text: `${echo}${intentSearch(stdout, intent, `file:${path}`)}` },
+            { type: "text" as const, text: `${intentSearch(stdout, intent, `file:${path}`)}` },
           ],
         });
       }
@@ -2291,23 +2319,16 @@ EXAMPLE: ctx_execute_file(path: "data.csv", language: "javascript", code: "const
       // Auto-index large stdout into FTS5 — return pointer, not raw content
       if (Buffer.byteLength(stdout) > LARGE_OUTPUT_THRESHOLD) {
         const indexed = indexStdout(stdout, `file:${path}`);
-        const echoed = {
-          ...indexed,
-          content: indexed.content.map((c, i) =>
-            i === 0 && c.type === "text"
-              ? { ...c, text: `${echo}${(c as { text: string }).text}` }
-              : c,
-          ),
-        };
-        return trackResponse("ctx_execute_file", echoed);
+        return trackResponse("ctx_execute_file", indexed);
       }
 
       return trackResponse("ctx_execute_file", {
         content: [
-          { type: "text" as const, text: `${echo}${stdout}` },
+          { type: "text" as const, text: `${stdout}` },
         ],
       });
     } catch (err: unknown) {
+      recordBatchExecution(0, undefined, err);
       const message = err instanceof Error ? err.message : String(err);
       return trackResponse("ctx_execute_file", {
         content: [
@@ -2759,9 +2780,7 @@ EXAMPLE: ctx_search(queries: ["last user prompt", "active skills", "open blocker
         ? 1 // after soft cap: only 1 result per query
         : Math.min(limit, 2); // normal: max 2
 
-      const MAX_TOTAL = 40 * 1024; // 40KB total cap
-      let totalSize = 0;
-      const sections: string[] = [];
+      const queryGroups: QueryGroup[] = [];
 
       // Open SessionDB once before the loop (Blocker 4: avoid open/close per query).
       // Issue #737: also open in relevance mode when a string `projectScope`
@@ -2795,11 +2814,7 @@ EXAMPLE: ctx_search(queries: ["last user prompt", "active skills", "open blocker
 
       try {
       for (const q of queryList) {
-        if (totalSize > MAX_TOTAL) {
-          sections.push(`## ${q}\n(output cap reached)\n`);
-          continue;
-        }
-
+        if (!q.trim()) { queryGroups.push({ query: q, results: [] }); continue; }
         let results;
         if (sort === "timeline") {
           results = searchAllSources({
@@ -2826,30 +2841,16 @@ EXAMPLE: ctx_search(queries: ["last user prompt", "active skills", "open blocker
           );
         }
 
-        if (results.length === 0) {
-          sections.push(`## ${q}\nNo results found.`);
-          continue;
-        }
-
-        const formatted = results
-          .map((r, i) => {
-            const origin = (r as any).origin || "current-session";
-            const ts = (r as any).timestamp ? (r as any).timestamp.slice(0, 16).replace("T", " ") : "";
-            const header = `--- [${origin}${ts ? " | " + ts : ""} | ${r.source}] ---`;
-            const heading = `### ${r.title}`;
-            const snippet = extractSnippet(r.content, q, 1500, r.highlighted);
-            return `${header}\n${heading}\n\n${snippet}`;
-          })
-          .join("\n\n");
-
-        sections.push(`## ${q}\n\n${formatted}`);
-        totalSize += formatted.length;
+        queryGroups.push({ query: q, results });
       }
       } finally {
         try { timelineDB?.close(); } catch {}
       }
 
-      let output = sections.join("\n\n---\n\n");
+      const queryBudget = Math.max(512, (executionStateContext.getStore()?.responseBudget ?? 2048) - 400);
+      let output = formatQueryWindows(queryGroups, queryBudget, responseArtifactScope(), evidence => {
+        const context = executionStateContext.getStore(); if (context) context.evidence = evidence;
+      });
 
       // Report auto-refreshed stale sources
       if (store.lastRefreshCount > 0) {
@@ -3825,9 +3826,8 @@ EXAMPLE: ctx_batch_execute(
         .array(z.string())
         .min(1)
         .describe(
-          "Search queries to extract information from indexed output. Use 5-8 comprehensive queries. " +
-          "Each returns top 5 matching sections with full content. " +
-          "This is your ONLY chance — put ALL your questions here. No follow-up calls needed.",
+          "Related queries over indexed command output. Matches share a whole-response budget; overlapping source windows are deduplicated with query attribution. " +
+          "Omitted matches remain behind authorized continuation references; use ctx_search for later queries.",
         )),
       timeout: z
         .coerce.number()
@@ -3880,6 +3880,11 @@ EXAMPLE: ctx_batch_execute(
 
       // Full stdout is preserved per-command and indexed into FTS5 (Issue #61, #197).
       // Concurrency>1 switches to a worker pool with per-command timeouts.
+      const auditState = executionStateContext.getStore();
+      if (auditState) auditState.audit = createExecutionAudit("shell", commands.map(c => ({
+        label: c.label, submitted: c.command, executed: null,
+        state: { exitCode: null, timedOut: false, status: "not-started", completeness: "partial", reason: "command not dispatched" },
+      })));
       const effTimeout = resolveExecTimeout(timeout);
       const { outputs: perCommandOutputs, timedOut } = await runBatchCommands(
         commands,
@@ -3893,6 +3898,9 @@ EXAMPLE: ctx_batch_execute(
         executor,
       );
 
+      if (auditState?.audit) {
+        auditState.execution = aggregateExecutionState(auditState.audit.sources, timedOut);
+      }
       const stdout = perCommandOutputs.join("\n");
       const totalBytes = Buffer.byteLength(stdout);
       const totalLines = stdout.split("\n").length;
@@ -3920,13 +3928,11 @@ EXAMPLE: ctx_batch_execute(
         .slice(0, 80)}`;
       const indexed = store.index({ content: stdout, source, attribution: currentAttribution() });
 
-      // Commands inventory — list what the agent actually ran so the
-      // response itself documents intent, not just per-section echoes.
-      // Placed before "## Indexed Sections" so it scans top-down with
-      // the human asking "what just happened" (Issues #717 + #736).
+      // Per-command source digests preserve audit identity without source echo.
+      // Full commands and final generated scripts remain in the audit report.
       const commandsInventory: string[] = ["## Commands", ""];
       for (const c of commands) {
-        commandsInventory.push(`- ${c.label}: \`${truncateCommandForEcho(c.command)}\``);
+        commandsInventory.push(`- ${c.label}: sha256=${createHash("sha256").update(c.command).digest("hex")}`);
       }
 
       // Build section inventory — direct query by source_id (no FTS5 MATCH needed)
@@ -3943,7 +3949,10 @@ EXAMPLE: ctx_batch_execute(
       // When the caller passes query_scope: "global", searches reach the entire
       // persistent index in the same round trip. Cross-source search remains
       // available via explicit ctx_search() as well.
-      const queryResults = formatBatchQueryResults(store, queries, source, undefined, query_scope);
+      const queryBudget = Math.max(512, (executionStateContext.getStore()?.responseBudget ?? 2048) - 1000);
+      const queryResults = formatBatchQueryResults(store, queries, source, queryBudget, query_scope, responseArtifactScope(), evidence => {
+        const context = executionStateContext.getStore(); if (context) context.evidence = evidence;
+      });
 
       // Get searchable terms for edge cases where follow-up is needed
       const distinctiveTerms = store.getDistinctiveTerms
@@ -4919,9 +4928,9 @@ async function main() {
   // (some users keep the MCP server alive 24h+) catch new releases without a
   // restart. `.unref()` lets the process exit normally on SIGTERM regardless
   // of pending intervals.
-  fetchLatestVersion().then(v => { if (v !== "unknown") _latestVersion = v; });
+  void refreshLatestVersion();
   setInterval(() => {
-    fetchLatestVersion().then(v => { if (v !== "unknown") _latestVersion = v; });
+    void refreshLatestVersion();
   }, 60 * 60 * 1000).unref();
 
   // Stats heartbeat — keep the statusline truthful while the user works in

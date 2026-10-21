@@ -54,3 +54,17 @@ expected values independently. Recompute the corpus/input SHA-256 values using a
 standard digest tool, update the reference identity when appropriate, and rerun
 both sides. A changed digest is a new corpus revision; previous comparisons do
 not become fresh evidence for it.
+
+The L2 response comparison also separates `routineReturnedBytes` (initial
+index/search or execution result envelopes) from complete authorized evidence
+retrieval. It follows returned report handles through registered `ctx_search`,
+checks page bounds and SHA-256, and counts every followup request and response.
+`auditRetrievalBytes` and `overflowRetrievalBytes` include both directions.
+A broad-retrieval comparison requires at least 50% fewer routine returned bytes
+and every frozen expected finding recoverable. The same 50% gate applies to
+`routineVisibleBytes`, which adds initial requests and unique initial tool
+descriptions. It does not require every finding
+in the initial summary. Added full-source/audit retrieval has broader evidence
+scope than baseline snippets: total costs remain visible and total savings are
+null for that incomparable scope. Small overlapping queries and short commands
+can cost more because provenance and access metadata are included.

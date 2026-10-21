@@ -30,6 +30,10 @@ interface Chunk {
 type SourceMatchMode = "like" | "exact";
 
 type SearchRow = {
+  chunk_id: number;
+  source_id: number;
+  content_hash: string | null;
+  file_path: string | null;
   title: string;
   content: string;
   content_type: string;
@@ -584,6 +588,7 @@ export class ContentStore {
     // Search path (hot)
     this.#stmtSearchPorter = this.#db.prepare(`
       SELECT
+        chunks.rowid AS chunk_id, sources.id AS source_id, sources.content_hash, sources.file_path,
         chunks.title,
         chunks.content,
         chunks.content_type,
@@ -600,6 +605,7 @@ export class ContentStore {
     `);
     this.#stmtSearchPorterFiltered = this.#db.prepare(`
       SELECT
+        chunks.rowid AS chunk_id, sources.id AS source_id, sources.content_hash, sources.file_path,
         chunks.title,
         chunks.content,
         chunks.content_type,
@@ -616,6 +622,7 @@ export class ContentStore {
     `);
     this.#stmtSearchPorterExact = this.#db.prepare(`
       SELECT
+        chunks.rowid AS chunk_id, sources.id AS source_id, sources.content_hash, sources.file_path,
         chunks.title,
         chunks.content,
         chunks.content_type,
@@ -632,6 +639,7 @@ export class ContentStore {
     `);
     this.#stmtSearchTrigram = this.#db.prepare(`
       SELECT
+        chunks_trigram.rowid AS chunk_id, sources.id AS source_id, sources.content_hash, sources.file_path,
         chunks_trigram.title,
         chunks_trigram.content,
         chunks_trigram.content_type,
@@ -648,6 +656,7 @@ export class ContentStore {
     `);
     this.#stmtSearchTrigramFiltered = this.#db.prepare(`
       SELECT
+        chunks_trigram.rowid AS chunk_id, sources.id AS source_id, sources.content_hash, sources.file_path,
         chunks_trigram.title,
         chunks_trigram.content,
         chunks_trigram.content_type,
@@ -664,6 +673,7 @@ export class ContentStore {
     `);
     this.#stmtSearchTrigramExact = this.#db.prepare(`
       SELECT
+        chunks_trigram.rowid AS chunk_id, sources.id AS source_id, sources.content_hash, sources.file_path,
         chunks_trigram.title,
         chunks_trigram.content,
         chunks_trigram.content_type,
@@ -682,6 +692,7 @@ export class ContentStore {
     // Content-type filtered variants
     this.#stmtSearchPorterContentType = this.#db.prepare(`
       SELECT
+        chunks.rowid AS chunk_id, sources.id AS source_id, sources.content_hash, sources.file_path,
         chunks.title,
         chunks.content,
         chunks.content_type,
@@ -698,6 +709,7 @@ export class ContentStore {
     `);
     this.#stmtSearchPorterFilteredContentType = this.#db.prepare(`
       SELECT
+        chunks.rowid AS chunk_id, sources.id AS source_id, sources.content_hash, sources.file_path,
         chunks.title,
         chunks.content,
         chunks.content_type,
@@ -714,6 +726,7 @@ export class ContentStore {
     `);
     this.#stmtSearchPorterExactContentType = this.#db.prepare(`
       SELECT
+        chunks.rowid AS chunk_id, sources.id AS source_id, sources.content_hash, sources.file_path,
         chunks.title,
         chunks.content,
         chunks.content_type,
@@ -730,6 +743,7 @@ export class ContentStore {
     `);
     this.#stmtSearchTrigramContentType = this.#db.prepare(`
       SELECT
+        chunks_trigram.rowid AS chunk_id, sources.id AS source_id, sources.content_hash, sources.file_path,
         chunks_trigram.title,
         chunks_trigram.content,
         chunks_trigram.content_type,
@@ -746,6 +760,7 @@ export class ContentStore {
     `);
     this.#stmtSearchTrigramFilteredContentType = this.#db.prepare(`
       SELECT
+        chunks_trigram.rowid AS chunk_id, sources.id AS source_id, sources.content_hash, sources.file_path,
         chunks_trigram.title,
         chunks_trigram.content,
         chunks_trigram.content_type,
@@ -762,6 +777,7 @@ export class ContentStore {
     `);
     this.#stmtSearchTrigramExactContentType = this.#db.prepare(`
       SELECT
+        chunks_trigram.rowid AS chunk_id, sources.id AS source_id, sources.content_hash, sources.file_path,
         chunks_trigram.title,
         chunks_trigram.content,
         chunks_trigram.content_type,
@@ -1093,6 +1109,10 @@ export class ContentStore {
 
   #mapSearchRows(rows: SearchRow[]): SearchResult[] {
     return rows.map((r) => ({
+      chunkId: r.chunk_id,
+      sourceId: r.source_id,
+      sourceRevision: r.content_hash ?? `index:${r.source_id}`,
+      sourcePath: r.file_path ?? undefined,
       title: r.title,
       content: r.content,
       source: r.label,
@@ -1255,7 +1275,7 @@ export class ContentStore {
     const trigramResults = this.searchTrigram(query, fetchLimit, source, "OR", contentType, sourceMatchMode);
 
     const scoreMap = new Map<string, { result: SearchResult; score: number }>();
-    const key = (r: SearchResult) => `${r.source}::${r.title}`;
+    const key = (r: SearchResult) => `${r.sourceId}:${r.chunkId}`;
 
     for (const [i, r] of porterResults.entries()) {
       const k = key(r);

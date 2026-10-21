@@ -1,5 +1,5 @@
 import { spawn, execSync, execFileSync } from "node:child_process";
-import { mkdtempSync, writeFileSync, rmSync, existsSync } from "node:fs";
+import { mkdtempSync, writeFileSync, readFileSync, rmSync, existsSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import {
@@ -213,6 +213,8 @@ interface ExecuteOptions {
   timeout?: number;
   /** Keep process running after timeout instead of killing it. */
   background?: boolean;
+  /** Observe the final generated script for authorized execution provenance. */
+  onScript?: (source: string) => void;
   /**
    * Issue #45 — per-call cwd override for the shell language. When set,
    * the shell script runs in this directory instead of `#projectRoot`.
@@ -285,6 +287,7 @@ export class PolyglotExecutor {
 
     try {
       const filePath = this.#writeScript(tmpDir, code, language);
+      opts.onScript?.(readFileSync(filePath, "utf8"));
       const cmd = buildCommand(this.#runtimes, language, filePath);
 
       // Rust: compile then run
@@ -326,7 +329,7 @@ export class PolyglotExecutor {
       language,
       code,
     );
-    return this.execute({ language, code: wrappedCode, timeout });
+    return this.execute({ language, code: wrappedCode, timeout, onScript: opts.onScript });
   }
 
   #writeScript(tmpDir: string, code: string, language: Language): string {
@@ -399,6 +402,8 @@ export class PolyglotExecutor {
         stderr: `Compilation failed:\n${message}`,
         exitCode: 1,
         timedOut: false,
+        exitCodeObserved: (err as { status?: number }).status === 1,
+        processError: message,
       };
     }
 
@@ -501,6 +506,7 @@ export class PolyglotExecutor {
             exitCode: 0,
             timedOut: true,
             backgrounded: true,
+            exitCodeObserved: false,
           });
         } else {
           killTree(proc);
@@ -554,6 +560,11 @@ export class PolyglotExecutor {
           stderr,
           exitCode: timedOut ? 1 : (exitCode ?? 1),
           timedOut,
+          exitCodeObserved: exitCode !== null && !timedOut,
+          outputCapped: capExceeded,
+          observedOutputBytes: totalBytes,
+          capturedOutputBytes: stdoutChunks.reduce((sum, chunk) => sum + chunk.length, 0)
+            + stderrChunks.reduce((sum, chunk) => sum + chunk.length, 0),
         });
       });
 
@@ -565,6 +576,8 @@ export class PolyglotExecutor {
           stderr: err.message,
           exitCode: 1,
           timedOut: false,
+          exitCodeObserved: false,
+          processError: err.message,
         });
       });
     });

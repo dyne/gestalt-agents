@@ -1,29 +1,10 @@
 /**
- * Issues #717 + #736 — server-side echo of the executed code/command.
- *
- * Both issues request that ctx_execute / ctx_execute_file / ctx_batch_execute
- * surface WHAT the agent ran so users can audit, debug, and block command
- * patterns. The server is the right layer — adapters render whatever the
- * response carries, so one fix covers all 17 adapters.
- *
- * Coverage by behaviour (vertical slices):
- *   1. runBatchCommands per-command section echoes `$ <command>` after `# <label>`
- *   2. ctx_batch_execute summary carries a "## Commands" inventory before
- *      "## Indexed Sections", listing each `- <label>: \`<command>\``
- *   3. Long commands (>500 chars) are truncated with `…` so heredoc payloads
- *      cannot dominate the response body
- *   4. ctx_execute prepends a fenced `${language}` block carrying the source
- *      code before stdout
- *   5. ctx_execute_file prepends a header naming the path + a fenced
- *      `${language}` block carrying the source code before stdout
- *
- * Tests 1-3 hit the pure runBatchCommands/formatCommandOutput surface (fast,
- * no spawn). Tests 4-5 hit the live MCP server over JSON-RPC (covers the
- * tool handler wiring end-to-end).
- *
- * Run: npx vitest run tests/core/echo-commands.test.ts
+ * Execution provenance regressions for the audit requirements from #717/#736.
+ * Routine responses expose source digests and authorized audit references;
+ * executable source is recovered explicitly rather than echoed by default.
  */
 
+import { createHash } from "node:crypto";
 import { spawn, type ChildProcess } from "node:child_process";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
@@ -37,7 +18,7 @@ import {
 } from "../../src/server.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const mcpEntry = resolve(__dirname, "..", "..", "start.mjs");
+const mcpEntry = resolve(__dirname, "..", "..", "server.bundle.mjs");
 
 interface MockResult { stdout: string; stderr?: string; timedOut?: boolean; }
 
@@ -52,10 +33,10 @@ function mkMockExecutor(
 const NOOP_PREFIX = "";
 
 // ════════════════════════════════════════════════════════════════════════════
-// Behaviour 1 — runBatchCommands echoes `$ <command>` in each section
+// Behaviour 1 — runBatchCommands retains a source digest in each section
 // ════════════════════════════════════════════════════════════════════════════
-describe("issue #736 — ctx_batch_execute echoes the ran command per section", () => {
-  test("serial path: each section header carries `$ <command>` below `# <label>`", async () => {
+describe("issue #736 — ctx_batch_execute retains source identity per section", () => {
+  test("serial path: each section carries source digest without executable text", async () => {
     const cmds: BatchCommand[] = [
       { label: "git commits mentioning niri in messages", command: "git log --all --grep='niri' --regexp-ignore-case" },
       { label: "git pickaxe niri content changes", command: "git log --all -i -S'niri' --date=short" },
@@ -71,11 +52,12 @@ describe("issue #736 — ctx_batch_execute echoes the ran command per section", 
     expect(outputs).toHaveLength(3);
     for (let i = 0; i < cmds.length; i++) {
       expect(outputs[i]).toContain(`# ${cmds[i].label}`);
-      expect(outputs[i]).toContain(`$ ${cmds[i].command}`);
+      expect(outputs[i]).toContain(`Source sha256=${createHash("sha256").update(cmds[i].command).digest("hex")}`);
+      expect(outputs[i]).not.toContain(cmds[i].command);
     }
   });
 
-  test("parallel path: each section header carries `$ <command>` below `# <label>`", async () => {
+  test("parallel path: each section carries source digest without executable text", async () => {
     const cmds: BatchCommand[] = [
       { label: "alpha", command: "echo alpha" },
       { label: "bravo", command: "echo bravo" },
@@ -89,16 +71,17 @@ describe("issue #736 — ctx_batch_execute echoes the ran command per section", 
     );
     for (let i = 0; i < cmds.length; i++) {
       expect(outputs[i]).toContain(`# ${cmds[i].label}`);
-      expect(outputs[i]).toContain(`$ ${cmds[i].command}`);
+      expect(outputs[i]).toContain(`Source sha256=${createHash("sha256").update(cmds[i].command).digest("hex")}`);
+      expect(outputs[i]).not.toContain(cmds[i].command);
     }
   });
 });
 
 // ════════════════════════════════════════════════════════════════════════════
-// Behaviour 3 — Long commands are truncated with `…`
+// Behaviour 3 — Long commands retain only a digest
 // ════════════════════════════════════════════════════════════════════════════
 describe("issue #736 — pathological heredoc commands truncate cleanly", () => {
-  test("commands longer than 500 chars are clipped with an ellipsis marker", async () => {
+  test("long heredocs retain identity without exposing source", async () => {
     const payload = "x".repeat(2000);
     const heredoc = `node - <<'NODE'\n${payload}\nNODE`;
     const exec = mkMockExecutor(() => ({ stdout: "ok\n" }));
@@ -108,13 +91,9 @@ describe("issue #736 — pathological heredoc commands truncate cleanly", () => 
       exec,
     );
     const section = outputs[0];
-    // Must still echo a `$ ` line but bounded in length and end with …
-    const dollarLine = section.split("\n").find((l) => l.startsWith("$ "))!;
-    expect(dollarLine).toBeDefined();
-    expect(dollarLine.length).toBeLessThan(600); // 500 budget + `$ ` + ellipsis
-    expect(dollarLine.endsWith("…")).toBe(true);
-    // Sanity: full 2000-char payload is NOT inlined verbatim
+    expect(section).toContain(`Source sha256=${createHash("sha256").update(heredoc).digest("hex")}`);
     expect(section).not.toContain(payload);
+    expect(section).not.toContain("$ ");
   });
 });
 
@@ -132,7 +111,12 @@ interface RpcResponse {
 function spawnServer(extraEnv: Record<string, string> = {}): ChildProcess {
   return spawn("node", [mcpEntry], {
     stdio: ["pipe", "pipe", "pipe"],
-    env: { ...process.env, CONTEXT_MODE_DISABLE_VERSION_CHECK: "1", ...extraEnv },
+    env: { ...process.env, CONTEXT_MODE_DISABLE_VERSION_CHECK: "1", ...extraEnv,
+      CONTEXT_MODE_PLATFORM: "codex", CONTEXT_MODE_WORKSPACE: extraEnv.CLAUDE_PROJECT_DIR,
+      CONTEXT_MODE_PROJECT_DIR: extraEnv.CLAUDE_PROJECT_DIR,
+      CONTEXT_MODE_DIR: extraEnv.CLAUDE_PROJECT_DIR ? join(extraEnv.CLAUDE_PROJECT_DIR, ".gestalt", "context-mode") : undefined,
+      CODEX_THREAD_ID: "compact-provenance-rpc",
+    },
   });
 }
 
@@ -184,9 +168,9 @@ async function initServer(proc: ChildProcess): Promise<void> {
 }
 
 // ════════════════════════════════════════════════════════════════════════════
-// Behaviour 4 — ctx_execute echoes the source code before stdout
+// Behaviour 4 — ctx_execute carries compact provenance before stdout
 // ════════════════════════════════════════════════════════════════════════════
-describe("issue #717 — ctx_execute echoes the language + code it ran", () => {
+describe("issue #717 — ctx_execute retains language and source identity", () => {
   let projectDir: string;
   beforeAll(() => {
     projectDir = mkdtempSync(join(tmpdir(), "echo-exec-"));
@@ -195,7 +179,7 @@ describe("issue #717 — ctx_execute echoes the language + code it ran", () => {
     rmSync(projectDir, { recursive: true, force: true });
   });
 
-  test("success path: response carries fenced ```javascript block with the exact code, before stdout", async () => {
+  test("success path: response carries source identity and audit reference without code", async () => {
     const proc = spawnServer({ CLAUDE_PROJECT_DIR: projectDir });
     try {
       await initServer(proc);
@@ -208,13 +192,12 @@ describe("issue #717 — ctx_execute echoes the language + code it ran", () => {
       expect(resp?.error).toBeUndefined();
       expect(resp?.result?.isError ?? false).toBe(false);
       const text = resp?.result?.content?.[0]?.text ?? "";
-      // The fenced code block must appear and carry the exact source
-      expect(text).toContain("```javascript");
-      expect(text).toContain(code);
-      // Stdout content still arrives
-      expect(text).toContain(marker);
-      // Code echo MUST precede the stdout marker
-      expect(text.indexOf("```javascript")).toBeLessThan(text.indexOf(marker));
+      expect(text).toContain('"language":"javascript"');
+      expect(text).toContain('"sourceDigest":"' + createHash("sha256").update(code).digest("hex") + '"');
+      expect(text).toContain('"operationId"');
+      expect(text).toContain('"report":"report-');
+      expect(text).not.toContain(code);
+      expect(resp?.result?.content?.map(part => part.text).join("\n")).toContain(marker);
     } finally {
       try { proc.kill("SIGTERM"); } catch { /* best effort */ }
     }
@@ -236,7 +219,7 @@ describe("issue #736 — ctx_batch_execute summary includes a Commands inventory
     rmSync(projectDir, { recursive: true, force: true });
   });
 
-  test("response carries `## Commands` listing each `- <label>: \\`<command>\\`` before `## Indexed Sections`", async () => {
+  test("response carries command identities before Indexed Sections without executable text", async () => {
     const proc = spawnServer({ CLAUDE_PROJECT_DIR: projectDir });
     try {
       await initServer(proc);
@@ -250,18 +233,17 @@ describe("issue #736 — ctx_batch_execute summary includes a Commands inventory
               { label: "bravo", command: "echo bravo-output" },
               { label: "charlie", command: "echo charlie-output" },
             ],
-            queries: ["alpha"],
+            queries: ["alpha"], response_bytes: 4096,
           },
         },
       });
       expect(resp?.error).toBeUndefined();
-      const text = resp?.result?.content?.[0]?.text ?? "";
+      const text = resp?.result?.content?.map(part => part.text).join("\n") ?? "";
 
       // Commands inventory present
       expect(text).toContain("## Commands");
-      expect(text).toMatch(/- alpha: `echo alpha-output`/);
-      expect(text).toMatch(/- bravo: `echo bravo-output`/);
-      expect(text).toMatch(/- charlie: `echo charlie-output`/);
+      expect(resp?.result?.content?.map(part => part.text).join("\n")).not.toContain("echo alpha-output");
+      expect(resp?.result?.content?.map(part => part.text).join("\n")).not.toContain("echo bravo-output");
       // Ordering: Commands BEFORE Indexed Sections
       const cmdIdx = text.indexOf("## Commands");
       const secIdx = text.indexOf("## Indexed Sections");
@@ -275,9 +257,9 @@ describe("issue #736 — ctx_batch_execute summary includes a Commands inventory
 });
 
 // ════════════════════════════════════════════════════════════════════════════
-// Behaviour 5 — ctx_execute_file echoes path + code before stdout
+// Behaviour 5 — ctx_execute_file retains source identity
 // ════════════════════════════════════════════════════════════════════════════
-describe("issue #717 — ctx_execute_file echoes the path + code it ran", () => {
+describe("issue #717 — ctx_execute_file retains source identity and audit access", () => {
   let projectDir: string;
   let dataFile: string;
   beforeAll(() => {
@@ -289,7 +271,7 @@ describe("issue #717 — ctx_execute_file echoes the path + code it ran", () => 
     rmSync(projectDir, { recursive: true, force: true });
   });
 
-  test("success path: response carries `path=<file>` + fenced code block before stdout", async () => {
+  test("success path: response carries source digest and authorized audit reference", async () => {
     const proc = spawnServer({ CLAUDE_PROJECT_DIR: projectDir });
     try {
       await initServer(proc);
@@ -302,14 +284,11 @@ describe("issue #717 — ctx_execute_file echoes the path + code it ran", () => 
       expect(resp?.error).toBeUndefined();
       expect(resp?.result?.isError ?? false).toBe(false);
       const text = resp?.result?.content?.[0]?.text ?? "";
-      // Path attribution present
-      expect(text).toMatch(/path=.*sample\.txt/);
-      // Fenced code block carrying exact source
-      expect(text).toContain("```javascript");
-      expect(text).toContain(code);
-      // Stdout still arrives, AFTER the echo
-      expect(text).toContain(marker);
-      expect(text.indexOf("```javascript")).toBeLessThan(text.indexOf(marker));
+      expect(text).toContain('"language":"javascript"');
+      expect(text).toContain('"sourceDigest":"' + createHash("sha256").update(code).digest("hex") + '"');
+      expect(text).toContain('"report":"report-');
+      expect(text).not.toContain(code);
+      expect(resp?.result?.content?.map(part => part.text).join("\n")).toContain(marker);
     } finally {
       try { proc.kill("SIGTERM"); } catch { /* best effort */ }
     }
