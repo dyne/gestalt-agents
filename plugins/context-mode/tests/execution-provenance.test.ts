@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, test, vi } from "vitest";
 import { PolyglotExecutor } from "../src/executor.js";
+import { createExecutionAudit, omitExecutableSource } from "../src/execution-provenance.js";
 
 let root: string, workspace: string, server: typeof import("../src/server.js");
 const bytes = (value: unknown) => Buffer.byteLength(JSON.stringify(value), "utf8");
@@ -34,6 +35,17 @@ afterAll(async () => {
 });
 
 describe("compact execution provenance and explicit authorized audit", () => {
+  test.each(["", "56 | "])("omits interpreter source with diagnostic prefix %j", prefix => {
+    const code = "const broken = ; // PARSE-SOURCE-CANARY";
+    const audit = createExecutionAudit("javascript", [{ submitted: code, executed: code }]);
+    const raw = { content: [{ type: "text" as const, text: `${prefix}${code}\nerror: Unexpected ;\n    at script.js:56:16` }] };
+    const result = omitExecutableSource(raw, audit);
+    expect(result.omitted).toBe(1);
+    expect(text(result.response)).not.toContain("PARSE-SOURCE-CANARY");
+    expect(text(result.response)).toContain("error: Unexpected ;");
+    expect(text(result.response)).toContain("at script.js:56:16");
+    expect(text(raw)).toContain(code);
+  });
   test("long heredoc source is absent routinely and recoverable exactly", async () => {
     const canary = "PRIVATE-SOURCE-CANARY";
     const code = `: <<'AUDIT'\n${canary.repeat(800)}\nAUDIT\nprintf 'derived-result'`;
@@ -73,7 +85,7 @@ describe("compact execution provenance and explicit authorized audit", () => {
     const code = "const broken = ; // Error-PARSE-SOURCE-CANARY";
     const result = await call("ctx_execute", { language: "javascript", code });
     expect(result.isError).toBe(true); expect(bytes(result)).toBeLessThanOrEqual(2048);
-    expect(text(result)).toContain("SyntaxError"); expect(text(result)).not.toContain("PARSE-SOURCE-CANARY");
+    expect(text(result)).toMatch(/SyntaxError|error: Unexpected ;/); expect(text(result)).not.toContain("PARSE-SOURCE-CANARY");
     const meta = provenance(result); expect(meta.sourceEchoesOmitted).toBeGreaterThan(0);
     const audit = await report(meta.audit.report);
     expect(text(audit.rawResponse)).toContain(code);
