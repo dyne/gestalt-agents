@@ -25,6 +25,7 @@ if [[ -z "$ci_bun" ]]; then
   exit 127
 fi
 
+# shellcheck disable=SC2016 # Node interprets the JavaScript template literal.
 node -e '
   const [major, minor] = process.versions.node.split(".").map(Number);
   if (major < 22 || (major === 22 && minor < 5)) {
@@ -39,6 +40,7 @@ bash "$root/tests/codex-install-smoke.sh"
 (
   cd "$root/plugins/context-mode"
   "$ci_bun" install --frozen-lockfile
+  npm run test:overhead -- --evidence-dir "${OVERHEAD_EVIDENCE_DIR:-${TMPDIR:-/tmp}/gestalt-overhead-ci}"
   npm test
 )
 

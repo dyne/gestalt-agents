@@ -68,3 +68,35 @@ in the initial summary. Added full-source/audit retrieval has broader evidence
 scope than baseline snippets: total costs remain visible and total savings are
 null for that incomparable scope. Small overlapping queries and short commands
 can cost more because provenance and access metadata are included.
+
+Repeat the complete baseline/candidate pair for L9 acceptance with:
+
+```sh
+node_modules/.bin/tsx benchmark/acceptance.ts /absolute/baseline/plugins/context-mode /absolute/candidate/plugins/context-mode /absolute/acceptance.json
+```
+
+The frozen retrieval denominator includes both broad and overlapping queries,
+including their initial indexing envelopes. Both returned-envelope and visible
+request/description-inclusive totals must fall by at least 50%. Each pass also
+reports every scenario's call count, overflow calls and complete retrieval cost;
+small cases may grow and broader evidence retrieval prevents total-savings
+claims. Both sides repeat all planted-finding assertions with identical input,
+dependency/environment and source identities. Runtime IDs can change byte sizes.
+
+Payload replay does not exercise a scheduler or launch a model. Separately run
+the pinned Mobile `wake-attribution.test.ts`, `model-policy-preflight.test.ts`
+and `executor-model-evidence.test.ts` production-boundary fixtures. These assert
+zero starts for repeated unchanged activity, one accepted wake per process
+completion/deadline, configured-setting mismatches and rejection of unsupported
+automatic policy execution. Record their exact peer SHA and checks beside this
+report. They establish deterministic fixture behavior only: runtime attestation
+and native-child interception remain deferred, and no live quota trial runs.
+
+For opt-in matched-task manifests, a reproducible fake-provider runner and
+read-only trial distribution summaries, see [model trials](model-trials.md).
+Routine checks never dispatch models or spend live trial quota.
+
+[CI overhead budgets](overhead.md) gate serialized L2 envelopes, frozen retrieval,
+bootstrap delivery, overlap and complete overflow with bounded failure artifacts.
+The wake trace contract is explicitly separate from Mobile's owning scheduler
+tests.

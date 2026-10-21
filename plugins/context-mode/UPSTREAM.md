@@ -175,6 +175,21 @@ and contents while excluding generated dependencies and build artifacts.
 
 ## Updating context-mode
 
+The downstream acceptance runner repeats frozen production-handler comparisons,
+gates the declared broad-plus-overlap retrieval denominator, preserves full
+overflow/audit costs and rejects changed identities or lost findings. Scheduler
+and configured-model-policy evidence is a separately pinned Mobile fixture gate;
+payload savings never establish live model/quota or runtime-enforcement savings.
+The repository-only model-trial harness reuses the Org comparison validator,
+generates fixed fake-provider records with retry/reviewer costs and failure
+evidence, and imports records read-only for coverage-aware distributions. It has
+no live dispatch adapter; quota stays unobserved in synthetic runs.
+The downstream CI overhead gate pins response/retrieval/bootstrap ceilings,
+requires reviewed amendment metadata for increases against the supplied base,
+and retains complete digest-bound diagnostics behind a bounded summary. Its
+invented wake-trace contract supplements Mobile's owning production tests and
+does not simulate runtime scheduling.
+
 Import a reviewed upstream revision, reapply the Codex-only changes above,
 choose a distinct downstream package version, regenerate the checksum fixture,
 and run `bash tests/run.sh` plus `git diff --check`.

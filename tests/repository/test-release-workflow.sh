@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-root=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
+root=$(CDPATH='' cd -- "$(dirname -- "$0")/../.." && pwd)
 tmp=$(mktemp -d "${TMPDIR:-/tmp}/release-workflow-test.XXXXXX")
 trap 'rm -rf "$tmp"' EXIT HUP INT TERM
 ruby -ryaml -rjson -e 'File.write(ARGV[1], JSON.generate(YAML.safe_load_file(ARGV[0], aliases: false)))' \
@@ -145,6 +145,7 @@ assert matrix_job["strategy"] == {
 }
 matrix_steps = matrix_job["steps"]
 checkout = next(step for step in matrix_steps if step.get("uses") == "actions/checkout@v7")
+assert checkout["with"]["fetch-depth"] == 0
 node = next(step for step in matrix_steps if step.get("uses") == "actions/setup-node@v7")
 bun = next(step for step in matrix_steps if step.get("uses") == "oven-sh/setup-bun@v2")
 assert node["with"]["node-version"] == "22.12.0"
@@ -170,6 +171,19 @@ assert "sha256sum --check --strict" in actionlint["run"]
 assert "go install" not in actionlint["run"]
 validation = next(step for step in matrix_steps if step.get("name") == "Run complete validation")
 assert validation["run"] == "bash tests/ci.sh"
+assert validation["env"] == {
+    "OVERHEAD_BASE_REVISION": "${{ github.event.pull_request.base.sha || github.event.before }}",
+    "OVERHEAD_EVIDENCE_DIR": "${{ runner.temp }}/gestalt-overhead",
+}
+overhead = next(step for step in matrix_steps if step.get("name") == "Retain overhead failure evidence")
+assert overhead["if"] == "failure()"
+assert overhead["uses"] == "actions/upload-artifact@v4"
+assert overhead["with"] == {
+    "name": "overhead-failures-${{ matrix.os }}",
+    "path": "${{ runner.temp }}/gestalt-overhead",
+    "if-no-files-found": "ignore",
+    "retention-days": 7,
+}
 assert "tests/run.sh" not in test_source
 PY
 

@@ -26,7 +26,7 @@ export function loadFrozenCorpus(directory = join(HERE, "fixtures")) {
 }
 interface Observation { tool: string; requestBytes: number; responseBytes: number | null; responseSha256: string | null; overflow: boolean; reportKind?: "audit" | "overflow" }
 interface CaseResult { id: string; quality: "complete" | "unsupported"; missingFindings: string[]; observations: Observation[]; knownReturnedBytes: number; returnedBytes: number | null; requestBytes: number; descriptionBytes: number; knownTotalVisibleBytes: number; totalVisibleBytes: number | null; overflowRequestBytes: number; overflowResponseBytes: number; overflowCalls: number; routineReturnedBytes: number; routineVisibleBytes: number | null; routineDescriptionBytes: number; routineRequestBytes: number; auditRetrievalBytes: number; overflowRetrievalBytes: number; routineMissingFindings: string[] }
-const text = (response: any) => response.content?.filter((block: any) => block.type === "text").map((block: any) => block.text).join("\n") ?? "";
+const text = (response: any): string => response.content?.filter((block: any) => block.type === "text").map((block: any) => block.text).join("\n") ?? "";
 const flush = () => new Promise<void>(done => setImmediate(done));
 
 /** Separate process per pass: no global session/config change in the caller. */
@@ -304,7 +304,7 @@ export function compareModelPayloads(baselinePlugin: string, candidatePlugin: st
     // New complete source/audit retrieval has broader evidence scope than a
     // baseline snippet-only response. Its costs are known, its savings are not.
     const evidenceScopeComparable = !next.observations.some(row => row.reportKind)
-      && JSON.stringify(prior.observations.map(row => [row.tool, row.overflow]))
+      && JSON.stringify(prior.observations.map((row: Observation) => [row.tool, row.overflow]))
         === JSON.stringify(next.observations.map(row => [row.tool, row.overflow]));
     const comparable = findingsComparable && evidenceScopeComparable;
     const routineReduction = findingsComparable && prior.routineReturnedBytes > 0 ? 1 - next.routineReturnedBytes / prior.routineReturnedBytes : null;
