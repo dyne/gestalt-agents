@@ -15,6 +15,37 @@ and contents while excluding generated dependencies and build artifacts.
 
 ## Downstream changes
 
+- Defines complete executor review packets and independent root-observation
+  comparison, including source/diff/report/raw-test digest checks, required-check
+  inventories, first failures, risks and recomputed deltas. A bounded native
+  helper retains complete result artifacts and expands changed/contradictory
+  evidence only. Read denies remain enforced; unavailable evidence stays
+  uncertain. Readiness never grants lifecycle acceptance or proves witness/CI
+  freshness. Tests plant changed candidates, forged hashes and hidden failures.
+
+- Reuses current-authorized, digest-verified evidence captures and bounded
+  runtime parses while preserving original observations and isolating changed
+  execution/redaction contexts. Cached or transferred CI success requires a
+  remote refresh; local digest validity never establishes remote freshness or
+  candidate approval. Explicit local recapture follows a caller-run check.
+  Adds bounded selected-failure followups with verified source references and
+  full-report locators, without reconstructing unrelated diagnostic sections.
+
+- Persists source-map snapshots and range findings/questions/references in the
+  existing workspace content database, with searchable navigation metadata.
+  Adds bounded current-source/delta retrieval, stale/moved detection, explicit
+  wider context, and content-bound pages that reauthorize live bytes. Source
+  and index failures stay explicit; saved notes never replace current pre-edit
+  inspection. Conservative ordered line anchors preserve every differing gap.
+
+- Adds repository/path/content source revisions and versioned result keys for
+  declared candidate SHA/branch/dirty scope, dependency/config and environment
+  digests, exact command/cwd/exit, and CI run/attempt/job. Missing identities
+  fail closed. Relevant-entry manifests include untracked files and deletions;
+  their caller must enumerate and independently verify the complete scope.
+  Every ingestion reauthorizes current source bytes before exposing identities.
+  Keys establish identity only, never freshness, independent review or approval.
+
 - Bounds complete execute/file/batch/search MCP envelopes to 2048 UTF-8 bytes
   after decorations; explicit budgets span 1024–65536 bytes. Keeps complete
   authorized evidence behind digest-verified workspace/session continuation

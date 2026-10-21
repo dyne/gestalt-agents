@@ -60,6 +60,35 @@ workspace to a plugin MCP child, while the native launcher inherits the Codex
 process workspace and completes the MCP handshake. Do not add duplicate MCP or
 hook configuration manually; rerun setup to reconcile it.
 
+## Source maps
+
+`ctx_source_map` saves source navigation in the existing workspace content
+database so another session can recover paths, ranges, findings, questions and
+references without rereading whole files:
+
+```json
+{"operation":"capture","path":"src/resolver.ts","notes":[{"range":{"start":20,"end":35},"finding":"Fallback ownership","question":"Does fallback preserve scope?","references":[{"path":"design.md","sha256":"<64 hex digits>","locator":"section:fallback"}]}]}
+```
+
+Find the map using `ctx_search` with the finding or path, then call
+`{"operation":"read","map":"<returned map id>"}`. An exact `path` also locates
+its saved map. Reads verify authorized live bytes and report `current`, `stale`
+or `moved`; unavailable files or indexes produce explicit errors. For a known
+move, supply the original `map` and the new `path`. Changed ranges include
+three lines of context by default; repeated or ambiguous regions can widen
+conservatively. Supply `range` and `context` to inspect wider current regions.
+
+Responses default to 2048 serialized UTF-8 bytes (`maxBytes`: 1024–65536).
+Paged responses retain all fields in `data`; repeat the same read arguments
+with `revision` and `offset: nextOffset` until `nextOffset` is null. Every page
+reauthorizes current bytes and rejects changed content or map metadata. If FTS
+indexing fails after capture, the map remains accessible by ID or exact path;
+if storage is unavailable, inspect current source natively and capture again
+when storage returns. Captures are limited to complete UTF-8 files of 2 MiB
+and 200,000 lines. Saved notes and reference digests are navigation leads;
+verify references independently and inspect current source natively before
+editing. Reading a stale map does not update its saved findings.
+
 ## Test evidence
 
 `ctx_test_evidence` captures GitHub Actions evidence using the existing `gh`
@@ -105,6 +134,40 @@ locally; it does not import another session's index IDs or verify the candidate.
 Copying a report ID alone does not grant access. If ingestion is unavailable,
 capture logs outside the conversation and use authorized file analysis plus
 focused search, retaining explicit unknowns and bounded supervisor reports.
+
+Repeated ingestion reauthorizes and hashes the current source and retained
+capture before reusing its bytes and parsed diagnostics. The bounded runtime
+cache keeps at most 32 parses/16 MiB, isolates repository/path/revision and
+redaction policy, and retains original observation times. Missing/corrupt
+captures are reconstructed from the currently authorized source. Index reuse
+stays separate from parsing and capture reuse.
+
+`verification` distinguishes declared candidate inputs, local byte validity
+and remote freshness. A cached passing CI observation returns `needs-evidence`
+until `github.refresh` revalidates the selected run/attempt; transferred CI
+observations also require refresh. Known failures stay visible. Changing the
+candidate, dependencies/config, environment, exact command or cwd does not
+reattach an unchanged local log to the new inputs: rerun the check, then ingest
+with top-level `"refresh":true` to explicitly recapture. Ingestion never runs
+the check or independently certifies a candidate; timestamps alone prove no
+freshness. Candidate keys accept `dependencyConfigSha256` and
+`environmentSha256` alongside SHA/branch/dirty digest.
+
+To retrieve only missing failure records, use
+`{"operation":"followup","report":"report-ABC123","failures":{"check":0,"offset":7,"limit":1},"maxBytes":1024}`.
+Here `offset` counts failures within the selected check; it is distinct from
+the ordinary byte followup's top-level `offset`. Continue at `nextOffset`.
+Oversized IDs/causes retain explicit omissions and exact full-report locators;
+ordinary byte followups retain their complete details. Failure pages verify
+authorized capture references and return the report digest for independent
+comparison with the original manifest.
+
+## Independent review packets
+
+For executor-to-root handoffs, [independent review packets](docs/review-packets.md)
+provide complete candidate/scope/check identities and a bounded delta. The
+native helper compares authorized bytes with separate root observations;
+acceptance, freshness and relevant diff inspection remain root duties.
 
 ## Reproduce the evidence benchmark
 

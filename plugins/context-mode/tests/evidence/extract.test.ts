@@ -1,9 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { mkdtempSync, realpathSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, realpathSync, readFileSync, rmSync, symlinkSync, writeFileSync, utimesSync, unlinkSync } from 'node:fs';
 import { join, resolve, sep } from 'node:path';
 import { tmpdir } from 'node:os';
-import { evidenceFollowup, extractTests, ingestEvidence, ingestGitHubCapture, ingestSharedManifest, type IngestOptions } from '../../src/evidence/extract.js';
-import { digest, reference } from '../../src/evidence/github.js';
+import { evidenceFailureFollowup, evidenceFollowup, extractTests, ingestEvidence, ingestGitHubCapture, ingestSharedManifest, type IngestOptions } from '../../src/evidence/extract.js';
+import { digest, reference, type GitHubCapture } from '../../src/evidence/github.js';
+import { resultRevision, revisionEntriesDigest, sourceRevision } from '../../src/evidence/revision.js';
 
 const io=vi.hoisted(()=>({bytes:0}));
 vi.mock('node:fs',async()=>{
@@ -17,6 +18,54 @@ afterEach(()=>{vi.unstubAllEnvs();rmSync(root,{recursive:true,force:true});});
 const json=(tests:any[],extra:any={})=>JSON.stringify({version:1,tests,...extra});
 const file=(text:string,name='input.log')=>{const path=join(root,name);writeFileSync(path,text);return path;};
 const opts=(override:Partial<IngestOptions>={}):IngestOptions=>({storageRoot:join(root,'evidence'),authorizeRead:p=>resolve(p).startsWith(root+sep),index:(_text,source)=>({sourceId:source}),source:{kind:'local',repository:root,run:null,attempt:null,job:null,identityReason:'local command capture'},milestone:'L3.2 evidence-extraction',...override});
+
+describe('candidate and source revision identities',()=>{
+  const candidate=()=>({sha:'a'.repeat(40),branch:'feature',dirtySha256:revisionEntriesDigest(root,[]),dependencyConfigSha256:digest('lock/config'),environmentSha256:digest('node/platform/relevant environment')});
+  const capture=(path:string,extra:Partial<IngestOptions>={})=>ingestEvidence([{path,command:'npm test -- exact',cwd:root,exit:0}],opts({candidate:candidate(),...extra})).report.checks[0];
+  it('keys source bytes by repository and canonical path, never timestamp',()=>{
+    const path=file('TAP version 13\nok 1 - pass\n1..1');
+    const first=capture(path);utimesSync(path,new Date(0),new Date(0));
+    expect(capture(path).sourceRevision).toEqual(first.sourceRevision);
+    expect(capture(path).resultIdentity.key).toEqual(first.resultIdentity.key);
+    expect(capture(file(readFileSync(path,'utf8'),'equal.log')).sourceRevision.key).not.toBe(first.sourceRevision.key);
+    expect(capture(path,{source:{kind:'local',repository:'other'}}).sourceRevision.key).not.toBe(first.sourceRevision.key);
+    writeFileSync(path,'TAP version 13\nnot ok 1 - fail\n1..1');
+    expect(capture(path).sourceRevision.key).not.toBe(first.sourceRevision.key);
+    unlinkSync(path);expect(capture(path).decision).toBe('needs-evidence');
+  });
+  it('includes tracked, untracked, deleted and renamed relevant entries without unrelated scope',()=>{
+    const tracked={path:'src/a.ts',sha256:digest('tracked')},untracked={path:'new.ts',sha256:digest('untracked')};
+    const base=revisionEntriesDigest(root,[tracked,untracked]);
+    expect(revisionEntriesDigest(root,[untracked,tracked])).toBe(base);
+    expect(revisionEntriesDigest(root,[{sha256:tracked.sha256,path:tracked.path},untracked])).toBe(base);
+    for(const changed of [[{...tracked,sha256:digest('edited')},untracked],[tracked,{...untracked,sha256:digest('edited')}],[{...tracked,sha256:null},untracked],[{...tracked,path:'moved.ts'},untracked]])
+      expect(revisionEntriesDigest(root,changed)).not.toBe(base);
+    expect(revisionEntriesDigest(root,[tracked,untracked])).toBe(base);
+    expect(()=>revisionEntriesDigest(root,[tracked,tracked])).toThrow();
+  });
+  it.each(['sha','branch','dirtySha256','dependencyConfigSha256','environmentSha256'] as const)('invalidates changed candidate %s',field=>{
+    const path=file('TAP version 13\nok 1 - pass\n1..1'),c=candidate(),first=capture(path);
+    expect(capture(path,{candidate:{...c,[field]:field==='sha'?'b'.repeat(40):field==='branch'?'other':digest('changed')}}).resultIdentity.key).not.toBe(first.resultIdentity.key);
+    const missing:Record<string,unknown>={...c};delete missing[field];
+    expect(capture(path,{candidate:missing}).resultIdentity.key).toBeNull();
+  });
+  it('changes keys for lock/config content and exact command, cwd, environment and CI rerun/job',()=>{
+    const source={kind:'github',host:'github.com',repository:'owner/repo',headSha:'a'.repeat(40),run:1,attempt:1,job:2};
+    const input={candidate:candidate(),source,sourceKey:sourceRevision('owner/repo','job:2',digest('log')).key,command:'npm test',cwd:root,exit:0};
+    const key=resultRevision(input).key;expect(key).not.toBeNull();
+    for(const change of [{command:'npm test '},{cwd:root+'/sub'},{exit:1},{candidate:{...candidate(),dependencyConfigSha256:revisionEntriesDigest(root,[{path:'lock',sha256:digest('v2')}])}},...['run','attempt','job'].map(k=>({source:{...source,[k]:9}}))])
+      expect(resultRevision({...input,...change}).key).not.toBe(key);
+    expect(resultRevision({...input,source:{...source,headSha:'b'.repeat(40)}}).key).toBeNull();
+    expect(resultRevision({...input,source:{...source,job:null}}).key).toBeNull();
+  });
+  it('reauthorizes source references before exposing an identity, even with an existing index',()=>{
+    const path=file('TAP version 13\nok 1 - pass\n1..1'),seen=new Set<string>();let allowed=true;
+    const options=opts({candidate:candidate(),authorizeRead:()=>allowed,indexExists:s=>seen.has(s),index:(_text,s)=>{seen.add(s);return {sourceId:s};}});
+    const run=()=>ingestEvidence([{path,command:'npm test',cwd:root,exit:0}],options).report.checks[0];
+    expect(run().resultIdentity.key).not.toBeNull();expect(run().index.reused).toBe(true);
+    allowed=false;const denied=run();expect(denied.decision).toBe('needs-evidence');expect(denied.resultIdentity).toBeUndefined();expect(denied.index).toBeUndefined();
+  });
+});
 
 describe('deterministic format adapters',()=>{
   it('extracts versioned JSON counts, failures, multiline causes, Unicode and step/time',()=>{
@@ -219,6 +268,91 @@ describe('stable scoped index references',()=>{
     const a=ingestEvidence([{path,exit:0,completeness:'partial'}],options);
     const b=ingestEvidence([{path,exit:0,completeness:'complete'}],options);
     expect(a.report.decision).toBe('needs-evidence');expect(b.report.decision).toBe('supported');expect(index).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('verified compact capture reuse',()=>{
+  const pass=()=>json([{id:'works',status:'passed'}],{exitCode:0});
+  it('reuses authorized captured bytes and parsing while retaining original observation times',()=>{
+    const path=file(pass()),options=opts(),first=ingestEvidence([{path,command:'npm test',cwd:root,observedAt:'2020-01-01T00:00:00.000Z'}],options);
+    const second=ingestEvidence([{path,command:'npm test',cwd:root}],options),check=second.report.checks[0];
+    expect(check.references).toEqual(first.report.checks[0].references);expect(check.reuse).toMatchObject({capture:'verified-existing',parse:'reused',localBytes:'digest-verified'});
+    expect(check.observedAt).toBe('2020-01-01T00:00:00.000Z');expect(second.report.observedAt).toBe(first.report.observedAt);
+    expect(second.report.verification).toMatchObject({candidate:'declared-only',remoteFreshness:'not-applicable',reusedChecks:1});
+    expect(second.report.decision).toBe('supported');expect(Buffer.byteLength(second.routine)).toBeLessThanOrEqual(2048);
+  });
+  it('does not attach unchanged logs to changed candidate/command inputs without explicit recapture',()=>{
+    const path=file(pass()),candidate={sha:'a'.repeat(40),branch:'feature',dirtySha256:digest('dirty'),dependencyConfigSha256:digest('lock'),environmentSha256:digest('env')};
+    const options=opts({candidate});
+    const first=ingestEvidence([{path,command:'npm test',observedAt:'2020-01-01T00:00:00.000Z'}],options);
+    const changed=ingestEvidence([{path,command:'npm test -- changed'}],opts({candidate:{...candidate,dependencyConfigSha256:digest('new lock')}}));
+    expect(changed.report.decision).toBe('needs-evidence');expect(changed.report.checks[0].observedAt).toBe(first.report.checks[0].observedAt);
+    expect(changed.report.verification.staleContextChecks).toBe(1);
+    const recaptured=ingestEvidence([{path,command:'npm test -- changed'}],opts({candidate:{...candidate,dependencyConfigSha256:digest('new lock')},refresh:true}));
+    expect(recaptured.report.decision).toBe('supported');expect(recaptured.report.checks[0].reuse.capture).toBe('captured');
+    expect(recaptured.report.verification.candidate).toBe('declared-only');
+  });
+  it('recaptures missing/corrupt retained bytes and honors current source authorization',()=>{
+    const path=file(pass()),first=ingestEvidence([{path}],opts());
+    writeFileSync(first.report.checks[0].references[0].path,'corrupt');
+    const second=ingestEvidence([{path}],opts());expect(second.report.checks[0].reuse.capture).toBe('captured');
+    unlinkSync(second.report.checks[0].references[0].path);
+    expect(ingestEvidence([{path}],opts()).report.checks[0].reuse.capture).toBe('captured');
+    expect(ingestEvidence([{path}],opts({authorizeRead:()=>false})).report.decision).toBe('needs-evidence');
+  });
+  it('keeps partial and unsupported captures uncertain, even when the same index already exists',()=>{
+    const path=file(pass());ingestEvidence([{path}],opts());
+    expect(ingestEvidence([{path,completeness:'partial'}],opts()).report.decision).toBe('needs-evidence');
+    const unknown=file('unrecognized success','unknown.log');ingestEvidence([{path:unknown,exit:0}],opts());
+    const reused=ingestEvidence([{path:unknown,exit:0}],opts());expect(reused.report.checks[0].reuse.parse).toBe('reused');
+    expect(reused.report.decision).toBe('needs-evidence');expect(reused.report.checks[0].certainty).toBe('unknown');
+  });
+  it('does not let report mutation or changed credentials poison cached diagnostic parsing',()=>{
+    const path=file(json([{id:'failure',status:'failed',cause:'new-private-value'}],{exitCode:1}));
+    const first=ingestEvidence([{path}],opts());first.report.checks[0].failures[0].id='forged';
+    first.report.checks[0].references[0].path=join(root,'forged-reference');
+    const reused=ingestEvidence([{path}],opts());expect(reused.report.checks[0].failures[0].id).toBe('failure');expect(reused.report.checks[0].reuse.parse).toBe('reused');
+    vi.stubEnv('GH_TOKEN','new-private-value');
+    const redacted=ingestEvidence([{path}],opts());expect(redacted.report.checks[0].failures[0].cause).toBe('[REDACTED]');expect(redacted.report.checks[0].reuse.parse).toBe('parsed');
+  });
+  const remote=(text:string,attempt=1,reuse:'captured'|'cached-terminal'='captured',completeness:'complete'|'partial'='complete'):GitHubCapture=>{
+    const log=file(text,`job-${attempt}.log`),body=JSON.stringify({entries:[{kind:'logs-2',state:'complete',reference:reference(log,text)}]}),manifest=file(body,`manifest-${attempt}.json`);
+    return {version:1,source:'github',selector:{host:'github.com',repository:'owner/repo',run:1,attempt,job:2},headSha:'a'.repeat(40),completedAt:null,sourceUpdatedAt:null,observedAt:`2020-01-0${attempt}T00:00:00.000Z`,completeness,reuse,manifest:reference(manifest,body)};
+  };
+  it('separates earlier passing attempt bytes from a failing rerun and explicit remote refresh',()=>{
+    const first=remote(pass()),a=ingestGitHubCapture(first,opts());expect(a.report.decision).toBe('supported');
+    const cached=ingestGitHubCapture({...first,reuse:'cached-terminal'},opts());
+    expect(cached.report.decision).toBe('needs-evidence');expect(cached.report.verification.remoteFreshness).toBe('needs-refresh');
+    expect(cached.report.checks[0].reuse.parse).toBe('reused');expect(cached.report.checks[0].observedAt).toBe(first.observedAt);
+    const refreshed=ingestGitHubCapture({...first,observedAt:'2020-01-03T00:00:00.000Z',reuse:'captured'},opts());
+    expect(refreshed.report.decision).toBe('supported');expect(refreshed.report.checks[0].observedAt).toBe('2020-01-03T00:00:00.000Z');
+    expect(refreshed.report.checks[0].reuse.originalObservedAt).toBe(first.observedAt);
+    const rerun=ingestGitHubCapture(remote(json([{id:'rerun fails',status:'failed',cause:'new failure'}],{exitCode:1}),2),opts());
+    expect(rerun.report.decision).toBe('failed');expect(rerun.report.checks[0].failures[0].id).toBe('rerun fails');
+    expect(rerun.report.checks[0].sourceRevision.key).not.toBe(a.report.checks[0].sourceRevision.key);
+    const shared=join(root,'evidence',a.id,'report.json');
+    expect(ingestSharedManifest(shared,digest(readFileSync(shared)),opts()).report.decision).toBe('needs-evidence');
+  });
+  it('cannot turn partial jobs, unsupported CI output, missing artifacts or mismatched SHA into success',()=>{
+    expect(ingestGitHubCapture(remote(pass(),1,'captured','partial'),opts()).report.decision).toBe('needs-evidence');
+    expect(ingestGitHubCapture(remote('unknown success'),opts()).report.decision).toBe('needs-evidence');
+    const missing=remote(pass());
+    missing.selector!.artifact=3;
+    const members=JSON.stringify({entries:[{kind:'artifact-members',state:'complete',reference:{path:join(root,'missing-artifact.json'),sha256:digest('missing'),bytes:7}}]});
+    writeFileSync(missing.manifest!.path,members);missing.manifest=reference(missing.manifest!.path,members);
+    expect(ingestGitHubCapture(missing,opts()).report.decision).toBe('needs-evidence');
+    const mismatch=remote(pass());expect(ingestGitHubCapture(mismatch,opts({candidate:{sha:'b'.repeat(40)}})).report.decision).toBe('needs-evidence');
+  });
+  it('retrieves only selected missing failures with bounded locators and verified references',()=>{
+    const path=file(json(Array.from({length:8},(_,i)=>({id:`failure-${i}`,status:'failed',cause:'context ☃ '.repeat(300)})),{exitCode:1}));
+    const report=ingestEvidence([{path}],opts()),storage=join(root,'evidence');
+    const selected=JSON.parse(evidenceFailureFollowup(storage,report.id,{check:0,offset:3,limit:2},2048,()=>true));
+    expect(selected.failures.map((f:any)=>f.id)).toEqual(['failure-3','failure-4']);expect(selected.nextOffset).toBe(5);
+    expect(selected.failures[0].locator).toBe('JSON:checks[0].failures[3]');expect(selected.failures[0].causeOmittedBytes).toBeGreaterThan(0);
+    const tiny=evidenceFailureFollowup(storage,report.id,{check:0,offset:0},512,()=>true);expect(Buffer.byteLength(JSON.stringify({content:[{type:'text',text:tiny}]}))).toBeLessThanOrEqual(512);
+    expect(()=>evidenceFailureFollowup(storage,report.id,{check:0,offset:0},2048,()=>false)).toThrow();
+    writeFileSync(report.report.checks[0].references[0].path,'changed');
+    expect(()=>evidenceFailureFollowup(storage,report.id,{check:0,offset:0},2048,()=>true)).toThrow();
   });
 });
 
