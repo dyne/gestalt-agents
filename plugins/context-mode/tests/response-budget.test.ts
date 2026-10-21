@@ -1,4 +1,4 @@
-import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { EventEmitter } from "node:events";
@@ -14,7 +14,7 @@ vi.mock("node:https", async importOriginal => {
   return { ...actual, request: vi.fn(actual.request) };
 });
 
-const root = mkdtempSync(join(tmpdir(), "response-budget-"));
+const root = realpathSync(mkdtempSync(join(tmpdir(), "response-budget-")));
 const scope = { root: join(root, "artifacts"), authorizeRead: () => true };
 const decode = (result: any) => JSON.parse(result.content[0].text);
 const size = (result: unknown) => Buffer.byteLength(JSON.stringify(result), "utf8");

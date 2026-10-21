@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { existsSync, mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, mkdirSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, test, vi } from "vitest";
@@ -23,7 +23,7 @@ async function report(handle: string) {
 }
 
 beforeAll(async () => {
-  root = mkdtempSync(join(tmpdir(), "execution-provenance-")); workspace = join(root, "workspace"); mkdirSync(workspace);
+  root = realpathSync(mkdtempSync(join(tmpdir(), "execution-provenance-"))); workspace = join(root, "workspace"); mkdirSync(workspace);
   vi.stubEnv("CONTEXT_MODE_EMBEDDED_PLUGIN_TOOLS", "1"); vi.stubEnv("CONTEXT_MODE_PLATFORM", "codex");
   vi.stubEnv("CONTEXT_MODE_WORKSPACE", workspace); vi.stubEnv("CONTEXT_MODE_PROJECT_DIR", workspace);
   vi.stubEnv("CONTEXT_MODE_DIR", join(workspace, ".gestalt", "context-mode")); vi.stubEnv("CLAUDE_PROJECT_DIR", "");

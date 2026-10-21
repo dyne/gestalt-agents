@@ -192,6 +192,9 @@ does not simulate runtime scheduling.
 Its temporary artifact scope is canonicalized for macOS symlinked temporary
 directories, with a CLI regression case. Live provenance tests await server
 termination before removing their workspace to avoid teardown write races.
+Provenance, overflow, query-window, response-budget, and response-accounting
+test fixtures also canonicalize temporary roots before constructing authorized
+workspace and artifact paths, including in the live-server tests.
 
 Import a reviewed upstream revision, reapply the Codex-only changes above,
 choose a distinct downstream package version, regenerate the checksum fixture,

@@ -7,7 +7,7 @@
 import { createHash } from "node:crypto";
 import { spawn, type ChildProcess } from "node:child_process";
 import { once } from "node:events";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
@@ -186,7 +186,7 @@ async function initServer(proc: ChildProcess): Promise<void> {
 describe("issue #717 — ctx_execute retains language and source identity", () => {
   let projectDir: string;
   beforeAll(() => {
-    projectDir = mkdtempSync(join(tmpdir(), "echo-exec-"));
+    projectDir = realpathSync(mkdtempSync(join(tmpdir(), "echo-exec-")));
   });
   afterAll(() => {
     rmSync(projectDir, { recursive: true, force: true });
@@ -226,7 +226,7 @@ describe("issue #717 — ctx_execute retains language and source identity", () =
 describe("issue #736 — ctx_batch_execute summary includes a Commands inventory", () => {
   let projectDir: string;
   beforeAll(() => {
-    projectDir = mkdtempSync(join(tmpdir(), "echo-batch-"));
+    projectDir = realpathSync(mkdtempSync(join(tmpdir(), "echo-batch-")));
   });
   afterAll(() => {
     rmSync(projectDir, { recursive: true, force: true });
@@ -276,7 +276,7 @@ describe("issue #717 — ctx_execute_file retains source identity and audit acce
   let projectDir: string;
   let dataFile: string;
   beforeAll(() => {
-    projectDir = mkdtempSync(join(tmpdir(), "echo-execfile-"));
+    projectDir = realpathSync(mkdtempSync(join(tmpdir(), "echo-execfile-")));
     dataFile = join(projectDir, "sample.txt");
     writeFileSync(dataFile, "line1\nline2\nline3\n", "utf-8");
   });

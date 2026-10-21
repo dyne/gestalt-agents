@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, test, vi } from "vitest";
-import { mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import Database from "better-sqlite3";
@@ -40,7 +40,7 @@ function capture(path: string, sessionId: string) {
 }
 
 beforeAll(async () => {
-  root = mkdtempSync(join(tmpdir(), "response-accounting-"));
+  root = realpathSync(mkdtempSync(join(tmpdir(), "response-accounting-")));
   workspace = join(root, "workspace"); state = join(workspace, ".gestalt", "context-mode"); mkdirSync(workspace); mkdirSync(join(state, "sessions"), { recursive: true });
   vi.stubEnv("CONTEXT_MODE_EMBEDDED_PLUGIN_TOOLS", "1");
   vi.stubEnv("CONTEXT_MODE_PLATFORM", "codex");
