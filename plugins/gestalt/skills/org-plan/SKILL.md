@@ -147,8 +147,8 @@ time, checkpoints, and executor idleness are not attention conditions.
    its minimal exact task-specific set.
 5. Order L1s and L2s by dependency. Give each L1 its relevant starting context,
    prior outputs, invariants, tests, and acceptance criteria.
-6. Review every milestone for ambiguity and lesser-model executability. Resolve
-   material doubts before handoff.
+6. Resolve milestone ambiguity and validate [model handoffs](references/model-policy-workflow.md)
+   before handoff.
 7. Validate with the helper. Create the topic branch and run the repository's
    required baseline checks before implementation handoff.
 ## Manual execution loop

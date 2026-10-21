@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 1,
+  "modelPolicyVersion": 1,
+  "optIn": true,
+  "mode": "template",
+  "provenance": "Invented planning template. Zero fingerprints are placeholders: replace with real frozen same-task inputs before authorized trials. This file never authorizes model calls.",
+  "authorizationReference": null,
+  "trialsPerConfiguration": 3,
+  "tasks": [
+    {
+      "id": "simple", "difficulty": "simple", "baseSha": "0000000000000000000000000000000000000000",
+      "toolsDigest": "0000000000000000000000000000000000000000000000000000000000000000",
+      "environmentDigest": "0000000000000000000000000000000000000000000000000000000000000000",
+      "dependencyDigest": "0000000000000000000000000000000000000000000000000000000000000000",
+      "acceptanceChecks": ["REPLACE: exact command, cwd and acceptance criteria"]
+    },
+    {
+      "id": "bounded", "difficulty": "bounded", "baseSha": "0000000000000000000000000000000000000000",
+      "toolsDigest": "0000000000000000000000000000000000000000000000000000000000000000",
+      "environmentDigest": "0000000000000000000000000000000000000000000000000000000000000000",
+      "dependencyDigest": "0000000000000000000000000000000000000000000000000000000000000000",
+      "acceptanceChecks": ["REPLACE: exact command, cwd and acceptance criteria"]
+    },
+    {
+      "id": "multi-component", "difficulty": "multi-component", "baseSha": "0000000000000000000000000000000000000000",
+      "toolsDigest": "0000000000000000000000000000000000000000000000000000000000000000",
+      "environmentDigest": "0000000000000000000000000000000000000000000000000000000000000000",
+      "dependencyDigest": "0000000000000000000000000000000000000000000000000000000000000000",
+      "acceptanceChecks": ["REPLACE: exact command, cwd and acceptance criteria"]
+    }
+  ],
+  "configurations": [
+    { "id": "luna-medium", "model": "gpt-6-luna", "reasoningEffort": "medium", "necessity": null },
+    { "id": "sol-medium", "model": "gpt-6-sol", "reasoningEffort": "medium", "necessity": null },
+    { "id": "sol61-medium", "model": "gpt-6.1-sol", "reasoningEffort": "medium", "necessity": null }
+  ],
+  "trials": []
+}

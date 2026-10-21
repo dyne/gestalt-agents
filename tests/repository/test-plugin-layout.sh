@@ -47,8 +47,13 @@ assert supervision_manifest == {
     "capabilities": [
         "supervision-start", "wait-lease-tool", "checkpoint-tool", "l2-report-boundary",
         "agent-capacity-recovery",
-        "canonical-agent-identity", "org-plan-contract",
+        "canonical-agent-identity", "org-plan-contract", "l1-model-policy-v1",
     ],
+    "modelPolicyContract": {
+        "version": 1,
+        "scope": "schema-and-local-contracts",
+        "runtimeEnforcement": False,
+    },
 }, "Gestalt must ship the bounded supervision capability manifest"
 
 manifests = {

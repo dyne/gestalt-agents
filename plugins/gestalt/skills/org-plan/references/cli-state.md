@@ -146,3 +146,8 @@ The context is host input, never an MCP tool argument. Every mutation validates
 it before writing the plan, and publication applies the same restriction.
 Omitting the array preserves the normal CLI environment contract. Supplying
 this context does not itself implement Live admission, hold guards or activation.
+
+Versioned model plans additionally require `l1-model-policy-v1` from an attached
+consumer before mutations/publication. See the [model policy schema](model-policy-schema.md)
+for exact properties, bounded summaries and legacy behavior. This capability is
+schema compatibility, independent of runtime launch enforcement.

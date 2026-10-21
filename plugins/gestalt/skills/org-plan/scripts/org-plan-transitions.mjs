@@ -13,7 +13,7 @@ import {
   projection,
   readPlan,
 } from "./org-plan-parser.mjs";
-import { publishStatus, requireSuspensionCapability } from "./org-plan-publication.mjs";
+import { publishStatus, requireConsumerCapabilities } from "./org-plan-publication.mjs";
 
 const MEASURED_PROPERTIES = [
   "STARTED_AT",
@@ -34,7 +34,7 @@ function writePlan(path, plan, reason, options = {}) {
   const text = plan.lines.join("\n");
   const candidate = parsePlan(text);
   projection(candidate);
-  requireSuspensionCapability(candidate, options);
+  requireConsumerCapabilities(candidate, options);
   const canonicalPath = resolvePlanPath(path);
   const status = lstatSync(canonicalPath);
   const temporary = temporarySibling(canonicalPath);
@@ -113,7 +113,7 @@ export function mutate(path, operation, id, state, options = {}) {
   const plan = readPlan(path);
   const item = findItem(plan, id);
   const before = observable(plan, id);
-  requireSuspensionCapability(plan, options);
+  requireConsumerCapabilities(plan, options);
   if (item.state === "SUSPENDED" || item.parent?.state === "SUSPENDED")
     fail("suspended work requires resume before mutation");
   if (operation === "review") {
@@ -234,7 +234,7 @@ export function measure(path, operation, id, snapshot, options = {}) {
   const plan = readPlan(path);
   const item = findItem(plan, id);
   const before = observable(plan, id);
-  requireSuspensionCapability(plan, options);
+  requireConsumerCapabilities(plan, options);
   if (item.state === "SUSPENDED" || item.parent?.state === "SUSPENDED")
     fail("suspended work cannot be measured");
   const properties = item.properties;
@@ -295,7 +295,7 @@ export function suspendReopen(path, dependentId, dependencyId, options = {}) {
 
 export function resume(path, id, options = {}) {
   const plan = readPlan(path);
-  requireSuspensionCapability(plan, options);
+  requireConsumerCapabilities(plan, options);
   const item = findItem(plan, id);
   if (item.level !== 1 || item.state !== "SUSPENDED") fail("resume requires a suspended L1");
   if (plan.items.some((entry) => entry.level === 1 && entry.line < item.line &&

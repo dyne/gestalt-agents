@@ -1,0 +1,20 @@
+{
+  "provenance": "Invented normalized runtime catalog for contract tests only; not live availability evidence.",
+  "catalog": {
+    "source": "runtime",
+    "revision": "synthetic-rubric-v1",
+    "models": [
+      { "id": "gpt-6-luna", "reasoningEfforts": ["medium", "high"] },
+      { "id": "gpt-6-sol", "reasoningEfforts": ["medium", "high", "xhigh"] },
+      { "id": "gpt-6.1-sol", "reasoningEfforts": ["medium", "high", "xhigh"] }
+    ]
+  },
+  "cases": [
+    { "id": "trivial-mechanical", "scores": [0, 0, 0, 0, 0], "model": "gpt-6-luna" },
+    { "id": "bounded-implementation", "scores": [1, 1, 0, 1, 0], "model": "gpt-6-sol" },
+    { "id": "narrow-high-risk", "scores": [0, 1, 0, 2, 0], "model": "gpt-6-sol" },
+    { "id": "protocol-concurrency", "scores": [1, 1, 2, 2, 0], "model": "gpt-6.1-sol" },
+    { "id": "multi-component", "scores": [1, 2, 1, 1, 0], "model": "gpt-6.1-sol" },
+    { "id": "hard-weak-oracle", "scores": [2, 1, 1, 2, 2], "model": "gpt-6.1-sol" }
+  ]
+}

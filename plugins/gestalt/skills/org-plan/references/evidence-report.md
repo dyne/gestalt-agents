@@ -83,6 +83,8 @@ material-ambiguity stop and applicable UI evidence matrix. Replace placeholders
 with current values. These are task data, not governing reads; lifecycle gates
 remain in supervised-execution.md.
 
+Versioned assignments/reviews and follow-ups retain the [policy packet](model-policy-workflow.md).
+
 ```text
 Assignment: {milestone}; task_name {executor}; sole writer for entire L1.
 Inputs: {plan_section}; {governing_reads}; optional skills {skills}.

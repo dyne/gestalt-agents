@@ -30,12 +30,12 @@ show_command_help() {
   case $1 in
     prepare-executor)
       printf '%s\n' \
-        'usage: org-plan prepare-executor [--model MODEL] [--agents-dir DIR] [--profile-name NAME]' \
+        'usage: org-plan prepare-executor [--model MODEL] [--reasoning-effort EFFORT] [--agents-dir DIR] [--profile-name NAME]' \
         'setup-only: installs or refreshes the executor role profile'
       ;;
     prepare-supervision)
       printf '%s\n' \
-        'usage: org-plan prepare-supervision [--executor-model MODEL] [--reviewer-model MODEL] [--agents-dir DIR] [--executor-profile-name NAME] [--reviewer-profile-name NAME]' \
+        'usage: org-plan prepare-supervision [--executor-model MODEL] [--reviewer-model MODEL] [--executor-reasoning-effort EFFORT] [--reviewer-reasoning-effort EFFORT] [--agents-dir DIR] [--executor-profile-name NAME] [--reviewer-profile-name NAME]' \
         'setup-only: installs or refreshes supervised role profiles'
       ;;
     *) return 1 ;;
@@ -43,6 +43,7 @@ show_command_help() {
 }
 usage() { show_help >&2; exit 2; }
 valid_model() { [[ $1 =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]]; }
+valid_reasoning_effort() { [[ $1 == medium || $1 == high || $1 == xhigh ]]; }
 valid_profile_name() { [[ $1 =~ ^[a-z0-9][a-z0-9-]*$ ]]; }
 
 # Keep the generated role profiles aligned without duplicating this contract.
@@ -79,7 +80,7 @@ executor_profile_instructions() {
 reviewer_profile_instructions() {
   # Tool names and template positions are intentionally literal profile text.
   # shellcheck disable=SC2016
-  printf '%s' 'You are the depth-zero read-only root: director, supervisor, and routine reviewer. Your roster name is l0. Follow the org-plan skill and supervised-execution reference. Reuse the supplied plan and bundled helper; do not rediscover them or run prepare-supervision. Keep one writer per L1. Validate DONE L2 evidence/diff and helper-selected DONE + UNREVIEWED L1s; return ACCEPT or REJECT directly to the same executor. Enforce the accepted commit/REVIEWED gates. After all L1s and executor closure, launch final_review with agent_type=default, fork_turns=none, omitting model and reasoning_effort to inherit root settings. Assign terminal-reviewer duties; only P0/P1 corrections may be written. Require severity-ranked findings, no P0/P1, a current root full-suite pass, and clean intended scope. Never expose raw logs or child transcripts.'
+  printf '%s' 'You are the depth-zero read-only root: director, supervisor, and routine reviewer. Your roster name is l0. Follow the org-plan skill and supervised-execution reference. Reuse the supplied plan and bundled helper; do not rediscover them or run prepare-supervision. Keep one writer per L1. Validate DONE L2 evidence/diff and helper-selected DONE + UNREVIEWED L1s; return ACCEPT or REJECT directly to the same executor. Enforce the accepted commit/REVIEWED gates. After all L1s and executor closure, launch final_review with agent_type=default, fork_turns=none, model=gpt-6.1-sol, reasoning_effort=medium; never inherit Astra. Assign terminal-reviewer duties; only P0/P1 corrections may be written. Require severity-ranked findings, no P0/P1, a current root full-suite pass, and clean intended scope. Never expose raw logs or child transcripts.'
 }
 
 written_profile=
@@ -220,30 +221,33 @@ write_profile() {
 }
 
 prepare_executor() {
-  local model='gpt-5.6-terra' profile_name='org-plan-executor' agents_dir="${HOME:?HOME is required}/.codex/agents"
+  local model='gpt-6.1-sol' reasoning_effort='medium' profile_name='org-plan-executor' agents_dir="${HOME:?HOME is required}/.codex/agents"
   local lifecycle_requirements=' Use org-plan commands for every lifecycle transition and measurement; direct state edits are forbidden. Follow SKILL invariant 4: report mutations to the active root, never invoke host update_plan. Signal resync after external plan corrections. Before each accepted commit, inspect git diff --cached --name-only and reject the active plan or any .gestalt/*.org path, including force-added paths. No authority overrides the Org Plan Git ban. Status publication is optional without a configured destination.'
   lifecycle_requirements+=$(attention_contract_requirements)
   lifecycle_requirements+=$(routing_contract_requirements)
   while (( $# )); do
     case $1 in
       --model) (( $# >= 2 )) || usage; model=$2; shift 2 ;;
+      --reasoning-effort) (( $# >= 2 )) || usage; reasoning_effort=$2; shift 2 ;;
       --agents-dir) (( $# >= 2 )) || usage; agents_dir=$2; shift 2 ;;
       --profile-name) (( $# >= 2 )) || usage; profile_name=$2; shift 2 ;;
       *) usage ;;
     esac
   done
   valid_model "$model" || { printf 'invalid model: %s\n' "$model" >&2; return 2; }
+  valid_reasoning_effort "$reasoning_effort" || { printf 'invalid reasoning effort: %s\n' "$reasoning_effort" >&2; return 2; }
   valid_profile_name "$profile_name" || { printf 'invalid profile name: %s\n' "$profile_name" >&2; return 2; }
   # The skill reference is intentionally literal profile text.
   # shellcheck disable=SC2016
   write_profile "$profile_name" 'Executes an org-plan implementation.' \
     "$(executor_profile_instructions)" \
-    "$model" "$agents_dir" '' "$lifecycle_requirements" 'high'
+    "$model" "$agents_dir" '' "$lifecycle_requirements" "$reasoning_effort"
   printf 'executor=%s model=%s profile=%s\n' "$profile_name" "$model" "$(encode_record_value "$written_profile")"
 }
 
 prepare_supervision() {
-  local executor_model='gpt-5.6-terra' reviewer_model='gpt-5.6-sol'
+  local executor_model='gpt-6.1-sol' reviewer_model='gpt-6.1-sol'
+  local executor_effort='medium' reviewer_effort='medium'
   local executor_name='org-plan-executor' reviewer_name='org-plan-reviewer'
   local agents_dir="${HOME:?HOME is required}/.codex/agents"
   # Literal profile text intentionally includes backticked tool names.
@@ -260,6 +264,8 @@ prepare_supervision() {
     case $1 in
       --executor-model) (( $# >= 2 )) || usage; executor_model=$2; shift 2 ;;
       --reviewer-model) (( $# >= 2 )) || usage; reviewer_model=$2; shift 2 ;;
+      --executor-reasoning-effort) (( $# >= 2 )) || usage; executor_effort=$2; shift 2 ;;
+      --reviewer-reasoning-effort) (( $# >= 2 )) || usage; reviewer_effort=$2; shift 2 ;;
       --agents-dir) (( $# >= 2 )) || usage; agents_dir=$2; shift 2 ;;
       --executor-profile-name) (( $# >= 2 )) || usage; executor_name=$2; shift 2 ;;
       --reviewer-profile-name) (( $# >= 2 )) || usage; reviewer_name=$2; shift 2 ;;
@@ -269,6 +275,9 @@ prepare_supervision() {
   local value
   for value in "$executor_model" "$reviewer_model"; do
     valid_model "$value" || { printf 'invalid model: %s\n' "$value" >&2; return 2; }
+  done
+  for value in "$executor_effort" "$reviewer_effort"; do
+    valid_reasoning_effort "$value" || { printf 'invalid reasoning effort: %s\n' "$value" >&2; return 2; }
   done
   for value in "$executor_name" "$reviewer_name"; do
     valid_profile_name "$value" || { printf 'invalid profile name: %s\n' "$value" >&2; return 2; }
@@ -290,12 +299,12 @@ prepare_supervision() {
   # shellcheck disable=SC2016
   stage_profile "$reviewer_name" 'Directs, supervises, and reviews an org-plan implementation.' \
     "$(reviewer_profile_instructions)" \
-    "$reviewer_model" "$agents_dir" 'read-only' "$reviewer_lifecycle_requirements$reporting_requirements" 'medium'
+    "$reviewer_model" "$agents_dir" 'read-only' "$reviewer_lifecycle_requirements$reporting_requirements" "$reviewer_effort"
   # The skill reference is intentionally literal profile text.
   # shellcheck disable=SC2016
   stage_profile "$executor_name" 'Executes an org-plan implementation.' \
     "$(executor_profile_instructions)" \
-    "$executor_model" "$agents_dir" '' "$executor_lifecycle_requirements" 'high'
+    "$executor_model" "$agents_dir" '' "$executor_lifecycle_requirements" "$executor_effort"
   prepare_profile_install
   install_profiles
   local reviewer_path executor_path

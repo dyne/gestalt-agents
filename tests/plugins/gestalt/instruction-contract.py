@@ -24,6 +24,7 @@ SOURCES = {
     "retrieval": ROOT / "plugins/gestalt/skills/context-mode/references/bounded-retrieval.md",
     "continuity": ORG / "references/continuity-ledger.md",
     "format": ORG / "references/plan-format.md",
+    "policy": ORG / "references/model-policy-workflow.md",
 }
 
 
@@ -86,6 +87,7 @@ def check_profiles(directory):
         assert len(text.split()) <= {"reviewer": 540, "executor": 300}[role]
         if role == "reviewer":
             assert profile["sandbox_mode"] == "read-only"
+            assert "model=gpt-6.1-sol, reasoning_effort=medium; never inherit Astra" in text
             for rule in ("Your roster name is l0", "durable Mobile replacement authorization",
                          "before milestone or roster recovery", "preserves explicit manual Off",
                          "failed/result-less calls require same-turn supervision",
@@ -132,6 +134,14 @@ def main():
         pass
     else:
         raise AssertionError("scenario contract accepted a running-worker polling loop")
+    damaged = dict(documents)
+    damaged["policy"] = documents["policy"].replace("Never inherit Astra", "Inherit Astra")
+    try:
+        check_scenarios(damaged)
+    except AssertionError:
+        pass
+    else:
+        raise AssertionError("scenario contract accepted inherited Astra")
     if "--profiles" in sys.argv:
         check_profiles(Path(sys.argv[sys.argv.index("--profiles") + 1]))
     else:

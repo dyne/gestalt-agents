@@ -102,6 +102,7 @@ function describeItem(path, id) {
       ? `${item.position} ${item.title}\nGoal: ${item.goal}\nSkills: ${item.skills}`
       : `L2 ${item.title}\nWhy: ${item.goal}`,
   );
+  if (item.modelPolicy) console.log(`Model policy: ${JSON.stringify(item.modelPolicy)}`);
 }
 
 function findL2(path, pattern) {

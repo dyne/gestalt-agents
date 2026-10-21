@@ -9,6 +9,12 @@
     "l2-report-boundary",
     "agent-capacity-recovery",
     "canonical-agent-identity",
-    "org-plan-contract"
-  ]
+    "org-plan-contract",
+    "l1-model-policy-v1"
+  ],
+  "modelPolicyContract": {
+    "version": 1,
+    "scope": "schema-and-local-contracts",
+    "runtimeEnforcement": false
+  }
 }

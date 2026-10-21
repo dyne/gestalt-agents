@@ -17,19 +17,17 @@ Use these terms consistently:
 - **boundary final:** the user response immediately following a checkpoint.
 
 ```text
-root (depth 0, org-plan-reviewer, Sol or Terra, read-only)
+root (depth 0, org-plan-reviewer, gpt-6.1-sol/medium, read-only)
 └── executor (depth 1, only code writer)
 ```
 
 - The root owns user communication, directly launches executors, enforces
   evidence gates, and returns ACCEPT or REJECT for DONE + UNREVIEWED L1s.
 - Executors report only to the root.
-- After all executors terminate, one fresh terminal reviewer inherits the active
-  root model and reasoning effort to audit the whole branch; it writes only
-  P0/P1 fixes under the terminal procedure below.
-- Recommended profiles are `org-plan-reviewer` (Sol) for a newly launched root
-  and `org-plan-executor` (Terra). An already-running root keeps its selected
-  model while adopting the root contract.
+- After executors terminate, one fresh terminal reviewer audits the whole branch;
+  it writes only P0/P1 fixes under the terminal procedure below.
+- Profiles default to `gpt-6.1-sol` / `medium`; existing roots keep their settings.
+  Before v1 dispatch, read the [policy handoff contract](model-policy-workflow.md).
 - Codex V1 agent depth defaults to one, which permits this direct spawn. Stop
   when direct spawning is unavailable; do not edit user configuration.
 
@@ -239,10 +237,10 @@ When no L1 review is pending, record that milestone review is current.
 After every L1 is DONE and REVIEWED, terminate the last executor and confirm
 no writer remains. Before acceptance:
 
-1. Spawn a fresh depth-one subagent with `fork_turns=none`,
-   `agent_type=default`, and `task_name=final_review`. Omit `model` and
-   `reasoning_effort` to inherit the active root settings. Do not select
-   `org-plan-reviewer`: it pins its own model and effort.
+1. Spawn a fresh depth-one subagent with `fork_turns=none`, `agent_type=default`,
+   `task_name=final_review`, explicit `model=gpt-6.1-sol`, `reasoning_effort=medium`.
+   Verify catalog/effective settings; never inherit Astra or select the pinned
+   `org-plan-reviewer` role.
 2. Assign terminal-reviewer duties and supply the skill/reference paths,
    Org Plan goal, implemented L1/L2 outcomes, branch base and HEAD,
    milestone commits, tests, tradeoffs, and exact read-only plan path.

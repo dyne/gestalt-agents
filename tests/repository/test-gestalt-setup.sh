@@ -43,7 +43,7 @@ assert_contains "$output" "$tmp/.codex-gestalt/lib/gestalt-org-plan/org-plan-cli
   "dry-run installs the Org Plan runtime bundle"
 assert_contains "$output" "$tmp/.codex-gestalt/lib/gestalt-org-plan/org-plan-core.mjs" \
   "dry-run installs the Org Plan core beside its launcher"
-for module in org-plan-files org-plan-parser org-plan-publication org-plan-transitions; do
+for module in org-plan-files org-plan-parser org-plan-model-policy org-plan-model-schema org-plan-executor-launch org-plan-effective-settings org-plan-model-comparison org-plan-publication org-plan-transitions; do
   assert_contains "$output" "$tmp/.codex-gestalt/lib/gestalt-org-plan/$module.mjs" \
     "dry-run installs the modular Org Plan runtime: $module"
 done
@@ -87,6 +87,10 @@ for line in output.read_text().splitlines():
 assert installed == {
     "org-plan", "org-plan-cli.mjs", "org-plan-core.mjs", "org-plan-files.mjs",
     "org-plan-parser.mjs", "org-plan-publication.mjs", "org-plan-transitions.mjs",
+    "org-plan-model-policy.mjs", "org-plan-model-schema.mjs",
+    "org-plan-executor-launch.mjs",
+    "org-plan-effective-settings.mjs",
+    "org-plan-model-comparison.mjs",
 }, installed
 
 # Same distribution has colocated plugin modules and a private stable bundle.
