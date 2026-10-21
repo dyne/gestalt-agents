@@ -14,6 +14,7 @@ import { PolyglotExecutor } from "./executor.js";
 import { runPool, type PoolJob } from "./runPool.js";
 import { createHash } from "node:crypto";
 import { registerTestEvidence, EVIDENCE_DESCRIPTION } from "./evidence/tool.js";
+import { registerSourceMap } from "./source-map.js";
 import { ContentStore, cleanupStaleDBs, cleanupStaleContentDBs, type SearchResult, type IndexResult } from "./store.js";
 import { composeFetchCacheKey } from "./fetch-cache.js";
 import {
@@ -298,6 +299,7 @@ export function registerEmptyToolsListHandler(target: McpServer = server): void 
 /** MCP-visible selection cues; detailed recipes live in the selected skill. */
 export const COMPACT_TOOL_DESCRIPTIONS: Record<string, string> = {
   ctx_test_evidence: EVIDENCE_DESCRIPTION,
+  ctx_source_map: 'Persist source paths/ranges/findings/questions/references for workspace retrieval. Read verifies live bytes and flags stale/moved maps, returning changed windows. Use range/context for wider inspection and revision/offset for pages. Inspect current source natively before editing.',
   ctx_execute: "Run sandboxed code to derive findings from large output. Use native tools for short reads/writes. Returns execution state and authorized audit reference. Whole response defaults to 2048 UTF-8 bytes; response_bytes:1024–65536 expands it. audit:true displays bounded source.",
   ctx_execute_file: "Derive findings from one file as FILE_CONTENT. Use native Read before editing. Returns execution provenance and authorized audit reference. Whole response defaults to 2048 bytes; response_bytes expands it; audit:true displays bounded source.",
   ctx_index: "Store content for later ctx_search retrieval. WHEN: durable docs, references, or instructions need precise recall. Do not use for one-off logs; process those in a sandbox. RETURNS: indexing metadata. EXAMPLE: index an API guide.",
@@ -1037,7 +1039,9 @@ function trackResponse(toolName: string, response: ToolResult,
   healCacheMidSession();
   // Select decorations before final sizing. JSON continuations embed the
   // notice in their page object, so the chunk and cursor stay machine-readable.
-  const notice = toolName !== "ctx_stats" && response.content.length > 0 && shouldShowVersionWarning()
+  // Structured source-map/evidence pages size their envelopes and bind data
+  // bytes to a revision. Keep advisory version prose on other tool responses.
+  const notice = toolName !== "ctx_stats" && toolName !== "ctx_source_map" && toolName !== "ctx_test_evidence" && response.content.length > 0 && shouldShowVersionWarning()
     ? `⚠️ context-mode v${VERSION} outdated → v${_latestVersion} available. Upgrade: ${getUpgradeHint()}`
     : undefined;
   response = finish ? finish(response, notice) : addVersionWarning(response, notice);
@@ -1727,6 +1731,32 @@ export async function runBatchCommands(
 // Tool: execute
 // ─────────────────────────────────────────────────────────
 
+function authorizeEvidenceRead(path: string, allowMissing = false): boolean {
+  // Same managed policy primitives as native file analysis, fail closed here.
+  try {
+    const project = realpathSync(getProjectDir());
+    if (!isAbsolute(project)) return false;
+    const codex = detectPlatform().platform === "codex";
+    const allow = codex ? [] : readToolPermissionPatterns("Read", "allow", project);
+    const supplied = resolveProjectPath(path);
+    const canonical = allowMissing && !existsSync(supplied) ? supplied : realpathSync(supplied);
+    if (!evaluateProjectContainment(canonical, project, allow).allowed) return false;
+    const deny = readToolDenyPatterns("Read", project);
+    return [path, supplied, canonical, relative(project, canonical), relative(resolve(getProjectDir()), supplied)]
+      .every(candidate => !evaluateFilePath(candidate, deny, process.platform === "win32", project).denied);
+  } catch { return false; }
+}
+
+registerSourceMap(server, {
+  projectDir: getProjectDir,
+  resolvePath: resolveProjectPath,
+  authorizeRead: authorizeEvidenceRead,
+  authorizeSavedPath: path => authorizeEvidenceRead(path, true),
+  save: (repository, id, payload) => getStore().saveSourceMap(repository, id, payload),
+  load: (repository, id) => getStore().loadSourceMap(repository, id),
+  index: (text, source) => getStore().indexPlainText(text, source, undefined, currentAttribution()),
+});
+
 registerTestEvidence(server, {
   projectDir: getProjectDir,
   resolvePath: resolveProjectPath,
@@ -1741,20 +1771,7 @@ registerTestEvidence(server, {
     }
     return root;
   },
-  authorizeRead: path => {
-    // Same managed policy primitives as native file analysis, fail closed here.
-    try {
-      const project = realpathSync(getProjectDir());
-      if (!isAbsolute(project)) return false;
-      const codex = detectPlatform().platform === "codex";
-      const allow = codex ? [] : readToolPermissionPatterns("Read", "allow", project);
-      const supplied = resolveProjectPath(path), canonical = realpathSync(supplied);
-      if (!evaluateProjectContainment(canonical, project, allow).allowed) return false;
-      const deny = readToolDenyPatterns("Read", project);
-      return [path, supplied, canonical, relative(project, canonical), relative(resolve(getProjectDir()), supplied)]
-        .every(candidate => !evaluateFilePath(candidate, deny, process.platform === "win32", project).denied);
-    } catch { return false; }
-  },
+  authorizeRead: authorizeEvidenceRead,
   authorizeGh: args => {
     try { return evaluateCommandDenyOnly(["gh", ...args].join(" "), readBashPolicies(getProjectDir())).decision !== "deny"; }
     catch { return false; }

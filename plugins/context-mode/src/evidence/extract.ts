@@ -4,6 +4,7 @@ import { basename, join, resolve } from "node:path";
 import { createHash } from "node:crypto";
 import { z } from "zod";
 import { digest, reference, type EvidenceReference, type GitHubCapture } from "./github.js";
+import { candidateRevisionSchema, resultRevision, revisionDigest, sourceRevision } from "./revision.js";
 
 export interface TestCounts { passed: number; failed: number; skipped: number; total: number }
 export interface TestFailure { id: string; cause: string; locator: string; step: string | null; time: string | null; contextOmittedLines:number }
@@ -186,8 +187,22 @@ export interface IngestOptions {
   observedAt?:string|null;
   transferredAt?:string;
   candidate?:Record<string,unknown>;
+  /** Explicit local recapture after rerunning a check; never executes a command. */
+  refresh?:boolean;
 }
 const indexed = new WeakMap<IngestOptions["index"], Map<string, {sourceId:number|string}>>();
+type ReusableCapture = {reference:EvidenceReference; parsed:Extraction; context:string; observedAt:string|null; bytes:number};
+// Runtime-scoped parsed observations, not approvals. Every hit verifies current
+// authorized source AND retained capture bytes before using the cached parse.
+const reusableCaptures = new Map<string, ReusableCapture>();
+const PARSE_CACHE_BYTES = 16*1024*1024;
+function retainCapture(key:string,value:ReusableCapture):void {
+  if(value.bytes>PARSE_CACHE_BYTES)return;
+  reusableCaptures.delete(key);
+  while(reusableCaptures.size>=32||[...reusableCaptures.values()].reduce((n,c)=>n+c.bytes,0)+value.bytes>PARSE_CACHE_BYTES)
+    reusableCaptures.delete(reusableCaptures.keys().next().value!);
+  reusableCaptures.set(key,value);
+}
 const MAX_BYTES=8*1024*1024;
 function openAuthorized(path:string,authorize:IngestOptions['authorizeRead']):number {
   if(!authorize(path))throw new Error('denied');
@@ -201,7 +216,7 @@ function openAuthorized(path:string,authorize:IngestOptions['authorizeRead']):nu
     return fd;
   }catch(error){closeSync(fd);throw error;}
 }
-function readAuthorized(path:string,authorize:IngestOptions['authorizeRead'],maxBytes=MAX_BYTES):{data:Buffer;partial:boolean;canonical:string} {
+export function readAuthorized(path:string,authorize:IngestOptions['authorizeRead'],maxBytes=MAX_BYTES):{data:Buffer;partial:boolean;canonical:string} {
   const fd=openAuthorized(path,authorize);
   try {
     const st=fstatSync(fd),data=Buffer.alloc(Math.min(maxBytes+1,st.size+1));let length=0,n=0;
@@ -221,17 +236,41 @@ export function ingestEvidence(inputs:EvidenceInput[],opts:IngestOptions):{repor
     const checkObservedAt=input.observedAt===undefined?new Date().toISOString():input.observedAt;
     try {
       if(remainingBytes<=0)throw new Error('capture budget exhausted');
-      const captured=readAuthorized(input.path,opts.authorizeRead,Math.min(MAX_BYTES,remainingBytes)),path=join(dir,`source-${i}.capture`);
+      const captured=readAuthorized(input.path,opts.authorizeRead,Math.min(MAX_BYTES,remainingBytes));
       remainingBytes-=captured.data.length;
-      writeFileSync(path,captured.data,{mode:0o600});const ref=reference(path,captured.data);
-      const text=captured.data.toString('utf8'),parsed=extractTests(text);
-      const mismatch=input.expectedSha256!==undefined&&digest(captured.data)!==input.expectedSha256;
+      const contentDigest=digest(captured.data),text=captured.data.toString('utf8');
+      const mismatch=input.expectedSha256!==undefined&&contentDigest!==input.expectedSha256;
       const completeness=captured.partial||mismatch?'partial':input.completeness??'complete';
+      // Logical remote paths survive capture-directory changes. Local paths stay
+      // canonical and repository-scoped, even when equal bytes are indexed elsewhere.
+      const repository=typeof opts.source.repository==='string'?opts.source.repository:'';
+      const sourcePath=opts.source.kind==='github'?JSON.stringify({host:opts.source.host,run:opts.source.run,attempt:opts.source.attempt,job:input.identity?.job??opts.source.job,artifact:input.identity?.artifact??opts.source.artifact,member:input.identity?.member}):captured.canonical;
+      const revision=repository?sourceRevision(repository,sourcePath,contentDigest):null;
+      // Credential policy affects sanitized parsing; never retain credential
+      // values in keys or reuse diagnostics under a changed redaction context.
+      const redaction=digest(JSON.stringify(['GH_TOKEN','GITHUB_TOKEN','GH_ENTERPRISE_TOKEN','GITHUB_ENTERPRISE_TOKEN'].map(k=>process.env[k]??null)));
+      const key=revision?revisionDigest(['test-adapters-v1',realpathSync(opts.storageRoot),revision.key,redaction]):null;
+      const candidate=candidateRevisionSchema.safeParse(opts.candidate);
+      const context=revisionDigest([candidate.success?{sha:candidate.data.sha?.toLowerCase(),branch:candidate.data.branch,dirtySha256:candidate.data.dirtySha256,dependencyConfigSha256:candidate.data.dependencyConfigSha256,environmentSha256:candidate.data.environmentSha256}:opts.candidate??null,input.command??null,input.cwd??null,input.exit??null]);
+      let cached=key&&completeness==='complete'&&!opts.refresh?reusableCaptures.get(key):undefined;
+      if(cached) {
+        try {const original=readAuthorized(cached.reference.path,opts.authorizeRead);if(original.partial||digest(original.data)!==cached.reference.sha256||cached.reference.sha256!==contentDigest)cached=undefined;}
+        catch {cached=undefined;}
+      }
+      const parsed=cached?structuredClone(cached.parsed):extractTests(text);
+      let ref:EvidenceReference;
+      if(cached)ref={...cached.reference};
+      else {const path=join(dir,`source-${i}.capture`);writeFileSync(path,captured.data,{mode:0o600});ref=reference(path,captured.data);}
+      const staleContext=!!cached&&cached.context!==context;
+      const originalObservedAt=cached?cached.observedAt:checkObservedAt;
+      const sourceObservedAt=opts.source.kind==='github'?checkObservedAt:originalObservedAt;
+      if(key&&completeness==='complete'&&!cached)retainCapture(key,{reference:{...ref},parsed:structuredClone(parsed),context,observedAt:originalObservedAt,bytes:Buffer.byteLength(JSON.stringify(parsed))});
+      const reuse={capture:cached?'verified-existing':'captured',parse:cached?'reused':'parsed',localBytes:'digest-verified',context:staleContext?'changed; recapture after rerunning the exact check':'same declared inputs',originalObservedAt};
       let index:Record<string,unknown>;
       try {
         const identity = opts.source.kind === 'github'
           ? {kind:'github',host:opts.source.host,repository:opts.source.repository,run:opts.source.run,attempt:opts.source.attempt,sha:opts.source.headSha,selector:input.identity}
-          : {kind:'local',path:captured.canonical};
+          : {kind:'local',repository:opts.source.repository,path:captured.canonical};
         const safeText=redact(text),source=`evidence:${digest(opts.indexScope??'invocation')}:${digest(JSON.stringify(identity))}:${digest(safeText)}`;
         let cache=indexed.get(opts.index);if(!cache){cache=new Map();indexed.set(opts.index,cache);}
         const exists=opts.indexExists?.(source)??false;
@@ -243,12 +282,17 @@ export function ingestEvidence(inputs:EvidenceInput[],opts:IngestOptions):{repor
       catch {index={sourceId:null,reason:'index unavailable; captured source remains retrievable'};}
       const exitConflict=input.exit!==undefined&&parsed.exit!==null&&input.exit!==parsed.exit;
       const exit=exitConflict?null:input.exit??parsed.exit;
-      const decision=exitConflict||parsed.reason?.startsWith('contradictory')?'contradictory':parsed.failures.length||(parsed.counts?.failed??0)>0||exit!==null&&exit!==0?'failed':parsed.certainty==='known'&&completeness==='complete'&&exit===0&&parsed.counts!==null&&parsed.counts.passed>0?'supported':'needs-evidence';
+      const resultIdentity=completeness==='complete'&&revision
+        ?resultRevision({candidate:opts.candidate,source:{...opts.source,job:input.identity?.job??opts.source.job},sourceKey:revision.key,command:input.command,cwd:input.cwd,exit})
+        :{key:null,reason:'incomplete or unidentified source',authority:'identity only; no reuse authorization'};
+      const remoteStale=opts.source.kind==='github'&&opts.source.reuse!=='captured';
+      const candidateMismatch=opts.source.kind==='github'&&typeof opts.candidate?.sha==='string'&&typeof opts.source.headSha==='string'&&opts.candidate.sha.toLowerCase()!==opts.source.headSha.toLowerCase();
+      const decision=exitConflict||parsed.reason?.startsWith('contradictory')?'contradictory':parsed.failures.length||(parsed.counts?.failed??0)>0||exit!==null&&exit!==0?'failed':!staleContext&&!remoteStale&&!candidateMismatch&&parsed.certainty==='known'&&completeness==='complete'&&exit===0&&parsed.counts!==null&&parsed.counts.passed>0?'supported':'needs-evidence';
       const first=parsed.failures[0]?failurePreview(parsed.failures[0]):(parsed.counts?.failed??0)>0?failure('test-summary::failed',`${parsed.counts!.failed} failed tests reported; failure records unavailable`,'test-summary'):exit!==null&&exit!==0?failure('command::exit',`Command exited ${exit}; test diagnosis unknown`,'command:exit'):null;
       checks.push({command:input.command?redact(input.command):null,commandReason:input.command?null:'command not supplied',cwd:input.cwd??null,cwdReason:input.cwd?null:'working directory not supplied',exit,exitReason:exitConflict?'supplied command exit conflicts with embedded exit; neither establishes success':exit===null?'command exit unavailable':null,
         suppliedExit:input.exit??null,embeddedExit:parsed.exit,exitConflict:exitConflict?{supplied:input.exit,embedded:parsed.exit,reference:ref,locator:'JSON:exitCode'}:null,
-        format:parsed.format,counts:parsed.counts,countsReason:parsed.counts?null:parsed.reason,certainty:exitConflict?'unknown':parsed.certainty,reason:exitConflict?'contradictory supplied and embedded command exits':mismatch?'source digest changed':parsed.reason,
-        completeness,coverage:captured.partial?`first ${captured.data.length} bytes; source exceeded capture budget or changed during read`:mismatch?'digest does not match expected capture':'entire authorized file',decision,observedAt:checkObservedAt,sourceIdentity:input.identity??null,
+        format:parsed.format,counts:parsed.counts,countsReason:parsed.counts?null:parsed.reason,certainty:exitConflict?'unknown':parsed.certainty,reason:exitConflict?'contradictory supplied and embedded command exits':mismatch?'source digest changed':staleContext?'unchanged source has different declared execution inputs; rerun and explicitly recapture':remoteStale?'remote freshness unverified; refresh selected run/attempt':candidateMismatch?'candidate SHA differs from CI head SHA':parsed.reason,
+        completeness,coverage:captured.partial?`first ${captured.data.length} bytes; source exceeded capture budget or changed during read`:mismatch?'digest does not match expected capture':'entire authorized file',decision,observedAt:sourceObservedAt,retrievedAt:new Date().toISOString(),reuse,sourceIdentity:input.identity??null,sourceRevision:revision,resultIdentity,
         failures:parsed.failures,failureCount:Math.max(parsed.failures.length,parsed.counts?.failed??0,first?1:0),firstActionableFailure:first,references:[ref],index});
     }catch {
       // Never return native paths, permission diagnostics or credential-bearing errors.
@@ -256,7 +300,8 @@ export function ingestEvidence(inputs:EvidenceInput[],opts:IngestOptions):{repor
     }
   }
   const report={version:1,milestone:opts.milestone??null,scope:inputs.map((_,i)=>`source-${i}`).sort(),candidate:opts.candidate??null,
-    identityReason:opts.candidate?null:'candidate identity not supplied; source capture is not candidate verification',source:opts.source,checks,observedAt,...(opts.transferredAt?{transferredAt:opts.transferredAt}:{}),
+    identityReason:opts.candidate?'declared candidate; independent verification required':'candidate identity not supplied; source capture is not candidate verification',source:opts.source,checks,observedAt:opts.observedAt===undefined?checks.map(c=>c.observedAt).filter(t=>typeof t==='string').sort()[0]??observedAt:observedAt,retrievedAt:new Date().toISOString(),...(opts.transferredAt?{transferredAt:opts.transferredAt}:{}),
+    verification:{candidate:'declared-only',remoteFreshness:opts.source.kind!=='github'?'not-applicable':opts.source.reuse==='captured'&&!opts.source.transfer?'retrieved observation; not continuously polled':'needs-refresh',reusedChecks:checks.filter(c=>c.reuse?.capture==='verified-existing').length,staleContextChecks:checks.filter(c=>c.reuse?.context.startsWith('changed')).length},
     completeness:checks.every(c=>c.completeness==='complete')?'complete':'partial',decision:checks.some(c=>c.decision==='contradictory')?'contradictory':checks.some(c=>c.decision==='failed')?'failed':checks.some(c=>c.decision==='needs-evidence')?'needs-evidence':'supported',references:{access:'local-private',retention:'until local evidence directory is removed'},overflow:'none'};
   const text=JSON.stringify(report),path=join(dir,'report.json');writeFileSync(path,text,{mode:0o600});
   const manifest={id,...reference(path,text,'JSON:checks')};
@@ -274,12 +319,12 @@ function boundedRoutine(report:Record<string,any>,manifest:EvidenceReference&{id
   const failures=report.checks.flatMap((c:any)=>c.failures??[]),failureCount=report.checks.reduce((n:number,c:any)=>n+(c.failureCount??0),0),first=report.checks.find((c:any)=>c.firstActionableFailure)?.firstActionableFailure;
   let excerpt:Record<string,unknown>|null=first?{id:first.id,cause:first.cause,locator:first.locator,step:first.step,time:first.time}:null;
   if(excerpt&&Buffer.byteLength(JSON.stringify(excerpt))>400)excerpt={locator:'JSON:checks[*].firstActionableFailure',reason:'failure identifier/context exceed inline budget; retrieve bounded details'};
-  const compact={version:1,milestone:report.milestone,source:report.source,candidate:report.candidate,observedAt:report.observedAt,transferredAt:report.transferredAt,completeness:report.completeness,decision:report.decision,
+  const compact={version:1,milestone:report.milestone,source:report.source,candidate:report.candidate,observedAt:report.observedAt,transferredAt:report.transferredAt,completeness:report.completeness,decision:report.decision,verification:report.verification,
     checks:report.checks.slice(0,1).map((c:any)=>({command:c.command,exit:c.exit,counts:c.counts,certainty:c.certainty,decision:c.decision,reason:c.reason,index:c.index})),
     firstActionableFailure:excerpt,failureCount,overflow:{omittedChecks:Math.max(0,report.checks.length-1),omittedFailureDetails:failures.length,reportBytes:manifest.bytes,manifest,followup:{id:manifest.id,offset:0,maxBytes:2048}}};
   const routine=JSON.stringify(compact);if(Buffer.byteLength(routine)<=2048)return routine;
   // Extremely long identities/paths cannot crowd out the retrievable manifest handle.
-  return JSON.stringify({version:1,completeness:report.completeness,decision:report.decision,firstActionableFailure:first?{reference:manifest.id,locator:'JSON:checks[*].firstActionableFailure'}:null,failureCount,
+  return JSON.stringify({version:1,completeness:report.completeness,decision:report.decision,verification:report.verification,firstActionableFailure:first?{reference:manifest.id,locator:'JSON:checks[*].firstActionableFailure'}:null,failureCount,
     overflow:{omittedBytes:Buffer.byteLength(full),reportBytes:manifest.bytes,sha256:manifest.sha256,manifestId:manifest.id,access:'local-private runtime evidence storage',followup:{id:manifest.id,offset:0,maxBytes:2048}}});
 }
 
@@ -298,18 +343,18 @@ export function ingestGitHubCapture(capture:GitHubCapture,opts:Omit<IngestOption
     const m=z.object({entries:z.array(z.object({kind:z.string(),state:z.enum(['complete','partial','failed']),reference:refSchema.optional()})).max(110)}).parse(JSON.parse(bytes.data.toString('utf8')));
     for(const e of m.entries) {
       if(!e.reference)continue;
-      if(/^logs-\d+$/.test(e.kind))inputs.push({path:e.reference.path,expectedSha256:e.reference.sha256,identity:{job:Number(e.kind.slice(5))},completeness:capture.completeness==='complete'&&e.state==='complete'?'complete':'partial'});
+      if(/^logs-\d+$/.test(e.kind))inputs.push({path:e.reference.path,observedAt:capture.observedAt,expectedSha256:e.reference.sha256,identity:{job:Number(e.kind.slice(5))},completeness:capture.completeness==='complete'&&e.state==='complete'?'complete':'partial'});
       if(e.kind==='artifact-members'&&e.state==='complete') {
         const members=readAuthorized(e.reference.path,opts.authorizeRead);if(members.partial||digest(members.data)!==e.reference.sha256)throw new Error();
         const records=z.array(z.object({name:z.string(),reference:refSchema})).max(100).parse(JSON.parse(members.data.toString('utf8')));
         // GitHub artifacts are run-scoped: equal run/head SHA does not prove rerun attempt.
-        for(const member of records)inputs.push({path:member.reference.path,expectedSha256:member.reference.sha256,identity:{artifact:capture.selector?.artifact,member:member.name},completeness:'unknown'});
+        for(const member of records)inputs.push({path:member.reference.path,observedAt:capture.observedAt,expectedSha256:member.reference.sha256,identity:{artifact:capture.selector?.artifact,member:member.name},completeness:'unknown'});
       }
     }
     if(inputs.length>100){source.omittedSources=inputs.length-100;inputs.splice(100);for(const input of inputs)input.completeness='partial';}
   }catch{inputs.length=0;source.reason='invalid-source';}
   if(!inputs.length)inputs.push({path:join(opts.storageRoot,'unavailable-source'),completeness:'unknown'});
-  return ingestEvidence(inputs,{...opts,source});
+  return ingestEvidence(inputs,{...opts,source,observedAt:capture.observedAt});
 }
 
 /** Explicit workspace-authorized manifest transfer. Never import another session's index IDs. */
@@ -387,4 +432,36 @@ export function evidenceFollowup(storageRoot:string,id:string,offset=0,maxBytes=
     if(Buffer.byteLength(output)<=maxBytes)return output;length--;
   }
   throw new Error('followup budget too small');
+}
+
+/** Retrieve only missing failure records; all omissions retain exact locators.
+ * The caller verifies the returned manifest digest against its report handle.
+ */
+export function evidenceFailureFollowup(storageRoot:string,id:string,selection:{check:number;offset:number;limit?:number},maxBytes=2048,authorize:(path:string)=>boolean):string {
+  if(!/^report-[A-Za-z0-9]+$/.test(id)||!Number.isSafeInteger(selection.check)||selection.check<0||selection.check>99
+    ||!Number.isSafeInteger(selection.offset)||selection.offset<0||!Number.isInteger(selection.limit??5)||(selection.limit??5)<1||(selection.limit??5)>20
+    ||!Number.isInteger(maxBytes)||maxBytes<512||maxBytes>2048)throw new Error('invalid failure selection');
+  const root=realpathSync(storageRoot),path=join(root,id,'report.json');
+  const bytes=readAuthorized(path,p=>authorize(p)&&resolve(p)===path,128*1024*1024);
+  if(bytes.partial)throw new Error('incomplete report');
+  const report=JSON.parse(bytes.data.toString('utf8')),check=report.checks?.[selection.check];
+  if(!check||!Array.isArray(check.failures)||selection.offset>check.failures.length)throw new Error('unknown failure range');
+  for(const ref of check.references??[]) {
+    const source=readAuthorized(ref.path,authorize);if(source.partial||digest(source.data)!==ref.sha256)throw new Error('changed source reference');
+  }
+  const failures:Record<string,unknown>[]=[],total=check.failures.length,sha256=digest(bytes.data);
+  const output=()=>JSON.stringify({id,sha256,check:selection.check,offset:selection.offset,totalFailures:total,decision:check.decision,diagnosticCoverage:check.failureCount>total?'partial':check.certainty??'unknown',failures,
+    nextOffset:selection.offset+failures.length<total?selection.offset+failures.length:null,details:'byte followup: full IDs/causes at locators'});
+  const fits=(body:string)=>Buffer.byteLength(JSON.stringify({content:[{type:'text',text:body}]}))<=maxBytes;
+  for(let i=selection.offset;i<Math.min(total,selection.offset+(selection.limit??5));i++) {
+    const preview=failurePreview(check.failures[i]);
+    delete preview.details; // The selected full-report locator below replaces first-failure shorthand.
+    failures.push({...preview,index:i,locator:`JSON:checks[${selection.check}].failures[${i}]`});
+    if(!fits(output())) {
+      failures.pop();
+      if(!failures.length)failures.push({index:i,locator:`JSON:checks[${selection.check}].failures[${i}]`,omitted:'use byte followup'});
+      break;
+    }
+  }
+  const body=output();if(!fits(body))throw new Error('failure page budget');return body;
 }

@@ -119,6 +119,37 @@ describe.skipIf(process.platform === "win32")("packaged test evidence MCP", () =
     expect(captured.split('\n')[1]).toBe('2026-10-18T01:02:03.1234567Z not ok 1 - failure-1');
     const argv = readFileSync(join(root, "argv"), "utf8"); expect(argv).toContain("actions/jobs/20/logs"); expect(argv).not.toContain("ghp_");
   });
+  it('retrieves source maps across packaged sessions with bounded pages and live Read checks', async () => {
+    const path = join(workspace, 'mapped-source.ts');
+    const text = Array.from({length: 80}, (_, i) => `source line ${i + 1} ☃`).join('\n');writeFileSync(path, text);
+    const invoke = (args: Record<string, unknown>, c = client) => c.callTool({name: 'ctx_source_map', arguments: args});
+    const captured = parsed(await invoke({operation: 'capture', path: 'mapped-source.ts', notes: [{range: {start: 20, end: 22}, finding: 'mapped resolver'}]}));
+    expect(captured.map).toMatch(/^[a-f0-9]{64}$/);
+    const fresh = await launch('source-map-restart');
+    const args = {operation: 'read', map: captured.map, range: {start: 1, end: 80}, maxBytes: 1024};
+    const firstResult = await invoke(args, fresh);expect(Buffer.byteLength(JSON.stringify(firstResult))).toBeLessThanOrEqual(1024);
+    let page = parsed(firstResult), body = page.data;
+    const revision = page.revision;expect(page.nextOffset).toBeGreaterThan(0);
+    while (page.nextOffset !== null) {
+      const response = await invoke({...args, revision, offset: page.nextOffset}, fresh);
+      expect(Buffer.byteLength(JSON.stringify(response))).toBeLessThanOrEqual(1024);
+      page = parsed(response);body += page.data;
+    }
+    const current = JSON.parse(body);expect(current.state).toBe('current');expect(current.windows[0].text).toBe(text);
+    expect(current.notes[0].finding).toBe('mapped resolver');
+    writeFileSync(path, 'new header\n' + text);
+    expect((await invoke({...args, revision, offset: 0}, fresh)).isError).toBe(true);
+    writeFileSync(policy, JSON.stringify({permissions: {deny: ['Read(mapped-source.ts)']}}));
+    const denied = await invoke({operation: 'read', map: captured.map}, fresh);
+    expect(denied.isError).toBe(true);expect(JSON.stringify(denied)).not.toContain('mapped resolver');
+    const invalid = await invoke({operation: 'read', map: captured.map, notes: [{range: {start: -1, end: -2}}], hostile: 'x'.repeat(10000)}, fresh);
+    expect(invalid.isError).toBe(true);expect(Buffer.byteLength(JSON.stringify(invalid))).toBeLessThanOrEqual(1024);
+    writeFileSync(policy, '{}');
+    symlinkSync(path, join(workspace, 'mapped-alias.ts'));
+    const alias = parsed(await invoke({operation: 'capture', path: 'mapped-alias.ts'}, fresh));
+    writeFileSync(policy, JSON.stringify({permissions: {deny: ['Read(mapped-alias.ts)']}}));
+    expect((await invoke({operation: 'read', map: alias.map}, fresh)).isError).toBe(true);
+  });
   it("ingests authorized local files and attributes indexed chunks to this session", async () => {
     writeFileSync(join(workspace, "local.json"), JSON.stringify({ version: 1, tests: [{ id: "works", status: "passed" }], exitCode: 0 }));
     const result = await call({ operation: "local", files: [{ path: "local.json", command: "npm test", exit: 0, cwd: workspace }] });
@@ -223,6 +254,22 @@ describe.skipIf(process.platform === "win32")("packaged test evidence MCP", () =
     const page = parsed(await call({ operation: "followup", report: id, offset: 0, maxBytes: 512 })); expect(page.encoding).toBe("utf8"); expect(page.totalBytes).toBeGreaterThan(0);
     const foreign = await launch("package-evidence-b"); const denied = await call({ operation: "followup", report: id }, foreign); expect(denied.isError).toBe(true); expect(parsed(denied).reason).toContain("scope");
     expect((await call({ operation: "followup", report: "../../etc/passwd" })).isError).toBe(true);
+  });
+  it('reuses compact local evidence and retrieves selected missing failures over MCP', async () => {
+    const path=join(workspace,'reuse-results.json');
+    writeFileSync(path,JSON.stringify({version:1,exitCode:1,tests:Array.from({length:10},(_,i)=>({id:`reuse-failure-${i}`,status:'failed',cause:'diagnostic ☃ '.repeat(100)}))}));
+    const args={operation:'local',files:[{path:'reuse-results.json',command:'npm test',cwd:workspace,exit:1}]};
+    const first=await call(args),second=await call(args);
+    const report=JSON.parse(readFileSync(reportPath(second),'utf8')),original=JSON.parse(readFileSync(reportPath(first),'utf8'));
+    expect(report.verification.reusedChecks).toBe(1);expect(report.checks[0].references).toEqual(original.checks[0].references);
+    expect(report.checks[0].observedAt).toBe(original.checks[0].observedAt);
+    const id=dirname(reportPath(second)).split(/[\\/]/).at(-1)!;
+    const failures=await call({operation:'followup',report:id,failures:{check:0,offset:7,limit:1},maxBytes:1024});
+    expect(Buffer.byteLength(JSON.stringify(failures))).toBeLessThanOrEqual(1024);
+    const selected=parsed(failures);expect(selected.failures[0].id).toBe('reuse-failure-7');expect(selected.nextOffset).toBe(8);
+    expect((await call({...args,refresh:true})).isError).toBeUndefined();
+    writeFileSync(policy,JSON.stringify({permissions:{deny:['Read(reuse-results.json)']}}));
+    expect(parsed(await call(args)).decision).toBe('needs-evidence');
   });
   it("sanitizes storage failures without exposing native errors", async () => {
     writeFileSync(join(workspace, "storage.log"), "unknown"); const result = await call({ operation: "local", files: [{ path: "storage.log" }] });

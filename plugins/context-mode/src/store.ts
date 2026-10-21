@@ -505,6 +505,13 @@ export class ContentStore {
       );
 
       CREATE INDEX IF NOT EXISTS idx_sources_label ON sources(label);
+
+      CREATE TABLE IF NOT EXISTS source_maps (
+        id TEXT NOT NULL,
+        repository TEXT NOT NULL,
+        payload TEXT NOT NULL,
+        PRIMARY KEY (repository, id)
+      );
     `);
 
     // FTS5 schema migration: old schema (4 cols) → new schema (8 cols).
@@ -1479,6 +1486,16 @@ export class ContentStore {
   }
 
   // ── Sources ──
+
+  /** Source-map snapshots share the existing workspace database and its lifetime. */
+  saveSourceMap(repository: string, id: string, payload: string): void {
+    this.#db.prepare('INSERT OR REPLACE INTO source_maps (repository, id, payload) VALUES (?, ?, ?)').run(repository, id, payload);
+  }
+
+  loadSourceMap(repository: string, id: string): string | null {
+    const row = this.#db.prepare('SELECT payload FROM source_maps WHERE repository = ? AND id = ?').get(repository, id) as {payload: string} | undefined;
+    return row?.payload ?? null;
+  }
 
   getSourceMeta(label: string): { label: string; chunkCount: number; codeChunkCount: number; indexedAt: string; filePath: string | null; contentHash: string | null } | null {
     const row = this.#stmtSourceMeta.get(label) as { label: string; chunk_count: number; code_chunk_count: number; indexed_at: string; file_path: string | null; content_hash: string | null } | undefined;

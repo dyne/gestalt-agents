@@ -1,10 +1,10 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { captureGitHub, githubSelectorSchema } from "./github.js";
-import { evidenceFollowup, ingestEvidence, ingestGitHubCapture, ingestSharedManifest, type IngestOptions } from "./extract.js";
+import { evidenceFailureFollowup, evidenceFollowup, ingestEvidence, ingestGitHubCapture, ingestSharedManifest, type IngestOptions } from "./extract.js";
+import { candidateRevisionSchema } from "./revision.js";
 
 export const EVIDENCE_DESCRIPTION = "Capture GitHub/local test evidence; findings stay within 2048 bytes. Terminal captures reuse verified bytes; github.refresh revalidates. Use reference with an authorized manifest path/digest to index in this session, or followup with a report ID for bounded details. Unknown formats stay uncertain.";
-const sha = z.string().regex(/^[a-fA-F0-9]{40}$/);
 const file = z.object({
   path: z.string().min(1).max(4096), command: z.string().max(512).optional(),
   cwd: z.string().max(4096).optional(), exit: z.number().int().min(-255).max(255).optional(),
@@ -18,17 +18,19 @@ const evidenceShape = {
   report: z.string().regex(/^report-[A-Za-z0-9]+$/).max(100).optional(),
   offset: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER).optional(),
   maxBytes: z.number().int().min(512).max(2048).optional(),
+  failures: z.object({check:z.number().int().min(0).max(99),offset:z.number().int().min(0).max(100000),limit:z.number().int().min(1).max(20).optional()}).strict().optional(),
+  refresh: z.boolean().optional(),
   milestone: z.string().max(120).optional(),
-  candidate: z.object({ sha: sha.optional(), branch: z.string().max(200).optional(), base: sha.optional(), dirtySha256: z.string().regex(/^[a-f0-9]{64}$/).optional() }).strict().optional(),
+  candidate: candidateRevisionSchema.optional(),
 };
 export const evidenceRequestSchema = z.object(evidenceShape).strict().superRefine((r, ctx) => {
   const invalid = r.operation === "github"
-    ? !r.github || r.files !== undefined || r.report !== undefined || r.offset !== undefined || r.maxBytes !== undefined || r.manifest !== undefined
+    ? !r.github || r.files !== undefined || r.report !== undefined || r.offset !== undefined || r.maxBytes !== undefined || r.manifest !== undefined || r.refresh !== undefined || r.failures !== undefined
     : r.operation === "local"
-      ? !r.files || r.github !== undefined || r.report !== undefined || r.offset !== undefined || r.maxBytes !== undefined || r.manifest !== undefined
+      ? !r.files || r.github !== undefined || r.report !== undefined || r.offset !== undefined || r.maxBytes !== undefined || r.manifest !== undefined || r.failures !== undefined
       : r.operation === "reference"
-        ? !r.manifest || r.github !== undefined || r.files !== undefined || r.report !== undefined || r.offset !== undefined || r.maxBytes !== undefined
-      : r.manifest !== undefined || !r.report || r.github !== undefined || r.files !== undefined || r.milestone !== undefined || r.candidate !== undefined;
+        ? !r.manifest || r.github !== undefined || r.files !== undefined || r.report !== undefined || r.offset !== undefined || r.maxBytes !== undefined || r.failures !== undefined || r.refresh !== undefined
+      : r.manifest !== undefined || !r.report || r.github !== undefined || r.files !== undefined || r.milestone !== undefined || r.candidate !== undefined || r.refresh !== undefined || r.failures!==undefined&&r.offset!==undefined;
   if (invalid) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Select exactly one evidence operation and its input" });
 });
 
@@ -66,10 +68,10 @@ export function registerTestEvidence(server: McpServer, runtime: EvidenceRuntime
     try {
       const storageRoot = runtime.storageRoot();
       if (r.operation === "followup") {
-        const text = evidenceFollowup(storageRoot, r.report!, r.offset, r.maxBytes);
+        const text = r.failures?evidenceFailureFollowup(storageRoot,r.report!,r.failures,r.maxBytes,runtime.authorizeRead):evidenceFollowup(storageRoot, r.report!, r.offset, r.maxBytes);
         return runtime.respond({ content: [{ type: "text", text }] });
       }
-      const common = { storageRoot, authorizeRead: runtime.authorizeRead, index: runtime.index, indexExists: runtime.indexExists, indexScope:runtime.indexScope?.(), milestone: r.milestone, candidate: r.candidate };
+      const common = { storageRoot, authorizeRead: runtime.authorizeRead, index: runtime.index, indexExists: runtime.indexExists, indexScope:runtime.indexScope?.(), milestone: r.milestone, candidate: r.candidate, refresh:r.refresh };
       let text: string;
       let failed = false;
       if (r.operation === "github") {
