@@ -17,6 +17,11 @@ const DEBUG = process.env.DEBUG?.includes("context-mode");
 // ─────────────────────────────────────────────────────────
 
 export interface UnifiedSearchResult {
+  chunkId?: number | string;
+  sourceId?: number;
+  sourceRevision?: string;
+  sourcePath?: string;
+  windowContent?: string;
   title: string;
   content: string;
   source: string;
@@ -114,6 +119,7 @@ export function searchAllSources(opts: SearchAllSourcesOpts): UnifiedSearchResul
     );
     results.push(
       ...storeResults.map((r: SearchResult) => ({
+        chunkId: r.chunkId, sourceId: r.sourceId, sourceRevision: r.sourceRevision, sourcePath: r.sourcePath,
         title: r.title,
         content: r.content,
         source: r.source,
@@ -137,6 +143,7 @@ export function searchAllSources(opts: SearchAllSourcesOpts): UnifiedSearchResul
         const dbResults = sessionDB.searchEvents(query, limit, projectDir || "", source);
         results.push(
           ...dbResults.map((r: Pick<StoredEvent, "id" | "session_id" | "category" | "type" | "data" | "created_at">) => ({
+            chunkId: `event:${r.session_id}:${r.id}`,
             title: `[${r.category}] ${r.type}`,
             content: r.data,
             source: "prior-session",

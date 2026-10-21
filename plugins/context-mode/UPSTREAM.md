@@ -15,6 +15,21 @@ and contents while excluding generated dependencies and build artifacts.
 
 ## Downstream changes
 
+- Bounds complete execute/file/batch/search MCP envelopes to 2048 UTF-8 bytes
+  after decorations; explicit budgets span 1024–65536 bytes. Keeps complete
+  authorized evidence behind digest-verified workspace/session continuation
+  pages, with explicit unavailable/partial state on storage or capture failure.
+  Routine executable-source echoes become operation/language/source digests,
+  truthful nullable execution states and audit references. Explicit audit views
+  stay bounded; native permission review and retrieval authorization remain.
+- Deduplicates overlapping query windows by source revision and range while
+  retaining matched-query attribution, chunk-local lines and source locators.
+  Independent failure IDs and raw diagnostics remain recoverable even when
+  intent summaries, snippets or outer envelopes omit them. Regression coverage
+  includes actual MCP transport, restart, denies, Unicode and storage failure.
+  The frozen payload benchmark records routine bytes separately from complete
+  overflow/audit retrieval costs without changing planted inputs or expectations.
+
 - Adds provider-counter accounting with source-scoped capture identities,
   explicit per-counter coverage across gaps/resets, and unknown quota. Measures
   MCP result JSON fields once after registered handlers return, including

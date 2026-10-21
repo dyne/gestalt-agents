@@ -62,6 +62,13 @@ export interface ExecResult {
   timedOut: boolean;
   /** Process was detached and continues running in the background. */
   backgrounded?: boolean;
+  /** Bytes were discarded by the existing subprocess hard cap. */
+  outputCapped?: boolean;
+  observedOutputBytes?: number;
+  capturedOutputBytes?: number;
+  /** False when the compatibility exitCode was synthesized, not observed. */
+  exitCodeObserved?: boolean;
+  processError?: string;
 }
 
 // ─────────────────────────────────────────────────────────
@@ -85,6 +92,11 @@ export interface IndexResult {
  * Shared for consumers that display or log results outside of ContentStore.
  */
 export interface SearchResult {
+  /** Stable indexed chunk identity and source revision for window locators. */
+  chunkId?: number | string;
+  sourceId?: number;
+  sourceRevision?: string;
+  sourcePath?: string;
   title: string;
   content: string;
   source: string;

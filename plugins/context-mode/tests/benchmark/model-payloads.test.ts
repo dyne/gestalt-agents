@@ -48,6 +48,23 @@ describe("frozen synthetic model payload corpus", () => {
         expect(row.knownTotalVisibleBytes).toBe(requests + knownReturned + row.descriptionBytes);
         if (row.observations.some((call: any) => call.responseBytes === null)) expect(row.totalVisibleBytes).toBeNull();
       }
+      const broad = report.cases.find((row: any) => row.id === "broad-retrieval");
+      // Actual pinned baseline pass returns 9393 bytes (index + search). This
+      // fixed ceiling is independent of candidate formatting/accounting code.
+      expect(broad.routineReturnedBytes).toBeLessThanOrEqual(4696);
+      // Including initial requests and unique tool descriptions: baseline 10158.
+      expect(broad.routineVisibleBytes).toBeLessThanOrEqual(5079);
+      expect(broad.missingFindings).toEqual([]);
+      expect(broad.overflowRetrievalBytes).toBeGreaterThan(0);
+      for (const row of report.cases) {
+        expect(row.auditRetrievalBytes + row.overflowRetrievalBytes)
+          .toBe(row.overflowRequestBytes + row.overflowResponseBytes);
+        expect(row.routineReturnedBytes + row.overflowResponseBytes).toBe(row.knownReturnedBytes);
+        expect(row.routineRequestBytes + row.overflowRequestBytes).toBe(row.requestBytes);
+        if (row.totalVisibleBytes !== null) expect(row.routineVisibleBytes)
+          .toBe(row.routineRequestBytes + row.routineReturnedBytes + row.routineDescriptionBytes);
+      }
+      expect(report.cases.find((row: any) => row.id === "changed-source-reread").auditRetrievalBytes).toBeGreaterThan(0);
       for (const name of ["long-ci-wait", "independent-review", "bounded-stats"]) {
         const row = report.cases.find((row: any) => row.id === name);
         expect(row.overflowCalls).toBeGreaterThan(0);

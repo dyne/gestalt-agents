@@ -6,6 +6,7 @@
  * Returns results in a format compatible with the unified search pipeline.
  */
 
+import { createHash } from "node:crypto";
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join, isAbsolute } from "node:path";
 import { resolveClaudeConfigDir } from "../util/claude-config.js";
@@ -14,6 +15,11 @@ import { hashProjectDirCanonical } from "../session/db.js";
 const DEBUG = process.env.DEBUG?.includes("context-mode");
 
 export interface AutoMemoryResult {
+  chunkId: string;
+  sourcePath: string;
+  sourceRevision: string;
+  /** Internal source text for exact cross-query window/line locators. */
+  windowContent: string;
   title: string;
   content: string;
   source: string;
@@ -170,6 +176,10 @@ export function searchAutoMemory(
           const snippet = content.slice(start, end).trim();
 
           results.push({
+            chunkId: candidate.path,
+            sourcePath: candidate.path,
+            sourceRevision: createHash("sha256").update(content).digest("hex"),
+            windowContent: content,
             title: `[auto-memory] ${candidate.label}`,
             content: snippet,
             source: candidate.label,

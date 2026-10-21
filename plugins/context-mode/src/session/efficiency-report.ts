@@ -7,6 +7,7 @@ type Summary = ReturnType<typeof collectEfficiencySummary>;
 export type EfficiencyToolResult = { content: Array<{ type: "text"; text: string }>; isError?: boolean };
 export interface EfficiencyArtifactScope { root: string; authorizeRead(path: string): boolean }
 export const EFFICIENCY_RESPONSE_BUDGET = 2048;
+export const MAX_ARTIFACT_BYTES = 16 * 1024 * 1024;
 const hash = (data: string | Buffer) => createHash("sha256").update(data).digest("hex");
 const result = (value: unknown): EfficiencyToolResult => ({ content: [{ type: "text", text: JSON.stringify(value) }] });
 export const efficiencyResultBytes = (value: EfficiencyToolResult) => Buffer.byteLength(JSON.stringify(value), "utf8");
@@ -14,7 +15,7 @@ const fits = (value: EfficiencyToolResult) => efficiencyResultBytes(value) <= EF
 const failure = (reason: string) => ({ ...result({ version: 1, evidenceCompleteness: "partial", reason }), isError: true });
 
 /** Reject symlinked storage components, including pre-existing report roots. */
-function checkedRoot(path: string, create: boolean): string {
+export function checkedRoot(path: string, create: boolean): string {
   if (!isAbsolute(path)) throw new Error();
   let current = parse(path).root;
   for (const part of resolve(path).slice(current.length).split(sep).filter(Boolean)) {
@@ -29,14 +30,14 @@ function checkedRoot(path: string, create: boolean): string {
   }
   return realpathSync.native(path);
 }
-function readArtifact(scope: EfficiencyArtifactScope, report: string): Buffer {
+export function readArtifact(scope: EfficiencyArtifactScope, report: string): Buffer {
   if (!/^report-[a-f0-9]{64}$/.test(report)) throw new Error();
   const root = checkedRoot(scope.root, false), path = join(root, `${report}.json`);
   if (!scope.authorizeRead(path) || relative(root, realpathSync.native(path)) !== `${report}.json`) throw new Error();
   const fd = openSync(path, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0));
   try {
     const st = fstatSync(fd);
-    if (!st.isFile() || st.size > 16 * 1024 * 1024) throw new Error();
+    if (!st.isFile() || st.size > MAX_ARTIFACT_BYTES) throw new Error();
     const data = readFileSync(fd);
     if (hash(data) !== report.slice(7)) throw new Error();
     return data;
