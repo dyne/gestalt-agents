@@ -15,6 +15,12 @@ and contents while excluding generated dependencies and build artifacts.
 
 ## Downstream changes
 
+- Aligns query field descriptions with the smallest sufficient related set and
+  focused followups rather than fixed broad-query counts or one-shot collection.
+  Validates published source-window and continuation examples against current
+  source-map, evidence and registered search schemas. Gestalt routing instructions
+  distinguish routine byte budgets, authorized overflow and native edit authority.
+
 - Defines complete executor review packets and independent root-observation
   comparison, including source/diff/report/raw-test digest checks, required-check
   inventories, first failures, risks and recomputed deltas. A bounded native

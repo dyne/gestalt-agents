@@ -1,8 +1,7 @@
 # Supervised Org Plan execution
 
 Read this reference completely before launching supervised roles. The Org
-SKILL supplies shared state, skill-loading, projection, Git, and attention
-invariants; this reference is the canonical supervised lifecycle.
+SKILL owns shared invariants; this reference owns the supervised lifecycle.
 
 ## Roles and ownership
 
@@ -22,13 +21,12 @@ root (depth 0, org-plan-reviewer, Sol or Terra, read-only)
 └── executor (depth 1, only code writer)
 ```
 
-- The root owns director, supervisor, and routine reviewer duties. It owns user
-  communication, directly launches each executor, enforces evidence gates, and
-  returns ACCEPT or REJECT for DONE + UNREVIEWED L1s.
-- The executor writes code for one L1 and reports only to the root.
-- After every L1 executor has terminated, one fresh terminal reviewer
-  inherits the active root model and reasoning effort and audits the whole branch. It is the sole exception to the rule
-  against separate reviewers and becomes the sole writer only for P0/P1 fixes.
+- The root owns user communication, directly launches executors, enforces
+  evidence gates, and returns ACCEPT or REJECT for DONE + UNREVIEWED L1s.
+- Executors report only to the root.
+- After all executors terminate, one fresh terminal reviewer inherits the active
+  root model and reasoning effort to audit the whole branch; it writes only
+  P0/P1 fixes under the terminal procedure below.
 - Recommended profiles are `org-plan-reviewer` (Sol) for a newly launched root
   and `org-plan-executor` (Terra). An already-running root keeps its selected
   model while adopting the root contract.
@@ -95,10 +93,8 @@ without reinstalling its own profile.
    skills before repository inspection or edits; missing skills block without
    edits. Gestalt workflows are already loaded.
 
-Both roles use the implicit context-mode routing contract: native tools for
-governing instructions, bounded/pre-edit reads, edits, mutations, and short
-commands; context-mode for large or uncertain analysis. It never mutates Org
-state. The unavailable-tool evidence fallback is specified below.
+Both roles follow the required [context-mode routing contract](../../context-mode/SKILL.md#routing-contract).
+It never mutates Org state; the unavailable-tool evidence fallback is below.
 
 ## Human-attention decision table
 
@@ -126,6 +122,20 @@ confirm explicit manual Off. A status update, progress report, or "waiting" stat
 is not a disposition. Completion, error, interruption, idle transition,
 process result, and a status question each wake the root to make that choice.
 Do not create a probe or wait lease while actionable work exists.
+
+## Actionable wakes
+
+Per actionable wake, read authoritative retained Org/control and assigned
+executor/process state once, reusing current event facts. Refresh affected facts
+after mutation, change or contradiction. Inspect delta scope/report/evidence and
+rerun invalidated checks; reuse never replaces independent verification.
+
+For running work without a pending decision, use available agent/process event
+waits in the same turn or accepted long-wait leases below. No repeated
+health/list/status loops or gratuitous followups. Use `followup_task` only for
+next authorized work, missing evidence/corrections, or idle incomplete executors.
+Recover actionable errors safely in the same turn; only exhausted table-qualified
+blockers use attention. Answer status questions and perform the lifecycle disposition.
 
 ## One-shot long-wait lease
 
@@ -165,8 +175,6 @@ it.
 
 ## Evidence and review loop
 
-Supervision is a completion loop:
-
 - The executor owns the entire assigned L1, but returns a concise structured
   evidence report whenever an L2 reaches DONE. That report ends the executor's
   turn. It remains assigned and idle
@@ -203,18 +211,13 @@ diff, and requires current focused-test evidence before DONE. Use the
 Executors report successful helper mutations; only the active root projects
 them under SKILL invariant 4. Missing host tools never reverse valid Org state.
 
+Record findings/checks/decisions in the [investigation ledger](continuity-ledger.md);
+read before iteration/recovery.
+
 After all L2s, require a current full-suite pass and intended complete L1 diff.
 Use `org-plan next PLAN review`; request review only for the selected DONE +
-UNREVIEWED L1. The request contains:
-
-- plan path, branch, base, starting commit, and selected L1 ID;
-- position, title, Goal, Tests, Done-when criteria, and UNREVIEWED status;
-- uncommitted diff scope and shared-code regression impact;
-- exact test commands with pass/fail summaries and evidence locations;
-- UI evidence matrix when applicable;
-- preserved paths, prohibited actions, and material-ambiguity stop condition.
-
-Use its review form. Inspect selected milestone sections and relevant evidence
+UNREVIEWED L1. Use the evidence contract's review form and required task inputs.
+Inspect selected milestone sections and relevant evidence
 fields; retain governing reads and complete intended scope/diff checks.
 
 The root independently returns structured findings plus explicit ACCEPT or
@@ -372,26 +375,20 @@ If unavailable, capture output outside the conversation and report only the
 command, exit status, pass/fail counts, affected scope, and smallest diagnostic
 excerpt. Never relay raw logs or complete child transcripts upward.
 
-The root remains active and gives brief updates at supervision start and when an
-L1 starts, reaches review, is rejected, is accepted, or blocks. On first mention
-use `L<a>/TOTAL — TITLE: STATUS` plus its Goal; later use the same canonical
-position and title. On first commit mention, report the conventional subject and purpose;
-hashes are supplemental.
+Root updates: supervision start and L1 start/review/reject/accept/block.
+First mention: `L<a>/TOTAL — TITLE: STATUS` and Goal; later: canonical
+position/title. First commit: conventional subject and purpose, then optional hash.
 
 Routine review is agent-to-agent. Ask the user only for a material ambiguity or
 unavailable prerequisite, never for progress approval.
 
 ## Standalone assignments
 
-Every executor assignment identifies canonical `L<a>` and uses task name
-`l<a>`. It includes its one L1 and full L2 block, repository
-starting state, accepted prior outputs, allowed scope, required tests, exact
-optional skills, always-loaded Gestalt workflow skills, helper-only transitions,
-one post-ACCEPT commit rule, preserved paths, completion-driven continuation,
-and genuine external-blocker stop conditions. It explicitly forbids treating an
-L2 boundary or partial report as completion of the assigned L1.
-
-Use its assignment form: selected L1/children once or exact required section
-reads, candidate identities, report budget and evidence location.
+Use the evidence contract's assignment form and required task inputs for the
+assigned L1: selected L1/children once or exact required section reads, candidate
+identities, report budget and evidence location. Supply exact optional skills;
+Gestalt workflows are already loaded. Retain helper-only transitions, one
+post-ACCEPT commit, preserved paths, continuation and genuine external-blocker
+conditions. An L2 boundary or partial report never completes the assigned L1.
 
 Never rely on inherited conversation context or write “continue above.”

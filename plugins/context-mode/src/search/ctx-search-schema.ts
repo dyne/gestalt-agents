@@ -78,7 +78,7 @@ export function buildCtxSearchInputSchema(isSharedMode: boolean) {
     queries: z.preprocess(coerceJsonArray, z
       .array(z.string())
       .optional()
-      .describe("Array of search queries. Batch ALL questions in one call.")),
+      .describe("Smallest sufficient set of related queries; one focused query can suffice. Follow up missing or contradictory results with scoped queries.")),
     // limit: z.coerce.number() (not z.number()) — OpenCode's native
     // plugin path delivers tool args straight from the LLM provider's
     // tool-call JSON, where several providers stringify primitives

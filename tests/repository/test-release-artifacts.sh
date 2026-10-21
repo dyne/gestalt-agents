@@ -96,7 +96,11 @@ instruction_paths = (
     "plugins/gestalt/skills/org-plan/SKILL.md",
     "plugins/gestalt/skills/org-plan/references/supervised-execution.md",
     "plugins/gestalt/skills/org-plan/references/evidence-report.md",
+    "plugins/gestalt/skills/org-plan/references/continuity-ledger.md",
+    "plugins/gestalt/skills/org-plan/references/plan-format.md",
     "plugins/gestalt/skills/context-mode/SKILL.md",
+    "plugins/gestalt/skills/context-mode/references/bounded-retrieval.md",
+    "plugins/gestalt/skills/ctx-search/SKILL.md",
     "plugins/gestalt/skills/org-plan/scripts/org-plan",
 )
 delivered = artifacts / "instruction-delivery"

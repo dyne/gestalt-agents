@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "cases": [
+    {"id":"compaction-recovery","expected":"supported-observations"},
+    {"id":"changed-head","candidateField":"sha","expected":"needs-verification"},
+    {"id":"changed-dirty-scope","candidateField":"dirty","expected":"needs-verification"},
+    {"id":"shared-code-invalidates-dependent-tests","sharedCodeChanged":true,"expected":"needs-verification"},
+    {"id":"changed-dependencies-config","candidateField":"dependenciesConfig","expected":"needs-verification"},
+    {"id":"changed-environment","candidateField":"environment","expected":"needs-verification"},
+    {"id":"unknown-environment","candidateField":"environment","value":null,"expected":"needs-verification"},
+    {"id":"changed-skill-revision","changedInstruction":true,"expected":"needs-instructions","instructionReads":1},
+    {"id":"hash-without-read-record","unreadRevision":true,"expected":"needs-instructions","instructionReads":1},
+    {"id":"missing-instruction-context","missingContext":true,"expected":"needs-instructions","instructionReads":1},
+    {"id":"fresh-session-startup","freshSession":true,"expected":"needs-instructions","instructionReads":3},
+    {"id":"unsupported-assertion","unsupportedAssertion":true,"expected":"contradictory"},
+    {"id":"unsupported-finding","unsupportedFinding":true,"expected":"contradictory"},
+    {"id":"missing-evidence","missingEvidence":true,"expected":"needs-evidence"},
+    {"id":"lossless-unicode-overflow","overflow":true,"expected":"failed"},
+    {"id":"missing-overflow","overflow":true,"missingOverflow":true,"expected":"needs-evidence"},
+    {"id":"prompt-transcript-rejected","transcript":true,"expected":"needs-evidence"}
+  ]
+}

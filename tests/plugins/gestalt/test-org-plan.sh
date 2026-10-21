@@ -534,7 +534,7 @@ test "$(wc -l < "$tmp/out")" = 1 && pass || fail 'legacy encoded success output 
 python3 -c 'import sys, urllib.parse; fields=dict(item.split("=", 1) for item in open(sys.argv[1], encoding="ascii").read().strip().split(" ")); assert urllib.parse.unquote(fields["profile"]) == sys.argv[2] + "/encoded-executor.toml"' "$tmp/out" "$encoded_dir" && pass || fail 'legacy encoded profile path round-trips without eval'
 expect_contains "$encoded_dir/encoded-executor.toml" 'Own the entire assigned L1 and report only to the root.'
 expect_contains "$encoded_dir/encoded-executor.toml" 'model_reasoning_effort = "high"'
-expect_contains "$encoded_dir/encoded-executor.toml" 'Gestalt workflow skills are already loaded.'
+expect_contains "$encoded_dir/encoded-executor.toml" 'Gestalt workflow skills are already loaded'
 expect_contains "$encoded_dir/encoded-executor.toml" 'load exactly the optional L1 Skills'
 expect_contains "$encoded_dir/encoded-executor.toml" 'First tool call: read the org-plan skill completely and do nothing else.'
 expect_not_contains "$encoded_dir/encoded-executor.toml" 'First load $gestalt:context-mode'
@@ -550,7 +550,7 @@ expect_contains "$supervision_dir/org-plan-executor.toml" 'model = "gpt-5.6-terr
 expect_contains "$supervision_dir/org-plan-executor.toml" 'model_reasoning_effort = "high"'
 expect_contains "$supervision_dir/org-plan-executor.toml" 'You are the depth-one executor and only code writer.'
 expect_contains "$supervision_dir/org-plan-executor.toml" 'Own the entire assigned L1 and report only to the root.'
-expect_contains "$supervision_dir/org-plan-executor.toml" 'Gestalt workflow skills are already loaded.'
+expect_contains "$supervision_dir/org-plan-executor.toml" 'Gestalt workflow skills are already loaded'
 expect_contains "$supervision_dir/org-plan-executor.toml" 'load exactly the optional L1 Skills'
 expect_contains "$supervision_dir/org-plan-executor.toml" 'Keep changes uncommitted through L1 review.'
 expect_contains "$supervision_dir/org-plan-executor.toml" 'At each DONE L2, return concise changes, sorted files, focused verification, and next action'
@@ -575,8 +575,8 @@ expect_contains "$supervision_dir/org-plan-reviewer.toml" 'A retained same-sessi
 # canonical reference, not duplicated sentences in every generated profile.
 python3 "$root/tests/plugins/gestalt/instruction-contract.py" --profiles "$supervision_dir" && pass || fail 'generated role delivery preserves scenario contracts'
 expect_not_contains "$supervision_dir/org-plan-reviewer.toml" 'Without checkpoint support, continue in the same turn.'
-python3 -c 'import pathlib, sys; words=len(pathlib.Path(sys.argv[1]).read_text().split()); assert words <= 580, words' "$supervision_dir/org-plan-reviewer.toml" && pass || fail 'reviewer profile stays within its prompt budget'
-python3 -c 'import pathlib, sys; words=len(pathlib.Path(sys.argv[1]).read_text().split()); assert words <= 350, words' "$supervision_dir/org-plan-executor.toml" && pass || fail 'executor profile stays within its prompt budget'
+python3 -c 'import pathlib, sys; words=len(pathlib.Path(sys.argv[1]).read_text().split()); assert words <= 560, words' "$supervision_dir/org-plan-reviewer.toml" && pass || fail 'reviewer profile stays within its prompt budget'
+python3 -c 'import pathlib, sys; words=len(pathlib.Path(sys.argv[1]).read_text().split()); assert words <= 315, words' "$supervision_dir/org-plan-executor.toml" && pass || fail 'executor profile stays within its prompt budget'
 test ! -e "$supervision_dir/org-plan-supervisor.toml" && pass || fail 'supervision preparation creates no intermediate supervisor profile'
 for role in executor reviewer; do
   python3 -c 'import sys, tomllib; tomllib.load(open(sys.argv[1], "rb"))' "$supervision_dir/org-plan-$role.toml" && pass || fail "$role profile is parseable TOML"
@@ -772,9 +772,9 @@ expect_contains "$supervision_dir/org-plan-reviewer.toml" 'First tool call: read
 expect_contains "$supervision_dir/org-plan-reviewer.toml" 'Use org-plan commands for every lifecycle transition and measurement'
 expect_contains "$supervision_dir/org-plan-reviewer.toml" 'the root alone projects mutations through host update_plan'
 expect_contains "$supervision_dir/org-plan-reviewer.toml" 'Org state remains authoritative if projection fails.'
-expect_contains "$supervision_dir/org-plan-executor.toml" 'Use scripts/org-plan for lifecycle changes and measurement.'
+expect_contains "$supervision_dir/org-plan-executor.toml" 'Use org-plan commands for every lifecycle transition and measurement'
 expect_contains "$supervision_dir/org-plan-executor.toml" 'the root alone projects mutations through host update_plan'
-expect_contains "$encoded_dir/encoded-executor.toml" 'Use scripts/org-plan for lifecycle changes and measurement.'
+expect_contains "$encoded_dir/encoded-executor.toml" 'Use org-plan commands for every lifecycle transition and measurement'
 expect_contains "$encoded_dir/encoded-executor.toml" 'Status publication is optional without a configured destination.'
 
 if [ "$failures" -ne 0 ]; then printf '%s passed, %s failed\n' "$passes" "$failures"; exit 1; fi

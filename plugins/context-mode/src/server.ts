@@ -2695,7 +2695,7 @@ The knowledge base is unified: queries reach indexed content you stored (ctx_ind
 
 WHEN:
   - You want to recall something that exists in storage (recently indexed content, prior session events, auto-memory) instead of re-reading raw sources
-  - You have multiple related questions about the same body of knowledge — batch every question into one call (the ranking pipeline runs per-query but the round-trip cost is paid once)
+ - You have related questions about the same source — batch the smallest sufficient set, then follow up missing or contradictory results with focused queries
   - You want to scope the query to one labelled source (pass \`source\` — partial match is fine)
   - You want a chronological view across current session + prior sessions + persistent auto-memory (pass \`sort: "timeline"\` — the default \`relevance\` mode only ranks within the current session)
   - You want to filter ranked results by content shape (pass \`contentType: "code"\` to surface implementation snippets or \`contentType: "prose"\` to surface explanations)
@@ -3843,7 +3843,7 @@ EXAMPLE: ctx_batch_execute(
         .array(z.string())
         .min(1)
         .describe(
-          "Related queries over indexed command output. Matches share a whole-response budget; overlapping source windows are deduplicated with query attribution. " +
+          "Smallest sufficient set of related queries over indexed command output; one focused query can suffice. Matches share a whole-response budget; overlapping source windows are deduplicated with query attribution. " +
           "Omitted matches remain behind authorized continuation references; use ctx_search for later queries.",
         )),
       timeout: z

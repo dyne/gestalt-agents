@@ -49,8 +49,6 @@ that is large, uncertain, or needs filtering, indexing, or repeated retrieval.
 | External documentation to retrieve repeatedly | `ctx_fetch_and_index` |
 | Inspect context-mode health, usage, or stored data | `ctx_doctor`, `ctx_stats`, `ctx_purge` |
 
-Use the methods actually exposed by the host, including provider prefixes.
-
 For shipped `ctx_test_evidence`, use `operation: "github"` with a repository,
 run and attempt, or `operation: "local"` with existing file paths and observed
 command exits. It uses existing `gh` authentication and returns at most 2048
@@ -65,15 +63,22 @@ receiving session. A report ID alone grants no cross-session access.
 
 ## Output rules
 
-- In `ctx_execute` and `ctx_execute_file`, explicitly print the final findings;
-  only standard output returns to the conversation.
-- Analyze before printing. Do not print an entire JSON object, file, page,
-  snapshot, or test log merely to inspect it.
+- Target **2048 UTF-8 bytes** for routine analysis/search responses, including
+  serialized metadata. In execute/file code, print derived findings: counts,
+  first actionable failure, exact locators and references. Never dump raw
+  catalogs, logs, JSON objects, pages or snapshots.
+- Use the smallest sufficient set of related queries, starting with one when
+  it answers the question. Scope `source` when known; use the default search
+  `limit: 3`. Add focused queries after missing or contradictory results;
+  there is no fixed query quota or one-shot restriction.
+- For omitted evidence, retain complete authorized overflow and retrieve the
+  failures/context needed for the decision. A preview is not full failure
+  coverage; unavailable overflow remains incomplete evidence.
+- For wider context, name the question, source/range and byte budget; then
+  return to 2048 bytes. For exact budget/continuation/source-window fields,
+  read [bounded retrieval](references/bounded-retrieval.md); use only exposed fields.
 - Use `ctx_index(path: ...)` for large local content. Use inline `content` only
   for small text composed in the current request.
-- Batch related searches in one `ctx_search` call and use `source` whenever
-  several indexed sources could match.
-- Use two to four specific technical terms per search query.
 
 ## Files and browser output
 

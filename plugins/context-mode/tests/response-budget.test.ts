@@ -1,4 +1,4 @@
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { EventEmitter } from "node:events";
@@ -7,6 +7,7 @@ import Database from "better-sqlite3";
 import { afterAll, beforeAll, describe, expect, test, vi } from "vitest";
 import { boundResponse, readResponsePage, responseBudgetSchema } from "../src/response-budget.js";
 import { resolveSessionDbPath } from "../src/session/db.js";
+import { evidenceRequestSchema } from "../src/evidence/tool.js";
 
 vi.mock("node:https", async importOriginal => {
   const actual = await importOriginal<typeof import("node:https")>();
@@ -35,6 +36,17 @@ beforeAll(async () => {
 afterAll(async () => { await flush(); vi.unstubAllEnvs(); rmSync(root, { recursive: true, force: true }); });
 
 describe("whole serialized envelope", () => {
+  test("published continuations use the registered schema and distinct byte/failure offsets", () => {
+    const documentation = readFileSync(new URL('../../gestalt/skills/context-mode/references/bounded-retrieval.md', import.meta.url), 'utf8');
+    const examples = [...documentation.matchAll(/```json\n([^`]+)```/g)].map(match => JSON.parse(match[1]));
+    const page = {...examples[1], response_report: `report-${'a'.repeat(64)}`};
+    const schema = server.REGISTERED_CTX_TOOLS.find(tool => tool.name === 'ctx_search')!.config.inputSchema;
+    expect(schema.parse(page)).toMatchObject(page);
+    expect(responseBudgetSchema.safeParse({...page, response_bytes: 65537}).success).toBe(false);
+    const failure = {...examples[2], report: 'report-ABC123'};
+    expect(evidenceRequestSchema.parse(failure)).toEqual(failure);
+    expect(evidenceRequestSchema.safeParse({...failure, offset: 7}).success).toBe(false);
+  });
   // Literal compact envelope overhead is 39 ASCII bytes, independent of the limiter.
   test.each([2047, 2048, 2049])("independent %i-byte boundary", total => {
     const original = response("a".repeat(total - 39));
