@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "reviewPolicy": "Budget increases require a reviewed amendment with a concrete reason and evidence; never regenerate ceilings from the candidate under test.",
+  "routineResponseBytes": 2048,
+  "maximumExpandedResponseBytes": 65536,
+  "retrievalReturnedBytes": 5465,
+  "retrievalVisibleBytes": 6205,
+  "profiles": {
+    "profile-reviewer": { "bytes": 3843, "words": 525 },
+    "profile-executor": { "bytes": 1964, "words": 290 }
+  },
+  "roles": {
+    "root": { "bytes": 55427, "words": 7593 },
+    "executor": { "bytes": 53548, "words": 7358 },
+    "terminal-reviewer": { "bytes": 51584, "words": 7068 }
+  },
+  "discoveryBytes": 4255,
+  "unchangedStatusAcceptedTurns": 0,
+  "duplicateAcceptedWakes": 0,
+  "amendment": null
+}

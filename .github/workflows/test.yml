@@ -19,6 +19,8 @@ jobs:
           - macos-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v7
         with:
           node-version: 22.12.0
@@ -60,4 +62,15 @@ jobs:
           tar -xzf "$archive" -C "$actionlint_dir" actionlint
           "$actionlint_dir/actionlint"
       - name: Run complete validation
+        env:
+          OVERHEAD_BASE_REVISION: ${{ github.event.pull_request.base.sha || github.event.before }}
+          OVERHEAD_EVIDENCE_DIR: ${{ runner.temp }}/gestalt-overhead
         run: bash tests/ci.sh
+      - name: Retain overhead failure evidence
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: overhead-failures-${{ matrix.os }}
+          path: ${{ runner.temp }}/gestalt-overhead
+          if-no-files-found: ignore
+          retention-days: 7
