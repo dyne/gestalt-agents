@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, test } from "vitest";
 import { createHash } from "node:crypto";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
@@ -85,11 +85,15 @@ describe("stable overhead CI budgets", () => {
       expect(Buffer.byteLength(JSON.stringify(summary))).toBeLessThanOrEqual(2048);
     } finally { rmSync(root, { recursive: true, force: true }); }
   });
-  test("CI entrypoint produces a bounded passing report on the real candidate", () => {
+  test.each([false, true])("CI entrypoint produces a bounded passing report (symlinked temp: %s)", symlinked => {
     const root = mkdtempSync(join(tmpdir(), "overhead-cli-"));
     try {
+      const temp = join(root, "temp-link");
+      if (symlinked) symlinkSync(root, temp, "dir");
       const run = spawnSync(process.execPath, [new URL("../../node_modules/tsx/dist/cli.mjs", import.meta.url).pathname,
-        new URL("../../benchmark/overhead.ts", import.meta.url).pathname, "--evidence-dir", root], { encoding: "utf8", timeout: 30_000 });
+        new URL("../../benchmark/overhead.ts", import.meta.url).pathname, "--evidence-dir", root], {
+        encoding: "utf8", timeout: 30_000, env: { ...process.env, ...(symlinked ? { TMPDIR: temp, TEMP: temp, TMP: temp } : {}) },
+      });
       expect(run.status, run.stderr).toBe(0);
       expect(Buffer.byteLength(run.stdout)).toBeLessThanOrEqual(2048);
       expect(JSON.parse(run.stdout)).toMatchObject({ status: "passed" });
