@@ -23,6 +23,7 @@ authorizes an Org transition, review, or completion.
 
 ## Document metadata
 
+For ordinary planning and supervision, use the supported unversioned format.
 Include:
 
 ```org
@@ -30,7 +31,6 @@ Include:
 #+SUBTITLE:
 #+DATE:
 #+KEYWORDS:
-#+MODEL_POLICY_VERSION: 1
 ```
 
 Use execution-order headings. L1 headings use `*`; L2 headings use `**`. Every
@@ -46,11 +46,6 @@ Every L1 property drawer contains exactly:
 :ID: unique-l1-id
 :SKILLS: $namespace:skill $other-skill
 :REVIEW_STATUS: UNREVIEWED
-:MODEL: gpt-6-luna
-:REASONING_EFFORT: medium
-:MODEL_RATIONALE: Exact mechanical change with direct deterministic verification.
-:MODEL_FALLBACKS: gpt-6-sol
-:MODEL_ESCALATION_TRIGGER: Focused verification exposes behavior beyond the specified edit.
 ```
 
 The skills list is non-empty, whitespace-separated, exact, and task-specific.
@@ -70,14 +65,16 @@ Partition L1s into cohesive reviewable use cases sized for one fresh executor.
 Include starting context, dependencies on prior L1s, expected prior outputs,
 allowed scope, invariants, required tests, and acceptance criteria.
 
-Before handoff, use the [model selection rubric](model-selection.md) to record
-each L1's exact model, reasoning effort, rationale, allowed fallback and concrete
-escalation trigger. Selection requires an authoritative runtime catalog;
-medium is the default across tiers and quality remains an acceptance gate.
-Use the [versioned policy schema](model-policy-schema.md) for exact fields,
-higher-effort exceptions, legacy compatibility and consumer negotiation.
-Before handoff use the [policy packet](model-policy-workflow.md) to preserve
-choices and rationale through assignments, follow-up, recovery and review.
+Ordinary plans use the installed supervised roles and their existing launch
+contract. Omit model-policy metadata and properties; do not claim runtime
+attestation for this mode. All milestone, review and verification gates remain.
+
+## Strict model policy is opt-in
+
+For an explicit strict-policy request, follow the [policy workflow](model-policy-workflow.md)
+and [schema](model-policy-schema.md). Require trusted runtime enforcement before
+an execution-ready handoff; schema support alone is insufficient. Never strip
+an existing policy automatically. Supervision alone does not authorize weakening it.
 
 ## Milestone size before execution
 
