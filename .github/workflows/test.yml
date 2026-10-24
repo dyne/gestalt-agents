@@ -66,11 +66,11 @@ jobs:
           OVERHEAD_BASE_REVISION: ${{ github.event.pull_request.base.sha || github.event.before }}
           OVERHEAD_EVIDENCE_DIR: ${{ runner.temp }}/gestalt-overhead
         run: bash tests/ci.sh
-      - name: Retain overhead failure evidence
-        if: failure()
+      - name: Retain overhead reports
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: overhead-failures-${{ matrix.os }}
+          name: overhead-reports-${{ matrix.os }}
           path: ${{ runner.temp }}/gestalt-overhead
           if-no-files-found: ignore
           retention-days: 7

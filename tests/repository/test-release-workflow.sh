@@ -175,11 +175,11 @@ assert validation["env"] == {
     "OVERHEAD_BASE_REVISION": "${{ github.event.pull_request.base.sha || github.event.before }}",
     "OVERHEAD_EVIDENCE_DIR": "${{ runner.temp }}/gestalt-overhead",
 }
-overhead = next(step for step in matrix_steps if step.get("name") == "Retain overhead failure evidence")
-assert overhead["if"] == "failure()"
+overhead = next(step for step in matrix_steps if step.get("name") == "Retain overhead reports")
+assert overhead["if"] == "always()"
 assert overhead["uses"] == "actions/upload-artifact@v4"
 assert overhead["with"] == {
-    "name": "overhead-failures-${{ matrix.os }}",
+    "name": "overhead-reports-${{ matrix.os }}",
     "path": "${{ runner.temp }}/gestalt-overhead",
     "if-no-files-found": "ignore",
     "retention-days": 7,
