@@ -1,12 +1,22 @@
 # L1 model policy schema v1
 
-Plans opting into strict model policy explicitly declare `#+MODEL_POLICY_VERSION: 1` once in document
+Plans with explicit L1 model choices declare `#+MODEL_POLICY_VERSION: 1` once in document
 metadata before the first heading. Unknown versions, duplicate declarations,
 misplaced declarations and policy fields without a version fail validation.
 Legacy plans without the declaration or policy properties retain their existing
 behavior and bytes; this is also the supported default for new ordinary plans.
 Helpers do not infer settings from Effort prose, migrate
 them, or insert defaults during reads or transitions.
+
+Assurance is separate from requested settings. The optional document keyword
+`#+MODEL_POLICY_ASSURANCE: configured` selects launch-validated compatibility.
+Existing version-1 plans without that keyword use configured assurance without
+rewriting their bytes or removing policy fields. Mobile discloses this migration
+in admission/health. It does not attest runtime settings. An explicit
+`#+MODEL_POLICY_ASSURANCE: runtime-attested` requires the strict receipt contract
+and remains blocked on adapters without it. Never downgrade that explicit mode
+without user authorization. Unknown, duplicate, misplaced or unversioned assurance
+declarations fail validation. Assurance is never an L1/L2 drawer property.
 
 Every v1 L1 drawer requires these properties exactly once:
 

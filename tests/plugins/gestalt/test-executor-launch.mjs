@@ -48,7 +48,11 @@ try {
     assert.deepEqual(result.spawnArguments, { agent_type: "default", task_name: "l1", fork_turns: "none", model: "gpt-6-luna", reasoning_effort: "medium", message: profile.developer_instructions + "\n\n" + assignment });
     assert.deepEqual(result.permissionRequirements, permissions);
     assert.equal(result.effectiveSettings, null);
-    assert.equal(result.requiresEffectiveSettingsCheck, true);
+    assert.equal(result.assurance, "configured");
+    assert.equal(result.runtimeEnforcement, false);
+    assert.equal(result.requiresEffectiveSettingsCheck, false);
+    assert.equal(recipe({ assurance: "runtime-attested" }).requiresEffectiveSettingsCheck, true);
+    assert.equal(recipe({ assurance: "invented" }).code, "EXECUTOR_ASSURANCE_INVALID");
   });
   check("all model tiers explicitly preserve medium", () => {
     for (const model of ["gpt-6-luna", "gpt-6-sol", "gpt-6.1-sol"]) {

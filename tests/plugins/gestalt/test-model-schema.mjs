@@ -69,6 +69,21 @@ const unchangedOnFailure = (action, pattern) => {
   assert.deepEqual(readdirSync(directory).sort(), files);
 };
 try {
+  await check("assurance migration retains v1 bytes and explicit strict selection", () => {
+    write();
+    assert.equal(readPlan(path).modelPolicyAssurance, "configured");
+    assert.equal(readFileSync(path, "utf8"), source);
+    for (const assurance of ["configured", "runtime-attested"]) {
+      assert.equal(parsePlan(`#+MODEL_POLICY_ASSURANCE: ${assurance}\n` + source).modelPolicyAssurance, assurance);
+    }
+    for (const text of [
+      "#+MODEL_POLICY_ASSURANCE: invalid\n" + source,
+      "#+MODEL_POLICY_ASSURANCE: configured\n#+MODEL_POLICY_ASSURANCE: runtime-attested\n" + source,
+      "#+MODEL_POLICY_ASSURANCE: configured\n" + legacy,
+      source + "#+MODEL_POLICY_ASSURANCE: configured\n",
+      source.replace(":ID: first", ":ID: first\n:MODEL_POLICY_ASSURANCE: configured"),
+    ]) assert.throws(() => parsePlan(text), /MODEL_POLICY_ASSURANCE/);
+  });
   await check("legacy no silent default or rewrite", () => {
     write(legacy);
     assert.equal(readPlan(path).modelPolicyVersion, null);
