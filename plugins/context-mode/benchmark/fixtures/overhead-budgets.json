@@ -1,21 +1,81 @@
 {
-  "schemaVersion": 1,
-  "reviewPolicy": "Budget increases require a reviewed amendment with a concrete reason and evidence; never regenerate ceilings from the candidate under test.",
+  "schemaVersion": 2,
+  "reviewPolicy": "Instruction growth is advisory at 5% over fixed reference sizes; generous hard ceilings prevent runaway growth. Ceiling or reference increases require a documented amendment and PR review, never automatic rebasing.",
   "routineResponseBytes": 2048,
   "maximumExpandedResponseBytes": 65536,
   "retrievalReturnedBytes": 5465,
   "retrievalVisibleBytes": 6205,
   "profiles": {
-    "profile-reviewer": { "bytes": 3843, "words": 525 },
-    "profile-executor": { "bytes": 1964, "words": 290 }
+    "profile-reviewer": {
+      "bytes": 5000,
+      "words": 700
+    },
+    "profile-executor": {
+      "bytes": 2600,
+      "words": 400
+    }
   },
   "roles": {
-    "root": { "bytes": 55427, "words": 7593 },
-    "executor": { "bytes": 53548, "words": 7358 },
-    "terminal-reviewer": { "bytes": 51584, "words": 7068 }
+    "root": {
+      "bytes": 70000,
+      "words": 9500
+    },
+    "executor": {
+      "bytes": 68000,
+      "words": 9300
+    },
+    "terminal-reviewer": {
+      "bytes": 65000,
+      "words": 8900
+    }
   },
-  "discoveryBytes": 4255,
+  "discoveryBytes": 5500,
   "unchangedStatusAcceptedTurns": 0,
   "duplicateAcceptedWakes": 0,
-  "amendment": null
+  "amendment": {
+    "reason": "Replace exact historical instruction-size gates with fixed advisory reference sizes and rounded hard ceilings with headroom. Response, retrieval and correctness ceilings are unchanged.",
+    "evidenceReference": "plugins/context-mode/benchmark/overhead.md#instruction-growth-policy; plugins/context-mode/tests/benchmark/overhead.test.ts",
+    "reviewReference": "Review this PR policy amendment; this metadata does not assert reviewer approval.",
+    "previousBudgetsSha256": "24de44b356222e16df77c6d30ac0af2abc1b620f61e3411d6dacec69d4536e15",
+    "metrics": [
+      "profiles.profile-reviewer.bytes",
+      "profiles.profile-reviewer.words",
+      "profiles.profile-executor.bytes",
+      "profiles.profile-executor.words",
+      "roles.root.bytes",
+      "roles.root.words",
+      "roles.executor.bytes",
+      "roles.executor.words",
+      "roles.terminal-reviewer.bytes",
+      "roles.terminal-reviewer.words",
+      "discoveryBytes"
+    ]
+  },
+  "instructionBaseline": {
+    "profiles": {
+      "profile-reviewer": {
+        "bytes": 3843,
+        "words": 525
+      },
+      "profile-executor": {
+        "bytes": 1964,
+        "words": 290
+      }
+    },
+    "roles": {
+      "root": {
+        "bytes": 55427,
+        "words": 7593
+      },
+      "executor": {
+        "bytes": 53548,
+        "words": 7358
+      },
+      "terminal-reviewer": {
+        "bytes": 51584,
+        "words": 7068
+      }
+    },
+    "discoveryBytes": 4255
+  }
 }

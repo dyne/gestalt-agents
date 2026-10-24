@@ -580,8 +580,6 @@ expect_contains "$supervision_dir/org-plan-reviewer.toml" 'A retained same-sessi
 # canonical reference, not duplicated sentences in every generated profile.
 python3 "$root/tests/plugins/gestalt/instruction-contract.py" --profiles "$supervision_dir" && pass || fail 'generated role delivery preserves scenario contracts'
 expect_not_contains "$supervision_dir/org-plan-reviewer.toml" 'Without checkpoint support, continue in the same turn.'
-python3 -c 'import pathlib, sys; words=len(pathlib.Path(sys.argv[1]).read_text().split()); assert words <= 560, words' "$supervision_dir/org-plan-reviewer.toml" && pass || fail 'reviewer profile stays within its prompt budget'
-python3 -c 'import pathlib, sys; words=len(pathlib.Path(sys.argv[1]).read_text().split()); assert words <= 315, words' "$supervision_dir/org-plan-executor.toml" && pass || fail 'executor profile stays within its prompt budget'
 test ! -e "$supervision_dir/org-plan-supervisor.toml" && pass || fail 'supervision preparation creates no intermediate supervisor profile'
 for role in executor reviewer; do
   python3 -c 'import sys, tomllib; tomllib.load(open(sys.argv[1], "rb"))' "$supervision_dir/org-plan-$role.toml" && pass || fail "$role profile is parseable TOML"
@@ -623,11 +621,8 @@ test ! -s "$tmp/out" && pass || fail 'failed preparation prints no success resul
 
 supervised="$root/plugins/gestalt/skills/org-plan/references/supervised-execution.md"
 
-python3 -c 'import pathlib, sys; words=len(pathlib.Path(sys.argv[1]).read_text().split()); assert words <= 1700, words' "$skill" && pass || fail 'org-plan skill stays within its prompt budget'
-# Evidence-contract routing adds required role integration; its separately loaded
-# reference is included in role-path budgets, not hidden behind this file limit.
-python3 -c 'import pathlib, sys; words=len(pathlib.Path(sys.argv[1]).read_text().split()); assert words <= 3200, words' "$supervised" && pass || fail 'supervised reference stays within its prompt budget'
-python3 -c 'import pathlib, sys; words=len(pathlib.Path(sys.argv[1]).read_text().split()); assert words <= 1100, words' "$root/plugins/gestalt/skills/org-plan/references/evidence-report.md" && pass || fail 'evidence reference stays within its prompt budget'
+# Instruction/profile size limits are centralized in overhead-budgets.json and
+# checked by instruction-contract.py above; do not add competing file ceilings.
 expect_contains "$supervised" 'Never cross this boundary'
 expect_contains "$supervised" 'post-acceptance commentary, documentation, or the'
 expect_not_contains "$supervised" 'legacy continuous-root fallback'
@@ -645,7 +640,6 @@ expect_contains "$agents" 'The canonical runtime contract is'
 expect_contains "$agents" 'Generated profiles in `scripts/org-plan` are'
 expect_contains "$agents" 'ordering, parseability, and word budgets'
 expect_contains "$agents" 'requirements ledger'
-python3 -c 'import pathlib, sys; words=len(pathlib.Path(sys.argv[1]).read_text().split()); assert words <= 500, words' "$agents" && pass || fail 'AGENTS guidance stays within its prompt budget'
 expect_contains "$manifest" 'Dyne.org Gestalt'
 expect_contains "$manifest" 'Org Plan'
 expect_contains "$manifest" 'structured Codex workflows'

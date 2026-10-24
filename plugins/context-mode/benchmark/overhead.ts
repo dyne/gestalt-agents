@@ -1,6 +1,6 @@
 /** Deterministic CI budgets; bounded diagnostics retain every failure. */
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -39,9 +39,40 @@ export function validateBudgetAmendment(before: any, after: any) {
     observed: next[metric] ?? null, maximum: old[metric], detail: "Retain prior ceiling or supply a reviewed, digest-bound amendment; reviewers must verify its references." }));
 }
 
+/** References are fixed historical measurements, not model context/token limits. */
+export function instructionSizeReport(measured: any, budget = loadOverheadBudgets()) {
+  const paths = [
+    ...Object.entries({ profiles: ["profile-reviewer", "profile-executor"], roles: ["root", "executor", "terminal-reviewer"] })
+      .flatMap(([group, names]) => names.flatMap(name => ["bytes", "words"].map(unit => [group, name, unit]))),
+    ["discoveryBytes"],
+  ];
+  const read = (value: any, path: string[]) => path.reduce((row, key) => row?.[key], value);
+  return paths.map(path => {
+    const observed = read(measured, path), baseline = read(budget.instructionBaseline, path), maximum = read(budget, path);
+    return { metric: path.join("."), observed, baseline, maximum,
+      warningThreshold: Math.floor(baseline * 1.05), delta: observed - baseline };
+  });
+}
+
+export function instructionSummary(measured: any, budget = loadOverheadBudgets()): string {
+  return ["### Instruction size report", "", "Growth above 5% warns; hard ceilings fail. References are fixed, not token limits.", "",
+    "| Metric | Reference | Current | Delta | Hard ceiling |",
+    "| --- | ---: | ---: | ---: | ---: |",
+    ...instructionSizeReport(measured, budget).map(row =>
+      `| ${row.metric} | ${row.baseline} | ${row.observed} | ${row.delta >= 0 ? "+" : ""}${row.delta} | ${row.maximum} |`), "", "",
+  ].join("\n");
+}
+
+export function instructionGrowthWarnings(measured: any, budget = loadOverheadBudgets()) {
+  return instructionSizeReport(measured, budget).filter(row =>
+    Number.isSafeInteger(row.observed) && Number.isSafeInteger(row.baseline) && row.baseline > 0
+    && row.observed > row.warningThreshold,
+  ).map(row => ({ id: "INSTRUCTION_GROWTH_REVIEW", ...row }));
+}
+
 export function assessOverhead(measured: any, budget = loadOverheadBudgets()): BudgetFailure[] {
   const failures: BudgetFailure[] = [];
-  if (budget.schemaVersion !== 1) failures.push({ id: "BUDGET_SCHEMA_INVALID", metric: "schemaVersion", observed: null, maximum: 1 });
+  if (budget.schemaVersion !== 2) failures.push({ id: "BUDGET_SCHEMA_INVALID", metric: "schemaVersion", observed: null, maximum: 2 });
   const check = (id: string, metric: string, observed: number | null | undefined, maximum: number) => {
     if (!Number.isSafeInteger(maximum) || maximum < 0) {
       failures.push({ id: "BUDGET_SCHEMA_INVALID", metric, observed: null, maximum: 0 }); return;
@@ -53,10 +84,13 @@ export function assessOverhead(measured: any, budget = loadOverheadBudgets()): B
   check("EXPANSION_CEILING", "maximumExpandedResponseBytes", measured.maximumExpandedResponseBytes, budget.maximumExpandedResponseBytes);
   check("RETRIEVAL_BYTES", "retrievalReturnedBytes", measured.retrievalReturnedBytes, budget.retrievalReturnedBytes);
   check("RETRIEVAL_VISIBLE_BYTES", "retrievalVisibleBytes", measured.retrievalVisibleBytes, budget.retrievalVisibleBytes);
-  for (const [group, names] of Object.entries({ profiles: ["profile-reviewer", "profile-executor"], roles: ["root", "executor", "terminal-reviewer"] }))
-    for (const name of names) for (const unit of ["bytes", "words"])
-      check("BOOTSTRAP_GROWTH", `${group}.${name}.${unit}`, measured[group]?.[name]?.[unit], budget[group]?.[name]?.[unit]);
-  check("DISCOVERY_GROWTH", "discoveryBytes", measured.discoveryBytes, budget.discoveryBytes);
+  for (const row of instructionSizeReport(measured, budget)) {
+    check("INSTRUCTION_SIZE_CEILING", row.metric, row.observed, row.maximum);
+    if (!Number.isSafeInteger(row.baseline) || row.baseline <= 0 || row.baseline > row.maximum)
+      failures.push({ id: "BUDGET_SCHEMA_INVALID", metric: `instructionBaseline.${row.metric}`, observed: null, maximum: row.maximum ?? 0 });
+    if (!Number.isSafeInteger(row.observed))
+      failures.push({ id: "INSTRUCTION_MEASUREMENT_INVALID", metric: row.metric, observed: null, maximum: row.maximum ?? 0 });
+  }
   check("DUPLICATE_WINDOW", "duplicateWindows", measured.duplicateWindows, 0);
   check("LOST_QUERY_ATTRIBUTION", "missingQueryAttributions", measured.missingQueryAttributions, 0);
   check("UNCHANGED_STATUS_WAKE", "unchangedStatusAcceptedTurns", measured.unchangedStatusAcceptedTurns, budget.unchangedStatusAcceptedTurns);
@@ -153,6 +187,33 @@ export function retainBudgetDiagnostics(failures: BudgetFailure[], directory: st
       access: "local CI artifact; retrieve complete JSON from the supplied directory" } };
 }
 
+/** Full measurements and deltas remain available even when CI passes with warnings. */
+export function retainOverheadReport(measured: any, failures: BudgetFailure[], directory: string, budget = loadOverheadBudgets()) {
+  const warnings = instructionGrowthWarnings(measured, budget);
+  const body = JSON.stringify({ schemaVersion: 2, measured, instructions: instructionSizeReport(measured, budget),
+    failures, warnings, reviewPolicy: budget.reviewPolicy }, null, 2) + "\n";
+  const digest = sha(body), name = `overhead-report-${digest}.json`;
+  try {
+    mkdirSync(directory, { recursive: true });
+    const path = join(directory, name);
+    if (!existsSync(path)) writeFileSync(path, body, { mode: 0o600, flag: "wx" });
+    if (sha(readFileSync(path)) !== digest) throw new Error("diagnostic artifact integrity failure");
+    return { status: failures.length ? "failed" : "passed", failureCount: failures.length,
+      warningCount: warnings.length,
+      firstFailure: failures.length ? { id: diagnosticText(failures[0].id, 128), metric: diagnosticText(failures[0].metric, 256),
+        observed: failures[0].observed, maximum: failures[0].maximum } : null,
+      firstWarning: warnings[0] ?? null, evidenceCompleteness: "complete",
+      overflow: { file: name, bytes: Buffer.byteLength(body), sha256: digest, access: "CI overhead artifact or supplied --evidence-dir" } };
+  } catch {
+    return { status: "failed", failureCount: failures.length + 1, warningCount: warnings.length,
+      firstFailure: { id: "OVERHEAD_REPORT_UNAVAILABLE" }, evidenceCompleteness: "partial" };
+  }
+}
+
+export function instructionWarningText(warning: ReturnType<typeof instructionGrowthWarnings>[number]): string {
+  return `${warning.metric}: ${warning.observed} (${warning.delta >= 0 ? "+" : ""}${warning.delta} from reference ${warning.baseline}); hard ceiling ${warning.maximum}. Review clarity and required behavior before accepting instruction growth.`;
+}
+
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
   const args = process.argv.slice(2), directoryIndex = args.indexOf("--evidence-dir"), baseIndex = args.indexOf("--base");
   const evidenceDirectory = directoryIndex < 0 ? process.cwd() : resolve(args[directoryIndex + 1]);
@@ -172,8 +233,15 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
         else if (before) failures.push(...validateBudgetAmendment(JSON.parse(before.stdout), budget));
       }
     }
-    if (failures.length) { process.stdout.write(JSON.stringify(retainBudgetDiagnostics(failures, evidenceDirectory)) + "\n"); process.exitCode = 1; }
-    else process.stdout.write(JSON.stringify({ status: "passed", measured, reviewPolicy: budget.reviewPolicy }) + "\n");
+    const report = retainOverheadReport(measured, failures, evidenceDirectory, budget);
+    if (process.env.GITHUB_STEP_SUMMARY)
+      appendFileSync(process.env.GITHUB_STEP_SUMMARY, instructionSummary(measured, budget));
+    for (const warning of instructionGrowthWarnings(measured, budget)) {
+      const message = instructionWarningText(warning);
+      process.stderr.write((process.env.GITHUB_ACTIONS === "true" ? "::warning title=Instruction growth::" : "Instruction growth warning: ") + message + "\n");
+    }
+    process.stdout.write(JSON.stringify(report) + "\n");
+    if (report.status === "failed") process.exitCode = 1;
   } catch (error) {
     process.stdout.write(JSON.stringify(retainBudgetDiagnostics([{ id: "OVERHEAD_CHECK_FAILED", metric: "fixture-or-inventory", observed: null, maximum: 0,
       detail: `Fixture/inventory failure; no unknown result is passing. ${error instanceof Error ? error.stack : String(error)}` }], evidenceDirectory)) + "\n");

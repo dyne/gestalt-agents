@@ -184,9 +184,13 @@ The repository-only model-trial harness reuses the Org comparison validator,
 generates fixed fake-provider records with retry/reviewer costs and failure
 evidence, and imports records read-only for coverage-aware distributions. It has
 no live dispatch adapter; quota stays unobserved in synthetic runs.
-The downstream CI overhead gate pins response/retrieval/bootstrap ceilings,
-requires reviewed amendment metadata for increases against the supplied base,
-and retains complete digest-bound diagnostics behind a bounded summary. Its
+The downstream CI overhead gate keeps strict response/retrieval contracts while
+reporting instruction growth against fixed references: above 5% warns, rounded
+hard ceilings with headroom fail. Shared role/profile limits replace competing
+file limits and historical instruction-shrink assertions. Reference or ceiling
+increases require amendment metadata for PR review against the supplied base.
+Complete measurements, warnings and failures are retained on success and failure
+behind a bounded summary; warning-only runs remain successful. Its
 invented wake-trace contract supplements Mobile's owning production tests and
 does not simulate runtime scheduling.
 Its temporary artifact scope is canonicalized for macOS symlinked temporary

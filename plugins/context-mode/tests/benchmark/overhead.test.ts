@@ -4,7 +4,7 @@ import { mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "n
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
-import { assessOverhead, assessWakeTrace, collectOverhead, loadOverheadBudgets, retainBudgetDiagnostics, validateBudgetAmendment } from "../../benchmark/overhead.js";
+import { assessOverhead, assessWakeTrace, collectOverhead, loadOverheadBudgets, retainBudgetDiagnostics, retainOverheadReport, instructionSizeReport, instructionSummary, instructionGrowthWarnings, instructionWarningText, validateBudgetAmendment } from "../../benchmark/overhead.js";
 
 let measured: ReturnType<typeof collectOverhead>;
 beforeAll(() => { measured = collectOverhead(); }, 30_000);
@@ -30,14 +30,87 @@ describe("stable overhead CI budgets", () => {
   ])("rejects planted %s regression", (id, metric, value) => {
     expect(assessOverhead({ ...measured, [metric]: value }).map(row => row.id)).toContain(id);
   });
-  test("detects one-byte or one-word bootstrap growth and unknown response measurements", () => {
-    for (const unit of ["bytes", "words"]) {
-      const value = structuredClone(measured); value.profiles["profile-executor"][unit]++;
-      expect(assessOverhead(value)).toContainEqual(expect.objectContaining({ id: "BOOTSTRAP_GROWTH", metric: `profiles.profile-executor.${unit}` }));
+  test("one-byte or one-word growth over the historical reference does not fail or warn", () => {
+    const budget = loadOverheadBudgets();
+    const value = { ...structuredClone(measured), ...structuredClone(budget.instructionBaseline) };
+    for (const group of ["profiles", "roles"]) for (const profile of Object.values(value[group]) as any[])
+      for (const unit of ["bytes", "words"]) profile[unit]++;
+    value.discoveryBytes++;
+    expect(assessOverhead(value)).toEqual([]);
+    expect(instructionGrowthWarnings(value)).toEqual([]);
+  });
+  test("meaningful growth warns against a fixed reference while hard ceilings remain independent", () => {
+    const budget = loadOverheadBudgets(), value = structuredClone(measured);
+    for (const row of instructionSizeReport(value, budget)) {
+      const path = row.metric.split(".");
+      const target = path.slice(0, -1).reduce((obj: any, key) => obj[key], value);
+      const key = path.at(-1)!;
+      target[key] = row.warningThreshold;
+      expect(instructionGrowthWarnings(value).some(w => w.metric === row.metric)).toBe(false);
+      target[key]++;
+      expect(assessOverhead(value)).toEqual([]);
+      expect(instructionGrowthWarnings(value)).toContainEqual(expect.objectContaining({ metric: row.metric, baseline: row.baseline, delta: target[key] - row.baseline }));
+      target[key] = row.maximum;
+      expect(assessOverhead(value)).toEqual([]);
+      target[key]++;
+      expect(assessOverhead(value)).toContainEqual(expect.objectContaining({ id: "INSTRUCTION_SIZE_CEILING", metric: row.metric }));
+      target[key] = row.observed;
     }
+    expect(budget).toEqual(loadOverheadBudgets());
+  });
+  test("unknown measurements and missing or invalid instruction policy fail closed", () => {
     expect(assessOverhead({ ...measured, maxRoutineResponseBytes: null }).map(row => row.id)).toContain("RESPONSE_BYTES");
-    const budget = loadOverheadBudgets(); delete budget.roles.root.bytes;
-    expect(assessOverhead(measured, budget).map(row => row.id)).toContain("BUDGET_SCHEMA_INVALID");
+    for (const value of [null, undefined, NaN, -1, 1.5]) {
+      const candidate = structuredClone(measured); candidate.roles.root.bytes = value as any;
+      expect(assessOverhead(candidate).length).toBeGreaterThan(0);
+    }
+    for (const mutation of [
+      (budget: any) => { delete budget.roles.root.bytes; },
+      (budget: any) => { delete budget.instructionBaseline; },
+      (budget: any) => { budget.instructionBaseline.roles.root.bytes = 0; },
+      (budget: any) => { budget.instructionBaseline.roles.root.bytes = budget.roles.root.bytes + 1; },
+    ]) {
+      const budget = loadOverheadBudgets(); mutation(budget);
+      expect(assessOverhead(measured, budget).map(row => row.id)).toContain("BUDGET_SCHEMA_INVALID");
+    }
+  });
+  test("advisory reports pass, retain measurements and warnings, and cannot hide hard failures", () => {
+    const root = mkdtempSync(join(tmpdir(), "instruction-warnings-"));
+    try {
+      const budget = loadOverheadBudgets(), value = structuredClone(measured);
+      for (const row of instructionSizeReport(value, budget)) {
+        const path = row.metric.split(".");
+        const target = path.slice(0, -1).reduce((obj: any, key) => obj[key], value);
+        target[path.at(-1)!] = row.warningThreshold + 1;
+      }
+      const report = retainOverheadReport(value, assessOverhead(value), root);
+      expect(report).toMatchObject({ status: "passed", warningCount: 11, failureCount: 0, evidenceCompleteness: "complete" });
+      expect(Buffer.byteLength(JSON.stringify(report))).toBeLessThanOrEqual(2048);
+      const full = JSON.parse(readFileSync(join(root, report.overflow!.file), "utf8"));
+      expect(full.measured).toEqual(value);
+      expect(full.warnings).toHaveLength(11);
+      expect(full.instructions).toHaveLength(11);
+      expect(instructionWarningText(full.warnings[0])).toContain("Review clarity and required behavior");
+      value.duplicateAcceptedWakes = 1;
+      expect(retainOverheadReport(value, assessOverhead(value), root)).toMatchObject({ status: "failed", failureCount: 1, warningCount: 11 });
+      writeFileSync(join(root, report.overflow!.file), "corrupted");
+      expect(retainOverheadReport(full.measured, [], root)).toMatchObject({ status: "failed", evidenceCompleteness: "partial" });
+    } finally { rmSync(root, { recursive: true, force: true }); }
+  });
+  test("the review summary exposes current counts and cumulative deltas, including below-warning changes", () => {
+    const budget = loadOverheadBudgets(), value = structuredClone(measured);
+    value.roles.root.bytes = budget.instructionBaseline.roles.root.bytes + 1;
+    expect(instructionSummary(value, budget)).toContain("| roles.root.bytes | 55427 | 55428 | +1 | 70000 |");
+  });
+  test("reference increases or removal require review just like hard-ceiling increases", () => {
+    const before = loadOverheadBudgets();
+    for (const change of [
+      (after: any) => { after.instructionBaseline.roles.root.bytes++; },
+      (after: any) => { delete after.instructionBaseline.roles.root.bytes; },
+    ]) {
+      const after = structuredClone(before); change(after);
+      expect(validateBudgetAmendment(before, after)).toContainEqual(expect.objectContaining({ id: "BUDGET_INCREASE_REQUIRES_REVIEW", metric: "instructionBaseline.roles.root.bytes" }));
+    }
   });
   test("requires digest-bound evidence and review reference for intentional ceiling increases", () => {
     const before = loadOverheadBudgets(), after = structuredClone(before); after.routineResponseBytes++;
@@ -92,11 +165,12 @@ describe("stable overhead CI budgets", () => {
       if (symlinked) symlinkSync(root, temp, "dir");
       const run = spawnSync(process.execPath, [new URL("../../node_modules/tsx/dist/cli.mjs", import.meta.url).pathname,
         new URL("../../benchmark/overhead.ts", import.meta.url).pathname, "--evidence-dir", root], {
-        encoding: "utf8", timeout: 30_000, env: { ...process.env, ...(symlinked ? { TMPDIR: temp, TEMP: temp, TMP: temp } : {}) },
+        encoding: "utf8", timeout: 30_000, env: { ...process.env, GITHUB_STEP_SUMMARY: join(root, "summary.md"), ...(symlinked ? { TMPDIR: temp, TEMP: temp, TMP: temp } : {}) },
       });
       expect(run.status, run.stderr).toBe(0);
       expect(Buffer.byteLength(run.stdout)).toBeLessThanOrEqual(2048);
       expect(JSON.parse(run.stdout)).toMatchObject({ status: "passed" });
+      expect(readFileSync(join(root, "summary.md"), "utf8")).toContain("| roles.root.bytes |");
     } finally { rmSync(root, { recursive: true, force: true }); }
   });
   test("an unavailable comparison base fails with a recoverable bounded diagnostic", () => {
@@ -104,7 +178,8 @@ describe("stable overhead CI budgets", () => {
     try {
       const run = spawnSync(process.execPath, [new URL("../../node_modules/tsx/dist/cli.mjs", import.meta.url).pathname,
         new URL("../../benchmark/overhead.ts", import.meta.url).pathname,
-        "--base", "missing-overhead-base-000000", "--evidence-dir", root], { encoding: "utf8", timeout: 30_000 });
+        "--base", "missing-overhead-base-000000", "--evidence-dir", root], { encoding: "utf8", timeout: 30_000,
+          env: { ...process.env, GITHUB_STEP_SUMMARY: join(root, "summary.md") } });
       expect(run.status).toBe(1); expect(Buffer.byteLength(run.stdout)).toBeLessThanOrEqual(2048);
       const summary = JSON.parse(run.stdout);
       expect(summary).toMatchObject({ failureCount: 1, firstFailure: { id: "BASE_REVISION_UNAVAILABLE" }, evidenceCompleteness: "complete" });

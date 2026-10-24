@@ -84,7 +84,6 @@ def check_profiles(directory):
         assert "inspect git diff --cached --name-only" in text and ".gestalt/*.org" in text
         assert "Context-mode never mutates Org state" in text
         assert text.count("gestalt_org_plan_attention") == 1
-        assert len(text.split()) <= {"reviewer": 540, "executor": 300}[role]
         if role == "reviewer":
             assert profile["sandbox_mode"] == "read-only"
             assert "model=gpt-6.1-sol, reasoning_effort=medium; never inherit Astra" in text
@@ -154,11 +153,14 @@ def main():
     l5 = json.loads((FIXTURES / "instruction-l5-baseline.json").read_text())
     assert l5["version"] == 1
     assert hashlib.sha256((FIXTURES / "supervisor-role-inputs.json").read_bytes()).hexdigest() == l5["roleInputsSha256"]
-    for unit in ("words", "bytes"):
-        assert sum(current["sources"][f"profile-{role}"][unit] for role in l5["profiles"]) < sum(
-            profile[unit] for profile in l5["profiles"].values()), (unit, "L5 bootstrap did not decrease")
-        for role, starting in l5["roles"].items():
-            assert current["roles"][role][unit] < starting[unit], (role, unit, "L5 required path did not decrease")
+    # Historical reduction experiments remain evidence, not permanent release limits.
+    budgets = json.loads((ROOT / "plugins/context-mode/benchmark/fixtures/overhead-budgets.json").read_text())
+    for role, data in current["roles"].items():
+        for unit in ("words", "bytes"):
+            assert data[unit] <= budgets["roles"][role][unit], (role, unit, "instruction ceiling exceeded")
+    for name, limits in budgets["profiles"].items():
+        for unit in ("words", "bytes"):
+            assert current["sources"][name][unit] <= limits[unit], (name, unit, "profile ceiling exceeded")
     delivery = current["delivery"]
     assert delivery["hostInstructions"] is None and delivery["toolSchemas"] is None
     assert delivery["discoveryCatalog"]["count"] == 16
@@ -168,13 +170,10 @@ def main():
     # Inactive vendor guidance cannot be counted as delivered savings.
     for data in current["roles"].values():
         assert "vendor-codex-guidance-inactive" not in data["sources"]
-    before = json.loads((FIXTURES / "instruction-baseline.json").read_text())["instructions"]
     for role, data in current["roles"].items():
         assert "evidence" in data["sources"], (role, "mandatory evidence read omitted")
         assert current["sources"]["evidence"]["path"] == "plugins/gestalt/skills/org-plan/references/evidence-report.md"
-        assert data["words"] < before["roles"][role]["words"], (role, "instruction path grew")
-        assert data["bytes"] < before["roles"][role]["bytes"], (role, "instruction path grew")
-    print(f"instruction contracts: {count} scenarios, bootstrap delivery, links, negative control, 3 smaller role paths")
+    print(f"instruction contracts: {count} scenarios, bootstrap delivery, links, negative control, shared instruction ceilings")
 
 
 if __name__ == "__main__":
