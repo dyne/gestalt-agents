@@ -1,10 +1,11 @@
 # L1 model policy schema v1
 
-New plans explicitly declare `#+MODEL_POLICY_VERSION: 1` once in document
+Plans opting into strict model policy explicitly declare `#+MODEL_POLICY_VERSION: 1` once in document
 metadata before the first heading. Unknown versions, duplicate declarations,
 misplaced declarations and policy fields without a version fail validation.
 Legacy plans without the declaration or policy properties retain their existing
-behavior and bytes; helpers do not infer settings from Effort prose, migrate
+behavior and bytes; this is also the supported default for new ordinary plans.
+Helpers do not infer settings from Effort prose, migrate
 them, or insert defaults during reads or transitions.
 
 Every v1 L1 drawer requires these properties exactly once:

@@ -43,6 +43,31 @@ const policy = (id = "simple") => readPlan(path).items.find((item) => item.id ==
 let passed = 0;
 const check = (name, action) => { try { action(); passed += 1; } catch (error) { error.message = `${name}: ${error.message}`; throw error; } };
 try {
+  check("ordinary authoring template validates and publishes supervision without model attestation", () => {
+    const format = readFileSync(new URL("../../../plugins/gestalt/skills/org-plan/references/plan-format.md", import.meta.url), "utf8");
+    const blocks = [...format.matchAll(/```org\n([\s\S]*?)```/g)].map((match) => match[1]);
+    const metadata = blocks[0].replace(/^(#\+[A-Z_]+:)$/gm, "$1 Ordinary handoff");
+    const drawer = blocks[1].replace("unique-l1-id", "simple").replace("$namespace:skill $other-skill", "$make");
+    const body = blocks[2].replace(/ ::$/gm, " :: Exact fixture behavior");
+    const source = metadata + `* TODO [#A] Ordinary handoff\n:PROPERTIES:\n${drawer}:END:\n${body}`
+      + l1("child").slice(l1("child").indexOf("** TODO"));
+    writeFileSync(path, source);
+    assert.equal(readPlan(path).modelPolicyVersion, null);
+    assert.equal(readPlan(path).items[0].modelPolicy, null);
+    const status = join(directory, "ordinary-status.json");
+    const env = { ...process.env, GESTALT_MOBILE_ORG_PLAN_STATUS_FILE: status };
+    for (const args of [["validate", path], ["signal", path, "authoring-start"], ["supervision-start", path]]) {
+      const result = spawnSync(helper, args, { env, encoding: "utf8" });
+      assert.equal(result.status, 0, result.stderr);
+    }
+    const publication = JSON.parse(readFileSync(status, "utf8"));
+    assert.equal(publication.reason, "supervision-start");
+    assert.equal(publication.modelPolicyVersion, undefined);
+    assert.equal(publication.requiredCapabilities, undefined);
+    assert.equal(readFileSync(path, "utf8"), source);
+    mutate(path, "l1", "simple", "WIP", { consumerAttached: true, consumerCapabilities: [] });
+    assert.equal(readPlan(path).items[0].state, "WIP");
+  });
   check("package exposes schema/local contracts without claiming runtime enforcement", () => {
     assert.ok(packageContract.capabilities.includes("l1-model-policy-v1"));
     assert.deepEqual(packageContract.modelPolicyContract, { version: 1, scope: "schema-and-local-contracts", runtimeEnforcement: false });

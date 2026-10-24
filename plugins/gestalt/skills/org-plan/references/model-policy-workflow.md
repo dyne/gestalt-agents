@@ -8,7 +8,17 @@ loaded cost. They never change installed setup or an unrelated/source session.
 
 ## Authoring and packet
 
-Before handoff, each new L1 explicitly chooses its lightest adequate validated
+This workflow applies only to an explicitly requested strict model policy.
+Use the [ordinary plan format](plan-format.md) otherwise. Parser/retention
+capability alone does not establish runtime enforcement. Check the trusted
+host's runtime support during authoring; unavailable support means a draft,
+not a supervision-ready handoff. Preserve existing strict policies on recovery.
+Agents 2.19.0 and Mobile 0.55.0 advertise `runtimeEnforcement: false`; Codex
+0.161.0 configured thread settings do not supply the required runtime revision.
+Explain this limitation during authoring when strict policy is explicitly
+requested. Never remove an existing policy without user authorization.
+
+Before handoff, each versioned L1 explicitly chooses its lightest adequate validated
 model and `medium` reasoning. Follow the [rubric](model-selection.md) and
 [schema](model-policy-schema.md), recording all five scores/explanations in its
 rationale. Simple mechanical tasks may select `gpt-6-luna`; bounded work may use
