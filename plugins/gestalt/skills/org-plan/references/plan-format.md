@@ -69,12 +69,14 @@ Ordinary plans use the installed supervised roles and their launch
 contract. Omit model-policy metadata and properties; do not claim runtime
 attestation for this mode. All milestone, review and verification gates remain.
 
-## Strict model policy is opt-in
+## Model choices and assurance
 
-For an explicit strict-policy request, follow the [policy workflow](model-policy-workflow.md)
-and [schema](model-policy-schema.md). Require trusted runtime enforcement before
-an execution-ready handoff; schema support alone is insufficient. Never strip
-an existing policy automatically. Supervision alone does not authorize weakening it.
+For versioned model choices, follow the [policy workflow](model-policy-workflow.md)
+and [schema](model-policy-schema.md). Existing v1 plans default to disclosed
+configured assurance without removing metadata. Explicit strict requests add
+`#+MODEL_POLICY_ASSURANCE: runtime-attested`; they require runtime receipts
+before execution and must never be silently downgraded. Schema support alone
+does not establish attestation. All modes preserve execution and review gates.
 
 ## Milestone size before execution
 

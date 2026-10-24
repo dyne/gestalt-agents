@@ -17,7 +17,11 @@ as ordinary assignment text; selecting `default` alone does not confer them.
 
 The pure `../scripts/org-plan-executor-launch.mjs` recipe takes the parsed policy,
 one-based position, host tool-schema revision, permission context, executor
-bootstrap and complete assignment. It emits this **request**, never a launch:
+bootstrap and complete assignment. Pass `assurance: plan.modelPolicyAssurance`
+from the validated parser result explicitly; absent v1 metadata resolves to
+`configured`. Never rely on the helper default when the plan declares
+`runtime-attested`. A strict recipe still requires the strict handshake before
+edits. It emits this **request**, never a launch:
 
 ```json
 {
@@ -58,8 +62,9 @@ recipe emits no permission overrides. It requires known inheritance, a writable
 permission pins. A read-only parent/role or unknown permission context is a
 preflight limitation, never permission to broaden access. Host restrictions,
 including writable roots and denied escalation, remain authoritative. Passing
-this structural recipe does not establish effective settings: verify those
-before edits under the [runtime handshake](effective-settings.md). Do not infer them from a
+this structural recipe establishes configured launch validation only. Under
+explicit runtime-attested assurance, verify effective settings before edits
+under the [runtime handshake](effective-settings.md). Do not infer them from a
 profile, request, root model or successful fixture.
 
 ## Setup is separate
@@ -69,8 +74,10 @@ profile, request, root model or successful fixture.
 --executor-reasoning-effort EFFORT --reviewer-reasoning-effort EFFORT` pin explicit
 choices during authorized setup only; both effort defaults are medium. High or
 xhigh flags configure a pin, not a task-specific necessity rationale or launch
-authorization. Versioned L1 validation still requires its documented exception,
-catalog support and effective match. Legacy setup accepts existing syntactically
+authorization. Versioned L1 validation still requires its documented exception
+and catalog support. Configured mode verifies launch settings/ownership and
+rejects observed mismatches; strict mode additionally requires effective match.
+Legacy setup accepts existing syntactically
 valid model names for compatibility; that does not admit them to v1 execution.
 Keep transaction rollback, file modes and reviewer read-only sandbox unchanged.
 Never run setup or mutate installed profiles/runtime as a per-L1 workaround.

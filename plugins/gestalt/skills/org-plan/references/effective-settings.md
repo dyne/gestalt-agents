@@ -1,9 +1,41 @@
-# Requested/effective executor handshake
+# Executor assurance and requested/effective handshake
 
-Before a versioned L1 executor edits code, its trusted host adapter must call
+Select assurance from the validated document, separately from model/effort.
+Version-1 plans without `MODEL_POLICY_ASSURANCE` use `configured` compatibility;
+an explicit `runtime-attested` plan stays strict. Disclose compatibility once
+at activation. Never remove policy fields or fabricate a receipt to activate.
+
+## Configured compatibility
+
+Before edits, validate the current L1's exact model/effort against the runtime
+catalog and use the [supported launch recipe](executor-launch.md). Verify host
+override support and inherited sandbox/approval policy. Retain canonical L1,
+physical child thread/task identity and authorized replacement generation in
+controller state. No attested child is required before launching that child.
+
+On continuation, re-read the current policy and controller-owned child binding.
+Reject stale/replaced bindings, changed authority and any observed model/effort
+or role mismatch. Do not reuse a previous match as lasting authority. Mobile
+rechecks automatic resume authority immediately before dispatch, including
+Manual Off, replacement, plan changes and pending interaction fences.
+
+Requested values never populate observed effective values. Missing runtime
+metadata, receipt or settings revision remains unknown; it is not a reason for
+repeated attention or approval. Health's `admitted:false` and `attested:false`
+describe the strict receipt result; `executionAdmission.allowed` describes
+controller admission in configured mode. `runtimeEnforcement:false` remains
+truthful. Native collaboration spawn/followup calls are root-supervised, not
+intercepted by Mobile; the root must check the launch recipe, identity and any
+observed mismatch before those calls. This mode does not guarantee that every
+runtime honored every request. Independent review, evidence gates, checkpoints
+and terminal whole-branch review remain mandatory.
+
+## Explicit runtime-attested mode
+
+Before a strict L1 executor edits code, its trusted host adapter must call
 `requireExecutorSettings` from `../scripts/org-plan-effective-settings.mjs` (or
 enforce the same contract). A passing launch recipe is only a request. An
-unavailable source or field remains unknown and blocks admission; never copy
+unavailable source or field remains unknown and blocks strict admission; never copy
 the requested/root/profile setting into an effective field. No model-probe
 turn, prompt export, setup write or permission change is required or authorized.
 

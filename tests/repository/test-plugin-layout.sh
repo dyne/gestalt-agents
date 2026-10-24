@@ -51,7 +51,9 @@ assert supervision_manifest == {
     ],
     "modelPolicyContract": {
         "version": 1,
-        "scope": "schema-and-local-contracts",
+        "scope": "configured-launch-and-retention",
+        "defaultAssurance": "configured",
+        "strictAttestation": False,
         "runtimeEnforcement": False,
     },
 }, "Gestalt must ship the bounded supervision capability manifest"

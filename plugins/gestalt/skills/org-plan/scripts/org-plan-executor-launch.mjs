@@ -6,8 +6,9 @@ const fail = (code) => ({ ok: false, code });
 // A pure recipe, not a launcher or proof of effective runtime settings. The host
 // supplies its actual tool schema/pins and permission inheritance contract.
 export function prepareExecutorLaunch({
-  position, policy, host, permissions, profile, assignment, route = "default",
+  position, policy, host, permissions, profile, assignment, route = "default", assurance = "configured",
 }) {
+  if (!["configured", "runtime-attested"].includes(assurance)) return fail("EXECUTOR_ASSURANCE_INVALID");
   if (!Number.isSafeInteger(position) || position < 1) return fail("EXECUTOR_POSITION_INVALID");
   if (policy?.version !== 1 || !MODEL_IDS.includes(policy.model) ||
       !["medium", "high", "xhigh"].includes(policy.reasoningEffort) ||
@@ -54,6 +55,8 @@ export function prepareExecutorLaunch({
     permissionRequirements: { ...permissions },
     hostRevision: host.revision,
     effectiveSettings: null,
-    requiresEffectiveSettingsCheck: true,
+    assurance,
+    runtimeEnforcement: false,
+    requiresEffectiveSettingsCheck: assurance === "runtime-attested",
   };
 }

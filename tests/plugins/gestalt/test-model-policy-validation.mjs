@@ -70,7 +70,7 @@ try {
   });
   check("package exposes schema/local contracts without claiming runtime enforcement", () => {
     assert.ok(packageContract.capabilities.includes("l1-model-policy-v1"));
-    assert.deepEqual(packageContract.modelPolicyContract, { version: 1, scope: "schema-and-local-contracts", runtimeEnforcement: false });
+    assert.deepEqual(packageContract.modelPolicyContract, { version: 1, scope: "configured-launch-and-retention", defaultAssurance: "configured", strictAttestation: false, runtimeEnforcement: false });
   });
   for (const item of fixture.cases) check(item.id, () => {
     const source = header(item.planVersion) + l1("simple", "TODO", "UNREVIEWED", "gpt-6-luna", item.planVersion);

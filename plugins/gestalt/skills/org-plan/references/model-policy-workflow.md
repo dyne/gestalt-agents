@@ -8,15 +8,20 @@ loaded cost. They never change installed setup or an unrelated/source session.
 
 ## Authoring and packet
 
-This workflow applies only to an explicitly requested strict model policy.
-Use the [ordinary plan format](plan-format.md) otherwise. Parser/retention
-capability alone does not establish runtime enforcement. Check the trusted
-host's runtime support during authoring; unavailable support means a draft,
-not a supervision-ready handoff. Preserve existing strict policies on recovery.
-Agents 2.19.0 and Mobile 0.55.0 advertise `runtimeEnforcement: false`; Codex
-0.161.0 configured thread settings do not supply the required runtime revision.
-Explain this limitation during authoring when strict policy is explicitly
-requested. Never remove an existing policy without user authorization.
+This workflow applies to versioned L1 model choices. Existing v1 plans without
+an assurance keyword use disclosed `configured` compatibility: validate launch
+settings, catalog support, permission inheritance and controller-owned executor
+identity. Missing runtime receipts do not block ordinary supervision. Requested
+settings remain requests; observed configured settings retain their source and
+unknown fields. This is cooperative supervision, not native child pre-spawn
+enforcement. Mobile's host guards reject observed mismatches on automatic resume.
+
+An explicit `MODEL_POLICY_ASSURANCE: runtime-attested` remains strict and fails
+clearly when the adapter lacks receipts/revisions. Do not silently downgrade it.
+The Codex 0.164.0 adapter can request launch overrides and read configured thread
+metadata, but has no runtime-issued settings revision/receipt contract.
+`runtimeEnforcement` remains false. Repeated attention resolution or authorization
+cannot supply a missing capability. Preserve manual Off.
 
 Before handoff, each versioned L1 explicitly chooses its lightest adequate validated
 model and `medium` reasoning. Follow the [rubric](model-selection.md) and
@@ -35,8 +40,10 @@ Fallbacks: {exact ordered IDs or none}; trigger: {concrete escalation evidence}.
 Necessity: {kind, why medium is inadequate, evidence, affected scope,
             return-to-medium condition; xhigh also scope reassessment}, or none.
 Source: {current authoritative plan/section and complete policy reference/digest}.
-Admission: {requested/effective receipt, child binding/epoch, catalog revision,
-            original observation time and evidence reference}, or unknown.
+Assurance: {configured or runtime-attested; explicit declaration or v1 migration}.
+Admission: {validated launch recipe, controller child binding/epoch, observed
+            settings/catalog/time and evidence reference; strict receipt only
+            when runtime-attested}, preserving every unavailable field as unknown.
 ```
 
 Use exact full values, not inferred Effort prose or model-tier defaults. When
@@ -56,15 +63,17 @@ from the supervisor, an old assignment, rejected review or retry count.
 
 | Event | Required action |
 | --- | --- |
-| Compaction or resume | Resume the same executor; read the full current policy and its packet, compare choices/rationale, refresh the effective handshake for the current child/epoch before edits. Keep missing evidence unknown. |
+| Compaction or resume | Resume the same executor; read the full current policy and its packet, compare choices/rationale, refresh the assurance check for the current child/epoch before edits. Configured mode revalidates launch settings and controller ownership; strict mode refreshes the effective handshake. Keep missing evidence unknown. |
 | REJECT | Return unchanged findings to the same writer and same uncommitted diff; retain policy/necessity, repair and rerun gates. A rejection or retry alone never raises effort. |
 | Dependency reopen | Use `suspend-reopen`/`resume`; preserve each L1 policy and rationale, one writer and dependency review gates. Refresh admission for resumed scope; never overwrite a dependency's choice with its consumer's. |
-| User policy change | Hold affected dispatch; apply the user's authorized change through existing plan/lifecycle rules, validate policy/catalog and update the complete packet. Preserve writer/replacement authority and refresh effective evidence. Never rewrite profiles or silently substitute settings. |
+| User policy change | Hold affected dispatch; apply the user's authorized change through existing plan/lifecycle rules, validate policy/catalog and update the complete packet. Preserve writer/replacement authority and refresh evidence under the selected assurance mode. Never rewrite profiles or silently substitute settings. |
 
 Lifecycle-only changes do not change selected model/effort. A stale or incomplete
 packet requires bounded retrieval and current verification, not reconstruction
-of a conversation. A changed or unknown effective setting blocks further edits
-until safely resolved. Material replanning still follows existing authority;
+of a conversation. A genuinely observed mismatch blocks further edits until
+safely resolved. In configured mode, missing runtime fields stay unknown and do
+not create another approval prerequisite; strict mode still requires its full
+receipt. Material replanning still follows existing authority;
 no automatic agent replacement, task split or new progress approval is added.
 
 ## Effort decisions
@@ -89,14 +98,16 @@ model quota without explicit authorization.
 
 Supervisor settings are independent of each child's policy. A supervisor model,
 effort or change cannot establish child effective settings or revise an L1.
-Root review checks the exact current packet and requested/effective evidence;
-unverified settings or unsupported necessity require correction, not acceptance.
+Root review checks the exact current packet, assurance and requested/observed
+evidence. Unsupported necessity or observed mismatches require correction.
+Unknown settings do not imply attestation or prevent configured-mode review.
 
 After all L1s are REVIEWED and no writer remains, launch `final_review` with
 `agent_type=default`, `fork_turns=none`, explicit `model=gpt-6.1-sol` and
 `reasoning_effort=medium`. Never inherit Astra, even from an Astra supervisor.
-Validate availability/effort and authoritative effective reviewer settings
-before review; unknown evidence blocks dispatch. Keep terminal identity distinct
+Validate availability/effort and the reviewer's explicit launch recipe before
+review. Apply the plan's assurance: strict requires effective evidence; configured
+retains unknown observations without blocking. Keep terminal identity distinct
 from L1 executor bindings. No supported non-Astra launch means a preflight
 limitation, never silent inheritance or a live profile rewrite. Any authorized
 effort exception still requires concrete necessity and a return condition.

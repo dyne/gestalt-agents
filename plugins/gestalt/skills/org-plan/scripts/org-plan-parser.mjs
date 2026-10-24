@@ -224,13 +224,22 @@ export function parsePlan(text) {
     fail("MODEL_POLICY_VERSION must be exactly 1 in document metadata before headings");
   }
 
+  const assurances = lines.map((line, index) => ({ line, index }))
+    .filter(({ line }) => /^#\+MODEL_POLICY_ASSURANCE:/i.test(line));
+  if (assurances.length > 1 || assurances.some(({ line, index }) =>
+      modelPolicyVersion === null || index >= items[0].line ||
+      !/^#\+MODEL_POLICY_ASSURANCE: (configured|runtime-attested)$/.test(line))) {
+    fail("MODEL_POLICY_ASSURANCE requires version 1 and exactly configured or runtime-attested before headings");
+  }
+  const modelPolicyAssurance = modelPolicyVersion === null ? null
+    : assurances[0]?.line.split(": ")[1] ?? "configured";
   const ids = new Set();
   for (const item of items) {
     parseItem(lines, item, ids);
     item.modelPolicy = parseModelPolicy(item, modelPolicyVersion);
   }
   validateLifecycle(items);
-  return { text, lines, items, modelPolicyVersion, fingerprint: fingerprint(text) };
+  return { text, lines, items, modelPolicyVersion, modelPolicyAssurance, fingerprint: fingerprint(text) };
 }
 
 export function readPlan(path) {

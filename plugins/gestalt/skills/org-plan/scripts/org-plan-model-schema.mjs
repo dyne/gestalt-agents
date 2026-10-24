@@ -18,6 +18,7 @@ export function parseModelPolicy(item, version) {
   const declared = MODEL_POLICY_PROPERTIES.filter((key) => properties.has(key));
   const invalid = (message) => fail(`line ${item.line + 1} (${item.id}): ${message}`);
   if (properties.has("MODEL_POLICY_VERSION")) invalid("MODEL_POLICY_VERSION belongs in document metadata");
+  if (properties.has("MODEL_POLICY_ASSURANCE")) invalid("MODEL_POLICY_ASSURANCE belongs in document metadata");
   if (item.level === 2 && declared.length) invalid("L1-only model policy property");
   if (version === null) {
     if (declared.length) invalid("model policy properties require MODEL_POLICY_VERSION");

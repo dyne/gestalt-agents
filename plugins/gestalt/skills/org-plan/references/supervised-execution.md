@@ -239,7 +239,9 @@ no writer remains. Before acceptance:
 
 1. Spawn a fresh depth-one subagent with `fork_turns=none`, `agent_type=default`,
    `task_name=final_review`, explicit `model=gpt-6.1-sol`, `reasoning_effort=medium`.
-   Verify catalog/effective settings; never inherit Astra or select the pinned
+   Verify catalog and explicit launch settings under the plan's assurance mode;
+   strict requires effective evidence, while configured retains unknown fields.
+   Never inherit Astra or select the pinned
    `org-plan-reviewer` role.
 2. Assign terminal-reviewer duties and supply the skill/reference paths,
    Org Plan goal, implemented L1/L2 outcomes, branch base and HEAD,
