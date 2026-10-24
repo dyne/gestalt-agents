@@ -65,7 +65,7 @@ Partition L1s into cohesive reviewable use cases sized for one fresh executor.
 Include starting context, dependencies on prior L1s, expected prior outputs,
 allowed scope, invariants, required tests, and acceptance criteria.
 
-Ordinary plans use the installed supervised roles and their existing launch
+Ordinary plans use the installed supervised roles and their launch
 contract. Omit model-policy metadata and properties; do not claim runtime
 attestation for this mode. All milestone, review and verification gates remain.
 
