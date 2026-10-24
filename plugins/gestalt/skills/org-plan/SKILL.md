@@ -148,7 +148,7 @@ time, checkpoints, and executor idleness are not attention conditions.
 5. Order L1s and L2s by dependency. Give each L1 its relevant starting context,
    prior outputs, invariants, tests, and acceptance criteria.
 6. Resolve ambiguity. Validate [model handoffs](references/model-policy-workflow.md)
-   for explicit strict policies.
+   for opt-in strict policies.
 7. Validate with the helper. Create the topic branch and run the repository's
    required baseline checks before implementation handoff.
 ## Manual execution loop
