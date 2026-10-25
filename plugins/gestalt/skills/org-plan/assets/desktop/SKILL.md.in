@@ -1,0 +1,101 @@
+---
+name: org-plan
+description: Draft or revise detailed Org-mode implementation plans with ordered L1/L2 milestones, task skills, dependencies, verification and acceptance criteria. Use when asked for an Org plan or durable implementation plan; this skill authors plans only.
+---
+
+# Draft an Org Plan
+
+Produce a concrete `.org` plan that a fresh executor can follow from the plan
+and repository alone. This standalone edition supports Codex desktop classic
+without Gestalt, MCP servers, helper commands, or additional skills installed.
+Authoring does not authorize implementation, commits, or agent dispatch.
+
+## Gather enough context
+
+1. Identify the requested outcome, workspace root, affected repositories,
+   constraints, and explicit exclusions. Read applicable repository instructions.
+2. Inspect the current implementation, relevant interfaces, tests, and build
+   commands. Cite real paths and symbols in the plan. Distinguish verified facts
+   from assumptions; never invent test results, available tools, or skill names.
+3. Resolve decisions that materially change scope or correctness with the user.
+   Continue independent investigation while answers are pending. Record minor
+   assumptions explicitly. An unresolved critical decision makes the plan a
+   draft, not an implementation-ready handoff.
+4. Inspect the available skill catalog's names and descriptions. Select the
+   smallest sufficient task-specific set for each L1. Use exact `$skill` or
+   `$namespace:skill` references. Do not require this authoring skill itself or
+   `$gestalt:*` workflow infrastructure as a milestone dependency.
+
+## Design the milestones
+
+Order milestones by dependency. An L1 is a cohesive independently reviewable
+outcome; its L2 children are the steps needed to achieve that outcome. Separate
+unrelated acceptance outcomes, but keep inseparable producer/consumer changes
+together. Assign one intended writer per L1 in its Notes when ownership is known.
+
+For each L1 specify starting context, prior milestone outputs, scope boundaries,
+invariants, risks, required checks and observable acceptance criteria. Include
+failure or rollback considerations where the proposed change needs them.
+Keep alternatives and resolved design choices in Notes so a future executor
+does not repeat the investigation. Make effort estimates explicit estimates.
+
+For each L2 explain why it exists, the exact behavioral change and affected
+files/interfaces, verification commands and expected results, and the condition
+that makes it complete. Avoid vague tasks such as "fix tests" or "improve UX".
+For UI work name components, screenshots, viewport sizes, and font scales to
+verify. Use meaningful behavior checks, including relevant failure cases.
+Name the repository's full validation gate at L1 level in addition to focused
+L2 checks. Record unavailable checks as prerequisites, never as passing.
+
+## Write the document
+
+Create `<workspace-root>/.gestalt/<topic>.org`, with a short kebab-case topic
+and no date in its filename. Use the workspace root supplied to Codex, which
+may contain multiple Git repositories. Keep plans as local coordination files.
+If file writing is unavailable, return the complete Org source and its intended
+path. For revisions, read and preserve the supplied plan's identity and existing
+progress; do not reset completed work or manufacture lifecycle transitions.
+
+Use the bundled [plan template](plan-template.org) as the structural starting
+point. Replace all example content with evidence from the actual task. Include
+nonempty TITLE, SUBTITLE, DATE and KEYWORDS metadata. State overall scope,
+assumptions, exclusions, and unresolved prerequisites before the first heading.
+
+- L1 headings use `* TODO [#A|#B|#C] Title`; L2 headings use `** TODO [#A|#B|#C] Title`.
+  Choose one priority (`[#A]`, `[#B]`, or `[#C]`), not the literal alternatives.
+- Put a `:PROPERTIES:` drawer immediately below every heading and close it with
+  `:END:`. Give every heading a globally unique kebab-case `:ID:`.
+- Each L1 has exactly one nonempty `:SKILLS:` and `:REVIEW_STATUS: UNREVIEWED`.
+  L2 drawers contain only `:ID:`; skills and review status belong to L1.
+- Each L1 body has nonempty `- Effort ::`, `- Goal ::`, and `- Notes ::` fields.
+- Each L2 body has nonempty `- Why ::`, `- Change ::`, `- Tests ::`, and
+  `- Done when ::` fields. Use continuation lines for detailed instructions.
+- New plans start entirely TODO and UNREVIEWED. Do not add measurements,
+  suspension state, model-policy properties, or runtime assurance claims.
+  Model selection is an execution-time concern for this standalone edition.
+
+If no suitable task skill is available, do not invent one or install a
+dependency automatically. Use `$required-task-skill` as an explicitly unresolved
+placeholder in the draft, explain the missing capability, and mark the handoff
+blocked until an actual skill is selected. A syntactically nonempty placeholder
+does not satisfy execution readiness. When the target execution environment has
+a different catalog, flag skill availability for verification there.
+
+## Validate and hand off
+
+Read back the complete plan. Check metadata, heading depths, priorities, unique
+IDs, closed drawers, required fields, one or more L2s per L1, dependency order,
+exact available skill references, scope coverage, and testable acceptance.
+Check that each promised command and file path comes from repository evidence.
+Ensure unresolved decisions and skill placeholders are disclosed. No helper is
+required: these checks can be performed with ordinary file-reading tools.
+
+If a Gestalt helper is already available, its read-only `org-plan validate PLAN`
+may additionally check syntax. Do not install Gestalt, call lifecycle mutations,
+create branches, run implementation, or configure supervision for this task.
+An Org syntax check alone does not prove skill availability or readiness.
+
+Return the plan path (or full source if writing was unavailable), a concise
+milestone outline, validation performed, and any unresolved prerequisites.
+Stop after the authoring handoff. Implementation requires a separate user
+request and the target environment's execution workflow.

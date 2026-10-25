@@ -242,12 +242,31 @@ Gestalt plugin and the adapted context-mode plugin/runtime. `feat` advances the
 minor version, supported fix-oriented commit types advance the patch version,
 and breaking changes advance the major version.
 
-Each GitHub release includes one `gestalt-agents-vX.Y.Z.zip`. The bundle
+Each GitHub release includes `gestalt-agents-vX.Y.Z.zip`. The bundle
 contains the repository marketplace metadata, the Gestalt plugin and its full
 skill set, the context-mode plugin and runtime sources, `gestalt-setup.sh`, and
 the user documentation. This keeps the complete installation together while
 retaining per-skill activation and Org Plan's explicit milestone skill loading.
-`SHA256SUMS` covers the release archive.
+`SHA256SUMS` covers both release archives.
+
+For **Codex desktop classic plan drafting**, download `org-plan-vX.Y.Z.zip`
+from [Releases](https://github.com/dyne/gestalt-agents/releases). This is a
+standalone skill ZIP with one `org-plan/` folder containing `SKILL.md`, interface
+metadata, and a plan template. Import that ZIP through your client's skill
+import UI if available. For filesystem installation, extract `org-plan/` into
+`~/.agents/skills/` and restart the session. Then ask:
+`Use $org-plan to draft a detailed implementation plan for <your task>.`
+
+This authoring-only edition needs no Gestalt installation or MCP server. It
+teaches detailed L1/L2 structure, repository investigation, dependencies,
+task-skill selection, tests, and acceptance criteria. It writes local plans under
+the workspace's `.gestalt/` directory and stops at handoff. Missing task skills
+remain explicit draft prerequisites. It does not execute plans or supply the
+Gestalt supervision runtime. Avoid enabling it alongside the full Gestalt
+`org-plan` skill, which has the same name and includes execution instructions.
+The maintained desktop templates live beside the canonical skill under
+`plugins/gestalt/skills/org-plan/assets/desktop/`; release packaging renames
+`SKILL.md.in` to `SKILL.md` without adding another discoverable source skill.
 
 # 📃 Plan
 

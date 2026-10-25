@@ -74,6 +74,31 @@ git -C "$root" archive --format=zip \
   --output="$stage/gestalt-agents-$tag.zip" \
   HEAD -- "${release_paths[@]}"
 
+# Derive the standalone authoring skill from the same committed source as the
+# marketplace archive. Keep its template beside the canonical Org Plan skill;
+# .md.in prevents installers discovering a second skill in the source tree.
+python3 - "$stage" "$tag" <<'PY'
+import sys
+import zipfile
+from pathlib import Path
+
+stage, tag = Path(sys.argv[1]), sys.argv[2]
+source = "plugins/gestalt/skills/org-plan/assets/desktop/"
+files = {
+    "SKILL.md.in": "org-plan/SKILL.md",
+    "openai.yaml": "org-plan/agents/openai.yaml",
+    "plan-template.org.in": "org-plan/plan-template.org",
+}
+with zipfile.ZipFile(stage / f"gestalt-agents-{tag}.zip") as marketplace:
+    with zipfile.ZipFile(stage / f"org-plan-{tag}.zip", "w") as skill:
+        for original, target in files.items():
+            entry = zipfile.ZipInfo(target, date_time=(1980, 1, 1, 0, 0, 0))
+            entry.create_system = 3
+            entry.external_attr = 0o100644 << 16
+            entry.compress_type = zipfile.ZIP_DEFLATED
+            skill.writestr(entry, marketplace.read(source + original))
+PY
+
 (
   cd -- "$stage"
   sha256sum -- *.zip >SHA256SUMS
@@ -81,4 +106,4 @@ git -C "$root" archive --format=zip \
 
 mv -- "$stage" "$output_dir"
 trap - EXIT HUP INT TERM
-printf 'built one Gestalt marketplace bundle in %s\n' "$output_dir"
+printf 'built Gestalt marketplace and standalone Org Plan skill bundles in %s\n' "$output_dir"
