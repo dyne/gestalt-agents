@@ -2,3 +2,5 @@ interface:
   display_name: "Org Plan Drafting"
   short_description: "Draft detailed Org plans with verifiable milestones"
   default_prompt: "Use $org-plan to draft a detailed implementation plan from this workspace, including dependencies, tests, and acceptance criteria."
+policy:
+  allow_implicit_invocation: true
