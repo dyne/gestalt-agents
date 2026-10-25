@@ -34,6 +34,13 @@ edits. It emits this **request**, never a launch:
 }
 ```
 
+After spawn, keep the writer in read-only bootstrap until the root verifies
+its current canonical position and physical thread through health. This is an
+automatic ownership handshake, not a new human approval. If the controller still
+shows a completed predecessor, use the supervision reference's handoff recovery
+and preserve this same new writer. An ordinary interrupt preserves resumability;
+only actual closure makes its assignment terminal.
+
 Use the selected model/effort and actual canonical position, not these example
 values. Obtain the bootstrap from a verified executor role's
 `developer_instructions` or the equivalent already-loaded executor contract.
