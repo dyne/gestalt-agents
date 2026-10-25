@@ -22,6 +22,12 @@ not catalog availability. Never turn those expected pre-child unknowns into a
 selection blocker or repeated attention request. A genuinely unavailable or
 incompatible catalog remains a capability failure; do not manufacture a match.
 
+A stale controller projection is separate from missing runtime attestation.
+Use the [handoff recovery procedure](supervised-execution.md#controller-handoff-and-recovery)
+to reconcile the existing physical writer before treating it as a capability
+blocker. `executorBinding.authorizesExecution:false` means the observation does
+not itself authorize a resume; it is not an admission denial.
+
 On continuation, re-read the current policy and controller-owned child binding.
 Reject stale/replaced bindings, changed authority and any observed model/effort
 or role mismatch. Do not reuse a previous match as lasting authority. Mobile

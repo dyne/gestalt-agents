@@ -49,6 +49,31 @@ Never derive or increment a generation. Without authorization, resume the
 assigned executor or report a control-state conflict; prompts cannot authorize
 replacement. L2 positions are plan/report labels, never routine agent names.
 
+## Controller handoff and recovery
+
+After accepting the previous L1, verify it has no active turn or running owned
+process before launching the next canonical writer. A retained idle/completed
+`l1` roster row does not own `l2`. Use a close operation when supported; never
+require a completed row to disappear from the runtime roster. Interruption
+pauses a physical executor; it does not close it or authorize replacement.
+
+Before the new writer edits, check `gestalt_org_plan_health` for the current
+canonical position and physical thread. Mobile reconciles a unique existing
+writer from fresh, parent-verified runtime topology, even while the root is
+active, attention is pending or automation is Off. Reconciliation observes
+ownership only: it never enables automation, clears attention, resumes work or
+replaces an executor. Review gates and the ordinary continuation fences remain.
+
+If health reports `CONTROLLER_BINDING_INVALID`, perform one health refresh and
+inspect `executorBinding`. A ready binding allows the existing writer to follow
+the normal continuation path once attention is resolved and execution is
+otherwise permitted. Do not repeatedly ask for authorization to repair a stale
+projection. Keep that same writer paused while topology is unavailable; retry
+only after evidence changes. Duplicate writers, a live predecessor, wrong-root
+provenance, closed authority or an unapproved generation remain conflicts.
+Report the precise code and existing identity if reconciliation cannot finish;
+never spawn, rename, change policy or fabricate receipts to repair ownership.
+
 ## Start supervision
 
 The first tool call reads this skill completely and performs no other command.

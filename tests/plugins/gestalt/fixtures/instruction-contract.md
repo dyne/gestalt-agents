@@ -448,3 +448,13 @@ bytes only. Conditional references add separately disclosed retrieval costs.
 Host instructions/schemas, provider/model token savings, latency, account quota
 and billing savings remain unmeasured. Current package-level transport tests
 exercise actual serialized response limits separately from these fixtures.
+
+## Executor ownership recovery
+
+An accepted first milestone may leave an idle completed `l1` in the runtime
+roster while the unique `l2` starts. Health reconciles parent-verified ownership
+independently of active root turns, attention and Manual Off. This observation
+never dispatches work or replaces a writer. Interruption remains resumable;
+duplicate identities, active predecessors and unauthorized generations fail
+closed. Agents use one bounded health refresh before escalating and preserve
+the existing physical writer rather than asking for repeated authorization.
