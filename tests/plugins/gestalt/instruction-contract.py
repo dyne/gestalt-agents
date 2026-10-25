@@ -25,6 +25,7 @@ SOURCES = {
     "continuity": ORG / "references/continuity-ledger.md",
     "format": ORG / "references/plan-format.md",
     "policy": ORG / "references/model-policy-workflow.md",
+    "selection": ORG / "references/model-selection.md",
 }
 
 

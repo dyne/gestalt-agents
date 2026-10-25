@@ -29,6 +29,9 @@ model and `medium` reasoning. Follow the [rubric](model-selection.md) and
 rationale. Simple mechanical tasks may select `gpt-6-luna`; bounded work may use
 `gpt-6-sol`, and multi-component work may use `gpt-6.1-sol`. No Astra or aliases.
 Validate exact IDs and effort support against the authoritative runtime catalog.
+For existing-policy execution, use the pre-child `executorLaunch` health result
+as described in the rubric. Missing child `modelPolicy.catalogRevision` does not
+block configured selection, and a server-issued catalog revision is not required.
 Authoring a plan never authorizes execution.
 
 Keep one policy packet with the assignment and continuity evidence:
