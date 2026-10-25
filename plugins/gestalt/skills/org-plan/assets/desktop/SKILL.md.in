@@ -1,6 +1,6 @@
 ---
 name: org-plan
-description: Draft or revise detailed Org-mode implementation plans with ordered L1/L2 milestones, task skills, dependencies, verification and acceptance criteria. Use when asked for an Org plan or durable implementation plan; this skill authors plans only.
+description: Activate whenever the user mentions an org plan, org-plan, Org-mode plan, or Gestalt, including questions, drafting and revisions. Write detailed Org implementation plans with L1/L2 milestones, dependencies, tests and acceptance criteria. Plan writing only; no implementation or Gestalt runtime management.
 ---
 
 # Draft an Org Plan
@@ -9,6 +9,20 @@ Produce a concrete `.org` plan that a fresh executor can follow from the plan
 and repository alone. This standalone edition supports Codex desktop classic
 without Gestalt, MCP servers, helper commands, or additional skills installed.
 Authoring does not authorize implementation, commits, or agent dispatch.
+
+## Activation and scope
+
+Treat mentions of "org plan", "org-plan", "Org-mode plan", and "Gestalt"
+case-insensitively as triggers to consult this skill. For a question, answer the
+question using the planning guidance; a mention alone does not request a new
+file. For a writing request, draft or revise the plan. For a request to run a
+plan or manage Gestalt, explain this edition's authoring-only scope and leave
+execution to the target environment's workflow. Do not reinterpret execution
+requests as permission granted by this skill.
+
+The instructions here and the bundled template are the complete authoring
+contract for this edition. No binary, validation script, Gestalt installation,
+MCP tool, or sibling skill is required. Do not search for or install a validator.
 
 ## Gather enough context
 
@@ -83,19 +97,52 @@ a different catalog, flag skill availability for verification there.
 
 ## Validate and hand off
 
-Read back the complete plan. Check metadata, heading depths, priorities, unique
-IDs, closed drawers, required fields, one or more L2s per L1, dependency order,
-exact available skill references, scope coverage, and testable acceptance.
-Check that each promised command and file path comes from repository evidence.
-Ensure unresolved decisions and skill placeholders are disclosed. No helper is
-required: these checks can be performed with ordinary file-reading tools.
+Perform two explicit read-throughs of the final saved file (or final Org source
+when writing is unavailable). Review the actual output, not an earlier outline.
+No command execution is necessary for these checks.
 
-If a Gestalt helper is already available, its read-only `org-plan validate PLAN`
-may additionally check syntax. Do not install Gestalt, call lifecycle mutations,
-create branches, run implementation, or configure supervision for this task.
-An Org syntax check alone does not prove skill availability or readiness.
+**Structure pass:**
+
+1. Verify that TITLE, SUBTITLE, DATE and KEYWORDS each occur once before the
+   first heading and have actual values. Remove example boilerplate.
+2. Enumerate every L1 and its L2 children in order. Reject orphan L2s, empty
+   L1s, skipped depths, or extra milestone levels. Check each heading has one
+   priority and a nonempty title; every new milestone must be TODO.
+3. Collect all IDs and check uniqueness across the whole document, including
+   both levels. Each drawer must open and close once with no nested drawer,
+   and each required property must occur exactly once with a nonempty value.
+   New L1s must be UNREVIEWED; L2s must not declare skills or review status.
+4. Check every required L1/L2 body field individually. A label followed only by
+   whitespace, a placeholder, or "TBD" is not a completed field. In revisions,
+   preserve existing state and disclose any pre-existing structural issue.
+
+**Readiness pass:**
+
+1. Map every requested outcome to an L1 acceptance criterion and supporting L2.
+   Remove unrequested work; flag any requested outcome without coverage.
+2. Follow each dependency to an earlier milestone or an explicit external
+   prerequisite. Reject cycles and reliance on outputs produced later.
+3. Check that a fresh executor can identify the starting files, intended
+   behavior, constraints, checks, and completion evidence without this chat.
+   Distinguish existing verified paths from explicitly proposed new paths;
+   planned new commands or interfaces must have a prerequisite that creates them.
+4. Match each skill reference against the actual available catalog. List
+   missing skills and unknown target-environment availability as prerequisites.
+   Search the text for remaining template examples, `$required-task-skill`,
+   "TBD", and unresolved questions; resolve them or disclose them as blockers.
+5. Check that tests name observable expected results, not merely "tests pass",
+   and that each L1 has a full validation gate. Planned checks are instructions
+   for future implementation, never evidence of already passing tests.
+
+Repair defects found in either pass and reread the affected sections plus their
+dependencies. Stop when both passes have no unresolved defects, or label the
+result a draft and enumerate concrete prerequisites that cannot yet be resolved.
+Do not call lifecycle mutations, create branches, run implementation, or
+configure supervision. A manual structure review does not prove executability.
 
 Return the plan path (or full source if writing was unavailable), a concise
-milestone outline, validation performed, and any unresolved prerequisites.
+milestone outline, and a short review record: L1/L2 counts, structure findings,
+coverage/dependency findings, and unresolved prerequisites. Describe this as a
+manual authoring review; never claim validator, runtime, or test execution.
 Stop after the authoring handoff. Implementation requires a separate user
 request and the target environment's execution workflow.
