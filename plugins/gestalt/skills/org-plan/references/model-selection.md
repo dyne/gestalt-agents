@@ -35,13 +35,36 @@ User constraints may narrow this pool but cannot widen it. A conflicting ceiling
 requires an actionable preflight failure, not a silent downgrade.
 
 Validate availability and effort support against the actual runtime catalog's
-exact IDs, supported efforts and revision. The pure contract in
+exact IDs and supported efforts. Configured mode does not require a server-issued
+catalog revision or a child receipt. For an existing selected v1 policy, call
+`gestalt_org_plan_health` once and use `executorLaunch`: `validated:true` with
+`code:CATALOG_MATCH` validates its requested model/effort against the owning
+runtime's `model/list` response before a child exists. Check its L1 and requested
+values against the current plan. Mobile revalidates at dispatch; this read is
+not enduring launch authority. Preserve Manual Off and all review/evidence gates.
+
+The separate `modelPolicy.catalogRevision` is child-only evidence; null before
+launch does not establish catalog unavailability and is not a prelaunch blocker.
+`CHILD_NOT_LAUNCHED`, unknown child settings and `attested:false` are expected
+before launch. Do not rerun new-model selection or declare attention merely
+because there is no child. If `executorLaunch` is missing, identify an older
+health bridge rather than claiming the runtime catalog itself is absent.
+
+`executorLaunch.catalog.fingerprint` is a local digest of normalized runtime
+catalog content, with its source and observation time. It is not a server-issued
+revision or settings attestation. An actual `CATALOG_UNAVAILABLE`,
+`MODEL_UNAVAILABLE` or `EFFORT_UNSUPPORTED` from this read remains a concrete
+capability failure, not grounds for a silent substitution or repeated approval.
+
+For authoring/new selection, the pure contract in
 `../scripts/org-plan-model-policy.mjs` consumes a normalized snapshot
 `{source: "runtime", revision, models: [{id, reasoningEfforts}]}`. The caller
-must obtain that snapshot from authoritative runtime metadata and retain its
+must obtain that snapshot from the runtime catalog and retain its
 provenance; a fixture, guessed list, tool-schema suggestion or profile default
-is not live availability evidence. Missing catalog/revision stays unknown and
-blocks selection. No model probe turns or live setup mutations are needed.
+is not live availability evidence. Here `revision` may identify the normalized
+content digest; a runtime-issued revision is not a configured-mode prerequisite.
+Missing actual catalog content stays unknown to this selector; do not confuse it
+with missing child evidence. No model probe turns or live setup mutations are needed.
 
 When the preferred model is unavailable, only an explicitly allowed, available
 fallback at least as capable under this rubric may be used, with a recorded

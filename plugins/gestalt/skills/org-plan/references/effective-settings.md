@@ -13,6 +13,15 @@ override support and inherited sandbox/approval policy. Retain canonical L1,
 physical child thread/task identity and authorized replacement generation in
 controller state. No attested child is required before launching that child.
 
+For prelaunch catalog validation, read `gestalt_org_plan_health.executorLaunch`.
+`validated:true` / `CATALOG_MATCH` reports exact model/effort support from the
+owning runtime's `model/list`, with a normalized-content fingerprint and observation
+time. It needs no child or server-issued catalog revision. The separate
+`modelPolicy.catalogRevision:null` and `CHILD_NOT_LAUNCHED` describe child evidence,
+not catalog availability. Never turn those expected pre-child unknowns into a
+selection blocker or repeated attention request. A genuinely unavailable or
+incompatible catalog remains a capability failure; do not manufacture a match.
+
 On continuation, re-read the current policy and controller-owned child binding.
 Reject stale/replaced bindings, changed authority and any observed model/effort
 or role mismatch. Do not reuse a previous match as lasting authority. Mobile
