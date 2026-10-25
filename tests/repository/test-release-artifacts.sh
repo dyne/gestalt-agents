@@ -53,6 +53,8 @@ artifacts="$tmp/dist"
 python3 - "$root" "$artifacts" "$tag" <<'PY'
 import hashlib
 import json
+import re
+import stat
 import subprocess
 import sys
 import tomllib
@@ -63,7 +65,7 @@ root = Path(sys.argv[1])
 artifacts = Path(sys.argv[2])
 tag = sys.argv[3]
 skills = sorted(path.parent.name for path in (root / "plugins/gestalt/skills").glob("*/SKILL.md"))
-expected = {f"gestalt-agents-{tag}.zip"}
+expected = {f"gestalt-agents-{tag}.zip", f"org-plan-{tag}.zip"}
 actual = {path.name for path in artifacts.glob("*.zip")}
 assert actual == expected, (actual, expected)
 
@@ -75,6 +77,36 @@ def regular_entries(archive: Path) -> set[str]:
         assert not path.is_absolute(), name
         assert ".." not in path.parts, name
     return names
+
+skill_archive = artifacts / f"org-plan-{tag}.zip"
+skill_entries = regular_entries(skill_archive)
+assert skill_entries == {
+    "org-plan/SKILL.md", "org-plan/agents/openai.yaml", "org-plan/plan-template.org",
+}
+desktop_source = root / "plugins/gestalt/skills/org-plan/assets/desktop"
+with zipfile.ZipFile(skill_archive) as bundle:
+    assert bundle.testzip() is None
+    assert len(bundle.infolist()) == len(skill_entries), "duplicate ZIP entries"
+    for entry in bundle.infolist():
+        assert stat.S_ISREG(entry.external_attr >> 16), entry.filename
+    for source, target in (("SKILL.md.in", "SKILL.md"),
+                           ("openai.yaml", "agents/openai.yaml"),
+                           ("plan-template.org.in", "plan-template.org")):
+        assert bundle.read(f"org-plan/{target}") == (desktop_source / source).read_bytes()
+    instructions = bundle.read("org-plan/SKILL.md").decode()
+    assert instructions.startswith("---\nname: org-plan\ndescription: ")
+    assert len(instructions.split("---", 2)) == 3
+    for target in re.findall(r"\[[^\]]+\]\(([^)]+)\)", instructions):
+        assert f"org-plan/{target}" in skill_entries, target
+    bundle.extractall(artifacts / "standalone")
+
+# Validate the delivered template using the production parser, without a
+# Gestalt installation or any lifecycle mutation. Placeholder skill names are
+# syntactically valid but explicitly do not establish execution readiness.
+subprocess.run([
+    "bash", str(root / "plugins/gestalt/skills/org-plan/scripts/org-plan"),
+    "validate", str(artifacts / "standalone/org-plan/plan-template.org"),
+], check=True, capture_output=True)
 
 bundle_entries = regular_entries(artifacts / f"gestalt-agents-{tag}.zip")
 assert ".agents/plugins/marketplace.json" in bundle_entries
@@ -160,4 +192,4 @@ if "$root/scripts/build-release-artifacts.sh" v1.0.0 "$tmp/v1" 2>/dev/null; then
   exit 1
 fi
 
-printf 'release marketplace bundle is complete\n'
+printf 'release marketplace and standalone skill bundles are complete\n'

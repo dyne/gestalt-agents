@@ -1,0 +1,40 @@
+#+TITLE: Checkout retry implementation plan
+#+SUBTITLE: Example structure; replace paths, skills and commands with verified task details
+#+DATE: 2026-10-25
+#+KEYWORDS: checkout retry reliability
+
+Scope: Retry transient checkout failures without creating duplicate orders.
+Exclusions: Payment-provider migration and unrelated checkout UI redesign.
+Prerequisites: Replace $required-task-skill with an available task-specific
+skill. Verify all example paths and commands before implementation handoff.
+
+* TODO [#A] Make checkout retries idempotent
+:PROPERTIES:
+:ID: checkout-retry
+:SKILLS: $required-task-skill
+:REVIEW_STATUS: UNREVIEWED
+:END:
+- Effort :: Estimate: one bounded implementation and review cycle.
+- Goal :: Repeating a checkout request creates at most one order and returns
+  the original order after a transient response failure.
+- Notes :: Starting context: inspect the checkout handler and order store.
+  Dependencies: none. Scope: checkout request handling and persistence only.
+  Preserve existing successful-request responses. Keep one writer for this L1.
+  Acceptance: duplicate and concurrent requests share the original order;
+  unrelated requests remain independent; focused regressions and the repository
+  full suite pass. Replace example file paths and commands below after inspection.
+
+** TODO [#A] Implement and verify duplicate-request behavior
+:PROPERTIES:
+:ID: checkout-retry-idempotency
+:END:
+- Why :: A client retry after a lost response can otherwise duplicate an order.
+- Change :: In the verified checkout handler and order store, persist a request
+  key with the order atomically and return the saved result on a matching retry.
+  Reject reuse of a key with a different payload using the existing error format.
+- Tests :: Run the repository's focused checkout tests, covering a successful
+  request, a lost response followed by retry, concurrent duplicates, mismatched
+  payloads and independent keys. Replace this text with the verified test command.
+- Done when :: Each duplicate case produces one persisted order, mismatched
+  payloads fail explicitly, and independent requests still succeed. Record actual
+  results during implementation; no execution evidence is claimed in this draft.
