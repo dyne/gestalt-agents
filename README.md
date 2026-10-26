@@ -327,3 +327,7 @@ symbol overview and fall back to native tools for unsupported languages or
 startup failures. Serena and XERJ readiness are independent; use XERJ for broad
 cross-project references and context-mode to analyze large outputs. Startup
 does not install or index Serena implicitly.
+
+For adoption, use the [coordinated tools guide](plugins/gestalt/skills/context-mode/references/coordinated-tools.md):
+it covers intent routing, repository readiness, safe diagnostics, evidence reuse,
+older missing-field consumers and the limits of measured fixture costs.

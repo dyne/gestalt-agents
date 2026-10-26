@@ -15,6 +15,15 @@ and contents while excluding generated dependencies and build artifacts.
 
 ## Downstream changes
 
+- Adds offline composed retrieval/evidence scenarios and controlled paired-cost
+  checks to the existing overhead harness. Synthetic routing actors exercise
+  provenance, semantic references and fallback boundaries; real evidence
+  adapters preserve failure identities through authorized bounded retrieval.
+  Comparisons include discovery/schema envelopes and expose per-case byte/call
+  regressions, unknown coverage and descriptive timing without model-adherence
+  or guaranteed-savings claims. A read-only compatibility check pins accepted
+  Mobile contract bytes without retaining private checkout paths in fixtures.
+
 - Aligns query field descriptions with the smallest sufficient related set and
   focused followups rather than fixed broad-query counts or one-shot collection.
   Validates published source-window and continuation examples against current

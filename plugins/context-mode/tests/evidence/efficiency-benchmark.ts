@@ -7,6 +7,7 @@ import { captureGitHub, digest } from '../../src/evidence/github.js';
 import { evidenceFollowup, ingestEvidence, ingestGitHubCapture, type IngestOptions } from '../../src/evidence/extract.js';
 import { EVIDENCE_DESCRIPTION } from '../../src/evidence/tool.js';
 import { ContentStore } from '../../src/store.js';
+import { runComposedHarmony } from './composed-harmony.js';
 
 const specification = resolve(import.meta.dirname, '../../../../tests/plugins/gestalt/fixtures/context-evidence-workflows.json');
 const bytes = (text:string) => Buffer.byteLength(text);
@@ -49,6 +50,8 @@ function validateReference(path:string,sha256:string):boolean {
 
 /** Replays the L1 sanitized corpus and repeated-run/rerun identities through both paths. */
 export async function runEvidenceBenchmark() {
+  // Exercise the same cross-tool boundaries in executable overhead replays.
+  const composedHarmony = runComposedHarmony();
   const fixtureBytes=readFileSync(specification),fixture=JSON.parse(fixtureBytes.toString()) as Fixture;
   const root=realpathSync(mkdtempSync(join(tmpdir(),'evidence-efficiency-'))),previousPath=process.env.PATH;
   const cases:CaseMetrics[]=[];
@@ -136,6 +139,7 @@ export async function runEvidenceBenchmark() {
     }
     const repeated=cases.find(c=>c.caseId==='repeated-ci')!,rerun=cases.find(c=>c.caseId==='rerun')!;
     const criteria={
+      composedBoundaries:composedHarmony.cases.length===9,
       allFindingsPreserved:cases.every(c=>!c.baseline.missingFindings.length&&!c.bounded.missingFindings.length),
       allReferencesVerified:cases.every(c=>c.bounded.missingReferences===0),
       largeInitialPayloadReduction:cases.every(c=>c.baseline.initialReturnedBytes<=20*1024||c.initialReduction>=0.8),
@@ -143,7 +147,7 @@ export async function runEvidenceBenchmark() {
       unchangedTerminalReuse:repeated.bounded.fetches===1&&repeated.bounded.indexes===1&&repeated.bounded.ghCalls===4,
       rerunInvalidation:rerun.bounded.fetches===2&&rerun.bounded.indexes===2,
     };
-    return {schemaVersion:1,criteria,renderer:'version 1: L1 padding/expected IDs rendered as normalized test JSON, Jest setup JSON or opaque text; each pair uses identical bytes',fixtureSha256:digest(fixtureBytes),provenance:'Synthetic L1 corpus, identical source bytes in each replay. Baseline is an uncached raw workflow, not a historical binary or private session. No prompts, runtime records or model outputs retained.',units:'UTF-8 bytes; local mechanical diagnostic retrieval milliseconds measured without timing assertions or model calls',overhead:'Actual added evidence-tool description once per workflow; baseline adds zero description bytes to existing tools. Request and followup bytes included; MCP transport framing excluded equally.',counts:'fetches = log downloads; ghCalls includes auth/metadata; capturedBytes = source bytes per ingestion; downloadedBytes includes captured gh metadata',tokenizer:'not measured; no token estimates or API cache counters',cases};
+    return {schemaVersion:1,criteria,composedHarmony,renderer:'version 1: L1 padding/expected IDs rendered as normalized test JSON, Jest setup JSON or opaque text; each pair uses identical bytes',fixtureSha256:digest(fixtureBytes),provenance:'Synthetic L1 corpus, identical source bytes in each replay. Baseline is an uncached raw workflow, not a historical binary or private session. No prompts, runtime records or model outputs retained.',units:'UTF-8 bytes; local mechanical diagnostic retrieval milliseconds measured without timing assertions or model calls',overhead:'Actual added evidence-tool description once per workflow; baseline adds zero description bytes to existing tools. Request and followup bytes included; MCP transport framing excluded equally.',counts:'fetches = log downloads; ghCalls includes auth/metadata; capturedBytes = source bytes per ingestion; downloadedBytes includes captured gh metadata',tokenizer:'not measured; no token estimates or API cache counters',cases};
   } finally {if(previousPath===undefined)delete process.env.PATH;else process.env.PATH=previousPath;rmSync(root,{recursive:true,force:true});}
 }
 function readCalls(bin:string):string[][] {try{return readFileSync(join(bin,'calls.jsonl'),'utf8').trim().split('\n').filter(Boolean).map(line=>JSON.parse(line));}catch{return [];}}
