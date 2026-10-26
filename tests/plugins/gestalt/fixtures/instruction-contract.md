@@ -1,5 +1,50 @@
 # Instruction delivery and preservation ledger
 
+## Tool harmony routing
+
+Context-mode's Tool selection section now routes broad or repeated discovery
+through fresh covered lexical XERJ within one repository or across repositories.
+The conditional XERJ catalog/skill and Serena handoff use the same scope. Precise
+known-file lookup and current-file verification remain native; ready Serena owns
+symbol relationships. Coverage/readiness explains broad native fallback without
+per-command narration, quotas or a blanket grep ban. Existing authority,
+index ownership, provenance, freshness and every `ax_paths` alias remain binding.
+
+The existing instruction gate runs the `sourceRouting` scenarios in
+`context-evidence-workflows.json` with isolated temporary files and a synthetic
+lexical index. Fourteen cases cover single/multi-repository discovery, repeated
+search, exact lookup, missing/partial/stale/unknown coverage, unavailable service,
+no-match confirmation, shared fork aliases and source changes after retrieval.
+Static decisions and reversed-route controls reject quota/native-only/grep-ban
+regressions. These are contract fixtures, not provider integration or evidence
+of actual model adherence or token savings. No vendored implementation changes.
+
+Serena's canonical Query recovery and scope section treats oversized results as
+query sizing, with narrower requests or a justified bounded budget. Readiness
+and negative probe/warmup results are bound to repository/fork, build variant,
+relevant source/configuration fingerprints and runtime/tool generation; changes
+invalidate reuse. The existing C/C++ command reference already requires actual
+compilation inputs, flags and generated headers in the intended build context.
+Twenty-one executable semantic scenarios use temporary current source/ASTs and
+compilation metadata with synthetic provider observations. They exercise narrow
+and budget recovery, actual known relationships, broken references despite an
+overview, missing/wrong-build inputs, wrong forks, supported/unsupported language,
+unchanged failure caching, source/config/runtime invalidation, authorized useful
+warmup, denied warmup and separate edit permission. They do not establish live
+Serena behavior, full semantic coverage or model adherence. Native fallback and
+the existing permission/install/project-switching restrictions remain binding.
+
+Context-mode's existing tool-resolution paragraph now specifies task-filtered
+name/description metadata before exact chosen schemas, reuse in one agent/runtime
+generation, and invalidation after reconnect/tool changes/unavailable errors.
+Fresh children resolve independently; missing schemas retain native fallback
+without invented aliases/arguments. Mandatory native governing reads remain
+independent of binding caches. Nine executable schema-discovery cases exercise
+these boundaries against synthetic metadata/schemas, with controls for whole
+catalog/schema dumps, stale fields and inherited child bindings. No new guide or
+generated prompt layer is added. Existing inventory, profile and instruction
+ceilings remain the budget authority; bytes are not provider-token savings.
+
 Baseline: `b6f72d2561c870f1901daa0bf4716e8f926707aa`, captured before instruction
 edits on `plan/context-evidence-efficiency`. Counts are whitespace-delimited words
 and UTF-8 bytes, not tokens or subscription usage. Reproduce with

@@ -21,11 +21,15 @@ that is large, uncertain, or needs filtering, indexing, or repeated retrieval.
    use `write_stdin` only to continue a live native command session. Use
    `view_image` to inspect a local image. Do not use shell write tricks when a
    native editor is available.
-3. Do not invent aliases. Hosts may expose provider-prefixed names or a native
-   equivalent rather than these spellings; use only the capability actually
-   exposed by the current host. Resolve needed names/argument fields once per
-   valid session; invalidate cached resolution after reconnect, tool-set change
-   or unavailable-tool errors. Inspect relevant fields instead of whole catalogs.
+3. Do not invent aliases. Use only exposed host names, including provider
+   prefixes or native equivalents. Filter names/descriptions for the task, then
+   inspect exact schemas only for chosen tools. Resolve needed names/argument
+   fields once per valid session within this agent/runtime generation;
+   invalidate cached resolution after reconnect, tool-set change or
+   unavailable-tool errors. Inspect relevant fields instead of whole catalogs.
+   Fresh children resolve independently; never inherit private parent bindings.
+   Unavailable schemas use supported native fallback, never guessed arguments.
+   Governing reads stay mandatory and native regardless of cached bindings.
 4. Use context-mode for large or uncertain evidence. If it is unavailable,
    capture evidence outside the conversation and report only the command, exit
    status, counts, and smallest useful failure excerpt.
@@ -37,6 +41,15 @@ that is large, uncertain, or needs filtering, indexing, or repeated retrieval.
    remain native operations.
 
 ## Tool selection
+
+For broad or repeated source discovery within one repository or across repositories,
+prefer lexical XERJ with a working service and fresh index coverage of the requested
+scope; follow [XERJ provenance and fallback](../xerj/SKILL.md). Keep precise
+known-file lookups, governing reads, current-file verification, Git and writes
+native. Use ready Serena for local symbol relationships and structured edits.
+Analyze large evidence with context-mode. Use no tool-call quota or blanket grep
+ban. For broad native fallback, state a relevant coverage/readiness reason
+without narrating every command.
 
 | Need | Tool |
 |---|---|

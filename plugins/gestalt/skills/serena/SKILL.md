@@ -44,7 +44,8 @@ connection, always managed with `--context codex --mode editing`.
   switching, mode management, or shell execution through Serena. Let the managed
   connection retain the session's native sandbox policy; never call an unconfined
   backend directly or replace per-tool prompt approvals with blanket approval.
-- Use XERJ for broad cross-project prior art, retaining repository provenance;
+- Use XERJ for broad or repeated source discovery in fresh covered repositories,
+  including one repository, retaining repository provenance and path aliases;
   verify references against current local source before applying them. Serena
   supplies semantics for the active workspace. Use context-mode for large tool,
   diagnostic or file output when available.
@@ -52,3 +53,20 @@ connection, always managed with `--context codex --mode editing`.
 Read [managed commands and storage](references/commands.md) also for operator
 requests to diagnose or maintain Serena. Missing tools remain a bounded
 limitation, not an implicit installation request.
+
+## Query recovery and scope
+
+A too-long overview is a query-sizing result, not unavailability. Narrow the
+path, symbol or depth and read the needed body; alternatively increase the
+bounded budget with a task-specific reason. Recheck the requested operation.
+An overview alone never establishes usable references or semantic edit readiness.
+
+Bind readiness and failed probes/warmup to the actual repository/fork, build
+variant, relevant source/configuration fingerprints and tool/runtime generation.
+Reuse a failure for unchanged inputs; recheck after those inputs change. Never
+transfer readiness or a cached failure between forks or build variants. Verify
+the known definition/reference relation in current source before relying on it.
+Missing prerequisites retain native fallback without installation or project
+switching. For C/C++, verify the target repository/build's compilation database,
+flags and generated headers using the linked command reference; a sibling
+database or transformed cache is not evidence of those inputs.
