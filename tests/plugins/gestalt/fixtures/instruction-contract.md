@@ -2,6 +2,41 @@
 
 ## Tool harmony routing
 
+L3.1 adds identity-bound artifact reuse to the existing conditional bounded
+retrieval reference. One-shot file analysis and scoped indexed follow-ups retain
+path/source, repository/candidate content, original observation, exit and
+completeness. Changed tracked/untracked/configuration bytes invalidate current
+claims; missing corpus/source can re-index only an authorized available original.
+Explicit expiry/missing originals remain incomplete; age alone does not refresh
+or invalidate unchanged local evidence. Two static preservation decisions and
+13 executable temporary-file/scoped-index scenarios cover these outcomes,
+including actual changed bytes, retained failure findings and negative controls.
+These are contract fixtures, not live provider caching, model adherence or
+measured efficiency. No vendored implementation changes.
+
+L3.2 separates observed command status, executed coverage, capture completeness
+and display/continuation coverage. Zero/all-skipped tests remain unsupported;
+known command failures stay failed even when diagnostic coverage is incomplete.
+The existing evidence oracle now exercises 25 decisions, including 10 new cases
+for optimistic summaries, empty/skipped/unknown coverage, consumed/missing or
+unconsumed continuation and an oversized Unicode failure cause. Bounded pages
+reconstruct that complete cause independently; reading one page or losing a page
+leaves coverage incomplete. Two static preservation cases bind these outcomes
+to the existing evidence and conditional retrieval contracts. Budgets stay
+unchanged; these fixtures do not establish runtime or model behavior.
+
+L3.3 adds path/hash-manifest handoffs to the same evidence contract and the
+conditional retrieval reference. Fresh receivers reauthorize canonical manifest,
+artifact and continuation paths before reading, verify current candidate and
+original observations, and import into their own source scope. Report/source IDs
+and sender access claims confer no workspace/session authority. Seventeen
+temporary-file decisions exercise valid cross-context reuse, independently read
+failures/contradictions, wrong workspace/private session, ID-only references,
+changed hashes/candidate/attempt, missing/inaccessible/partial artifacts,
+symlink escapes and continuation/page denial. Two static preservation decisions
+bind the guidance; test-only authorization is explicit, with no runtime, vendor,
+service, memory system or permission changes.
+
 Context-mode's Tool selection section now routes broad or repeated discovery
 through fresh covered lexical XERJ within one repository or across repositories.
 The conditional XERJ catalog/skill and Serena handoff use the same scope. Precise
