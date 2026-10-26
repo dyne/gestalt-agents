@@ -8,6 +8,8 @@ import { spawnSync } from "node:child_process";
 import { runCorpusPass } from "./model-payloads.js";
 import { boundResponse, readResponsePage, responseBudgetSchema, MAX_RESPONSE_BUDGET } from "../src/response-budget.js";
 import { deduplicateQueryWindows } from "../src/search/query-windows.js";
+import { runComposedHarmony } from "../tests/evidence/composed-harmony.js";
+import { runControlledEvidenceComparison } from "./controlled-evidence.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repository = resolve(here, "../../..");
@@ -163,6 +165,8 @@ export function collectOverhead() {
     duplicateWindows: Math.max(0, windows.windows.length - 1),
     missingQueryAttributions: queries.length - new Set(windows.windows.flatMap(window => window.matchedQueries)).size,
     ...assessWakeTrace(trace), overflowRecoveryFailures, explicitExpansionFailures,
+    composedHarmony: runComposedHarmony(),
+    controlledEvidence: runControlledEvidenceComparison(),
     scope: "L2 execute/execute_file/batch/search envelopes; other evidence envelopes separately disclosed. Local bootstrap and production dedup/overflow helpers; wake policy is an invented trace fixture. Host inputs/live quota unmeasured." };
 }
 

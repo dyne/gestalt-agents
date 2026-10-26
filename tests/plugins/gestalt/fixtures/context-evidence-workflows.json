@@ -97,5 +97,55 @@
     "baselineFetches": 3,
     "baselineIndexes": 3,
     "expectedFailureIds": ["synthetic.checkout.rejects-empty-cart", "synthetic.payment.retries-timeout"]
+  },
+  "composedHarmony": {
+    "version": 1,
+    "limitation": "Deterministic synthetic providers plus executable context-mode evidence ingestion; does not prove real-model adherence or live readiness.",
+    "mobile": {
+      "repository": "dyne/gestalt-mobile",
+      "commit": "ea8ad34ac93930d39fb8230cb262625fe48b47eb",
+      "contracts": {
+        "src/shared/contracts/retrieval-readiness.ts": "4beffee0f7fe331d1466c47a00908973efa839e94c1b8c6df21110b5fd59dad5",
+        "src/shared/contracts/mcp-startup-failure.ts": "d8aae035a47c8c8c724953136e56f58fee2bd3de2e67b8b5df7a874410874e68",
+        "src/shared/contracts/tool-efficiency.ts": "06c60021e3d10d719205abd04bffa7ddfd29d9ed63a220d92beb96103f546dd2"
+      }
+    },
+    "cases": [
+      {
+        "id": "happy-aliases"
+      },
+      {
+        "id": "precise-native",
+        "intent": "precise"
+      },
+      {
+        "id": "stale-index",
+        "catalog": "stale"
+      },
+      {
+        "id": "empty-index",
+        "catalog": "empty"
+      },
+      {
+        "id": "oversized-overview",
+        "overview": "too-long"
+      },
+      {
+        "id": "unsupported-language",
+        "language": "unsupported"
+      },
+      {
+        "id": "optional-tool-unavailable",
+        "connected": false
+      },
+      {
+        "id": "required-context-mode-failed",
+        "contextMode": false
+      },
+      {
+        "id": "stale-evidence-after-edit",
+        "editAfterEvidence": true
+      }
+    ]
   }
 }

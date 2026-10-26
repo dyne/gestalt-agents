@@ -4,6 +4,8 @@ Use this reference when selecting response budgets, continuation pages or wider
 source windows. Resolve the actual host schema first; installed sessions may
 expose older fields than the shipped package. Do not invent equivalent arguments.
 These fields control evidence display, never permissions or mutation authority.
+For the cross-tool routing table, readiness interpretation and operational
+diagnostics, see [coordinated tools](coordinated-tools.md).
 
 ## Fields and continuation
 
