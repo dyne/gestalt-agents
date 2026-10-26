@@ -1,6 +1,6 @@
 ---
 name: xerj
-description: Discover related implementations, prior art, and engineering knowledge across indexed repositories with xerj. Use only with working xerj tools. Treat results as reference material, identify their source repository, and verify current code before applying findings locally.
+description: Prefer XERJ for broad or repeated source discovery within one repository or across repositories with fresh index coverage and working tools. Retain repository and path provenance, verify current source, and keep precise known-file lookup native.
 ---
 
 # xerj global engineering knowledge
@@ -10,7 +10,12 @@ conditional capability, not an optional Org Plan milestone dependency. Read
 [the command reference](references/commands.md) when using the managed CLI or
 choosing retrieval arguments.
 
-- Search across indexed repositories for related implementations and prior art.
+- Prefer lexical XERJ over broad or repeated grep/rg/ag discovery when fresh
+  indexes cover the requested single-repository or multi-repository scope.
+  Keep precise known-file lookup native. This is intent-based routing, with no
+  tool-call quota or blanket grep ban. For broad native fallback, briefly record
+  a relevant coverage/readiness limitation, not boilerplate for every command.
+  Search across indexed repositories for related implementations and prior art.
   Do not assume retrieved code belongs to the current repository. Treat it as
   reference material unless the task explicitly concerns its source repository.
   Identify that repository from catalog root metadata, index provenance, and

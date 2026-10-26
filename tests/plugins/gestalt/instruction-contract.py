@@ -26,6 +26,8 @@ SOURCES = {
     "format": ORG / "references/plan-format.md",
     "policy": ORG / "references/model-policy-workflow.md",
     "selection": ORG / "references/model-selection.md",
+    "xerj": ROOT / "plugins/gestalt/skills/xerj/SKILL.md",
+    "serena": ROOT / "plugins/gestalt/skills/serena/SKILL.md",
 }
 
 
@@ -142,6 +144,16 @@ def main():
         pass
     else:
         raise AssertionError("scenario contract accepted inherited Astra")
+    for replacement in ("Use a tool-call quota and blanket grep ban", "Always use native grep"):
+        damaged = dict(documents)
+        damaged["routing"] = re.sub(r"For broad or repeated source discovery.*?every command\.",
+                                      replacement, documents["routing"], flags=re.S)
+        try:
+            check_scenarios(damaged)
+        except AssertionError:
+            pass
+        else:
+            raise AssertionError("scenario contract accepted routing regression")
     if "--profiles" in sys.argv:
         check_profiles(Path(sys.argv[sys.argv.index("--profiles") + 1]))
     else:

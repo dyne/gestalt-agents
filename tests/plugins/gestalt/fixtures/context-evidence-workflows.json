@@ -8,6 +8,69 @@
     {"id": "setup-failure", "exitCode": 2, "tail": ["SETUP_FAILURE synthetic.fixture.unavailable", "Tests did not start"], "expectedFailures": ["synthetic.fixture.unavailable"], "complete": true},
     {"id": "unknown", "exitCode": 3, "tail": ["opaque-result: synthetic-unrecognized-record"], "expectedFailures": [], "complete": false}
   ],
+  "schemaDiscovery": {
+    "version": 1,
+    "limitation": "Test-only discovery actor and synthetic schemas; no runtime catalog or provider calls.",
+    "cases": [
+      {"id":"initial-selective-discovery","actions":["initial"],"expectedMetadata":1,"expectedSchemas":1,"expectedNativeReads":1},
+      {"id":"same-generation-reuse","actions":["initial","reuse","reuse"],"expectedMetadata":1,"expectedSchemas":1,"expectedNativeReads":1},
+      {"id":"tool-set-change","actions":["initial","tool-set"],"expectedMetadata":2,"expectedSchemas":2,"expectedNativeReads":1,"expectedFields":["symbol","repository"]},
+      {"id":"reconnect","actions":["initial","reconnect"],"expectedMetadata":2,"expectedSchemas":2,"expectedNativeReads":1},
+      {"id":"missing-schema-fallback","actions":["missing"],"expectedMetadata":1,"expectedSchemas":1,"expectedNativeReads":1,"expectedFallback":true},
+      {"id":"unavailable-tool-invalidates","actions":["initial","unavailable"],"expectedMetadata":2,"expectedSchemas":2,"expectedNativeReads":1,"expectedFallback":true},
+      {"id":"fresh-child-independent","actions":["initial","child"],"expectedMetadata":2,"expectedSchemas":2,"expectedNativeReads":2},
+      {"id":"description-matching","actions":["description"],"expectedMetadata":1,"expectedSchemas":1,"expectedNativeReads":1},
+      {"id":"missing-name-no-invented-alias","actions":["no-match"],"expectedMetadata":1,"expectedSchemas":0,"expectedNativeReads":1,"expectedFallback":true}
+    ]
+  },
+  "semanticRouting": {
+    "version": 1,
+    "limitation": "Synthetic semantic provider and compilation database; not a live Serena readiness claim.",
+    "cases": [
+      {"id":"supported-python","expectedReady":true},
+      {"id":"ready-without-write-authority","writeAuthorized":false,"expectedReady":true},
+      {"id":"oversized-narrow","overview":"too-long","expectedRecovery":"narrow","expectedReady":true},
+      {"id":"oversized-budget","overview":"too-long","recovery":"budget","budgetReason":"Need all public entry points for this interface review","expectedRecovery":"budget","expectedReady":true},
+      {"id":"overview-broken-references","references":false,"expectedReady":false,"expectedReason":"references"},
+      {"id":"provider-reference-missing-in-current-source","callerAbsent":true,"expectedReady":false,"expectedReason":"references"},
+      {"id":"supported-cpp","language":"cpp","expectedReady":true},
+      {"id":"missing-compilation-inputs","language":"cpp","compilation":"missing","expectedReady":false,"expectedReason":"compilation"},
+      {"id":"wrong-build-database","language":"cpp","compilation":"wrong-build","expectedReady":false,"expectedReason":"compilation"},
+      {"id":"sibling-database","language":"cpp","wrongCompilationFile":true,"expectedReady":false,"expectedReason":"compilation"},
+      {"id":"missing-generated-header","language":"cpp","missingGeneratedHeader":true,"expectedReady":false,"expectedReason":"compilation"},
+      {"id":"wrong-fork","effectiveRepository":"fork","expectedReady":false,"expectedReason":"repository"},
+      {"id":"unsupported-language","language":"unsupported","expectedReady":false,"expectedReason":"language"},
+      {"id":"native-after-unavailable","connected":false,"expectedReady":false,"expectedReason":"connection"},
+      {"id":"unchanged-failure-cached","references":false,"attempts":3,"expectedProbes":1,"expectedReady":false,"expectedReason":"references"},
+      {"id":"unchanged-warmup-failure-cached","references":false,"attempts":3,"warmupUseful":true,"cacheWritable":true,"expectedWarmups":1,"expectedProbes":1,"expectedReady":false,"expectedReason":"references"},
+      {"id":"changed-source-reprobes","references":false,"attempts":2,"change":"source","expectedProbes":2,"expectedReady":false,"expectedReason":"references"},
+      {"id":"changed-config-reprobes","references":false,"attempts":2,"change":"config","expectedProbes":2,"expectedReady":false,"expectedReason":"references"},
+      {"id":"changed-runtime-reprobes","references":false,"attempts":2,"change":"runtime","expectedProbes":2,"expectedReady":false,"expectedReason":"references"},
+      {"id":"authorized-useful-warmup","references":false,"warmupUseful":true,"cacheWritable":true,"warmupRestoresReferences":true,"expectedWarmups":1,"expectedReady":true},
+      {"id":"warmup-denied-native","references":false,"warmupUseful":true,"cacheWritable":false,"expectedWarmups":0,"expectedReady":false,"expectedReason":"references"}
+    ]
+  },
+  "sourceRouting": {
+    "version": 1,
+    "limitation": "Deterministic contract replay, not actual provider calls or real-model adherence.",
+    "files": {"alpha/src/cart.py": "def checkout(): return 'current'\n", "fork/src/cart.py": "def checkout(): return 'current'\n", "beta/src/pay.py": "def payment(): return 'paid'\n"},
+    "cases": [
+      {"id":"broad-single-rg","intent":"broad","alternative":"rg","repositories":["alpha"],"query":"checkout","expected":"xerj"},
+      {"id":"broad-single-grep","intent":"broad","alternative":"grep","repositories":["alpha"],"query":"checkout","expected":"xerj"},
+      {"id":"broad-multi-ag","intent":"broad","alternative":"ag","repositories":["alpha","beta"],"query":"def","expected":"xerj"},
+      {"id":"repeated-broad","intent":"broad","repositories":["alpha"],"query":"checkout","repeat":3,"expected":"xerj"},
+      {"id":"known-file","intent":"precise","repositories":["alpha"],"query":"checkout","expected":"native"},
+      {"id":"empty-catalog","intent":"broad","repositories":["alpha"],"catalog":"empty","query":"checkout","expected":"native","reason":"empty"},
+      {"id":"unindexed","intent":"broad","repositories":["alpha"],"catalog":"unindexed","query":"checkout","expected":"native","reason":"unindexed"},
+      {"id":"partial-coverage","intent":"broad","repositories":["alpha","beta"],"catalog":"partial","query":"def","expected":"native","reason":"partial"},
+      {"id":"stale-index","intent":"broad","repositories":["alpha"],"catalog":"stale","query":"checkout","expected":"native","reason":"stale"},
+      {"id":"unknown-freshness","intent":"broad","repositories":["alpha"],"catalog":"unknown","query":"checkout","expected":"native","reason":"unknown"},
+      {"id":"unavailable-service","intent":"broad","repositories":["alpha"],"catalog":"unavailable","query":"checkout","expected":"native","reason":"unavailable"},
+      {"id":"no-match","intent":"broad","repositories":["alpha"],"query":"missing","expected":"xerj","confirmNoMatch":true},
+      {"id":"shared-fork-aliases","intent":"broad","repositories":["alpha","fork"],"query":"checkout","expected":"xerj","expectedAliases":["alpha/src/cart.py","fork/src/cart.py"]},
+      {"id":"authoritative-dirty-source","intent":"broad","repositories":["alpha"],"query":"checkout","expected":"xerj","editAfterRetrieval":true}
+    ]
+  },
   "repeatedQuery": {
     "source": {"host": "github.example.invalid", "repository": "synthetic/project", "run": 101, "attempt": 1, "sha": "1111111111111111111111111111111111111111", "terminal": true},
     "case": "failing",
