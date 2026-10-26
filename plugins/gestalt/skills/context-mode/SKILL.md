@@ -96,8 +96,10 @@ receiving session. A report ID alone grants no cross-session access.
 ## Files and browser output
 
 For one large-file question use `ctx_execute_file`; for repeated questions,
-index its path once and query with `ctx_search`. Native pre-edit reads still
-apply.
+index its path once and query with scoped `ctx_search`. Reuse only identity-bound
+artifacts; [bounded retrieval](references/bounded-retrieval.md#artifact-reuse)
+defines provenance, invalidation and missing-source recovery. Native pre-edit
+reads still apply.
 
 An empty `rg` result does not establish absence: confirm the search root, ignored
 paths and symlink targets. For a huge single-line JSON artifact, parse it into

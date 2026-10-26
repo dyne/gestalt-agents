@@ -324,6 +324,140 @@ def discovery_scenarios():
     print(f"schema discovery: {len(ids)} scenarios passed; 0 failed/0 skipped; synthetic catalog only")
 
 
+class ArtifactActor:
+    """Test-only retained source, with actual bytes and candidate fingerprints.
+
+    This models contract decisions, not an implementation of context-mode.
+    """
+
+    def __init__(self, root):
+        self.root = root
+        self.repository = "fixture/alpha"
+        self.head = "a" * 40
+        self.known = True
+        self.candidate = root / "candidate"
+        self.candidate.mkdir()
+        (self.candidate / "tracked.py").write_text("def checkout(): return 1\n")
+        (self.candidate / "config.json").write_text('{"variant":"debug"}\n')
+        self.path = root / "run.log"
+        self.path.write_text("setup\n" * 5000 + "FAIL checkout: empty cart\nFAIL payment: timeout\n")
+        self.indexes = 0
+        self.sources = {}
+        self.corpus = True
+        self.expired = False
+        self.now = "2026-10-18T10:00:00Z"
+        self.capture = {"observedAt": "2026-10-18T10:00:00Z", "command": "fixture-check",
+                        "exit": 1, "completeness": "complete"}
+        self.retained = self.identity()
+
+    def candidate_identity(self):
+        if not self.known:
+            return None
+        # Includes tracked, config and untracked bytes: matching HEAD is weaker.
+        return {"repository": self.repository, "head": self.head,
+                "content": [(str(p.relative_to(self.candidate)), digest(p.read_text()))
+                            for p in sorted(self.candidate.rglob("*")) if p.is_file()]}
+
+    def identity(self):
+        return {"path": str(self.path), "sha256": digest(self.path.read_text()),
+                "candidate": self.candidate_identity(), **self.capture}
+
+    def index(self):
+        self.indexes += 1
+        self.corpus = True
+        self.source = f"source-{self.indexes}"
+        self.sources[self.source] = self.path.read_text()
+
+    def query(self, question, repeated):
+        if self.expired or not self.path.is_file() or not self.known:
+            return {"action": "needs-evidence", "findings": [], "reference": self.retained}
+        current = self.identity()
+        if current["candidate"] != self.retained["candidate"]:
+            return {"action": "stale", "findings": [], "reference": self.retained}
+        action = "scoped-search" if repeated else "execute_file"
+        if current["sha256"] != self.retained["sha256"]:
+            action = "current-read"
+            self.retained = current
+            self.sources.clear()
+        if repeated:
+            if not self.corpus or getattr(self, "source", None) not in self.sources:
+                if action != "current-read":
+                    action = "reindex" if self.indexes else "scoped-search"
+                self.index()
+            data = self.sources[self.source]
+        else:
+            data = self.path.read_text()
+        findings = [line for line in data.splitlines() if question in line]
+        reference = dict(self.retained, source=getattr(self, "source", None))
+        return {"action": action, "findings": findings, "reference": reference}
+
+
+def validate_artifact(case, actor, result):
+    assert result["action"] == case["expectedAction"], case["id"]
+    assert actor.indexes == case["expectedIndexes"], case["id"]
+    reference = result["reference"]
+    assert all(reference[k] == v for k, v in actor.capture.items())
+    if result["action"] in ("stale", "needs-evidence"):
+        assert not result["findings"], "invalidated artifact supplied current findings"
+        if result["action"] == "stale":
+            assert reference["candidate"] != actor.candidate_identity()
+    else:
+        assert reference["candidate"] == actor.candidate_identity()
+        assert reference["sha256"] == digest(actor.path.read_text())
+        # Independent current file inspection checks the scoped synthetic index.
+        assert result["findings"] == [line for line in actor.path.read_text().splitlines()
+                                      if "payment" in line]
+        assert result["findings"]
+        if actor.indexes:
+            assert reference["source"] in actor.sources
+
+
+def artifact_scenarios():
+    fixture = json.loads((FIXTURES / "context-evidence-workflows.json").read_text())["artifactReuse"]
+    assert fixture["version"] == 1
+    ids = set()
+    for case in fixture["cases"]:
+        assert case["id"] not in ids
+        ids.add(case["id"])
+        with tempfile.TemporaryDirectory(prefix="artifact-contract-") as directory:
+            actor = ArtifactActor(Path(directory))
+            for n in range(case["questions"]):
+                if n == 1:
+                    change = case.get("change")
+                    if change == "artifact":
+                        actor.path.write_text(actor.path.read_text().replace("payment: timeout", "payment: declined"))
+                    elif change in ("tracked", "untracked", "config"):
+                        name = {"tracked": "tracked.py", "untracked": "new.py", "config": "config.json"}[change]
+                        (actor.candidate / name).write_text("changed\n")
+                    elif change == "repository":
+                        actor.repository = "fixture/fork"
+                    elif change == "unknown":
+                        actor.known = False
+                    elif change == "corpus":
+                        actor.corpus = False
+                    elif change == "source":
+                        actor.sources.clear()
+                    elif change == "expiry":
+                        actor.expired = True
+                    elif change == "missing":
+                        actor.path.unlink()
+                    elif change == "age":
+                        actor.now = "2026-10-26T10:00:00Z"
+                        # Age changes neither identity nor explicit retention.
+                result = actor.query("payment", repeated=case["questions"] > 1)
+            validate_artifact(case, actor, result)
+            if case.get("change") == "age":
+                assert result["reference"]["observedAt"] != actor.now
+            broken = dict(result, action="scoped-search" if result["action"] != "scoped-search" else "stale")
+            try:
+                validate_artifact(case, actor, broken)
+            except AssertionError:
+                pass
+            else:
+                raise AssertionError("artifact invalidation regression accepted")
+    print(f"artifact reuse: {len(ids)} scenarios passed; 0 failed/0 skipped; synthetic index only")
+
+
 def main():
     fixture = json.loads((FIXTURES / "context-evidence-workflows.json").read_text())["sourceRouting"]
     assert fixture["version"] == 1
@@ -363,6 +497,7 @@ def main():
     print(f"source routing: {len(ids)} scenarios passed; 0 failed/0 skipped; synthetic providers only")
     semantic_scenarios()
     discovery_scenarios()
+    artifact_scenarios()
 
 
 if __name__ == "__main__":

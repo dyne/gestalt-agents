@@ -71,6 +71,25 @@
       {"id":"authoritative-dirty-source","intent":"broad","repositories":["alpha"],"query":"checkout","expected":"xerj","editAfterRetrieval":true}
     ]
   },
+  "artifactReuse": {
+    "version": 1,
+    "limitation": "Temporary files and a synthetic scoped index; not live provider caching or model adherence.",
+    "cases": [
+      {"id":"one-shot","questions":1,"expectedAction":"execute_file","expectedIndexes":0},
+      {"id":"same-artifact-followup","questions":3,"expectedAction":"scoped-search","expectedIndexes":1},
+      {"id":"old-unchanged-local","questions":2,"change":"age","expectedAction":"scoped-search","expectedIndexes":1},
+      {"id":"changed-file-hash","questions":2,"change":"artifact","expectedAction":"current-read","expectedIndexes":2},
+      {"id":"dirty-tracked-evidence","questions":2,"change":"tracked","expectedAction":"stale","expectedIndexes":1},
+      {"id":"dirty-untracked-evidence","questions":2,"change":"untracked","expectedAction":"stale","expectedIndexes":1},
+      {"id":"changed-test-config","questions":2,"change":"config","expectedAction":"stale","expectedIndexes":1},
+      {"id":"wrong-repository","questions":2,"change":"repository","expectedAction":"stale","expectedIndexes":1},
+      {"id":"unknown-candidate","questions":2,"change":"unknown","expectedAction":"needs-evidence","expectedIndexes":1},
+      {"id":"missing-corpus","questions":2,"change":"corpus","expectedAction":"reindex","expectedIndexes":2},
+      {"id":"missing-source","questions":2,"change":"source","expectedAction":"reindex","expectedIndexes":2},
+      {"id":"expired-artifact","questions":2,"change":"expiry","expectedAction":"needs-evidence","expectedIndexes":1},
+      {"id":"missing-original","questions":2,"change":"missing","expectedAction":"needs-evidence","expectedIndexes":1}
+    ]
+  },
   "repeatedQuery": {
     "source": {"host": "github.example.invalid", "repository": "synthetic/project", "run": 101, "attempt": 1, "sha": "1111111111111111111111111111111111111111", "terminal": true},
     "case": "failing",

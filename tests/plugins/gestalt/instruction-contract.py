@@ -154,6 +154,16 @@ def main():
             pass
         else:
             raise AssertionError("scenario contract accepted routing regression")
+    damaged = dict(documents)
+    damaged["retrieval"] = documents["retrieval"].replace(
+        "Changed bytes or candidate inputs invalidate current claims",
+        "Changed bytes or candidate inputs preserve current claims")
+    try:
+        check_scenarios(damaged)
+    except AssertionError:
+        pass
+    else:
+        raise AssertionError("scenario contract accepted stale artifact reuse")
     if "--profiles" in sys.argv:
         check_profiles(Path(sys.argv[sys.argv.index("--profiles") + 1]))
     else:

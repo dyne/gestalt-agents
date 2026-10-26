@@ -52,6 +52,52 @@ report is incomplete evidence, never a passing check. A search covers retrieved
 chunks, not the entire log. Reconstruct all failure pages when claiming complete
 failure coverage; do not dump those pages into a routine report.
 
+Report command exit, executed/failed/skipped counts, provenance and completeness
+separately from summary prose. A successful analysis tool or optimistic summary
+cannot turn a failed underlying command into a pass. Display truncation can
+coexist with complete capture; it supports a decision only after the relevant
+authorized continuation is consumed and verified. Missing, expired or unconsumed
+continuation leaves failure coverage incomplete. Known failures remain failed;
+zero executed/all-skipped tests and unknown coverage cannot establish a passing
+test claim. An oversized individual cause may span bounded pages: reconstruct
+it behind the reference instead of dropping or clipping its identifier/context.
+
 Count encoded UTF-8 bytes, including JSON escaping and metadata, rather than
 characters. Complete overflow preserves omitted evidence; a clipped display or
 smaller byte count does not prove complete capture or diagnostic certainty.
+
+## Artifact reuse
+
+Use `ctx_execute_file` for one-shot analysis; index an authorized saved path once
+for repeated questions and scope searches to its source ID. Never roundtrip raw
+tool output through inline content. Retain path/source ID, repository identity,
+revision or content digest, original capture time, exact command/exit and
+completeness with the findings. Unknown exit or coverage stays unknown.
+
+Before reuse, resolve the source and compare current identity, including dirty
+tracked and untracked content and relevant dependency/configuration/environment
+identities for test evidence. HEAD alone cannot identify a dirty candidate.
+Changed bytes or candidate inputs invalidate current claims: read/re-analyze
+the current authorized source, or label the retained result historical/stale.
+An unchanged digest does not refresh an old remote observation or prove that a
+check applies to a different candidate. A fixed age alone proves neither validity
+nor staleness; explicit expiry/retention does limit availability.
+
+Missing/expired corpus, source or report references are incomplete evidence.
+Re-index the authorized original path when available, then verify its digest and
+capture metadata; otherwise report the gap and obtain current evidence. Never
+invent a source ID or reuse an unrelated corpus after a missing-source result.
+
+## Fresh receivers
+
+Hand off bounded findings and an accessible path/hash manifest, not raw logs or
+private session bindings. With exposed reference support, use `ctx_test_evidence`
+`operation: "reference"`, `manifest: {path, sha256}`; otherwise re-index an
+authorized original path locally. A report/source ID or sender's access claim
+never authorizes another workspace/session. Reauthorize canonical manifest,
+artifact and continuation paths, including symlink targets, before reading them.
+Verify hashes, candidate/revision, original observation, command exit/counts and
+completeness independently; imported metadata alone is not proof. Missing,
+denied, expired or changed evidence remains visibly unsupported/stale or
+contradictory. Retrieve the smallest authorized missing section or rerun the
+required check on the current candidate; do not forward raw logs to bypass denial.
