@@ -64,6 +64,17 @@ Every L1 body contains:
 - Notes ::
 ```
 
+An L1 may additionally declare exactly `- Managed MCP :: playwright`, once.
+Only `playwright` is supported; empty, unknown, duplicate or L2 declarations
+are invalid. Omission preserves existing behavior. The helper exposes optional
+`managedMcp: ["playwright"]` in L1 descriptions and the active WIP projection;
+native `plan` entries remain unchanged. This is a requirement, not profile
+consent, connection readiness or permission to install. Only a compatible host
+may activate it; unsupported consumers must report unavailable rather than
+success. The Agents capability marker `managed-mcp-requirement-v1` advertises
+parsing/projection support only, never runtime attachment. See
+[browser lifecycle](../../playwright/references/lifecycle.md).
+
 Partition L1s into cohesive reviewable use cases sized for one fresh executor.
 Include starting context, dependencies on prior L1s, expected prior outputs,
 allowed scope, invariants, required tests, and acceptance criteria.

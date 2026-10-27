@@ -31,6 +31,7 @@ expected_skills = {
     "writing-skills",
     "xerj",
     "serena",
+    "playwright",
 }
 
 assert not (root / "skills" / "org-plan").exists(), "root skill copy must not exist"
@@ -51,6 +52,7 @@ assert supervision_manifest == {
         "supervision-start", "wait-lease-tool", "checkpoint-tool", "l2-report-boundary",
         "agent-capacity-recovery",
         "canonical-agent-identity", "org-plan-contract", "l1-model-policy-v1",
+        "managed-mcp-requirement-v1",
     ],
     "modelPolicyContract": {
         "version": 1,

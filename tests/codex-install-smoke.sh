@@ -75,7 +75,7 @@ PY
 
 CODEX_HOME="$codex_home" node "$root/scripts/verify-gestalt-skill-catalog.mjs" "$root" \
   >"$codex_home/skills-catalog.out"
-if ! grep -F 'verified 17 enabled fixed Gestalt skills and 2 conditional skills in skills/list' "$codex_home/skills-catalog.out" >/dev/null; then
+if ! grep -F 'verified 17 enabled fixed Gestalt skills and 3 conditional skills in skills/list' "$codex_home/skills-catalog.out" >/dev/null; then
   printf 'Unexpected installed Gestalt skill catalog:\n' >&2
   cat "$codex_home/skills-catalog.out" >&2
   exit 1
