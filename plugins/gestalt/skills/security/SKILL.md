@@ -2,7 +2,7 @@
 name: security
 metadata:
   adaptation_version: "1.0.0"
-description: Review application security, implement secure defaults or requested security fixes, and analyze sensitive-code ownership and bus-factor risks from Git history. Use when the user requests security guidance, hardening, a vulnerability report, security maintainers, orphaned sensitive code, or a security ownership map. Includes Python, JavaScript/TypeScript, and Go guidance plus language-independent ownership tooling. Do not initiate a security audit for ordinary coding, debugging, or general maintainer questions.
+description: Handle requested security reviews, secure defaults, hardening, vulnerability reports, and sensitive-code ownership or bus-factor analysis. Includes Python, JS/TS, and Go guidance plus language-independent Git ownership tools. Use for security maintainers, orphaned sensitive code, and ownership maps; do not initiate audits for ordinary coding, debugging, or general maintainer questions.
 ---
 
 # Gestalt Security

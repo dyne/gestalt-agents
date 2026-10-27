@@ -2,7 +2,7 @@
 name: coding
 metadata:
   adaptation_version: "1.0.0"
-description: Write, change, review, or refactor application code and design software architecture. Use for feature implementation, APIs, backend services, domain modeling, DDD, bounded contexts, aggregates, Clean or Hexagonal Architecture, vertical slices, use cases, repositories, CQRS, events, and monolith decomposition. Start with the existing conventions and the requested behavior; use deeper architecture guidance only when relevant. Shell-only automation belongs to scripting.
+description: Write, review, or refactor application code and architecture. Use for features, APIs, DDD, bounded contexts, aggregates, Clean/Hexagonal Architecture, vertical slices, ports/adapters, repositories, CQRS, events, and monolith decomposition. Follow existing conventions; apply deeper patterns only when needed. Shell-only work belongs to scripting.
 ---
 
 # Gestalt Coding

@@ -2,7 +2,7 @@
 name: scripting
 metadata:
   adaptation_version: "1.0.0"
-description: Write, review, debug, or refactor Bash and POSIX shell scripts, shell commands, CI/CD shell steps, and Linux/macOS automation. Use for quoting, pipelines, argument parsing, exit codes, traps, temporary files, process management, portable commands, and reliable or idempotent scripting. Apply to shell work without requiring a separate Bash skill; do not load for unrelated work merely because it runs on Linux.
+description: Write, review, debug, or refactor Bash/POSIX shell scripts, commands, CI/CD shell steps, and Linux/macOS automation. Covers quoting, pipelines, options, exit codes, traps, temporary files, processes, portability, and idempotency. Use for shell work, not unrelated tasks merely running on Linux.
 ---
 
 # Gestalt Scripting
