@@ -82,7 +82,8 @@ def check_profiles(directory):
         assert "Follow the org-plan skill and supervised-execution reference" in text
         assert "First tool call: read the org-plan skill completely and do nothing else" in text
         assert "Then read its supervised-execution reference and governing AGENTS.md before inspecting the plan or repository" in text
-        assert "never list or explicitly load them as optional L1 skills" in text
+        assert "Gestalt skills may be declared in L1 Skills or loaded on demand when relevant" in text
+        assert "Conditional capabilities require runtime readiness" in text
         assert "direct state edits are forbidden" in text
         assert "inspect git diff --cached --name-only" in text and ".gestalt/*.org" in text
         assert "Context-mode never mutates Org state" in text
@@ -98,7 +99,8 @@ def check_profiles(directory):
         else:
             assert "sandbox_mode" not in profile
             for rule in ("only code writer", "Own the entire assigned L1", "report only to the root",
-                         "load exactly the optional L1 Skills", "stop without edits",
+                         "load the declared L1 Skills", "stop without edits",
+                         "Additional relevant skills may be loaded without a plan revision",
                          "At each DONE L2", "remain assigned", "Keep changes uncommitted through L1 review",
                          "On REJECT, correct the same diff", "After ACCEPT"):
                 assert rule in text, rule
@@ -106,6 +108,8 @@ def check_profiles(directory):
 
 def main():
     documents = {key: path.read_text() for key, path in SOURCES.items()}
+    assert "Plans may declare `$gestalt:context-mode` when relevant" in documents["routing"]
+    assert "Org Plans may declare `$gestalt:xerj` when relevant" in documents["xerj"]
     count = check_scenarios(documents)
     check_links()
     # Required references fail closed; a plausible link label is insufficient.
