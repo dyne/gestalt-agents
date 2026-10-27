@@ -88,6 +88,21 @@ in the [attention protocol](plugins/gestalt/skills/org-plan/references/attention
 
 ## 🎮 Quick setup
 
+Gestalt includes three consolidated engineering skills by default:
+
+- [`gestalt:coding`](plugins/gestalt/skills/coding/SKILL.md) handles code changes,
+  features, domain modeling, and architecture with proportional complexity.
+- [`gestalt:scripting`](plugins/gestalt/skills/scripting/SKILL.md) handles Bash,
+  POSIX shell, command pipelines, and reliable automation.
+- [`gestalt:security`](plugins/gestalt/skills/security/SKILL.md) handles requested
+  security reviews, secure implementation, fixes, and sensitive-code ownership.
+
+They support automatic selection from task wording and explicit invocation.
+Each is self-contained; no separate source skill is needed. The optional extras
+installer no longer selects their eight predecessors. Existing user-installed
+copies are not removed automatically. See [source and adaptation records](plugins/gestalt/UPSTREAM.md)
+for coverage, licensing, and preserved tooling.
+
 ### Requirements
 
 Gestalt setup requires Node.js 22.5 or newer and npm. It uses Bun for dependency

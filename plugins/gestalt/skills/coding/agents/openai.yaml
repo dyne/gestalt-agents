@@ -1,0 +1,6 @@
+interface:
+  display_name: "Gestalt Coding"
+  short_description: "Implement features and shape coherent architecture"
+  default_prompt: "Use $gestalt:coding to implement this feature using the project's conventions and appropriate boundaries."
+policy:
+  allow_implicit_invocation: true

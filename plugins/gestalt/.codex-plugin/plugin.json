@@ -1,7 +1,7 @@
 {
   "name": "gestalt",
   "version": "2.21.0",
-  "description": "Dyne.org Gestalt planning, debugging, testing, verification, and skill-authoring workflows",
+  "description": "Dyne.org Gestalt coding, architecture, security, scripting, planning, debugging, testing, and verification workflows",
   "author": {
     "name": "Dyne.org",
     "url": "https://dyne.org/gestalt"
@@ -13,14 +13,18 @@
     "planning",
     "testing",
     "debugging",
-    "verification"
+    "verification",
+    "coding",
+    "architecture",
+    "security",
+    "scripting"
   ],
   "skills": "./skills/",
   "mcpServers": "./.mcp.json",
   "interface": {
     "displayName": "org-plan",
     "shortDescription": "Plan, implement, debug, test, and verify software changes",
-    "longDescription": "Gestalt provides structured Codex workflows for software planning, implementation, debugging, testing, verification, and skill authoring. Org Plan documents remain inspectable execution plans that separate intent, implementation, and review. The methodology was developed by Denis \"Jaromil\" Roio at Dyne.org, drawing on long-term experience in free and open source software engineering.",
+    "longDescription": "Gestalt provides structured Codex workflows and default skills for coding and architecture, security, shell scripting, software planning, debugging, testing, verification, and skill authoring. Org Plan documents remain inspectable execution plans that separate intent, implementation, and review. The methodology was developed by Denis \"Jaromil\" Roio at Dyne.org, drawing on long-term experience in free and open source software engineering.",
     "developerName": "Dyne.org, led by Denis \"Jaromil\" Roio",
     "category": "Developer Tools",
     "capabilities": [

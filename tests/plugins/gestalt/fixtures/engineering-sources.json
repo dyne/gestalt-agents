@@ -1,0 +1,218 @@
+{
+  "snapshot": "user-supplied skills-used, 2026-10-26",
+  "upstream_commit": "unverified: no source Git/lock metadata supplied",
+  "skills": {
+    "bash-defensive-patterns": {
+      "files": {
+        "SKILL.md": {
+          "sha256": "741b42d1fa3167f2131a17f3e0fe891e93be4fc87aa3c19e1de5fd26d763f711",
+          "mode": "0600"
+        },
+        "references/details.md": {
+          "sha256": "3ce9ec046f260da3b349f3df1b7b3a0474adb7bf9e10175a0ea4aea7bb3bd877",
+          "mode": "0600"
+        }
+      }
+    },
+    "bash-linux": {
+      "files": {
+        "SKILL.md": {
+          "sha256": "7d084923b3c6a5c00fb47a3b7f83595b723dfe4cd5690c7eb881b49889c2b4ca",
+          "mode": "0600"
+        }
+      }
+    },
+    "clean-ddd-hexagonal": {
+      "files": {
+        "SKILL.md": {
+          "sha256": "5b7dcd3f34d517c1a30bd2f9aa3bd42873a9392ad56f7ccaa97cd873d9b074b8",
+          "mode": "0600"
+        },
+        "references/CHEATSHEET.md": {
+          "sha256": "3fc4216d31bdcc4f244b6becf1f3d6fad9eb7d9f1f960a763eb2a9a31df207e4",
+          "mode": "0600"
+        },
+        "references/CQRS-EVENTS.md": {
+          "sha256": "a21d79768bc67f522419c82267e563bc47d581cd9a2fa8cdb2739e1e44f32603",
+          "mode": "0600"
+        },
+        "references/DDD-STRATEGIC.md": {
+          "sha256": "52cf8ce1d9d521f327ba74fad877e032a958bd8a74ba6137c88ee43e770414d9",
+          "mode": "0600"
+        },
+        "references/DDD-TACTICAL.md": {
+          "sha256": "2ba28c6319435372138a3e10dec626b1d31e21be44716a999f04b7e052f751ad",
+          "mode": "0600"
+        },
+        "references/HEXAGONAL.md": {
+          "sha256": "53b8c91ede7d98fffde4ca5998411543e5a1f55d39b146c2ca6a902cdae1167a",
+          "mode": "0600"
+        },
+        "references/LAYERS.md": {
+          "sha256": "6d320e7332558bb160740bb7f4ea875755b12b3e55f2ca318ca8b51e8509930d",
+          "mode": "0600"
+        },
+        "references/TESTING.md": {
+          "sha256": "e7cc45eb54e5cd6f77a81ee08c381d4f2ebf853788998583d7ba1f8d68eaa2df",
+          "mode": "0600"
+        }
+      }
+    },
+    "domain-driven-design": {
+      "files": {
+        "SKILL.md": {
+          "sha256": "14f80bc0c209e8500f52813158afb8b6b819b47a54b92576f0c0586acac38668",
+          "mode": "0600"
+        },
+        "references/bounded-contexts.md": {
+          "sha256": "5b87502afdef850c0262fc31f6c671519140298ceca50f5a5173a2e5419264fc",
+          "mode": "0600"
+        },
+        "references/building-blocks.md": {
+          "sha256": "b78f51c8ec8c5537420597df6e7e85899e36abf6ac91dc44699a3f5505c003d4",
+          "mode": "0600"
+        },
+        "references/domain-events.md": {
+          "sha256": "6f924b9bb9eea2fbde210a55645d825d8d8a177adf64d2cb590523eb99482be8",
+          "mode": "0600"
+        },
+        "references/repositories-factories.md": {
+          "sha256": "674e197968fb60eec232188895787291fba68e657f33e1417143990629c5c645",
+          "mode": "0600"
+        },
+        "references/strategic-design.md": {
+          "sha256": "a1d5c69fdfbf809a2410d9a438d814aefe33187d01093940c2385f7daef1a2d1",
+          "mode": "0600"
+        },
+        "references/ubiquitous-language.md": {
+          "sha256": "152bbfd4f7467371d9399dc0e9b27624da3b82b356bbe96ee111f000ca3993e8",
+          "mode": "0600"
+        }
+      }
+    },
+    "hexagonal-architecture": {
+      "files": {
+        "SKILL.md": {
+          "sha256": "53a76ce2255051df5c538b5a690517b7987d1a1c0d3ef57f30d2ddc35258e7f8",
+          "mode": "0600"
+        }
+      }
+    },
+    "security-best-practices": {
+      "files": {
+        "LICENSE.txt": {
+          "sha256": "4dd13869245e356246a5b770723247bbb80a8f07a181d1d3d873a1734297cdb9",
+          "mode": "0600"
+        },
+        "SKILL.md": {
+          "sha256": "7b3dae1ffc5434d890f3c65c8f552af52d0307fab3b35dec13013c9ca3844c4f",
+          "mode": "0600"
+        },
+        "agents/openai.yaml": {
+          "sha256": "6e9c6f2edce448eb2b589f81ad6e3f722665021785513bcbfd0bf7b86b529171",
+          "mode": "0600"
+        },
+        "references/golang-general-backend-security.md": {
+          "sha256": "a73c47c34497b120672d48411fe51dc90d426a571801a0b3f649e2ce4ec658b4",
+          "mode": "0600"
+        },
+        "references/javascript-express-web-server-security.md": {
+          "sha256": "427835cbb5be7ba96172ea6ca9af80ddd4419c833e9ebf870996740c80d8406c",
+          "mode": "0600",
+          "adapted_sha256": "5f2e29bec275f8ba76789cf9cd4845c7b3096a0caea90c91bc76f6810d90a867"
+        },
+        "references/javascript-general-web-frontend-security.md": {
+          "sha256": "3a7bc7b3f6e7ff043db9dbaa8933894d7a19d987d0607e4ddae5d70184a63d63",
+          "mode": "0600",
+          "adapted_sha256": "11ad70ddb982405042d254ae6bbcd313b6f1ed77efe09298204e04a034ffdf10"
+        },
+        "references/javascript-jquery-web-frontend-security.md": {
+          "sha256": "bcbad2fa6c2a02709e47e889e70102c76886bf36bc798624d27db570eccf40da",
+          "mode": "0600"
+        },
+        "references/javascript-typescript-nextjs-web-server-security.md": {
+          "sha256": "71c773f7a97ce60c853adfa100b3d88b3b7bc4c6b8acaef1432ffabd923ee182",
+          "mode": "0600"
+        },
+        "references/javascript-typescript-react-web-frontend-security.md": {
+          "sha256": "d3030c0f24bddb56b9bbb91bbec1ee49eb7778bce4d3e0297b2641b2fc6b0d9c",
+          "mode": "0600",
+          "adapted_sha256": "1790418407eedb51e748bc44bf06a2f5e896d469f5f6b8050c61c56e6045b008"
+        },
+        "references/javascript-typescript-vue-web-frontend-security.md": {
+          "sha256": "77c6a747f9f17e3df03aad0fcb20d99ac7898001b81aef8b80908e45ac14a688",
+          "mode": "0600"
+        },
+        "references/python-django-web-server-security.md": {
+          "sha256": "4fb69b5d45f10e588d1a8c35cdc5f59e18910f6b46a93e2d342d90f286f8dfd2",
+          "mode": "0600",
+          "adapted_sha256": "703a848fa1be93bb20373f5d5002cc35996a6e3eb39c6e650258489478422a1d"
+        },
+        "references/python-fastapi-web-server-security.md": {
+          "sha256": "7383c7f4fc271190b05e562ada7e825982a2c76b6c79a9f95a1da7687b65a616",
+          "mode": "0600"
+        },
+        "references/python-flask-web-server-security.md": {
+          "sha256": "9606d69190c04c167fdeac57e61297547a57b0542fd89dede36f355970446929",
+          "mode": "0600"
+        }
+      }
+    },
+    "security-ownership-map": {
+      "files": {
+        "LICENSE.txt": {
+          "sha256": "4dd13869245e356246a5b770723247bbb80a8f07a181d1d3d873a1734297cdb9",
+          "mode": "0600"
+        },
+        "SKILL.md": {
+          "sha256": "f06c1a59247569326702c945f397af163ea96cf2ecfdf2dde280605bf89a3ec8",
+          "mode": "0600"
+        },
+        "agents/openai.yaml": {
+          "sha256": "40877a3cdb1753aa187fc85a83bc138a866a1edb74165e009c885cfb6a16e433",
+          "mode": "0600"
+        },
+        "references/neo4j-import.md": {
+          "sha256": "176d0ef2ed3588530ed65ccda7cb30ae322e4cbec5c374dba5d1685e2bb9dd02",
+          "mode": "0600"
+        },
+        "scripts/build_ownership_map.py": {
+          "sha256": "c0454c47c7eb001b6e247cd7e473df1b28a3a148a2dca6b2fe88a74a7602cc9b",
+          "mode": "0600"
+        },
+        "scripts/community_maintainers.py": {
+          "sha256": "95adec5458cc85b41d0ae7965b0a17e4e8eaa6aaab274459324580d9a91cc3cc",
+          "mode": "0600"
+        },
+        "scripts/query_ownership.py": {
+          "sha256": "0f8d1a1ac3ef807a9b66939a8cdfd02564f4cda018489a3664d37f8c3a7b1b93",
+          "mode": "0600"
+        },
+        "scripts/run_ownership_map.py": {
+          "sha256": "362b547d6133659eb5c4fe889b8b930bea790f31e412f3198671baae09eec692",
+          "mode": "0600"
+        }
+      }
+    },
+    "vertical-slice-architecture": {
+      "files": {
+        "SKILL.md": {
+          "sha256": "a495ecc9094cff163198842aa77f1a53ebce1c8cf12ed73995e26fcda4ce47d9",
+          "mode": "0600"
+        },
+        "references/patterns-by-language.md": {
+          "sha256": "1bb8bbb6679b5111e8d8051f6440c52517de966e52281c575fd4f7ad23585703",
+          "mode": "0600"
+        },
+        "references/principles.md": {
+          "sha256": "c8bd80f08ef6ce1a8652647a3729df8b17e4439ab0153876c1fc594abb769eeb",
+          "mode": "0600"
+        },
+        "references/testing.md": {
+          "sha256": "af3dd7c1b6e5db6bed36f9ff116e49207342dc1b5d24959dec323b771ec49789",
+          "mode": "0600"
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,6 @@
+interface:
+  display_name: "Gestalt Scripting"
+  short_description: "Write and debug reliable Bash and shell automation"
+  default_prompt: "Use $gestalt:scripting to implement this shell task with reliable argument and failure handling."
+policy:
+  allow_implicit_invocation: true
