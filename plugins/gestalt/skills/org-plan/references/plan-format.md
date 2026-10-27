@@ -49,9 +49,12 @@ Every L1 property drawer contains exactly:
 ```
 
 The skills list is non-empty, whitespace-separated, exact, and task-specific.
-Gestalt workflow skills are always-loaded session infrastructure. Conditional
-capabilities such as `$gestalt:xerj` require runtime readiness; neither belongs
-in milestone dependencies. Declare only optional non-Gestalt skills.
+Include `$gestalt:*` skills when relevant; no namespace is excluded. Declarations
+are required preparation, not an exclusive allowlist. Executors may load other
+relevant skills on demand without revising the plan. Do not list or load every
+Gestalt skill by default. Conditional capabilities such as `$gestalt:xerj` and
+`$gestalt:serena` still require runtime readiness; a declaration cannot enable
+their tools. Missing declared skills block execution under SKILL invariant 3.
 
 Every L1 body contains:
 

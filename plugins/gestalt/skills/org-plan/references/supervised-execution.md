@@ -112,9 +112,9 @@ without reinstalling its own profile.
    physical slot is unavailable and Mobile durably authorizes replacement, use
    its exact `l<a>_gN`; display it as `l<a>`. Never derive an identity from the
    roster or generated instructions.
-4. Apply SKILL invariant 3: the executor loads exactly the declared optional
-   skills before repository inspection or edits; missing skills block without
-   edits. Gestalt workflows are already loaded.
+4. Apply SKILL invariant 3: load declared skills before repository inspection
+   or edits; missing required skills block without edits. Load additional
+   relevant skills on demand, including `$gestalt:*`, without a plan revision.
 
 Both roles follow the required [context-mode routing contract](../../context-mode/SKILL.md#routing-contract).
 It never mutates Org state; the unavailable-tool evidence fallback is below.
@@ -411,8 +411,8 @@ unavailable prerequisite, never for progress approval.
 
 Use the evidence contract's assignment form and required task inputs for the
 assigned L1: selected L1/children once or exact required section reads, candidate
-identities, report budget and evidence location. Supply exact optional skills;
-Gestalt workflows are already loaded. Retain helper-only transitions, one
+identities, report budget and evidence location. Supply exact declared skills;
+apply SKILL invariant 3 for additional relevant skills. Retain helper-only transitions, one
 post-ACCEPT commit, preserved paths, continuation and genuine external-blocker
 conditions. An L2 boundary or partial report never completes the assigned L1.
 

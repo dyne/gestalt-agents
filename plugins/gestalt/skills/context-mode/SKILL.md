@@ -132,8 +132,8 @@ grant write ownership, or replace declared task skills.
 - Treat every agent session as an independent context. Persist conclusions in
   the plan or a concise report instead of assuming another agent saw transient
   tool output.
-- Do not add `$gestalt:context-mode` to an Org Plan `:SKILLS:` property
-  when governing instructions define it as an implicit baseline.
+- Plans may declare `$gestalt:context-mode` when relevant. It may also be used
+  on demand without a declaration; governing routing requirements still apply.
 
 ## References
 

@@ -37,8 +37,11 @@ MCP tool, or sibling skill is required. Do not search for or install a validator
    draft, not an implementation-ready handoff.
 4. Inspect the available skill catalog's names and descriptions. Select the
    smallest sufficient task-specific set for each L1. Use exact `$skill` or
-   `$namespace:skill` references. Do not require this authoring skill itself or
-   `$gestalt:*` workflow infrastructure as a milestone dependency.
+   `$namespace:skill` references, including relevant `$gestalt:*` skills. Do not
+   list every Gestalt skill by default. Declared skills are required preparation;
+   executors may load additional relevant skills on demand without revising the
+   plan. Catalog availability does not mean instructions are already loaded;
+   conditional capabilities still require runtime readiness.
 
 ## Design the milestones
 

@@ -136,7 +136,7 @@ for skills_mutation in \
   '/:SKILLS:/d' \
   '/:SKILLS:/a:SKILLS: $make' \
   's/:SKILLS:.*/:SKILLS: gestalt:development-testing/' \
-  's/:SKILLS:.*/:SKILLS: $gestalt:development-testing/' \
+  's/:SKILLS:.*/:SKILLS: $gestalt:development-testing $gestalt:development-testing/' \
   's/:SKILLS:.*/:SKILLS: $make, $vite/' \
   's/:SKILLS:.*/:SKILLS: $make $make/' \
   '/:ID: first-task/a:SKILLS: $make'; do
@@ -145,12 +145,18 @@ for skills_mutation in \
   expect_fail "$helper" validate "$tmp/invalid-skills.org"
 done
 
-copy valid-minimal.org invalid-gestalt-skill.org
-sed 's/:SKILLS:.*/:SKILLS: $gestalt:development-testing/' \
-  "$tmp/invalid-gestalt-skill.org" >"$tmp/changed" && \
-  mv "$tmp/changed" "$tmp/invalid-gestalt-skill.org"
-expect_fail "$helper" validate "$tmp/invalid-gestalt-skill.org"
-expect_contains "$tmp/err" 'Gestalt skills are runtime infrastructure or conditional capabilities and must not appear in SKILLS'
+for skills in \
+  '$gestalt:development-testing' \
+  '$gestalt:coding $vite $gestalt:systematic-debugging' \
+  '$gestalt:xerj $gestalt:serena'; do
+  copy valid-minimal.org gestalt-skills.org
+  sed "s/:SKILLS:.*/:SKILLS: $skills/" "$tmp/gestalt-skills.org" >"$tmp/changed" && \
+    mv "$tmp/changed" "$tmp/gestalt-skills.org"
+  expect_ok "$helper" validate "$tmp/gestalt-skills.org"
+  expect_ok "$installed_root/bin/org-plan" validate "$tmp/gestalt-skills.org"
+  expect_ok "$helper" describe "$tmp/gestalt-skills.org" first-outcome
+  expect_contains "$tmp/out" "$skills"
+done
 
 for mutation in \
   '1d' \
@@ -539,8 +545,8 @@ test "$(wc -l < "$tmp/out")" = 1 && pass || fail 'legacy encoded success output 
 python3 -c 'import sys, urllib.parse; fields=dict(item.split("=", 1) for item in open(sys.argv[1], encoding="ascii").read().strip().split(" ")); assert urllib.parse.unquote(fields["profile"]) == sys.argv[2] + "/encoded-executor.toml"' "$tmp/out" "$encoded_dir" && pass || fail 'legacy encoded profile path round-trips without eval'
 expect_contains "$encoded_dir/encoded-executor.toml" 'Own the entire assigned L1 and report only to the root.'
 expect_contains "$encoded_dir/encoded-executor.toml" 'model_reasoning_effort = "medium"'
-expect_contains "$encoded_dir/encoded-executor.toml" 'Gestalt workflow skills are already loaded'
-expect_contains "$encoded_dir/encoded-executor.toml" 'load exactly the optional L1 Skills'
+expect_contains "$encoded_dir/encoded-executor.toml" 'Gestalt skills may be declared in L1 Skills or loaded on demand when relevant'
+expect_contains "$encoded_dir/encoded-executor.toml" 'load the declared L1 Skills'
 expect_contains "$encoded_dir/encoded-executor.toml" 'First tool call: read the org-plan skill completely and do nothing else.'
 expect_not_contains "$encoded_dir/encoded-executor.toml" 'First load $gestalt:context-mode'
 expect_fail "$helper" prepare-executor --model
@@ -555,8 +561,8 @@ expect_contains "$supervision_dir/org-plan-executor.toml" 'model = "gpt-6.1-sol"
 expect_contains "$supervision_dir/org-plan-executor.toml" 'model_reasoning_effort = "medium"'
 expect_contains "$supervision_dir/org-plan-executor.toml" 'You are the depth-one executor and only code writer.'
 expect_contains "$supervision_dir/org-plan-executor.toml" 'Own the entire assigned L1 and report only to the root.'
-expect_contains "$supervision_dir/org-plan-executor.toml" 'Gestalt workflow skills are already loaded'
-expect_contains "$supervision_dir/org-plan-executor.toml" 'load exactly the optional L1 Skills'
+expect_contains "$supervision_dir/org-plan-executor.toml" 'Gestalt skills may be declared in L1 Skills or loaded on demand when relevant'
+expect_contains "$supervision_dir/org-plan-executor.toml" 'load the declared L1 Skills'
 expect_contains "$supervision_dir/org-plan-executor.toml" 'Keep changes uncommitted through L1 review.'
 expect_contains "$supervision_dir/org-plan-executor.toml" 'At each DONE L2, return concise changes, sorted files, focused verification, and next action'
 expect_contains "$supervision_dir/org-plan-executor.toml" 'After all L2s, run the full suite and report the complete diff for review.'
@@ -571,7 +577,7 @@ expect_contains "$supervision_dir/org-plan-reviewer.toml" 'sandbox_mode = "read-
 expect_contains "$supervision_dir/org-plan-reviewer.toml" 'You are the depth-zero read-only root: director, supervisor, and routine reviewer.'
 expect_contains "$supervision_dir/org-plan-reviewer.toml" 'First tool call: read the org-plan skill completely and do nothing else.'
 expect_contains "$supervision_dir/org-plan-reviewer.toml" 'Then read its supervised-execution reference and governing AGENTS.md'
-expect_contains "$supervision_dir/org-plan-reviewer.toml" 'Gestalt workflow skills are already loaded'
+expect_contains "$supervision_dir/org-plan-reviewer.toml" 'Gestalt skills may be declared in L1 Skills or loaded on demand when relevant'
 expect_not_contains "$supervision_dir/org-plan-reviewer.toml" 'First load $gestalt:context-mode'
 expect_contains "$supervision_dir/org-plan-reviewer.toml" 'At the start of each new or resumed relay session'
 expect_contains "$supervision_dir/org-plan-reviewer.toml" 'run org-plan signal PLAN supervision-start before milestone or roster recovery'

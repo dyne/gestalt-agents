@@ -294,12 +294,14 @@ scope.
 
 Each L1 also declares a non-empty `:SKILLS:` property containing exact
 `$skill` references selected from the planner's complete
-optional-skill catalog. Never list a `$gestalt:*` skill: Gestalt workflow
-skills are always loaded for every role; conditional capabilities such as
-`gestalt:xerj` require verified runtime tools and are not milestone dependencies.
-A fresh executor loads exactly the
-declared optional task-specific list before inspecting or implementing the L1
-and stops without edits when a required optional skill is unavailable.
+available skill catalog, including relevant `$gestalt:*` skills. A fresh executor
+loads the declared task-specific list before inspecting or implementing the L1
+and stops without edits when a required skill is unavailable. Executors may
+load additional relevant skills as challenges arise without revising the plan.
+Skills are loaded on demand, not all at startup; being advertised in the catalog
+is not the same as having read their instructions. Conditional capabilities such
+as `gestalt:xerj` and `gestalt:serena` still require verified runtime tools.
+Skill use does not expand the plan's scope or the executor's authority.
 
 ## 💼 License
 
