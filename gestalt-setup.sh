@@ -135,8 +135,6 @@ install_extra_skills() (
     --skill playwright \
     --skill playwright-interactive \
     --skill screenshot \
-    --skill security-best-practices \
-    --skill security-ownership-map \
     --skill security-threat-model \
     --skill winui-app
   add_extra_skills mohitmishra786/low-level-dev-skills \
@@ -155,7 +153,6 @@ install_extra_skills() (
     --skill golang-security \
     --skill golang-testing
   add_extra_skills wshobson/agents \
-    --skill bash-defensive-patterns \
     --skill modern-javascript-patterns \
     --skill nodejs-backend-patterns \
     --skill shellcheck-configuration \
@@ -170,23 +167,19 @@ install_extra_skills() (
   add_extra_skills anthropics/skills --skill docx --skill pdf
   add_extra_skills antfu/skills --skill vite --skill vitepress
   add_extra_skills trailofbits/skills@crypto-protocol-diagram
-  add_extra_skills affaan-m/everything-claude-code@hexagonal-architecture
   add_extra_skills alphaonedev/openclaw-graph@smart-contracts
   add_extra_skills bahayonghang/academic-writing-skills@bib-search-citation
-  add_extra_skills ccheney/robust-skills@clean-ddd-hexagonal
   add_extra_skills googlechrome/modern-web-guidance@modern-web-guidance
   add_extra_skills luwill/research-skills@research-proposal
   add_extra_skills marimo-team/skills@wasm-compatibility
   add_extra_skills mengbo/mengbo-skills@pandoc-docx
   add_extra_skills microsoft/playwright-cli@playwright-cli
   add_extra_skills mindrally/skills@htmx
-  add_extra_skills mryll/skills@vertical-slice-architecture
   add_extra_skills poemswe/co-researcher@academic-writing
   add_extra_skills sickn33/antigravity-awesome-skills \
-    --skill bash-linux --skill cpp-pro
+    --skill cpp-pro
   add_extra_skills sveltejs/ai-tools@svelte-code-writer
   add_extra_skills terrylica/cc-skills@pandoc-pdf-generation
-  add_extra_skills wondelai/skills@domain-driven-design
 
   mkdir -p -- "$codex_skills_root"
   shopt -s nullglob

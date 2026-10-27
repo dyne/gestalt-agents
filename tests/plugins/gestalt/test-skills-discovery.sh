@@ -51,6 +51,9 @@ import re
 import sys
 
 expected = {
+    "coding",
+    "security",
+    "scripting",
     "context-mode",
     "ctx-doctor",
     "ctx-index",

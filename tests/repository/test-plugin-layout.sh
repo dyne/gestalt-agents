@@ -12,6 +12,9 @@ from pathlib import Path
 root = Path(sys.argv[1])
 plugin = root / "plugins" / "gestalt"
 expected_skills = {
+    "coding",
+    "security",
+    "scripting",
     "context-mode",
     "ctx-doctor",
     "ctx-index",

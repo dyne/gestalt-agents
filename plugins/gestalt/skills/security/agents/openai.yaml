@@ -1,0 +1,6 @@
+interface:
+  display_name: "Gestalt Security"
+  short_description: "Review security, harden code, and map ownership risks"
+  default_prompt: "Use $gestalt:security to address this security task with scoped evidence and appropriate validation."
+policy:
+  allow_implicit_invocation: true

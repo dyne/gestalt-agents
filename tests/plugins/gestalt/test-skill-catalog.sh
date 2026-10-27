@@ -16,7 +16,7 @@ const pluginRoot = join(root, 'plugins/gestalt');
 const catalog = readdirSync(join(pluginRoot, 'skills')).map(name => ({
   name: `gestalt:${name}`, enabled: true, path: join(pluginRoot, 'skills', name, 'SKILL.md'),
 }));
-assert.equal(catalog.length, 16);
+assert.equal(catalog.length, 19);
 const executable = join(temporary, 'codex');
 writeFileSync(executable, `#!/usr/bin/env node
 const { createInterface } = require('node:readline');
@@ -38,7 +38,11 @@ const verify = async skills => {
     environment: { ...process.env, PATH: `${temporary}:${process.env.PATH}`, CATALOG_FIXTURE: fixture } });
 };
 try {
-  assert.match(await verify(catalog), /14 enabled fixed Gestalt skills and 2 conditional skills/);
+  assert.match(await verify(catalog), /17 enabled fixed Gestalt skills and 2 conditional skills/);
+  for (const name of ['gestalt:coding', 'gestalt:security', 'gestalt:scripting']) {
+    await assert.rejects(verify(catalog.map(skill => ({ ...skill,
+      enabled: skill.name !== name }))), new RegExp(`disabled: ${name}`));
+  }
   for (const disabledNames of [['gestalt:xerj'], ['gestalt:serena'], ['gestalt:xerj', 'gestalt:serena']]) {
     const disabled = catalog.map(skill => ({ ...skill, enabled: !disabledNames.includes(skill.name) }));
     assert.match(await verify(disabled), /2 conditional skills/);
@@ -52,7 +56,7 @@ try {
   await assert.rejects(verify(catalog.map(skill => ({ ...skill,
     enabled: skill.name !== 'gestalt:org-plan' }))), /disabled: gestalt:org-plan/);
   await assert.rejects(verify([...catalog, { name: 'gestalt:unknown', enabled: true }]), /catalog mismatch/);
-  console.log('12 capability-aware catalog cases passed');
+  console.log('15 capability-aware catalog cases passed');
 } finally {
   rmSync(temporary, { recursive: true, force: true });
 }

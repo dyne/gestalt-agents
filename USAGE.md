@@ -75,10 +75,22 @@ runtime or build prerequisite.
 
 ## Distributed skills
 
-The `gestalt` plugin distributes 14 Codex skills: six development workflows
-and eight context-mode routing and command skills. Codex shows each one with
-the `(gestalt)` provider and enables or disables it with the other
-Gestalt-provided skills.
+The `gestalt` plugin distributes 19 Codex skills: nine development and engineering
+skills, eight context-mode routing and command skills, and two conditional
+retrieval capabilities (XERJ and Serena). The 17 non-conditional skills are
+enabled by default; retrieval capabilities depend on runtime readiness.
+
+Use `$gestalt:coding` for coding and architecture, `$gestalt:scripting` for Bash
+and shell work, and `$gestalt:security` for requested security reviews, secure
+implementation, hardening, or security ownership analysis. These three skills
+allow implicit invocation, so matching ordinary task requests can select them
+without an explicit skill name. Each contains its own detailed references and
+needs none of the eight source skills it replaces. Security discovery is enabled
+by default but does not turn ordinary coding into an unsolicited security audit.
+
+Setup no longer selects the eight merged source skills in `--extra-skills`.
+Existing separately installed copies are preserved; users who enable both may
+see duplicate triggers and can choose to disable/remove their old copies.
 
 Each skill has one canonical package under
 `plugins/gestalt/skills/<skill-name>/`. Cross-references use exact
