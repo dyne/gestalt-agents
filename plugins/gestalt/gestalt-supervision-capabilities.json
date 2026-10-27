@@ -10,7 +10,8 @@
     "agent-capacity-recovery",
     "canonical-agent-identity",
     "org-plan-contract",
-    "l1-model-policy-v1"
+    "l1-model-policy-v1",
+    "managed-mcp-requirement-v1"
   ],
   "modelPolicyContract": {
     "version": 1,

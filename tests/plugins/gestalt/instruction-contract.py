@@ -186,7 +186,7 @@ def main():
             assert current["sources"][name][unit] <= limits[unit], (name, unit, "profile ceiling exceeded")
     delivery = current["delivery"]
     assert delivery["hostInstructions"] is None and delivery["toolSchemas"] is None
-    assert delivery["discoveryCatalog"]["count"] == 19
+    assert delivery["discoveryCatalog"]["count"] == 20
     categories = delivery["categories"]
     assert categories["required-references"]["sources"] == ["supervision", "evidence"]
     assert categories["inactive-vendor-example"]["sources"] == ["vendor-codex-guidance-inactive"]

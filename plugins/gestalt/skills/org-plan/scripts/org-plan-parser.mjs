@@ -91,8 +91,16 @@ function parseItem(lines, item, ids) {
   item.de = drawerEnd;
 
   for (let index = drawerEnd + 1; index < item.end; index += 1) {
+    if (/^\s*-\s+Managed MCP\b/i.test(lines[index]) &&
+        lines[index] !== "- Managed MCP :: playwright") {
+      fail(`line ${index + 1}: Managed MCP must be exactly - Managed MCP :: playwright`);
+    }
     const field = /^- ([^:]+) ::\s*(.*)$/.exec(lines[index]);
-    if (field) item.fields.set(field[1], field[2]);
+    if (field) {
+      if (field[1] === "Managed MCP" && item.fields.has(field[1]))
+        fail(`line ${index + 1}: duplicate Managed MCP`);
+      item.fields.set(field[1], field[2]);
+    }
   }
 
   item.id = item.properties.get("ID");
@@ -141,6 +149,8 @@ function validateL1(item) {
 }
 
 function validateL2(item) {
+  if (item.fields.has("Managed MCP"))
+    fail(`line ${item.line + 1} (${item.id}): Managed MCP is L1-only`);
   for (const field of ["Why", "Change", "Tests", "Done when"]) {
     if (!item.fields.has(field)) {
       fail(`line ${item.line + 1} (${item.id}): missing field ${field}`);
@@ -279,6 +289,7 @@ export function describe(plan, id) {
     state: item.state,
     goal: item.fields.get(item.level === 1 ? "Goal" : "Why") ?? null,
     ...(item.level === 1 ? { skills: item.properties.get("SKILLS") } : {}),
+    ...(item.fields.has("Managed MCP") ? { managedMcp: ["playwright"] } : {}),
     ...(item.modelPolicy ? { modelPolicy: describeModelPolicy(item.modelPolicy) } : {}),
   };
 }
@@ -382,6 +393,8 @@ export function projection(plan) {
 
   return {
     explanation,
+    ...(current?.state === "WIP" && current.fields.has("Managed MCP")
+      ? { managedMcp: ["playwright"] } : {}),
     plan: milestones.map((item, index) => ({
       step: `L1 ${index + 1}/${milestones.length} — ${item.title}${item.state === "SUSPENDED" ? " (SUSPENDED)" : ""}`,
       status:

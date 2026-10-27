@@ -1,5 +1,12 @@
 # Consolidated engineering skills: source and adaptation record
 
+The conditional `skills/playwright` guidance is original Gestalt integration
+documentation, not vendored upstream source. It consumes the managed launcher
+and read-only metadata contract version 1 from `gestalt-playwright-mcp` commit
+`adf8af200aaef5f2973b9d1d18b795da5519e32c` (pinned MCP package 0.0.83).
+Runtime activation belongs to the CLI/Mobile integrations; this package does
+not implement attachment controls or grant browser consent.
+
 - Downstream adaptation version: `1.0.0` (coding, security, scripting)
 - Imported local snapshot: `skills-used`, supplied by the user, 2026-10-26
 - Canonical packages: `skills/coding`, `skills/security`, `skills/scripting`

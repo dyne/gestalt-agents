@@ -321,7 +321,24 @@ You should have received a copy of the GNU Affero General Public
 License along with this program. If not, see
 https://www.gnu.org/licenses/.
 
-## Conditional local retrieval
+## Conditional managed tools
+
+The conditional `gestalt:playwright` skill guides browser navigation, forms,
+snapshots and screenshots only with profile opt-in and verified connected
+managed tools. Install/update the MCP package explicitly through the manager;
+Chrome remains externally maintained. Installation and skill discovery do not
+enable browser access. Headless Chrome uses persistent workspace state, never
+the personal browser profile. Host permissions and MCP tool approvals govern
+filesystem access; shell sandbox roots do not confine the host MCP.
+
+The optional L1 field `- Managed MCP :: playwright` declares a requirement;
+it does not grant consent or install anything. Agents validates and exposes the
+field, while CLI/Mobile must provide compatible host start/status/stop controls.
+Use only controls actually exposed by the runtime; unavailable controls remain
+unavailable. An acknowledged request may remain pending until a supported turn
+boundary; only verified connected tools establish readiness. Read the
+[browser lifecycle guide](plugins/gestalt/skills/playwright/references/lifecycle.md)
+for supervisor requests, disabled profiles, missing Chrome and busy workspaces.
 
 The canonical `gestalt:xerj` skill is packaged with Gestalt. Managed runtime
 launchers expose it only alongside verified xerj MCP tools, and force it into

@@ -32,6 +32,9 @@ skills = Path(sys.argv[1])
 # as the working checkout. Discovery must not depend on development fixtures.
 for entry in [skills / "org-plan/SKILL.md", skills / "context-mode/SKILL.md",
               skills / "ctx-search/SKILL.md",
+              skills / "playwright/SKILL.md",
+              skills / "playwright/references/lifecycle.md",
+              skills / "org-plan/references/plan-format.md",
               skills / "org-plan/references/supervised-execution.md"]:
     for target in re.findall(r"\]\(([^)]+)\)", entry.read_text()):
         if "://" not in target:
@@ -70,6 +73,7 @@ expected = {
     "writing-skills",
     "xerj",
     "serena",
+    "playwright",
 }
 clean = re.sub(r"\x1b\[[0-?]*[ -/]*[@-~]", "", sys.argv[1])
 # skills uses either Unicode box drawing or an ASCII pipe depending on terminal

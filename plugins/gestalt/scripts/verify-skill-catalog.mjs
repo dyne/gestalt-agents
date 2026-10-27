@@ -5,7 +5,7 @@ import { readdir } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { withCodexRpc } from './codex-rpc.mjs';
 
-const conditionalSkills = new Set(['gestalt:xerj', 'gestalt:serena']);
+const conditionalSkills = new Set(['gestalt:xerj', 'gestalt:serena', 'gestalt:playwright']);
 
 /** Verify that Codex advertises this exact installed Gestalt release. */
 export async function verifyGestaltSkillCatalog({
