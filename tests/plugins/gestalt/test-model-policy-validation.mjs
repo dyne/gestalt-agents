@@ -130,9 +130,9 @@ try {
     assert.deepEqual([policy("dependency"), policy("dependent")], before);
     assert.equal(readFileSync(path, "utf8"), source);
   });
-  check("higher effort without necessity and future schema fail before changes", () => {
-    for (const source of [header() + l1().replace(":REASONING_EFFORT: medium", ":REASONING_EFFORT: high"), header(2) + l1()]) {
-      writeFileSync(path, source); assert.throws(() => mutate(path, "l1", "simple", "WIP"), /necessity|MODEL_POLICY_VERSION/);
+  check("incomplete optional rationale and future schema fail before changes", () => {
+    for (const source of [header() + l1().replace(":REASONING_EFFORT: medium", ":REASONING_EFFORT: high\n:EFFORT_NECESSITY_KIND: specific-reasoning"), header(2) + l1()]) {
+      writeFileSync(path, source); assert.throws(() => mutate(path, "l1", "simple", "WIP"), /rationale|MODEL_POLICY_VERSION/);
       assert.equal(readFileSync(path, "utf8"), source);
     }
   });

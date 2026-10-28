@@ -5,7 +5,7 @@
 - Imported commit: `4b1348d4bba530d26cfc73181a0c2f263923e334`
 - Describe: `v1.0.169-56-g4b1348d`
 - Upstream package version: `1.0.169`
-- Downstream package version: `2.22.0`
+- Downstream package version: `2.22.2`
 - License: Elastic-2.0
 - Import date: 2026-07-22
 
@@ -193,6 +193,9 @@ The repository-only model-trial harness reuses the Org comparison validator,
 generates fixed fake-provider records with retry/reviewer costs and failure
 evidence, and imports records read-only for coverage-aware distributions. It has
 no live dispatch adapter; quota stays unobserved in synthetic runs.
+Its model identifier regressions accept general bounded identifiers for read-only
+analysis, reject malformed identifiers, and preserve the no-dispatch contract;
+they do not impose a fixed model allowlist or establish runtime availability.
 The downstream CI overhead gate keeps strict response/retrieval contracts while
 reporting instruction growth against fixed references: above 5% warns, rounded
 hard ceilings with headroom fail. Shared role/profile limits replace competing

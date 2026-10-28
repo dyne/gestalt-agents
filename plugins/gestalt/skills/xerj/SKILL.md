@@ -6,7 +6,9 @@ description: Prefer XERJ for broad or repeated source discovery within one repos
 # xerj global engineering knowledge
 
 Gestalt supplies this skill only to runtimes with verified xerj tools. It is a
-conditional capability, not an optional Org Plan milestone dependency. Read
+conditional capability. Org Plans may declare `$gestalt:xerj` when relevant,
+and executors may use it on demand without a declaration; neither bypasses
+runtime readiness or index coverage checks. Read
 [the command reference](references/commands.md) when using the managed CLI or
 choosing retrieval arguments.
 

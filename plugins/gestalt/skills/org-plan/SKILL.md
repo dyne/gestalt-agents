@@ -8,6 +8,15 @@ description: Create or execute durable Org plans when explicitly requested or wh
 Prefer the simplest viable design. Make every milestone precise enough for a
 fresh lesser-reasoning executor to complete from the plan and repository alone.
 
+The root supervisor has the final model and reasoning-effort choice for each L1,
+within the user's constraints and actual runtime support. Explicit L1 choices
+override configured executor defaults. Use the supported `default` agent route
+with explicit settings and executor duties when a named role has conflicting
+pins; the configured role is a last fallback, never a model-selection mandate.
+Record and validate changed choices before the next safe executor turn. This
+does not authorize scope changes, additional writers, permission escalation or
+resuming a stopped plan.
+
 ## Route planning work
 
 Use native planning for ordinary bounded work. Select Org Plan when explicitly
@@ -57,13 +66,16 @@ authorization in [Canonical positions and agent names](references/supervised-exe
 
 1. Every L1 has exactly one non-empty `:SKILLS:` property and one
    `:REVIEW_STATUS:` property. New L1s start `UNREVIEWED`; L2s have neither.
-2. Select L1 skills from the optional available catalog. Use exact `$skill`
-   references and the smallest sufficient task-specific set.
-3. Gestalt workflows are always loaded; conditional `$gestalt:xerj` requires
-   runtime readiness. Never declare `$gestalt:*` in `:SKILLS:` or load one as
-   optional. Executors verify and load exactly
-   the declared optional skills before repository inspection or implementation,
-   and stop without edits if any required optional skill is unavailable.
+2. Select L1 skills from the available catalog, including `$gestalt:*`. Use
+   exact `$skill` references and the smallest sufficient task-specific set.
+3. Executors verify and load the declared skills before repository inspection
+   or implementation, and stop without edits if any required skill is unavailable.
+   The declared set is required preparation, not an exclusive allowlist:
+   executors may load additional relevant skills, including `$gestalt:*`, when
+   challenges benefit from them, without a plan revision. Load skills on demand;
+   catalog availability does not mean their instructions are already loaded.
+   Conditional capabilities such as `$gestalt:xerj` and `$gestalt:serena` still
+   require runtime readiness. Skill use never expands plan scope or authority.
 4. Use helper commands for TODO and review transitions; do not hand-edit them
    during execution.
    After each successful `authoring-start`, `supervision-start`, `set`, `l2`,
@@ -158,8 +170,8 @@ for native reads/mutations and evidence analysis. Context-mode never changes Org
 
 1. Confirm the assigned branch and choose the next WIP L1, otherwise the first
    TODO L1. Transition it with `org-plan set`.
-2. Gestalt skills are already loaded. Load exactly the L1's declared optional
-   skills.
+2. Load the L1's declared skills under invariant 3; use additional relevant
+   skills on demand as challenges arise.
 3. Choose the next WIP L2, otherwise the first TODO L2. Transition it with
    `org-plan l2`.
 4. Implement the L2, add or update relevant tests, run focused tests, inspect

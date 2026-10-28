@@ -128,12 +128,7 @@ function validateL1(item) {
     fail(`line ${item.line + 1} (${item.id}): missing or invalid SKILLS`);
   }
   const declaredSkills = skills.split(" ");
-  if (declaredSkills.some((skill) => skill.startsWith("$gestalt:"))) {
-    fail(
-      `line ${item.line + 1} (${item.id}): Gestalt skills are runtime infrastructure or conditional capabilities and must not appear in SKILLS`,
-    );
-  }
-  if (new Set(skills.split(" ")).size !== skills.split(" ").length) {
+  if (new Set(declaredSkills).size !== declaredSkills.length) {
     fail(`line ${item.line + 1} (${item.id}): duplicate skill reference`);
   }
   if (!REVIEW_STATES.includes(review)) {
