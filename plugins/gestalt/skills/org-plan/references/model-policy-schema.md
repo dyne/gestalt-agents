@@ -22,9 +22,9 @@ Every v1 L1 drawer requires these properties exactly once:
 
 | Property | Contract |
 | --- | --- |
-| `MODEL` | Exact `gpt-6-luna`, `gpt-6-sol` or `gpt-6.1-sol`; no aliases or Astra |
-| `REASONING_EFFORT` | Explicit `medium` (authoring default), `high` or `xhigh` |
-| `MODEL_RATIONALE` | Concrete selection rationale, including task scores/explanations from the rubric |
+| `MODEL` | Supervisor-selected exact runtime model ID; bounded to 64 identifier characters, including provider namespaces |
+| `REASONING_EFFORT` | Supervisor-selected effort supported by that model's runtime catalog; bounded to 24 lowercase identifier characters |
+| `MODEL_RATIONALE` | Concrete supervisor selection rationale; rubric scores are advisory |
 | `MODEL_FALLBACKS` | `none`, or ordered distinct policy IDs separated by single spaces; exclude selected model |
 | `MODEL_ESCALATION_TRIGGER` | Observable evidence prompting reassessment; never automatic upgrade authority |
 
@@ -34,13 +34,15 @@ remains required for compatibility; consumers use the explicit properties as
 the machine contract, not inferred prose settings. Do not hand-edit lifecycle
 or measurement fields while authoring model metadata.
 
-High and xhigh additionally require `EFFORT_NECESSITY_KIND`
+An optional detailed effort rationale uses `EFFORT_NECESSITY_KIND`
 (`unresolved-correctness` or `specific-reasoning`), `EFFORT_NECESSITY` (why medium
 is inadequate for this task), `EFFORT_EVIDENCE`, `EFFORT_SCOPE`, and
-`RETURN_TO_MEDIUM`. Xhigh also requires `SCOPE_REASSESSMENT`. Medium carries no
-higher-effort exception properties. Complexity, risk, protocol work, model tier,
-review rejection or retries alone do not justify higher effort; review the
-evidence, not merely field presence. See [selection rubric](model-selection.md).
+`RETURN_TO_MEDIUM`. If supplied for xhigh, also provide `SCOPE_REASSESSMENT`.
+Partial packets are rejected; medium still carries no higher-effort exception
+properties. A supervisor's high/other effort choice needs no exception packet.
+Model/effort syntax validation is not runtime availability validation: dispatch
+still requires the exact catalog entry and supported effort. See the advisory
+[selection rubric](model-selection.md).
 
 Describe/next expose a bounded policy summary with exact model, effort, version,
 fallback IDs, exception flag, and UTF-8-safe excerpts of rationale (160 bytes)

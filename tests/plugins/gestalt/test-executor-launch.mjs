@@ -71,16 +71,23 @@ try {
     assert.equal(result.spawnArguments.reasoning_effort, undefined);
     assert.equal(result.spawnArguments.fork_turns, "none");
   });
-  check("fixed role pin wins; mismatch fails rather than implicit default retry", () => {
-    assert.equal(recipe({ route: "fixed-role" }).code, "EXECUTOR_FIXED_ROLE_MISMATCH");
+  check("supervisor choice wins over a conflicting fixed role via the supported default route", () => {
+    assert.equal(recipe({ route: "fixed-role" }).spawnArguments.agent_type, "default");
     const pinnedHigh = structuredClone(host); pinnedHigh.executorRole.reasoningEffort = "high";
-    assert.equal(recipe({ route: "fixed-role", policy: { version: 1, model: "gpt-6.1-sol", reasoningEffort: "medium" }, host: pinnedHigh }).code, "EXECUTOR_FIXED_ROLE_MISMATCH");
+    assert.equal(recipe({ route: "fixed-role", policy: { version: 1, model: "gpt-6.1-sol", reasoningEffort: "medium" }, host: pinnedHigh }).spawnArguments.reasoning_effort, "medium");
+    const terra = recipe({ route: "fixed-role", policy: { version: 1, model: "gpt-6.1-terra", reasoningEffort: "high" } });
+    assert.equal(terra.spawnArguments.agent_type, "default");
+    assert.equal(terra.spawnArguments.model, "gpt-6.1-terra");
+    assert.equal(terra.spawnArguments.reasoning_effort, "high");
   });
   check("unknown pins or unproven override support block", () => {
     assert.equal(recipe({ host: {} }).code, "EXECUTOR_HOST_CONTRACT_UNKNOWN");
     assert.equal(recipe({ host: { ...host, forkTurnsNone: false } }).code, "EXECUTOR_HOST_CONTRACT_UNKNOWN");
-    assert.equal(recipe({ host: { ...host, defaultAgent: { ...host.defaultAgent, reasoningEffortOverride: false } } }).code, "EXECUTOR_EXPLICIT_OVERRIDES_UNAVAILABLE");
-    assert.equal(recipe({ route: "fixed-role", host: { ...host, executorRole: {} } }).code, "EXECUTOR_ROLE_CONTRACT_UNKNOWN");
+    assert.equal(recipe({ route: "default", host: { ...host, defaultAgent: { ...host.defaultAgent, reasoningEffortOverride: false } } }).code, "EXECUTOR_EXPLICIT_OVERRIDES_UNAVAILABLE");
+    assert.equal(recipe({ route: "fixed-role", host: { ...host, defaultAgent: {}, executorRole: {} } }).code, "EXECUTOR_ROLE_CONTRACT_UNKNOWN");
+    const fallbackHost = { ...host, defaultAgent: {} };
+    assert.equal(recipe({ host: fallbackHost }).code, "EXECUTOR_FIXED_ROLE_MISMATCH");
+    assert.equal(recipe({ host: fallbackHost, policy: { version: 1, model: "gpt-6.1-sol", reasoningEffort: "medium" } }).spawnArguments.agent_type, "org-plan-executor");
   });
   check("permission policies and roots pass through without spawn overrides", () => {
     for (const approvalPolicy of ["never", "on-request", "on-failure", "untrusted"]) {
@@ -107,9 +114,9 @@ try {
     assert.equal(recipe({ profile: {} }).code, "EXECUTOR_DUTIES_REQUIRED");
     assert.equal(recipe({ assignment: "" }).code, "EXECUTOR_DUTIES_REQUIRED");
   });
-  check("disallowed aliases and missing effort necessity fail before recipe", () => {
-    for (const model of ["gpt-6-astra", "gpt-6", "luna"]) assert.equal(recipe({ policy: { version: 1, model, reasoningEffort: "medium" } }).code, "EXECUTOR_POLICY_INVALID");
-    assert.equal(recipe({ policy: { version: 1, model: "gpt-6-sol", reasoningEffort: "high" } }).code, "EXECUTOR_POLICY_INVALID");
+  check("malformed identifiers fail; supervisor high does not require an exception", () => {
+    for (const model of ["invalid model", "", "x".repeat(65)]) assert.equal(recipe({ policy: { version: 1, model, reasoningEffort: "medium" } }).code, "EXECUTOR_POLICY_INVALID");
+    assert.equal(recipe({ policy: { version: 1, model: "gpt-6-sol", reasoningEffort: "high" } }).ok, true);
   });
   check("recipe is pure and does not change source setup", () => {
     const before = readFileSync(join(profiles, "org-plan-executor.toml"));

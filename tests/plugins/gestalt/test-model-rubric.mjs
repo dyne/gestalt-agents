@@ -68,7 +68,7 @@ check("complexity and retry labels cannot justify high", () => {
   }
 });
 check("every exception field required", () => {
-  rejects({ effort: "high" }, "MODEL_NECESSITY_REQUIRED");
+  assert.equal(evaluate({ effort: "high" }).ok, true);
   for (const key of Object.keys(necessity)) {
     const incomplete = { ...necessity };
     delete incomplete[key];
@@ -84,22 +84,24 @@ check("explicit available fallback retains medium and provenance", () => {
   assert.equal(result.effort, "medium");
   assert.equal(result.fallbackReason, "preferred-unavailable");
 });
-check("fallback cannot underpower rubric", () => {
-  rejects({ model: "gpt-6.1-sol", scores: { ...base.scores, scope: 2 }, fallbacks: ["gpt-6-luna"] }, "MODEL_FALLBACK_INVALID");
+check("rubric is advisory and does not override supervisor-approved fallbacks", () => {
+  assert.equal(evaluate({ model: "gpt-6.1-sol", scores: { ...base.scores, scope: 2 }, fallbacks: ["gpt-6-luna"] }).ok, true);
 });
 check("unsupported effort never auto-escalates or silently falls back", () => {
   const catalog = { ...fixture.catalog, models: [{ id: "gpt-6-luna", reasoningEfforts: ["high"] }, fixture.catalog.models[1]] };
   rejects({ fallbacks: ["gpt-6-sol"] }, "MODEL_EFFORT_UNSUPPORTED", catalog);
   rejects({ effort: "xhigh", necessity: { ...necessity, scopeReassessment: "Same bounded invariant" } }, "MODEL_EFFORT_UNSUPPORTED");
 });
-check("Astra, aliases and unsupported models rejected even in catalog", () => {
-  for (const model of ["gpt-6-astra", "gpt-6", "gpt-6.1", "luna", "kimi", "gpt-5.6-sol"]) {
-    rejects({ model }, "MODEL_DISALLOWED", { ...fixture.catalog, models: [...fixture.catalog.models, { id: model, reasoningEfforts: ["medium"] }] });
-    rejects({ fallbacks: [model] }, "MODEL_FALLBACK_INVALID");
+check("exact runtime catalog entries are selectable beyond the recommended tiers", () => {
+  for (const model of ["gpt-6.1-terra", "gpt-6-astra", "gpt-6", "provider/custom-model"]) {
+    const catalog = { ...fixture.catalog, models: [...fixture.catalog.models, { id: model, reasoningEfforts: ["medium", "high"] }] };
+    assert.equal(evaluate({ model, effort: "high" }, catalog).model, model);
+    rejects({ model }, "MODEL_UNAVAILABLE");
   }
 });
 check("effort ceiling", () => {
-  for (const effort of ["max", "ultra", "HIGH", "low", "", null]) rejects({ effort }, "MODEL_EFFORT_DISALLOWED");
+  for (const effort of ["HIGH", "", null]) rejects({ effort }, "MODEL_EFFORT_DISALLOWED");
+  for (const effort of ["low", "max", "ultra"]) rejects({ effort }, "MODEL_EFFORT_UNSUPPORTED");
 });
 check("catalog missing, unknown, unversioned or malformed", () => {
   for (const catalog of [null, {}, { ...fixture.catalog, source: "profile" }, { ...fixture.catalog, revision: "" }, { ...fixture.catalog, models: [] }, { ...fixture.catalog, models: [...fixture.catalog.models, fixture.catalog.models[0]] }, { ...fixture.catalog, models: [{ id: "gpt-6-luna", reasoningEfforts: [] }] }]) {
@@ -108,11 +110,11 @@ check("catalog missing, unknown, unversioned or malformed", () => {
 });
 check("conflicting user constraints", () => {
   rejects({ model: "gpt-6.1-sol", scores: { ...base.scores, scope: 2 } }, "MODEL_CONSTRAINT_CONFLICT", fixture.catalog, { allowedModels: ["gpt-6-luna"] });
-  rejects({ model: "gpt-6-luna", scores: { ...base.scores, scope: 2 } }, "MODEL_BELOW_RUBRIC");
+  assert.equal(evaluate({ model: "gpt-6-luna", scores: { ...base.scores, scope: 2 } }).ok, true);
   rejects({ fallbacks: ["gpt-6-sol"] }, "MODEL_FALLBACK_INVALID", fixture.catalog, { allowedModels: ["gpt-6-luna"] });
 });
-check("invalid constraints cannot widen policy", () => {
-  for (const allowedModels of [[], ["gpt-6-astra"], ["gpt-6-sol", "gpt-6-sol"]]) {
+check("explicit user constraints remain validated", () => {
+  for (const allowedModels of [[], ["invalid model"], ["gpt-6-sol", "gpt-6-sol"]]) {
     rejects({}, "MODEL_CONSTRAINTS_INVALID", fixture.catalog, { allowedModels });
   }
 });

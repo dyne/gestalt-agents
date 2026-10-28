@@ -105,15 +105,15 @@ check("acceptance and effective-settings evidence are required", () => {
   const data = populated(); data.trials[0].acceptanceEvidence.decision = "REJECT";
   reject(data, "COMPARISON_ACCEPTANCE_EVIDENCE_REQUIRED");
 });
-check("Astra aliases and unsupported effort cannot enter comparison", () => {
-  for (const model of ["gpt-6-astra", "gpt-6", "gpt-6.1", "kimi"]) {
+check("malformed model IDs and effort values cannot enter comparison", () => {
+  for (const model of ["invalid model", "x".repeat(65), "none"]) {
     const data = populated(); data.configurations[0].model = model; reject(data, "COMPARISON_POLICY_INVALID");
   }
-  const data = populated(); data.configurations[0].reasoningEffort = "ultra"; reject(data, "COMPARISON_POLICY_INVALID");
+  const data = populated(); data.configurations[0].reasoningEffort = "HIGH"; reject(data, "COMPARISON_POLICY_INVALID");
 });
-check("higher effort requires concrete necessity rather than complexity label", () => {
+check("supervisor effort needs no exception, while optional packets remain validated", () => {
   const data = populated(), config = data.configurations[0]; config.reasoningEffort = "high";
-  reject(data, "COMPARISON_POLICY_INVALID");
+  assert.equal(assess(data).valid, true);
   config.necessity = { kind: "complexity", whyMediumInadequate: "Hard", evidence: "Hard", affectedScope: "Everything", returnToMedium: "After" };
   reject(data, "COMPARISON_POLICY_INVALID");
   config.necessity = { kind: "unresolved-correctness", whyMediumInadequate: "Focused medium investigation leaves two invariant orderings unresolved", evidence: "Fixture ownership-17", affectedScope: "Ownership proof", returnToMedium: "Ordering proven and regression passes" };
