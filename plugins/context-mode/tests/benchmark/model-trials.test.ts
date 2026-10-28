@@ -58,7 +58,14 @@ describe("opt-in controlled model comparison", () => {
     manifest.trials[0].agents[0].counters.accountQuotaTokens = 1;
     expect(() => summarizeModelTrials(manifest)).toThrow("COMPARISON_DIRECT_QUOTA_EVIDENCE_REQUIRED");
   });
-  test.each(["gpt-6-astra", "gpt-6", "kimi"])("rejects prohibited model %s before trial analysis", model => {
+  test.each(["gpt-6-astra", "gpt-6.1-terra", "provider/future-model"])("accepts valid model identifier %s for read-only trial analysis", model => {
+    const manifest = runFakeModelTrials(); manifest.configurations[0].model = model;
+    const summary = summarizeModelTrials(manifest);
+    expect(summary.validation.code).toBe("COMPARISON_VALID");
+    expect(summary.validation.executionAuthorized).toBe(false);
+    expect(summary.liveExecutionSupported).toBe(false);
+  });
+  test.each(["none", "model with spaces", "x".repeat(65)])("rejects malformed model %s before trial analysis", model => {
     const manifest = runFakeModelTrials(); manifest.configurations[0].model = model;
     expect(() => summarizeModelTrials(manifest)).toThrow("COMPARISON_POLICY_INVALID");
   });

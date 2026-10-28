@@ -193,6 +193,9 @@ The repository-only model-trial harness reuses the Org comparison validator,
 generates fixed fake-provider records with retry/reviewer costs and failure
 evidence, and imports records read-only for coverage-aware distributions. It has
 no live dispatch adapter; quota stays unobserved in synthetic runs.
+Its model identifier regressions accept general bounded identifiers for read-only
+analysis, reject malformed identifiers, and preserve the no-dispatch contract;
+they do not impose a fixed model allowlist or establish runtime availability.
 The downstream CI overhead gate keeps strict response/retrieval contracts while
 reporting instruction growth against fixed references: above 5% warns, rounded
 hard ceilings with headroom fail. Shared role/profile limits replace competing
