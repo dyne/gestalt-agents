@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { MODEL_IDS, validEffortNecessity } from "./org-plan-model-policy.mjs";
+import { validModelId, validReasoningEffort, validEffortNecessity } from "./org-plan-model-policy.mjs";
 
 export const COMPARISON_COUNTERS = Object.freeze([
   "inputTokens", "outputTokens", "cacheReadTokens", "cacheCreationTokens", "reasoningTokens",
@@ -45,7 +45,7 @@ export function validateModelComparison(manifest) {
   }
   for (const config of manifest.configurations) {
     if (!object(config) || !text(config.id) || configurations.has(config.id) ||
-        !MODEL_IDS.includes(config.model) || !["medium", "high", "xhigh"].includes(config.reasoningEffort) ||
+        !validModelId(config.model) || !validReasoningEffort(config.reasoningEffort) ||
         !validEffortNecessity(config.reasoningEffort, config.necessity) ||
         (config.reasoningEffort === "medium" && config.necessity != null)) return invalid("COMPARISON_POLICY_INVALID");
     configurations.set(config.id, config);

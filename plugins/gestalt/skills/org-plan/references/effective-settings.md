@@ -29,8 +29,11 @@ blocker. `executorBinding.authorizesExecution:false` means the observation does
 not itself authorize a resume; it is not an admission denial.
 
 On continuation, re-read the current policy and controller-owned child binding.
-Reject stale/replaced bindings, changed authority and any observed model/effort
-or role mismatch. Do not reuse a previous match as lasting authority. Mobile
+Reject stale/replaced bindings, changed authority and role mismatches. When the
+supervisor deliberately changes its L1 model/effort, validate catalog support
+and apply those settings to the same writer's next safe turn; old observed
+settings do not veto the new choice. Do not edit under stale settings while a
+change is pending or reuse a previous match as lasting authority. Mobile
 rechecks automatic resume authority immediately before dispatch, including
 Manual Off, replacement, plan changes and pending interaction fences.
 

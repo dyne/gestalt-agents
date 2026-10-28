@@ -1,6 +1,6 @@
 # L1 model selection rubric
 
-Use while authoring each L1, before handoff. A selection is a hypothesis about
+Use as advisory guidance while the supervisor selects each L1, before handoff. A selection is a hypothesis about
 the lightest adequate model, validated by accepted outcomes and tests; model
 names or lower response bytes alone do not establish savings. This rubric does
 not change an installed profile or prove effective launch settings.
@@ -29,10 +29,12 @@ ambiguity or improve tests when practical before paying for a larger model.
 
 For every L1 retain: scores/explanations, exact model and effort, concrete
 rationale, ordered allowed fallback IDs (or explicitly none), and an observable
-escalation trigger. Prefer `medium` on **every** tier. The only model IDs in this
-policy are `gpt-6-luna`, `gpt-6-sol`, and `gpt-6.1-sol`; never Astra or API aliases.
-User constraints may narrow this pool but cannot widen it. A conflicting ceiling
-requires an actionable preflight failure, not a silent downgrade.
+escalation trigger. Medium and the tiers above are recommendations, not a closed
+model list or minimum model requirement. The supervisor has the final model and
+effort choice, including Terra/high or any other exact runtime-supported pair.
+Explicit user constraints remain binding. Configured executor defaults are the
+last fallback when the supervisor supplies no L1 choice; never use them to
+override an explicit choice.
 
 Validate availability and effort support against the actual runtime catalog's
 exact IDs and supported efforts. Configured mode does not require a server-issued
@@ -67,26 +69,18 @@ Missing actual catalog content stays unknown to this selector; do not confuse it
 with missing child evidence. No model probe turns or live setup mutations are needed.
 
 When the preferred model is unavailable, only an explicitly allowed, available
-fallback at least as capable under this rubric may be used, with a recorded
+fallback may be used, with a recorded
 reason. All fallback IDs must satisfy the user's ceiling; an unavailable unused
 fallback remains unavailable, never a promise. If the runtime lacks the
 requested effort, stop rather than silently raising effort. A task legitimately
 rescored after investigation requires a new rationale and validation.
 
-## Effort exceptions
+## Effort choices
 
-Use `high` only for an unresolved correctness issue after focused investigation,
-or a specific reasoning requirement that medium cannot adequately address.
-Record the kind (`unresolved-correctness` or `specific-reasoning`), why medium is
-inadequate for this task, evidence of that need, affected scope, and an observable
-return-to-medium condition. For `xhigh`, also document a scope reassessment.
-`max` and `ultra` are outside this policy. Complexity labels, concurrency,
-elapsed time, model tier, retries or rejected reviews alone are insufficient.
-Never infer necessity merely from a nonempty rationale: review the evidence.
-
-Example: a focused trace exposes two plausible orderings that violate an
-ownership invariant and medium investigation has not resolved the proof. High
-may cover that invariant analysis; return to medium once the ordering is proven
-and a deterministic regression test captures it. Preserve one writer and the
-allowed model ceiling. Escalation triggers identify evidence to reassess, not
-permission to auto-upgrade or to bypass verification.
+The supervisor may choose any reasoning effort supported for the selected model
+by the runtime. Record the rationale and revalidate the pair when it changes.
+No separate exception packet or repeated human approval is required just to
+select high or another supported effort. Existing detailed necessity packets
+remain optional; if supplied, retain their complete fields under the schema.
+Rubric scores, retry counts and setup defaults never make the choice for the
+supervisor. Preserve one writer, explicit user limits and all verification gates.

@@ -6,6 +6,9 @@ export const MODEL_IDS = Object.freeze([
   "gpt-6-sol",
   "gpt-6.1-sol",
 ]);
+// Advisory rubric tiers, not an allowlist. The owning runtime catalog decides support.
+export const validModelId = (value) => typeof value === "string" && value !== "none" && /^[A-Za-z0-9][A-Za-z0-9._:/-]{0,63}$/.test(value);
+export const validReasoningEffort = (value) => typeof value === "string" && /^[a-z][a-z0-9_-]{0,23}$/.test(value);
 const axes = [
   "ambiguity", "scope", "coupling", "correctnessRisk", "testWeakness",
 ];
@@ -14,7 +17,9 @@ const text = (value) => typeof value === "string" && value.trim().length > 0;
 const fail = (code) => ({ ok: false, code });
 
 export function validEffortNecessity(effort, need) {
-  return effort === "medium" || (object(need) &&
+  if (!validReasoningEffort(effort)) return false;
+  if (need == null || (object(need) && Object.keys(need).length === 0)) return true;
+  return (object(need) &&
     ["unresolved-correctness", "specific-reasoning"].includes(need.kind) &&
     ["whyMediumInadequate", "evidence", "affectedScope", "returnToMedium"].every((key) => text(need[key])) &&
     (effort !== "xhigh" || text(need.scopeReassessment)));
@@ -41,9 +46,9 @@ export function recommendedModel(scores) {
     ? MODEL_IDS[1] : MODEL_IDS[2];
 }
 
-export function validateModelSelection(selection, catalog, { allowedModels = MODEL_IDS } = {}) {
-  if (!Array.isArray(allowedModels) || !allowedModels.length ||
-      allowedModels.some((id) => !MODEL_IDS.includes(id)) || new Set(allowedModels).size !== allowedModels.length) {
+export function validateModelSelection(selection, catalog, { allowedModels } = {}) {
+  if (allowedModels !== undefined && (!Array.isArray(allowedModels) || !allowedModels.length ||
+      allowedModels.some((id) => !validModelId(id)) || new Set(allowedModels).size !== allowedModels.length)) {
     return fail("MODEL_CONSTRAINTS_INVALID");
   }
   if (!object(selection)) return fail("MODEL_SELECTION_INVALID");
@@ -52,16 +57,15 @@ export function validateModelSelection(selection, catalog, { allowedModels = MOD
   catch { return fail("MODEL_SCORES_INVALID"); }
   if (!object(selection.scoreReasons) || !axes.every((axis) => text(selection.scoreReasons[axis])) ||
       !text(selection.rationale) || !text(selection.escalationTrigger)) return fail("MODEL_RATIONALE_REQUIRED");
-  if (!MODEL_IDS.includes(selection.model)) return fail("MODEL_DISALLOWED");
-  if (!allowedModels.includes(selection.model)) return fail("MODEL_CONSTRAINT_CONFLICT");
-  if (MODEL_IDS.indexOf(selection.model) < MODEL_IDS.indexOf(recommended)) return fail("MODEL_BELOW_RUBRIC");
+  if (!validModelId(selection.model)) return fail("MODEL_DISALLOWED");
+  if (allowedModels && !allowedModels.includes(selection.model)) return fail("MODEL_CONSTRAINT_CONFLICT");
   if (!Array.isArray(selection.fallbacks) || new Set(selection.fallbacks).size !== selection.fallbacks.length ||
-      selection.fallbacks.some((id) => !MODEL_IDS.includes(id) || id === selection.model ||
-        !allowedModels.includes(id) || MODEL_IDS.indexOf(id) < MODEL_IDS.indexOf(recommended))) {
+      selection.fallbacks.some((id) => !validModelId(id) || id === selection.model ||
+        (allowedModels && !allowedModels.includes(id)))) {
     return fail("MODEL_FALLBACK_INVALID");
   }
   const effort = selection.effort === undefined ? "medium" : selection.effort;
-  if (!["medium", "high", "xhigh"].includes(effort)) return fail("MODEL_EFFORT_DISALLOWED");
+  if (!validReasoningEffort(effort)) return fail("MODEL_EFFORT_DISALLOWED");
   if (!validEffortNecessity(effort, selection.necessity)) return fail("MODEL_NECESSITY_REQUIRED");
   if (!isRuntimeModelCatalog(catalog)) {
     return fail("MODEL_CATALOG_UNKNOWN");

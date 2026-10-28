@@ -14,7 +14,8 @@ settings, catalog support, permission inheritance and controller-owned executor
 identity. Missing runtime receipts do not block ordinary supervision. Requested
 settings remain requests; observed configured settings retain their source and
 unknown fields. This is cooperative supervision, not native child pre-spawn
-enforcement. Mobile's host guards reject observed mismatches on automatic resume.
+enforcement. Mobile validates and applies the current L1 settings at automatic
+resume; observed settings remain separate evidence.
 
 An explicit `MODEL_POLICY_ASSURANCE: runtime-attested` remains strict and fails
 clearly when the adapter lacks receipts/revisions. Do not silently downgrade it.
@@ -23,11 +24,11 @@ metadata, but has no runtime-issued settings revision/receipt contract.
 `runtimeEnforcement` remains false. Repeated attention resolution or authorization
 cannot supply a missing capability. Preserve manual Off.
 
-Before handoff, each versioned L1 explicitly chooses its lightest adequate validated
-model and `medium` reasoning. Follow the [rubric](model-selection.md) and
-[schema](model-policy-schema.md), recording all five scores/explanations in its
-rationale. Simple mechanical tasks may select `gpt-6-luna`; bounded work may use
-`gpt-6-sol`, and multi-component work may use `gpt-6.1-sol`. No Astra or aliases.
+The supervisor makes the final model/effort choice for each L1. The
+[rubric](model-selection.md) is advisory; the [schema](model-policy-schema.md)
+records the exact choice and rationale. Runtime-supported choices such as
+`gpt-6.1-terra` / `high` are valid even when setup defaults are Sol/medium.
+There is no repository-maintained model allowlist or mandatory effort ceiling.
 Validate exact IDs and effort support against the authoritative runtime catalog.
 For existing-policy execution, use the pre-child `executorLaunch` health result
 as described in the rubric. Missing child `modelPolicy.catalogRevision` does not
@@ -38,7 +39,7 @@ Keep one policy packet with the assignment and continuity evidence:
 
 ```text
 Policy: {version}; L1 {position}/{id}; {exact model}/{explicit effort}.
-Rationale: {complete scores/explanations and selection rationale}.
+Rationale: {selection rationale; advisory scores/explanations if used}.
 Fallbacks: {exact ordered IDs or none}; trigger: {concrete escalation evidence}.
 Necessity: {kind, why medium is inadequate, evidence, affected scope,
             return-to-medium condition; xhigh also scope reassessment}, or none.
@@ -69,7 +70,7 @@ from the supervisor, an old assignment, rejected review or retry count.
 | Compaction or resume | Resume the same executor; read the full current policy and its packet, compare choices/rationale, refresh the assurance check for the current child/epoch before edits. Configured mode revalidates launch settings and controller ownership; strict mode refreshes the effective handshake. Keep missing evidence unknown. |
 | REJECT | Return unchanged findings to the same writer and same uncommitted diff; retain policy/necessity, repair and rerun gates. A rejection or retry alone never raises effort. |
 | Dependency reopen | Use `suspend-reopen`/`resume`; preserve each L1 policy and rationale, one writer and dependency review gates. Refresh admission for resumed scope; never overwrite a dependency's choice with its consumer's. |
-| User policy change | Hold affected dispatch; apply the user's authorized change through existing plan/lifecycle rules, validate policy/catalog and update the complete packet. Preserve writer/replacement authority and refresh evidence under the selected assurance mode. Never rewrite profiles or silently substitute settings. |
+| Supervisor or user model/effort change | Hold affected dispatch and interrupt an active writer before changing settings. Record the exact L1 choice and rationale through the existing plan/resync workflow, validate catalog support and update the packet. In configured mode Mobile applies it to the same canonical writer's next turn; legacy follow-ups preserve the child's settings instead of repinning session defaults. Do not replace a writer merely to change its model, rewrite global profiles or silently substitute defaults. |
 
 Lifecycle-only changes do not change selected model/effort. A stale or incomplete
 packet requires bounded retrieval and current verification, not reconstruction
@@ -81,17 +82,15 @@ no automatic agent replacement, task split or new progress approval is added.
 
 ## Effort decisions
 
-Medium is preferred across all model tiers, including Luna. Stronger models,
-difficult milestones, concurrency/protocol risk, elapsed time, rejected reviews
-and retries alone never justify high. A higher-effort exception needs a concrete
-unresolved correctness issue after focused investigation, or a specific
-reasoning requirement that medium cannot adequately address. Retain evidence,
-affected scope, why medium is inadequate and an observable return-to-medium
-condition; reassess scope before xhigh. Max/ultra are outside policy.
+Medium is a cost-conscious recommendation, not a restriction on the supervisor.
+The supervisor may choose any effort supported for the exact model by the
+runtime. Record a concrete rationale; no separate exception or human approval
+is required just to select high or another supported effort. Existing detailed
+necessity packets remain supported and are validated when supplied.
 
-Escalate only affected work, preserving one writer, allowed model ceiling,
-permissions and current catalog/effective checks. Return to medium once the
-recorded condition is met; update the packet and recheck actual settings.
+Change only affected work, preserving one writer, explicit user constraints,
+permissions and current catalog/effective checks. Update the packet and recheck
+settings when the supervisor changes its choice.
 Selection remains a quality hypothesis. All required tests, independent review,
 full L1 gates and failure evidence remain mandatory.
 Prepare opt-in [comparisons](model-comparison.md) separately; never spend live

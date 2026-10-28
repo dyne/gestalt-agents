@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { MODEL_IDS, isRuntimeModelCatalog, validEffortNecessity } from "./org-plan-model-policy.mjs";
+import { validModelId, validReasoningEffort, isRuntimeModelCatalog, validEffortNecessity } from "./org-plan-model-policy.mjs";
 
 // Limits include JSON escaping, so attacker-sized metadata never becomes a
 // model-visible diagnostic dump. Unknown/malformed evidence is reported as null.
@@ -31,7 +31,7 @@ const actions = {
   SETTINGS_CHANGED: "Refresh metadata after the runtime settings revision changed.",
   CATALOG_CHANGED: "Revalidate selection and refresh metadata against the current catalog revision.",
   EFFECTIVE_MODEL_UNKNOWN: "Obtain the child's actual model; preserve unknown until observed.",
-  MODEL_PROHIBITED: "Refuse the prohibited child model; no Astra or alias fallback.",
+  MODEL_PROHIBITED: "Refuse malformed child model metadata; validate exact support against the runtime catalog.",
   EFFECTIVE_EFFORT_UNKNOWN: "Obtain actual child effort; never infer it from defaults or model tier.",
   MODEL_MISMATCH: "Resolve the requested/effective mismatch without per-L1 profile rewrites.",
   EFFORT_MISMATCH: "Resolve the requested/effective effort mismatch before edits.",
@@ -62,8 +62,8 @@ export function assessExecutorSettings({ binding, policy, catalog, runtime } = {
     ...(report.observedAt === null ? ["observedAt"] : []),
   ];
   const blocked = (code) => ({ ...report, code, action: actions[code] });
-  if (report.policyVersion === null || !MODEL_IDS.includes(policy.model) ||
-      !["medium", "high", "xhigh"].includes(policy.reasoningEffort) ||
+  if (report.policyVersion === null || !validModelId(policy.model) ||
+      !validReasoningEffort(policy.reasoningEffort) ||
       !validEffortNecessity(policy.reasoningEffort, policy.necessity)) return blocked("POLICY_INVALID");
   report.policyDigest = executionPolicyDigest(policy);
   if (report.l1.id === null || report.l1.position === null ||
@@ -80,7 +80,7 @@ export function assessExecutorSettings({ binding, policy, catalog, runtime } = {
   if (report.catalog.observedRevision === null) return blocked("CATALOG_UNKNOWN");
   if (runtime.catalogRevision !== catalog.revision) return blocked("CATALOG_CHANGED");
   if (report.effective.model === null) return blocked("EFFECTIVE_MODEL_UNKNOWN");
-  if (!MODEL_IDS.includes(runtime.model)) return blocked("MODEL_PROHIBITED");
+  if (!validModelId(runtime.model)) return blocked("MODEL_PROHIBITED");
   if (report.effective.reasoningEffort === null) return blocked("EFFECTIVE_EFFORT_UNKNOWN");
   if (runtime.model !== policy.model) return blocked("MODEL_MISMATCH");
   if (runtime.reasoningEffort !== policy.reasoningEffort) return blocked("EFFORT_MISMATCH");

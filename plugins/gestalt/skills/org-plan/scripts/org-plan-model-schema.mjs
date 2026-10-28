@@ -1,4 +1,4 @@
-import { MODEL_IDS, MODEL_POLICY_VERSION, validEffortNecessity } from "./org-plan-model-policy.mjs";
+import { validModelId, validReasoningEffort, MODEL_POLICY_VERSION, validEffortNecessity } from "./org-plan-model-policy.mjs";
 import { fail } from "./org-plan-files.mjs";
 
 export const MODEL_POLICY_CAPABILITY = "l1-model-policy-v1";
@@ -34,20 +34,20 @@ export function parseModelPolicy(item, version) {
   }
   const model = properties.get("MODEL");
   const reasoningEffort = properties.get("REASONING_EFFORT");
-  if (!MODEL_IDS.includes(model)) invalid("invalid MODEL: exact policy ID required; Astra and aliases prohibited");
-  if (!["medium", "high", "xhigh"].includes(reasoningEffort)) invalid("invalid REASONING_EFFORT");
+  if (!validModelId(model)) invalid("invalid MODEL: expected a bounded exact runtime model ID");
+  if (!validReasoningEffort(reasoningEffort)) invalid("invalid REASONING_EFFORT");
   const rawFallbacks = properties.get("MODEL_FALLBACKS");
   const allowedFallbacks = rawFallbacks === "none" ? [] : rawFallbacks.split(" ");
-  if (allowedFallbacks.some((id) => !MODEL_IDS.includes(id) || id === model) ||
+  if (allowedFallbacks.some((id) => !validModelId(id) || id === model) ||
       new Set(allowedFallbacks).size !== allowedFallbacks.length) invalid("invalid MODEL_FALLBACKS");
   const necessity = Object.fromEntries(Object.entries(necessityFields)
     .filter(([key]) => properties.has(key)).map(([key, target]) => [target, properties.get(key)]));
-  if (!validEffortNecessity(reasoningEffort, necessity)) invalid("higher effort requires concrete necessity, evidence, scope and return-to-medium condition");
+  if (!validEffortNecessity(reasoningEffort, necessity)) invalid("incomplete optional effort rationale: expected necessity, evidence, scope and return-to-medium condition");
   if (reasoningEffort === "medium" && Object.keys(necessity).length) invalid("medium must not carry a higher-effort exception");
   return { version: MODEL_POLICY_VERSION, model, reasoningEffort,
     rationale: properties.get("MODEL_RATIONALE"), allowedFallbacks,
     escalationTrigger: properties.get("MODEL_ESCALATION_TRIGGER"),
-    necessity: reasoningEffort === "medium" ? null : necessity };
+    necessity: Object.keys(necessity).length ? necessity : null };
 }
 
 // Summaries retain exact choices; omitted rationale is recoverable from the

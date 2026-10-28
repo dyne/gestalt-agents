@@ -9,8 +9,8 @@ pin actual inputs before any trial. Routine CI uses invented fixtures only.
 For each representative task, freeze base SHA, tool/dependency/environment
 digests and identical acceptance commands/criteria across configurations. Keep
 three repetitions for each configuration, medium by default on every allowed
-model tier. Higher effort requires the normal concrete necessity/return rule;
-Astra and aliases are prohibited. An independent reviewer applies the same
+model tier. Use the supervisor's exact model/effort choices and validate runtime
+support; advisory tiers and setup defaults do not restrict them. An independent reviewer applies the same
 acceptance gate to every trial. Revalidate catalog and effective settings before
 authorized dispatch; this manifest is not runtime availability evidence.
 

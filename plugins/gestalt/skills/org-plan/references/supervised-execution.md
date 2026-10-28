@@ -27,6 +27,10 @@ root (depth 0, org-plan-reviewer, gpt-6.1-sol/medium, read-only)
 - After executors terminate, one fresh terminal reviewer audits the whole branch;
   it writes only P0/P1 fixes under the terminal procedure below.
 - Profiles default to `gpt-6.1-sol` / `medium`; existing roots keep their settings.
+  These are fallback settings. The root may choose another runtime-supported
+  model/effort for any L1 without requesting permission solely for that choice.
+  Prefer `agent_type=default`, `fork_turns=none` and explicit settings plus the
+  executor duties; a fixed named role cannot override the supervisor's choice.
   Before v1 dispatch, read the [policy handoff contract](model-policy-workflow.md).
 - Codex V1 agent depth defaults to one, which permits this direct spawn. Stop
   when direct spawning is unavailable; do not edit user configuration.

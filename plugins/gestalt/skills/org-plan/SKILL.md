@@ -8,6 +8,15 @@ description: Create or execute durable Org plans when explicitly requested or wh
 Prefer the simplest viable design. Make every milestone precise enough for a
 fresh lesser-reasoning executor to complete from the plan and repository alone.
 
+The root supervisor has the final model and reasoning-effort choice for each L1,
+within the user's constraints and actual runtime support. Explicit L1 choices
+override configured executor defaults. Use the supported `default` agent route
+with explicit settings and executor duties when a named role has conflicting
+pins; the configured role is a last fallback, never a model-selection mandate.
+Record and validate changed choices before the next safe executor turn. This
+does not authorize scope changes, additional writers, permission escalation or
+resuming a stopped plan.
+
 ## Route planning work
 
 Use native planning for ordinary bounded work. Select Org Plan when explicitly

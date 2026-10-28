@@ -67,10 +67,18 @@ check("missing actual model stays unknown", () => {
   const report = denies(changed("runtime", { model: null }), "EFFECTIVE_MODEL_UNKNOWN");
   assert.equal(report.effective.model, null);
 });
-check("inherited Astra and aliases are prohibited", () => {
-  for (const model of ["gpt-6-astra", "gpt-6", "gpt-6.1", "luna", "kimi"]) denies(changed("runtime", { model }), "MODEL_PROHIBITED");
+check("an inherited model cannot override the supervisor's exact requested model", () => {
+  for (const model of ["gpt-6-astra", "gpt-6", "gpt-6.1", "luna", "kimi"]) denies(changed("runtime", { model }), "MODEL_MISMATCH");
   const report = evaluate({ ...structuredClone(fixture), rootModel: "gpt-6-astra" });
   assert.equal(report.admitted, true); // Root metadata is never mistaken for child metadata.
+});
+check("Terra/high is valid when explicitly selected and supported by the runtime catalog", () => {
+  const input = structuredClone(fixture);
+  input.policy.model = 'gpt-6.1-terra'; input.policy.reasoningEffort = 'high'; input.policy.necessity = null;
+  input.catalog.models.push({ id: 'gpt-6.1-terra', reasoningEfforts: ['high'] });
+  input.runtime.model = 'gpt-6.1-terra'; input.runtime.reasoningEffort = 'high';
+  input.runtime.policyDigest = executionPolicyDigest(input.policy);
+  assert.equal(evaluate(input).admitted, true);
 });
 check("catalog source/revision must be authoritative and complete", () => {
   for (const catalog of [null, {}, { ...fixture.catalog, source: "tool-schema" }, { ...fixture.catalog, revision: "" }, { ...fixture.catalog, models: [] }, { ...fixture.catalog, models: [...fixture.catalog.models, fixture.catalog.models[0]] }]) denies({ ...structuredClone(fixture), catalog }, "CATALOG_UNKNOWN");
@@ -113,7 +121,7 @@ check("unknown identity and revision cannot be guessed", () => {
   denies(changed("runtime", { settingsRevision: undefined }), "SETTINGS_CHANGED");
 });
 check("invalid or unapproved policy fails", () => {
-  for (const policy of [null, {}, { ...fixture.policy, version: 2 }, { ...fixture.policy, model: "gpt-6-astra" }, { ...fixture.policy, reasoningEffort: "high" }, { ...fixture.policy, reasoningEffort: "ultra" }]) denies({ ...structuredClone(fixture), policy }, "POLICY_INVALID");
+  for (const policy of [null, {}, { ...fixture.policy, version: 2 }, { ...fixture.policy, model: "invalid model" }, { ...fixture.policy, reasoningEffort: "HIGH" }, { ...fixture.policy, reasoningEffort: "" }]) denies({ ...structuredClone(fixture), policy }, "POLICY_INVALID");
 });
 check("high requires documented necessity and exact actual effort", () => {
   const input = changed("policy", { reasoningEffort: "high", necessity: { kind: "unresolved-correctness", whyMediumInadequate: "Focused medium investigation cannot resolve competing orderings", evidence: "Synthetic ownership-17 trace and invariant-3 failure", affectedScope: "Ownership proof", returnToMedium: "Ordering proof and deterministic invariant-3 pass" } });

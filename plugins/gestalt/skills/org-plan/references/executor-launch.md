@@ -4,6 +4,7 @@ Use before launching a versioned L1. Executor duties belong to its assignment
 and canonical supervision reference; a fixed model pin is a separate runtime
 setting. Recommended source setup defaults are `gpt-6.1-sol` / `medium` for
 both roles. Existing installed profiles and running sessions keep their settings.
+The supervisor's explicit L1 model/effort takes precedence over those defaults.
 
 ## Supported default-agent recipe
 
@@ -57,11 +58,13 @@ support blocks this recipe. No new agent/profile/config file is created.
 
 ## Fixed roles and permissions
 
-If the requested route is the fixed `org-plan-executor` role, both declared pins
-must exactly match the L1. Omit model/effort overrides on that route. A conflicting
-pin fails preflight; do not pass an ineffective override, silently change the
-L1, fall back to Astra, or rewrite the global role for each L1. A supported
-default-agent route may instead be selected explicitly when authorized.
+The recipe defaults to `auto`: prefer the supported default-agent override
+route, and consider the fixed `org-plan-executor` role only as a last fallback
+with pins exactly matching the chosen L1 settings. If a requested fixed role
+conflicts but default-agent overrides are supported, select the default route.
+Never pass an ineffective override to a fixed role, silently substitute its
+defaults, or rewrite a global profile for each L1. If no route can honor the
+explicit choice, report that concrete capability limitation.
 
 Keep the parent's actual sandbox, approval policy and writable roots. The
 recipe emits no permission overrides. It requires known inheritance, a writable
@@ -81,10 +84,10 @@ profile, request, root model or successful fixture.
 --executor-reasoning-effort EFFORT --reviewer-reasoning-effort EFFORT` pin explicit
 choices during authorized setup only; both effort defaults are medium. High or
 xhigh flags configure a pin, not a task-specific necessity rationale or launch
-authorization. Versioned L1 validation still requires its documented exception
-and catalog support. Configured mode verifies launch settings/ownership and
-rejects observed mismatches; strict mode additionally requires effective match.
-Legacy setup accepts existing syntactically
-valid model names for compatibility; that does not admit them to v1 execution.
+authorization. Versioned L1 validation requires the supervisor's exact choice,
+rationale and runtime catalog support; higher effort is not a separate approval
+gate. Configured mode applies the current choice at the next safe executor turn
+and keeps requested and observed settings separate; strict mode additionally
+requires effective match.
 Keep transaction rollback, file modes and reviewer read-only sandbox unchanged.
 Never run setup or mutate installed profiles/runtime as a per-L1 workaround.

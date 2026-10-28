@@ -138,28 +138,32 @@ try {
       assert.throws(() => readPlan(path), /L1-only model/);
     }
   });
-  await check("exact IDs and effort values reject Astra/aliases", () => {
-    for (const model of ["gpt-6-astra", "gpt-6", "gpt-6.1", "luna", "kimi"]) {
+  await check("model and effort syntax is bounded while runtime support is checked separately", () => {
+    for (const model of ["invalid model", "x".repeat(65), "none"]) {
       assert.throws(() => parsePlan(source.replace(":MODEL: gpt-6-luna", `:MODEL: ${model}`)), /invalid MODEL/);
     }
-    for (const effort of ["low", "max", "ultra", "HIGH"]) assert.throws(() => parsePlan(source.replace(":REASONING_EFFORT: medium", `:REASONING_EFFORT: ${effort}`)), /invalid REASONING_EFFORT/);
+    for (const effort of ["HIGH", "bad effort"]) assert.throws(() => parsePlan(source.replace(":REASONING_EFFORT: medium", `:REASONING_EFFORT: ${effort}`)), /invalid REASONING_EFFORT/);
+    const terra = parsePlan(source.replace(":MODEL: gpt-6-luna", ":MODEL: gpt-6.1-terra").replace(":REASONING_EFFORT: medium", ":REASONING_EFFORT: high"));
+    assert.equal(terra.items[0].modelPolicy.model, "gpt-6.1-terra");
+    assert.equal(terra.items[0].modelPolicy.reasoningEffort, "high");
+    assert.equal(terra.items[0].modelPolicy.necessity, null);
   });
   await check("fallback list exact, distinct and explicit", () => {
-    for (const fallback of ["gpt-6-astra", "gpt-6-sol  gpt-6.1-sol", "gpt-6-sol gpt-6-sol", "gpt-6-luna", "none gpt-6-sol"]) {
+    for (const fallback of ["invalid$model", "gpt-6-sol  gpt-6.1-sol", "gpt-6-sol gpt-6-sol", "gpt-6-luna", "none gpt-6-sol"]) {
       assert.throws(() => parsePlan(source.replace(":MODEL_FALLBACKS: gpt-6-sol gpt-6.1-sol", `:MODEL_FALLBACKS: ${fallback}`)), /invalid MODEL_FALLBACKS/);
     }
     assert.deepEqual(parsePlan(source.replace(":MODEL_FALLBACKS: gpt-6-sol gpt-6.1-sol", ":MODEL_FALLBACKS: none")).items[0].modelPolicy.allowedFallbacks, []);
   });
-  await check("high requires concrete additional necessity", () => {
+  await check("supervisor high is accepted; optional legacy rationale is validated when supplied", () => {
     const high = source.replace(":REASONING_EFFORT: medium", ":REASONING_EFFORT: high");
-    assert.throws(() => parsePlan(high), /concrete necessity/);
+    assert.equal(parsePlan(high).items[0].modelPolicy.necessity, null);
     const valid = high.replace(":MODEL: ", exception + ":MODEL: ");
     assert.equal(parsePlan(valid).items[0].modelPolicy.necessity.returnToMedium, "Ordering proven and invariant-3 regression passes.");
     for (const key of ["EFFORT_NECESSITY_KIND", "EFFORT_NECESSITY", "EFFORT_EVIDENCE", "EFFORT_SCOPE", "RETURN_TO_MEDIUM"]) {
-      assert.throws(() => parsePlan(valid.replace(new RegExp(`^:${key}:.*\\n`, "m"), "")), /concrete necessity/);
+      assert.throws(() => parsePlan(valid.replace(new RegExp(`^:${key}:.*\\n`, "m"), "")), /optional effort rationale/);
     }
-    assert.throws(() => parsePlan(valid.replace("unresolved-correctness", "complexity")), /concrete necessity/);
-    assert.throws(() => parsePlan(valid.replace(":REASONING_EFFORT: high", ":REASONING_EFFORT: xhigh")), /concrete necessity/);
+    assert.throws(() => parsePlan(valid.replace("unresolved-correctness", "complexity")), /optional effort rationale/);
+    assert.throws(() => parsePlan(valid.replace(":REASONING_EFFORT: high", ":REASONING_EFFORT: xhigh")), /optional effort rationale/);
     assert.equal(parsePlan(valid.replace(":REASONING_EFFORT: high", ":REASONING_EFFORT: xhigh").replace(":MODEL: ", ":SCOPE_REASSESSMENT: Invariant cannot be independently split.\n:MODEL: ")).items[0].modelPolicy.reasoningEffort, "xhigh");
     assert.throws(() => parsePlan(source.replace(":MODEL: ", exception + ":MODEL: ")), /medium must not carry/);
   });
@@ -212,7 +216,7 @@ try {
   });
   await check("invalid schema leaves existing plan/status unchanged", () => {
     process.env.GESTALT_MOBILE_ORG_PLAN_STATUS_FILE = status;
-    write(source.replace(":MODEL: gpt-6-luna", ":MODEL: gpt-6-astra"));
+    write(source.replace(":MODEL: gpt-6-luna", ":MODEL: invalid model"));
     unchangedOnFailure(() => mutate(path, "l1", "first", "WIP"), /invalid MODEL/);
     assert.equal(cliRun("signal", path).status, 1);
     delete process.env.GESTALT_MOBILE_ORG_PLAN_STATUS_FILE;
