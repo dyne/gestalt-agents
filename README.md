@@ -333,6 +333,14 @@ enable browser access. Headless Chrome uses persistent workspace state, never
 the personal browser profile. Host permissions and MCP tool approvals govern
 filesystem access; shell sandbox roots do not confine the host MCP.
 
+The single canonical skill is
+[`plugins/gestalt/skills/playwright/SKILL.md`](plugins/gestalt/skills/playwright/SKILL.md),
+which CLI/Mobile load for connected sessions. It needs no standalone Playwright
+skills. Curated extras no longer install `playwright`, `playwright-cli`,
+`playwright-interactive`, or the form/exploration/test-generation variants.
+Previously installed copies are left untouched; deselect those alternatives in
+profiles using managed Playwright to avoid competing browser instructions.
+
 The optional L1 field `- Managed MCP :: playwright` declares a requirement;
 it does not grant consent or install anything. Agents validates and exposes the
 field, while CLI/Mobile must provide compatible host start/status/stop controls.

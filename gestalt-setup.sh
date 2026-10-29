@@ -132,8 +132,6 @@ install_extra_skills() (
     --skill gh-address-comments \
     --skill gh-fix-ci \
     --skill jupyter-notebook \
-    --skill playwright \
-    --skill playwright-interactive \
     --skill screenshot \
     --skill security-threat-model \
     --skill winui-app
@@ -157,10 +155,6 @@ install_extra_skills() (
     --skill nodejs-backend-patterns \
     --skill shellcheck-configuration \
     --skill typescript-advanced-types
-  add_extra_skills github/awesome-copilot \
-    --skill playwright-automation-fill-in-form \
-    --skill playwright-explore-website \
-    --skill playwright-generate-test
   add_extra_skills membranedev/application-skills \
     --skill chrome-extensions \
     --skill find-skills
@@ -173,7 +167,6 @@ install_extra_skills() (
   add_extra_skills luwill/research-skills@research-proposal
   add_extra_skills marimo-team/skills@wasm-compatibility
   add_extra_skills mengbo/mengbo-skills@pandoc-docx
-  add_extra_skills microsoft/playwright-cli@playwright-cli
   add_extra_skills mindrally/skills@htmx
   add_extra_skills poemswe/co-researcher@academic-writing
   add_extra_skills sickn33/antigravity-awesome-skills \

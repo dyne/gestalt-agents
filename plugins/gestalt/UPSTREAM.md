@@ -7,6 +7,21 @@ and read-only metadata contract version 1 from `gestalt-playwright-mcp` commit
 Runtime activation belongs to the CLI/Mobile integrations; this package does
 not implement attachment controls or grant browser consent.
 
+The 2026-10-29 Playwright consolidation reviews the user-supplied
+`skills-workspace/playwright*` snapshots: `playwright` and
+`playwright-interactive` (openai/skills), `playwright-cli`
+(microsoft/playwright-cli), and the form, exploration, and test-generation
+examples (github/awesome-copilot). Repository identities come from the curated
+installer; snapshot revisions and licenses are unverified. No upstream code,
+assets, or text are vendored. Original Gestalt prose retains the useful concepts:
+fresh snapshot references, reuse of action snapshots, bounded output, observable
+outcome and visual verification, and repository-aware requested tests.
+CLI catalogs/installers, JS REPL/Electron bootstraps, screenshot conversion
+code, fixed form data, compulsory exploration counts, and automatic test
+generation are omitted. Setup no longer selects those six overlapping skills;
+it does not delete user-installed copies. The plugin skill remains the single
+runtime source; operator details stay in its on-demand lifecycle reference.
+
 - Downstream adaptation version: `1.0.0` (coding, security, scripting)
 - Imported local snapshot: `skills-used`, supplied by the user, 2026-10-26
 - Canonical packages: `skills/coding`, `skills/security`, `skills/scripting`

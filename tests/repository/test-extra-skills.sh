@@ -84,10 +84,10 @@ while IFS= read -r call; do
   [[ $call != *"<-g>"* && $call != *"<--global>"* ]] ||
     fail "global scope escaped GESTALT_HOME: $call"
 done <"$log"
-[[ $call_count -eq 21 ]] || fail "expected 21 repository installs, found $call_count"
+[[ $call_count -eq 19 ]] || fail "expected 19 repository installs, found $call_count"
 for merged in bash-linux bash-defensive-patterns clean-ddd-hexagonal \
   domain-driven-design hexagonal-architecture vertical-slice-architecture \
-  security-best-practices security-ownership-map; do
+  security-best-practices security-ownership-map playwright; do
   if grep -F "$merged" "$log" >/dev/null; then
     fail "extra skills still installs a merged source: $merged"
   fi
@@ -105,7 +105,7 @@ standalone_output=$(CODEX_HOME="$standalone_codex" GESTALT_HOME="$standalone_ges
   fail "standalone mode did not report completion"
 [[ ! -e $unexpected_setup_log ]] ||
   fail "standalone mode invoked normal setup tools: $(<"$unexpected_setup_log")"
-[[ $(wc -l <"$standalone_log") -eq 21 ]] ||
+[[ $(wc -l <"$standalone_log") -eq 19 ]] ||
   fail "standalone mode did not run all curated repository installs"
 [[ -L $standalone_codex/skills/mock-skill ]] ||
   fail "standalone mode did not expose managed skills in CODEX_HOME"
