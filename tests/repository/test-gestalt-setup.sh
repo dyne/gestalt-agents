@@ -50,7 +50,12 @@ assert_absent "$tmp/.codex-gestalt" "dry-run does not create the Codex home"
 
 # Exercise the exact publisher command emitted by setup, including normal Org
 # commands through the uninstrumented public launcher on fresh and flat homes.
-bundle_home="$tmp/bundle-home"
+bundle_tmp=$(
+  export TMPDIR="$tmp/"
+  mktemp -d "${TMPDIR}/bundle-path.XXXXXX"
+)
+# Preserve the caller's spelling even when TMPDIR ends in / and paths contain //.
+bundle_home="$bundle_tmp//bundle-home/"
 CODEX_HOME="$bundle_home" GESTALT_HOME="$tmp/bundle-gestalt" \
   bash "$script" --dry-run >"$tmp/bundle-install.out"
 python3 - "$tmp/bundle-install.out" "$bundle_home" "$root" <<'PY_BUNDLE'
@@ -65,7 +70,9 @@ import sys
 import tomllib
 from pathlib import Path
 
-output, home, root = map(Path, sys.argv[1:])
+output_arg, home_arg, root_arg = sys.argv[1:]
+output, home, root = map(Path, (output_arg, home_arg, root_arg))
+assert "//" in home_arg and home_arg.endswith("/")
 source_scripts = root / "plugins/gestalt/skills/org-plan/scripts"
 publication_commands = []
 for line in output.read_text().splitlines():
@@ -74,7 +81,7 @@ for line in output.read_text().splitlines():
     args = shlex.split(line.removeprefix("DRY-RUN:"))
     if len(args) < 2 or args[1] != str(root / "scripts/install-org-plan.mjs"):
         continue
-    assert args == ["node", str(root / "scripts/install-org-plan.mjs"), str(root), str(home)]
+    assert args == ["node", str(root / "scripts/install-org-plan.mjs"), root_arg, home_arg]
     publication_commands.append(args)
 assert len(publication_commands) == 1
 expected = {
@@ -113,7 +120,7 @@ for kind in ("fresh", "legacy-upgrade"):
         for path in source_scripts.glob("*.mjs"):
             shutil.copy2(path, flat)
         before = {p.name: p.read_bytes() for p in flat.iterdir()}
-    args = [*publication_commands[0][:-1], str(selected_home)]
+    args = publication_commands[0] if kind == "fresh" else [*publication_commands[0][:-1], str(selected_home)]
     subprocess.run(args, check=True, env=probe_env, stdout=subprocess.DEVNULL)
     if kind == "legacy-upgrade":
         assert all((flat / name).read_bytes() == content for name, content in before.items())

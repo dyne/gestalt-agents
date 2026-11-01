@@ -177,23 +177,73 @@ for role in ("reviewer", "executor"):
 
 # Install the delivered publisher and its delivered dependency/bundle bytes,
 # then use the installed public command. This detects missing release inputs.
-installed_home = artifacts / "installed-delivery"
-installed_home.mkdir()
-installation = subprocess.run(["node", str(delivered / "scripts/install-org-plan.mjs"),
-                               str(delivered), str(installed_home)], capture_output=True, text=True)
-assert installation.returncode == 0, (
-    f"delivered Org publisher failed (exit {installation.returncode}): "
-    f"{installation.stderr[-1500:]}"
+delivered_alias = artifacts / "delivery-alias"
+delivered_alias.symlink_to(delivered.resolve(), target_is_directory=True)
+alias_entry = delivered_alias / "scripts/install-org-plan.mjs"
+assert alias_entry != alias_entry.resolve(), "CLI alias precondition was not established"
+entries = (
+    ("canonical", [], delivered.resolve() / "scripts/install-org-plan.mjs"),
+    ("absolute-alias", [], alias_entry),
+    ("relative-alias", [], alias_entry.relative_to(artifacts)),
+    ("preserved-alias", ["--preserve-symlinks-main"], alias_entry),
 )
-public_helper = installed_home / "bin/org-plan"
-subprocess.run([str(public_helper), "validate",
-                str(artifacts / "standalone/org-plan/plan-template.org")],
-               check=True, capture_output=True)
-subprocess.run([str(public_helper), "prepare-supervision", "--agents-dir",
-                str(artifacts / "installed-profiles")], check=True, capture_output=True)
-for role in ("reviewer", "executor"):
-    name = f"org-plan-{role}.toml"
-    assert (artifacts / "installed-profiles" / name).read_bytes() == (artifacts / "source-profiles" / name).read_bytes()
+for label, options, entry in entries:
+    installed_home = artifacts / ("installed-delivery-" + label)
+    installed_home.mkdir()
+    installation = subprocess.run(["node", *options, str(entry),
+                                   str(delivered), str(installed_home)],
+                                  cwd=artifacts, capture_output=True, text=True)
+    assert installation.returncode == 0, (
+        f"delivered Org publisher {label} failed (exit {installation.returncode}): "
+        f"{installation.stderr[-1500:]}"
+    )
+    public_helper = installed_home / "bin/org-plan"
+    assert public_helper.is_file(), f"delivered Org publisher {label} silently skipped installation"
+    assert "Org helper bundle installed:" in installation.stdout, label
+    subprocess.run([str(public_helper), "validate",
+                    str(artifacts / "standalone/org-plan/plan-template.org")],
+                   check=True, capture_output=True)
+    installed_profiles = artifacts / ("installed-profiles-" + label)
+    subprocess.run([str(public_helper), "prepare-supervision", "--agents-dir",
+                    str(installed_profiles)], check=True, capture_output=True)
+    for role in ("reviewer", "executor"):
+        name = f"org-plan-{role}.toml"
+        assert (installed_profiles / name).read_bytes() == (artifacts / "source-profiles" / name).read_bytes()
+
+invalid_home = artifacts / "invalid-arity-home"
+for arguments in ([], [str(delivered)], [str(delivered), str(invalid_home), "extra"]):
+    invalid = subprocess.run(["node", str(alias_entry), *arguments],
+                             cwd=artifacts, capture_output=True, text=True)
+    assert invalid.returncode == 1 and "usage: install-org-plan.mjs" in invalid.stderr
+    assert invalid.stdout == "" and not invalid_home.exists()
+
+# Import the actual delivered module through Node's eval/stdin entry modes.
+# Valid installation operands make an accidental CLI dispatch observable.
+import_home = artifacts / "library-import-home"
+import_home.mkdir()
+unrelated_entry = artifacts / "unrelated-entry.mjs"
+unrelated_entry.write_text("// Existing unrelated entry for the library import probe.\n")
+missing_entry = artifacts / "missing-entry.mjs"
+assert not missing_entry.exists()
+for label, entry_args, expected_entry, operands in (
+    ("eval", ["--eval"], None, []),
+    ("stdin", ["-"], "-", [str(delivered), str(import_home)]),
+    ("unrelated", ["--eval"], str(unrelated_entry), [str(unrelated_entry), str(delivered), str(import_home)]),
+    ("nonexistent", ["--eval"], str(missing_entry), [str(missing_entry), str(delivered), str(import_home)]),
+):
+    code = (
+        f"if ((process.argv[1] ?? null) !== {json.dumps(expected_entry)}) throw new Error('wrong import entry');\n"
+        f"const module = await import({json.dumps(alias_entry.as_uri())});\n"
+        "if (typeof module.installOrgPlan !== 'function') throw new Error('publisher import missing');\n"
+    )
+    command = ["node", "--input-type=module", *entry_args]
+    if entry_args == ["--eval"]:
+        command.append(code)
+    imported = subprocess.run([*command, *operands], input=code if label == "stdin" else None,
+                              cwd=artifacts, capture_output=True, text=True)
+    assert imported.returncode == 0, (label, imported.stderr)
+    assert imported.stdout == "" and imported.stderr == "", label
+    assert list(import_home.iterdir()) == [], f"{label} import installed a helper"
 
 checksum_lines = (artifacts / "SHA256SUMS").read_text().splitlines()
 assert len(checksum_lines) == len(expected)
