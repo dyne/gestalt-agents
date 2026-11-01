@@ -4,24 +4,21 @@ import {
   cpSync,
   existsSync,
   mkdirSync,
-  readFileSync,
   realpathSync,
   renameSync,
   rmSync,
-  statSync,
-  writeFileSync,
 } from "node:fs";
 import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { prepareRuntime } from "./prepare-runtime.mjs";
 import { getRuntimeIdentity, getRuntimeRoot } from "./runtime-location.mjs";
 import { verifyPreparedRuntime } from "./runtime-preflight.mjs";
+import { runtimeLockTimeout, tryAcquireRuntimeLock } from "./runtime-lock.mjs";
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 const SOURCE_ROOT = resolve(SCRIPT_DIR, "..");
 const WAIT_MS = 250;
 const WAIT_TIMEOUT_MS = 300_000;
-const STALE_LOCK_MS = 600_000;
 const GENERATED = new Set([
   ".context-mode-prepared.json",
   "server.bundle.mjs",
@@ -43,21 +40,6 @@ function shouldCopy(sourceRoot, source) {
   if (first === "node_modules" || first === "build") return false;
   if (first.startsWith(".context-mode-prepare")) return false;
   return !GENERATED.has(name);
-}
-
-function removeStaleLock(lockDir) {
-  try {
-    const pid = Number.parseInt(readFileSync(resolve(lockDir, "owner.pid"), "utf8"), 10);
-    let alive = Number.isInteger(pid) && pid > 0;
-    if (alive) {
-      try { process.kill(pid, 0); } catch (error) { alive = error?.code !== "ESRCH"; }
-    }
-    if (!alive || Date.now() - statSync(lockDir).mtimeMs > STALE_LOCK_MS) {
-      rmSync(lockDir, { recursive: true, force: true });
-    }
-  } catch {
-    // The owner can release the lock between observations.
-  }
 }
 
 function publishRuntime(stage, target) {
@@ -100,17 +82,8 @@ export async function installRuntime(sourceRoot = SOURCE_ROOT, { force = false, 
   const lockDir = `${target}.install.lock`;
   const deadline = Date.now() + WAIT_TIMEOUT_MS;
   while (Date.now() < deadline) {
-    let ownsLock = false;
-    try {
-      mkdirSync(lockDir);
-      writeFileSync(resolve(lockDir, "owner.pid"), `${process.pid}\n`);
-      ownsLock = true;
-    } catch (error) {
-      if (error?.code !== "EEXIST") throw error;
-      removeStaleLock(lockDir);
-    }
-
-    if (ownsLock) {
+    const releaseLock = tryAcquireRuntimeLock(lockDir);
+    if (releaseLock) {
       const stage = `${target}.stage-${process.pid}-${Date.now()}`;
       try {
         if (force || !verifyInstalledRuntime(sourceRoot, target).ok) {
@@ -124,8 +97,8 @@ export async function installRuntime(sourceRoot = SOURCE_ROOT, { force = false, 
           publishRuntime(stage, target);
         }
       } finally {
-        rmSync(stage, { recursive: true, force: true });
-        rmSync(lockDir, { recursive: true, force: true });
+        try { rmSync(stage, { recursive: true, force: true }); }
+        finally { releaseLock(); }
       }
       return target;
     }
@@ -133,7 +106,7 @@ export async function installRuntime(sourceRoot = SOURCE_ROOT, { force = false, 
     if (!force && verifyInstalledRuntime(sourceRoot, target).ok) return target;
     await delay(WAIT_MS);
   }
-  throw new Error(`timed out waiting for runtime installation lock: ${lockDir}`);
+  throw new Error(`timed out waiting for runtime installation lock: ${runtimeLockTimeout(lockDir)}`);
 }
 
 if (

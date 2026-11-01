@@ -8,7 +8,6 @@ import {
   readFileSync,
   realpathSync,
   rmSync,
-  statSync,
   writeFileSync,
 } from "node:fs";
 import { homedir } from "node:os";
@@ -19,13 +18,13 @@ import {
   REQUIRED_FILES,
   verifyPreparedRuntime,
 } from "./runtime-preflight.mjs";
+import { runtimeLockTimeout, tryAcquireRuntimeLock } from "./runtime-lock.mjs";
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 const DEFAULT_PLUGIN_ROOT = resolve(SCRIPT_DIR, "..");
 const MANIFEST = ".context-mode-prepared.json";
 const WAIT_MS = 250;
 const WAIT_TIMEOUT_MS = 180_000;
-const STALE_LOCK_MS = 300_000;
 
 const delay = (ms) => new Promise((done) => setTimeout(done, ms));
 function findBun() {
@@ -132,49 +131,15 @@ function writeManifest(pluginRoot) {
   );
 }
 
-function removeStaleLock(lockDir, ownerPath, recoveryDir) {
-  try {
-    mkdirSync(recoveryDir);
-  } catch (error) {
-    if (error?.code === "EEXIST") return;
-    throw error;
-  }
-  try {
-    const ownerPid = Number.parseInt(readFileSync(ownerPath, "utf8"), 10);
-    let ownerAlive = Number.isInteger(ownerPid) && ownerPid > 0;
-    if (ownerAlive) {
-      try { process.kill(ownerPid, 0); } catch (error) { ownerAlive = error?.code !== "ESRCH"; }
-    }
-    if (!ownerAlive || Date.now() - statSync(lockDir).mtimeMs > STALE_LOCK_MS) {
-      rmSync(lockDir, { recursive: true, force: true });
-    }
-  } catch {
-    // Another preparer may have released the lock.
-  } finally {
-    rmSync(recoveryDir, { recursive: true, force: true });
-  }
-}
-
 export async function prepareRuntime(pluginRoot = DEFAULT_PLUGIN_ROOT, { force = false } = {}) {
   const lockDir = join(pluginRoot, ".context-mode-prepare.lock");
-  const ownerPath = join(lockDir, "owner.pid");
-  const recoveryDir = join(pluginRoot, ".context-mode-prepare.recovery.lock");
   const tempDir = join(pluginRoot, ".context-mode-prepare-tmp");
   if (!force && verifyPreparedRuntime(pluginRoot).ok) return;
 
   const deadline = Date.now() + WAIT_TIMEOUT_MS;
   while (Date.now() < deadline) {
-    let ownsLock = false;
-    try {
-      mkdirSync(lockDir);
-      writeFileSync(ownerPath, `${process.pid}\n`);
-      ownsLock = true;
-    } catch (error) {
-      if (error?.code !== "EEXIST") throw error;
-      removeStaleLock(lockDir, ownerPath, recoveryDir);
-    }
-
-    if (ownsLock) {
+    const releaseLock = tryAcquireRuntimeLock(lockDir);
+    if (releaseLock) {
       try {
         if (force || !verifyPreparedRuntime(pluginRoot).ok) {
           buildRuntimeArtifacts(pluginRoot, tempDir);
@@ -182,8 +147,8 @@ export async function prepareRuntime(pluginRoot = DEFAULT_PLUGIN_ROOT, { force =
           writeManifest(pluginRoot);
         }
       } finally {
-        rmSync(tempDir, { recursive: true, force: true });
-        rmSync(lockDir, { recursive: true, force: true });
+        try { rmSync(tempDir, { recursive: true, force: true }); }
+        finally { releaseLock(); }
       }
       const result = verifyPreparedRuntime(pluginRoot);
       if (!result.ok) throw new Error(`preparation incomplete: ${result.problems.join(", ")}`);
@@ -193,7 +158,7 @@ export async function prepareRuntime(pluginRoot = DEFAULT_PLUGIN_ROOT, { force =
     if (verifyPreparedRuntime(pluginRoot).ok) return;
     await delay(WAIT_MS);
   }
-  throw new Error(`timed out waiting for preparation lock: ${lockDir}`);
+  throw new Error(`timed out waiting for preparation lock: ${runtimeLockTimeout(lockDir)}`);
 }
 
 if (

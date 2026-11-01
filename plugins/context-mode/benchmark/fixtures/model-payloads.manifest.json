@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "corpusSha256": "fa91922ca7a6487370861cbf0172c04e40d0d9bbb0d04128db33f0d9114d47e8",
   "baselineRevision": "e0ad0de2eecf1d1334c876304d1eeb4f35a5c1a4",
-  "packageLockSha256": "0b2a4fdcecc104d9e58622623425d047b2f50d38da0b5b294485022075948cc2",
+  "packageLockSha256": "e28000921d10392fe3570d48c18b45e0c7561d168ada67876cd0c1f0b5353084",
   "referenceEnvironment": {
     "node": "v24.22.0",
     "abi": "137",

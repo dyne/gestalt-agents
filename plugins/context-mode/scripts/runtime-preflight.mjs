@@ -9,6 +9,7 @@ export const REQUIRED_FILES = [
   join("scripts", "codex-profile.mjs"),
   join("scripts", "runtime-location.mjs"),
   join("scripts", "runtime-preflight.mjs"),
+  join("scripts", "runtime-lock.mjs"),
   "server.bundle.mjs",
   "cli.bundle.mjs",
   join("hooks", "security.bundle.mjs"),
