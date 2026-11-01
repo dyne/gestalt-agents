@@ -44,6 +44,7 @@ assert (context_mode / "hooks/hooks.json").is_file()
 assert (context_mode / ".mcp.json").is_file()
 runtime = gestalt_home / "runtime/context-mode"
 assert (runtime / ".context-mode-prepared.json").is_file()
+assert (runtime / "scripts/runtime-lock.mjs").is_file()
 assert (runtime / "node_modules/better-sqlite3/build/Release/better_sqlite3.node").is_file()
 # Simulate Codex rematerializing its cache after setup.
 import shutil

@@ -5,7 +5,7 @@
 - Imported commit: `4b1348d4bba530d26cfc73181a0c2f263923e334`
 - Describe: `v1.0.169-56-g4b1348d`
 - Upstream package version: `1.0.169`
-- Downstream package version: `2.23.1`
+- Downstream package version: `2.23.2`
 - License: Elastic-2.0
 - Import date: 2026-07-22
 
@@ -14,6 +14,21 @@ repository checksum fixture records the adapted source files, executable modes,
 and contents while excluding generated dependencies and build artifacts.
 
 ## Downstream changes
+
+- Shares an ownership-safe directory-lock protocol between runtime installation
+  and preparation. Acquisition uses exclusive directory creation; unique owner
+  records prevent stale cleanup from deleting a successor. Legacy PID records
+  are converted within the locked directory and the actual moved contents are
+  checked before dead-owner recovery. Only ESRCH establishes death; age,
+  permission failures and incomplete metadata never permit takeover. A failed
+  owner-file unlink never authorizes directory removal. Unknown empty locks
+  after interrupted publication/release fail closed with bounded wait guidance.
+  The new lock helper is included in package and prepared-runtime inventories;
+  isolated process regressions cover initialization, successor interleavings,
+  concurrent builders, failures and interrupted-owner recovery. Synchronizes
+  npm lockfile root version metadata with the downstream package version and
+  refreshes the frozen benchmark's lock digest for that metadata-only change;
+  dependency versions, corpus bytes and expected benchmark values are unchanged.
 
 - Adds offline composed retrieval/evidence scenarios and controlled paired-cost
   checks to the existing overhead harness. Synthetic routing actors exercise

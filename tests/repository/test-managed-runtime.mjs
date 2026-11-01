@@ -119,6 +119,18 @@ test("failed preparation and failed staged verification preserve the previous ru
   assert.deepEqual(readdirSync(dirname(target)), ["context-mode"]);
 });
 
+test("a missing shared lock helper invalidates and rebuilds the prepared runtime", async (t) => {
+  const { source, target, env } = fixture(t);
+  await installRuntime(source, { env, prepare });
+  const helper = join(target, "scripts", "runtime-lock.mjs");
+  rmSync(helper);
+  assert.equal(verifyInstalledRuntime(source, target).ok, false);
+  assert.ok(verifyInstalledRuntime(source, target).problems.includes(join("scripts", "runtime-lock.mjs")));
+  await installRuntime(source, { env, prepare });
+  assert.equal(existsSync(helper), true);
+  assert.equal(verifyInstalledRuntime(source, target).ok, true);
+});
+
 test("an ABI mismatch rebuilds in place and concurrent installers share a lock", async (t) => {
   const { source, target, env } = fixture(t);
   await installRuntime(source, { env, prepare });

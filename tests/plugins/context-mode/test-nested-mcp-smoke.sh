@@ -36,6 +36,7 @@ wait "$builder_one"
 wait "$builder_two"
 runtime=$(GESTALT_HOME="$gestalt_home" node -e "import('./plugins/context-mode/scripts/runtime-location.mjs').then(({getRuntimeRoot}) => process.stdout.write(getRuntimeRoot(process.argv[1])))" "$plugin")
 test -f "$runtime/server.bundle.mjs"
+test -f "$runtime/scripts/runtime-lock.mjs"
 test -f "$runtime/hooks/security.bundle.mjs"
 test -f "$runtime/hooks/session-attribution.bundle.mjs"
 test -f "$runtime/node_modules/better-sqlite3/build/Release/better_sqlite3.node"

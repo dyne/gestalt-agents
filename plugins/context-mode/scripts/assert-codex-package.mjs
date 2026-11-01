@@ -15,6 +15,7 @@ const required = [
   "scripts/configure-codex.mjs",
   "scripts/runtime-location.mjs",
   "scripts/runtime-preflight.mjs",
+  "scripts/runtime-lock.mjs",
   "hooks/runtime-hook.mjs",
 ];
 

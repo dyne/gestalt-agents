@@ -24,9 +24,11 @@ const temporary = realpathSync(
 try {
   for (const mode of ["baseline", "approve", "tool-override"]) {
     const home = join(temporary, mode);
+    const codexHome = join(home, "codex");
     const workspace = join(home, "workspace");
     const statusDirectory = join(workspace, "status");
     mkdirSync(statusDirectory, { recursive: true, mode: 0o700 });
+    mkdirSync(codexHome, { mode: 0o700 });
     const plan = join(workspace, "fixture.org");
     copyFileSync(
       join(root, "tests/plugins/gestalt/fixtures/valid-minimal.org"),
@@ -36,7 +38,7 @@ try {
     const environment = {
       PATH: process.env.PATH,
       HOME: home,
-      CODEX_HOME: home,
+      CODEX_HOME: codexHome,
       GESTALT_MOBILE_ORG_PLAN_STATUS_DIRECTORY: statusDirectory,
     };
     for (const args of [
@@ -72,7 +74,7 @@ try {
       ),
     ).version;
     const manifestPath = join(
-      home,
+      codexHome,
       "plugins/cache/dyne-gestalt-agents/gestalt",
       version,
       ".mcp.json",
@@ -149,7 +151,7 @@ try {
     await new Promise((resolve) => model.listen(0, "127.0.0.1", resolve));
     const port = model.address().port;
     writeFileSync(
-      join(home, "config.toml"),
+      join(codexHome, "config.toml"),
       `model_provider = "fixture"\nmodel = "fixture"\n[model_providers.fixture]\nname = "Local approval fixture"\nbase_url = "http://127.0.0.1:${port}/v1"\nwire_api = "responses"\nrequires_openai_auth = false\nrequest_max_retries = 0\n[features]\ntool_search = false\n[plugins."gestalt@dyne-gestalt-agents"]\nenabled = true\n${mode === "tool-override" ? '[plugins."gestalt@dyne-gestalt-agents".mcp_servers.gestalt-org-plan.tools.org_plan_signal]\napproval_mode = "prompt"\n' : ""}`,
     );
     const child = spawn("codex", ["app-server", "--stdio"], {
