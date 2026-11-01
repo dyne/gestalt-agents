@@ -112,6 +112,7 @@ bundle_entries = regular_entries(artifacts / f"gestalt-agents-{tag}.zip")
 assert ".agents/plugins/marketplace.json" in bundle_entries
 assert "gestalt-setup.sh" in bundle_entries
 assert "scripts/install-managed-commands.mjs" in bundle_entries
+assert "scripts/install-org-plan.mjs" in bundle_entries
 assert "scripts/verify-gestalt-skill-catalog.mjs" in bundle_entries
 assert "README.md" in bundle_entries
 assert "USAGE.md" in bundle_entries
@@ -125,6 +126,7 @@ assert {f"plugins/gestalt/skills/{skill}/SKILL.md" for skill in skills} <= bundl
 # Check delivered bytes, not only filenames. Generate profiles from the actual
 # archive helper in isolation so a stale bootstrap cannot pass source tests.
 instruction_paths = (
+    "scripts/install-org-plan.mjs",
     "plugins/context-mode/scripts/runtime-lock.mjs",
     "plugins/context-mode/scripts/install-runtime.mjs",
     "plugins/context-mode/scripts/prepare-runtime.mjs",
@@ -137,14 +139,24 @@ instruction_paths = (
     "plugins/gestalt/skills/context-mode/SKILL.md",
     "plugins/gestalt/skills/context-mode/references/bounded-retrieval.md",
     "plugins/gestalt/skills/ctx-search/SKILL.md",
-    "plugins/gestalt/skills/org-plan/scripts/org-plan",
-)
+    "plugins/gestalt/LICENSE",
+) + tuple(str(path.relative_to(root)) for path in
+          sorted((root / "plugins/gestalt/skills/org-plan/scripts").iterdir()))
 delivered = artifacts / "instruction-delivery"
 delivered.mkdir()
 with zipfile.ZipFile(artifacts / f"gestalt-agents-{tag}.zip") as bundle:
     for relative in instruction_paths:
         assert bundle.read(relative) == (root / relative).read_bytes(), relative
+        entry = bundle.getinfo(relative)
+        unix_mode = entry.external_attr >> 16
+        assert not entry.is_dir() and stat.S_IFMT(unix_mode) in (0, stat.S_IFREG), relative
+        # Git ZIP uses DOS metadata with no Unix mode for ordinary files;
+        # executable entries carry a full POSIX regular-file mode instead.
+        mode = stat.S_IMODE(unix_mode) if entry.create_system == 3 and unix_mode else 0o644
+        expected_mode = 0o755 if (root / relative).stat().st_mode & 0o111 else 0o644
+        assert mode == expected_mode, f"unexpected delivered mode: {relative}"
         bundle.extract(relative, delivered)
+        (delivered / relative).chmod(mode)
     gestalt = json.loads(bundle.read("plugins/gestalt/.codex-plugin/plugin.json"))
     context = json.loads(bundle.read("plugins/context-mode/.codex-plugin/plugin.json"))
     assert gestalt["skills"] == "./skills/"
@@ -163,6 +175,26 @@ for role in ("reviewer", "executor"):
     profile = tomllib.loads(actual.decode())
     assert "supervised-execution reference" in profile["developer_instructions"]
 
+# Install the delivered publisher and its delivered dependency/bundle bytes,
+# then use the installed public command. This detects missing release inputs.
+installed_home = artifacts / "installed-delivery"
+installed_home.mkdir()
+installation = subprocess.run(["node", str(delivered / "scripts/install-org-plan.mjs"),
+                               str(delivered), str(installed_home)], capture_output=True, text=True)
+assert installation.returncode == 0, (
+    f"delivered Org publisher failed (exit {installation.returncode}): "
+    f"{installation.stderr[-1500:]}"
+)
+public_helper = installed_home / "bin/org-plan"
+subprocess.run([str(public_helper), "validate",
+                str(artifacts / "standalone/org-plan/plan-template.org")],
+               check=True, capture_output=True)
+subprocess.run([str(public_helper), "prepare-supervision", "--agents-dir",
+                str(artifacts / "installed-profiles")], check=True, capture_output=True)
+for role in ("reviewer", "executor"):
+    name = f"org-plan-{role}.toml"
+    assert (artifacts / "installed-profiles" / name).read_bytes() == (artifacts / "source-profiles" / name).read_bytes()
+
 checksum_lines = (artifacts / "SHA256SUMS").read_text().splitlines()
 assert len(checksum_lines) == len(expected)
 for line in checksum_lines:
@@ -176,6 +208,7 @@ tracked = subprocess.check_output(
         "git", "-C", str(root), "ls-tree", "-r", "--name-only", "HEAD", "--",
         ".agents/plugins/marketplace.json", "README.md", "USAGE.md", "gestalt-setup.sh",
         "scripts/install-managed-commands.mjs", "scripts/verify-gestalt-skill-catalog.mjs",
+        "scripts/install-org-plan.mjs",
         "plugins/gestalt", "plugins/context-mode",
     ],
     text=True,

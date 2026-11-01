@@ -150,11 +150,24 @@ hook configuration. On an older installation, remove an
 Setup also verifies the app-server's real `skills/list` response contains every
 enabled `$gestalt:<skill-name>` distributed by the installed release. Setup
 fails rather than reporting success when the session catalog disagrees with
-the plugin. The bundled Org Plan helper is copied to the stable
-`$CODEX_HOME/bin/org-plan` path on every setup or upgrade, with its Node
-implementation installed as a matching private bundle under
-`$CODEX_HOME/lib/gestalt-org-plan`; launchers should add `$CODEX_HOME/bin` to
-`PATH`.
+the plugin. Setup stages and validates the Org Plan wrapper, all Node modules
+and their MIT notice in a versioned private bundle under
+`$CODEX_HOME/lib/gestalt-org-plan/bundles`. One atomic replacement activates
+the stable `$CODEX_HOME/bin/org-plan` command; launchers should add
+`$CODEX_HOME/bin` to `PATH`. Each invocation selects one complete bundle,
+including imports made after an upgrade. Failed validation keeps the previous
+helper available, and existing flat installations migrate without changing
+their public command path.
+
+Old complete bundles and legacy flat modules are retained for running helpers,
+so repeated setup increases disk use. Remove them only during offline
+maintenance after confirming that no helper or setup process uses the
+installation. Setup cleans private interrupted stages only when their unique
+owner record matches a process proven absent. If setup times out waiting for
+the reported publication lock, inspect that exact lock and its ownership
+record; retry after its owner exits. Missing or inaccessible ownership fails
+closed and needs manual inspection. Age alone does not establish an abandoned
+lock. These guarantees concern atomic visibility, not power-loss durability.
 
 The bundled `gestalt-org-plan` MCP server explicitly approves its local plan
 and lifecycle tools, matching the trusted context-mode server. Codex's
