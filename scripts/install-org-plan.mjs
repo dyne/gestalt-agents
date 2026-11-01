@@ -6,7 +6,7 @@ import {
   chmodSync, lstatSync, mkdirSync, readdirSync, readFileSync, realpathSync, renameSync,
   rmSync, writeFileSync,
 } from "node:fs";
-import { isAbsolute, join, resolve } from "node:path";
+import { isAbsolute, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { runtimeLockTimeout, tryAcquireRuntimeLock } from "../plugins/context-mode/scripts/runtime-lock.mjs";
 
@@ -168,7 +168,18 @@ export async function installOrgPlan(sourceRoot, codexHome) {
   }
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+function isDirectInvocation() {
+  if (!process.argv[1]) return false;
+  try {
+    // Compare physical paths even when the CLI spelling retains symlink ancestors.
+    return realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url));
+  } catch {
+    // Eval, stdin and library callers need not supply an existing entry file.
+    return false;
+  }
+}
+
+if (isDirectInvocation()) {
   try {
     if (process.argv.length !== 4) throw new Error("usage: install-org-plan.mjs SOURCE_ROOT CODEX_HOME");
     const bundle = await installOrgPlan(process.argv[2], process.argv[3]);

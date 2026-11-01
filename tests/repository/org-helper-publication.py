@@ -192,6 +192,14 @@ if (process.env.PUBLICATION_READY_GATE) {
             shutil.copy2(source / SCRIPTS / (module + ".mjs"), bundle)
         return source
 
+    def alias_codex_home(self):
+        alias = self.home / "codex alias"
+        alias.symlink_to(self.codex, target_is_directory=True)
+        self.codex = alias
+        self.env["CODEX_HOME"] = str(alias)
+        if self.launcher == self.launcher.resolve():
+            raise AssertionError("activation fixture requires a lexical home alias")
+
     def activation_env(self, action="failure"):
         # Instrument the existing fs rename boundary through Node's supported
         # preload mechanism; production publisher code has no test-only hooks.
@@ -226,7 +234,7 @@ fs.renameSync = (source, target) => {
 syncBuiltinESMExports();
 ''')
         return {"NODE_OPTIONS": "--import=" + json.dumps(str(preload)),
-                "PUBLICATION_PUBLIC_PATH": str(self.launcher),
+                "PUBLICATION_PUBLIC_PATH": str(self.launcher.resolve()),
                 "PUBLICATION_ACTIVATION_ACTION": action,
                 "PUBLICATION_GATE_PYTHON": sys.executable,
                 "PUBLICATION_GATE_SCRIPT": str(gate)}
@@ -468,6 +476,7 @@ class PublicationContract(unittest.TestCase):
     def test_activation_failure_preserves_public_inode_and_old_bundle(self):
         self.old()
         fixture = self.fixture
+        fixture.alias_codex_home()
         before = fixture.launcher.stat().st_ino
         text = fixture.launcher.read_bytes()
         code, _ = fixture.finish(fixture.setup(fixture.source("new"), **fixture.activation_env()), expected=None)
@@ -510,6 +519,7 @@ class PublicationContract(unittest.TestCase):
     def test_interrupted_activation_keeps_old_and_retry_retains_bundles(self):
         self.old()
         fixture = self.fixture
+        fixture.alias_codex_home()
         source = fixture.source("new")
         upgrade = fixture.setup(source, **fixture.activation_env("gate"))
         fixture.gate("activation-ready")
