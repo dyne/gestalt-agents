@@ -16,6 +16,7 @@ const required = [
   "scripts/runtime-location.mjs",
   "scripts/runtime-preflight.mjs",
   "scripts/runtime-lock.mjs",
+  "scripts/session-scratch.mjs",
   "hooks/runtime-hook.mjs",
 ];
 

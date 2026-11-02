@@ -3423,7 +3423,7 @@ describe("runBatchCommands edge cases", () => {
 
   test("buildBatchNodeOptionsPrefix formats POSIX shell assignment", () => {
     const prefix = buildBatchNodeOptionsPrefix("bash", "/tmp/cm fs'preload.js");
-    expect(prefix).toBe("NODE_OPTIONS='--require /tmp/cm fs'\\''preload.js' ");
+    expect(prefix).toBe("NODE_OPTIONS='--require \"/tmp/cm fs'\\''preload.js\"' ");
   });
 
   test("buildBatchNodeOptionsPrefix formats PowerShell assignment", () => {
@@ -3431,7 +3431,7 @@ describe("runBatchCommands edge cases", () => {
       "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
       "C:\\Temp\\cm ' fs.js",
     );
-    expect(prefix).toBe("$env:NODE_OPTIONS='--require C:\\Temp\\cm '' fs.js'; ");
+    expect(prefix).toBe("$env:NODE_OPTIONS='--require \"C:\\\\Temp\\\\cm '' fs.js\"'; ");
   });
 
   test("buildBatchNodeOptionsPrefix formats cmd assignment", () => {
@@ -3439,7 +3439,7 @@ describe("runBatchCommands edge cases", () => {
       "C:\\Windows\\System32\\cmd.exe",
       "C:\\Temp\\cm-fs-preload.js",
     );
-    expect(prefix).toBe('set "NODE_OPTIONS=--require C:\\Temp\\cm-fs-preload.js" && ');
+    expect(prefix).toBe('set "NODE_OPTIONS=--require "C:\\\\Temp\\\\cm-fs-preload.js"" && ');
   });
 });
 

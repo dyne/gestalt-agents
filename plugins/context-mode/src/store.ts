@@ -9,11 +9,12 @@
  */
 
 import type { Database as DatabaseInstance } from "better-sqlite3";
-import { loadDatabase, applyWALPragmas, closeDB, cleanOrphanedWALFiles, withRetry, deleteDBFiles, isSQLiteCorruptionError } from "./db-base.js";
+import { loadDatabase, applyWALPragmas, closeDB, cleanOrphanedWALFiles, withRetry, deleteDBFiles, isSQLiteCorruptionError, defaultDBPath } from "./db-base.js";
 import type { PreparedStatement } from "./db-base.js";
 import { readFileSync, readdirSync, unlinkSync, existsSync, statSync, openSync, fstatSync, closeSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { tmpdir } from "node:os";
+import { resolveSessionScratch } from "../scripts/session-scratch.mjs";
 import { join } from "node:path";
 import { walkDirectoryDetailed, type WalkOptions } from "./store-directory.js";
 
@@ -181,6 +182,9 @@ const WHITESPACE_BREAK_RATIO = 0.5;
  * Remove stale DB files from previous sessions whose processes no longer exist.
  */
 export function cleanupStaleDBs(): number {
+  // PID/age is not managed-owner cleanup authority. Retain crash leftovers
+  // until the owning lifecycle has confirmed resource release.
+  if (resolveSessionScratch()) return 0;
   const dir = tmpdir();
   let cleaned = 0;
   try {
@@ -424,7 +428,7 @@ export class ContentStore {
   constructor(dbPath?: string) {
     const Database = loadDatabase();
     this.#dbPath =
-      dbPath ?? join(tmpdir(), `context-mode-${process.pid}.db`);
+      dbPath ?? defaultDBPath();
     cleanOrphanedWALFiles(this.#dbPath);
     let db: DatabaseInstance;
     try {

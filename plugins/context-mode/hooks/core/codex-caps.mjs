@@ -18,7 +18,7 @@
  */
 import { execFileSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { resolveScratchDirectory as tmpdir, scratchEnvironment } from "../../scripts/session-scratch.mjs";
 import { join } from "node:path";
 
 /**
@@ -65,7 +65,7 @@ export function versionGte(a, b) {
 }
 
 function defaultRunVersion() {
-  const opts = { encoding: "utf8", timeout: 2000, stdio: ["ignore", "pipe", "ignore"] };
+  const opts = { encoding: "utf8", timeout: 2000, stdio: ["ignore", "pipe", "ignore"], env: scratchEnvironment() };
   // Mirror the adapter's cross-platform probe (src/adapters/codex/index.ts):
   // on Windows `codex` resolves to a .cmd shim that execFile cannot launch
   // directly, so route through cmd.exe.

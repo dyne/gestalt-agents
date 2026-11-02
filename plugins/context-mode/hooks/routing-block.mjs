@@ -10,6 +10,7 @@
  */
 
 import { createToolNamer } from "./core/tool-naming.mjs";
+import { SESSION_SCRATCH_GUIDANCE } from "../scripts/session-scratch.mjs";
 
 // ── Factory functions ─────────────────────────────────────
 
@@ -85,7 +86,7 @@ ${includeCommands ? `
  * a reminder for hosts where those surfaces are not inherited.
  */
 export function createCodexRoutingReminder(t) {
-  return `<context-mode>Use ${t("ctx_batch_execute")} or ${t("ctx_execute_file")} for large analysis and return derived findings only. Use native tools for writes and governing AGENTS.md/SKILL.md reads; ${t("ctx_search")} retrieves indexed context.</context-mode>`;
+  return `<context-mode>Use ${t("ctx_batch_execute")} or ${t("ctx_execute_file")} for large analysis and return derived findings only. Use native tools for writes and governing AGENTS.md/SKILL.md reads; ${t("ctx_search")} retrieves indexed context. ${SESSION_SCRATCH_GUIDANCE}</context-mode>`;
 }
 
 export function createReadGuidance(t) {

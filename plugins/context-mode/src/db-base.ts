@@ -10,7 +10,7 @@ import type DatabaseConstructor from "better-sqlite3";
 import type { Database as DatabaseInstance } from "better-sqlite3";
 import { createRequire } from "node:module";
 import { existsSync, unlinkSync, renameSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { resolveScratchDirectory } from "../scripts/session-scratch.mjs";
 import { join } from "node:path";
 // v1.0.130 — `acquireDbLock` + `locking_mode = EXCLUSIVE` were REMOVED.
 // See docs/adr/0001-sessiondb-multi-writer.md for the architectural
@@ -411,11 +411,11 @@ export function closeDB(db: DatabaseInstance): void {
 
 /**
  * Return the default per-process DB path for context-mode databases.
- * Uses the OS temp directory and embeds the current PID so multiple
+ * Uses validated managed scratch or standalone OS temp, and embeds the PID so
  * server instances never share a file.
  */
 export function defaultDBPath(prefix: string = "context-mode"): string {
-  return join(tmpdir(), `${prefix}-${process.pid}.db`);
+  return join(resolveScratchDirectory(), `${prefix}-${process.pid}.db`);
 }
 
 // ─────────────────────────────────────────────────────────

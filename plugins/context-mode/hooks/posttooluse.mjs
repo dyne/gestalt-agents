@@ -24,7 +24,7 @@ await runHook(async () => {
   const { dirname, resolve, basename } = await import("node:path");
   const { fileURLToPath } = await import("node:url");
   const { readFileSync, unlinkSync } = await import("node:fs");
-  const { tmpdir } = await import("node:os");
+  const { resolveScratchDirectory: tmpdir } = await import("../scripts/session-scratch.mjs");
 
   // Resolve absolute path for imports — relative dynamic imports can fail
   // when Claude Code invokes hooks from a different working directory.

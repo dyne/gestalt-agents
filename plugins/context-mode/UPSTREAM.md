@@ -15,6 +15,20 @@ and contents while excluding generated dependencies and build artifacts.
 
 ## Downstream changes
 
+- Consumes Gestalt's shared v1 session/service scratch locator with canonical
+  path, no-link, UID/private-mode, marker and active primary-lease validation.
+  Routes executor children, transient preload/fetch output, temporary databases,
+  upgrade/probe scratch, hook markers and readiness producer/consumer through
+  the validated owner; present-invalid context fails visibly. Preserves the
+  legacy no-context OS-temp discovery and operator fallbacks, persistent
+  workspace databases/evidence and destination-local installation staging.
+  Managed crash leftovers are retained instead of PID-only temporary DB sweeps.
+  Quotes batch preloads and uses the installed tsx Node loader for managed
+  TypeScript without the CLI's length-limited Unix socket; Bun and standalone
+  runtime selection remain unchanged. Ships the resolver as a required runtime
+  input, adds conditional SessionStart/subagent guidance and exact four-variable
+  native MCP forwarding, and includes scratch regressions in the default suite.
+
 - Shares an ownership-safe directory-lock protocol between runtime installation
   and preparation. Acquisition uses exclusive directory creation; unique owner
   records prevent stale cleanup from deleting a successor. Legacy PID records

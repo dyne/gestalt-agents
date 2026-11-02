@@ -5,7 +5,7 @@
 import { join, resolve as resolvePath } from "node:path";
 import { pathToFileURL } from "node:url";
 import { existsSync, readFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { resolveScratchDirectory as tmpdir } from "../scripts/session-scratch.mjs";
 
 import { hasPlatformConfig, maybeForward } from "./platform-bridge.mjs";
 import { detectPlatformFromEnv } from "./core/platform-detect.mjs";

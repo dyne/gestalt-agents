@@ -89,6 +89,15 @@ test/review material, never an additional agent instruction entrypoint.
 
 ## Delivered sources
 
+Managed scratch guidance is conditional on `GESTALT_SESSION_TMP_CONTEXT`.
+The canonical context-mode skill and generated Codex SessionStart/subagent
+reminder require validated `TMPDIR`, exact four-variable child inheritance,
+retaining the owner until Forget, and persistent workspace database/evidence
+boundaries. Without context, standalone/operator fallback remains. Two static
+instruction scenarios bind the skill text; package regressions exercise actual
+SessionStart delivery, runtime ownership, and native MCP environment forwarding.
+The inactive vendor AGENTS example and Org role/profile authority are unchanged.
+
 | Source | Activation and delivery | Baseline words / bytes |
 | --- | --- | --- |
 | Repository `AGENTS.md` | Governs work in this checkout; all three roles read it | 703 / 5239 |
