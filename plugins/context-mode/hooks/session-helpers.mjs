@@ -18,7 +18,8 @@
 
 import { join, dirname } from "node:path";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { homedir, tmpdir } from "node:os";
+import { homedir } from "node:os";
+import { resolveScratchDirectory as tmpdir } from "../scripts/session-scratch.mjs";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 // ─────────────────────────────────────────────────────────

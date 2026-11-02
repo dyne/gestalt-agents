@@ -31,7 +31,8 @@ function mcpRedirect(result, mcpToolsAvailable = true) {
   if (!isMCPReady()) return null;
   return result;
 }
-import { homedir, tmpdir } from "node:os";
+import { homedir } from "node:os";
+import { resolveScratchDirectory as tmpdir } from "../../scripts/session-scratch.mjs";
 import { resolve } from "node:path";
 
 // Guidance throttle: show each advisory type at most once per session.

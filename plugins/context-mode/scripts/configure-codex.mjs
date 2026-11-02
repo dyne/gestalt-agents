@@ -140,6 +140,7 @@ export function reconcileCodexToml(source, { launcherPath, pluginId }) {
   lines = appendSection(lines, "mcp_servers.context-mode", [
     'command = "node"',
     `args = [${tomlString(launcherPath)}]`,
+    'env_vars = ["GESTALT_SESSION_TMP_CONTEXT", "TMPDIR", "TMP", "TEMP"]',
     "enabled = true",
     "required = true",
     'default_tools_approval_mode = "approve"',

@@ -19,6 +19,7 @@
 
 import { appendFileSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
+import { resolveScratchDirectory } from "../../scripts/session-scratch.mjs";
 import { basename, join } from "node:path";
 
 /**
@@ -28,8 +29,8 @@ import { basename, join } from "node:path";
  * (`<hash>__<suffix>.db`), so basename collisions across projects are
  * negligible.
  */
-export function retrievalMarkerPath(sessionDbPath: string, tmpDir: string = tmpdir()): string {
-  return join(tmpDir, `context-mode-retrieval-${basename(sessionDbPath)}.txt`);
+export function retrievalMarkerPath(sessionDbPath: string, tmpDir?: string): string {
+  return join(resolveScratchDirectory(() => tmpDir ?? tmpdir()), `context-mode-retrieval-${basename(sessionDbPath)}.txt`);
 }
 
 /**

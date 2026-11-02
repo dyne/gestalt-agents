@@ -10,6 +10,7 @@ export const REQUIRED_FILES = [
   join("scripts", "runtime-location.mjs"),
   join("scripts", "runtime-preflight.mjs"),
   join("scripts", "runtime-lock.mjs"),
+  join("scripts", "session-scratch.mjs"),
   "server.bundle.mjs",
   "cli.bundle.mjs",
   join("hooks", "security.bundle.mjs"),

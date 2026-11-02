@@ -55,6 +55,8 @@ describe("Codex context-mode integration configurator", () => {
     expect(config).toContain("[mcp_servers.context-mode]");
     expect(config).toContain(`args = [${JSON.stringify(result.launcherPath)}]`);
     expect(config).toContain("required = true");
+    const forwarded = JSON.parse(config.match(/^env_vars = (\[.*\])$/m)![1]);
+    expect(forwarded).toEqual(["GESTALT_SESSION_TMP_CONTEXT", "TMPDIR", "TMP", "TEMP"]);
     expect(config).toContain(`[plugins.${JSON.stringify(pluginId)}]\nenabled = false`);
     expect(readFileSync(result.launcherPath, "utf8")).toContain(
       `process.env.CONTEXT_MODE_WORKSPACE ||= process.cwd()`,

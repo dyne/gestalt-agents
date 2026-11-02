@@ -1,6 +1,7 @@
 import { execFileSync, execSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { JS_RUNTIMES } from "./adapters/types.js";
+import { resolveSessionScratch } from "../scripts/session-scratch.mjs";
 
 /**
  * Allowlist for SHELL env override. Only POSIX shells + Windows shells permit
@@ -676,7 +677,12 @@ export function buildCommand(
         );
       }
       if (BUN_BASENAME.test(runtimeBasename(runtimes.typescript))) return [runtimes.typescript, "run", filePath];
-      if (runtimes.typescript === "tsx") return ["tsx", filePath];
+      if (runtimes.typescript === "tsx") {
+        // The CLI opens a Unix socket below TMPDIR. Node's loader avoids
+        // that path-length limit for long canonical workspace/owner paths.
+        if (resolveSessionScratch()) return [process.execPath, "--import", import.meta.resolve("tsx"), filePath];
+        return ["tsx", filePath];
+      }
       return ["ts-node", filePath];
 
     case "python":

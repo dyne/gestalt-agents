@@ -40,6 +40,16 @@ that is large, uncertain, or needs filtering, indexing, or repeated retrieval.
    within already authorized runtime scope; source edits and Org mutations
    remain native operations.
 
+## Session scratch
+
+With `GESTALT_SESSION_TMP_CONTEXT` present, use validated `TMPDIR` for
+disposable files/folders; invalid context must fail visibly. Child agents and
+subprocesses inherit `GESTALT_SESSION_TMP_CONTEXT`, `TMPDIR`, `TMP` and `TEMP`.
+Retain the owning directory until Forget; stop/reopen keeps it. Source, Git,
+history, auth, installations, caches, profiles, indexes and workspace
+`.gestalt/context-mode` databases/evidence stay persistent. Without context,
+preserve standalone/operator fallback.
+
 ## Tool selection
 
 For broad or repeated source discovery within one repository or across repositories,

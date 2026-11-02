@@ -20,7 +20,8 @@ import { execFileSync, execSync, execFile as nodeExecFile, type ExecSyncOptions 
 import { readFileSync, writeFileSync, cpSync, accessSync, existsSync, readdirSync, rmSync, closeSync, openSync, chmodSync, mkdirSync, lstatSync, realpathSync, statSync, constants } from "node:fs";
 import { request as httpsRequest } from "node:https";
 import { resolve, dirname, join, sep, basename, isAbsolute } from "node:path";
-import { tmpdir, devNull, homedir } from "node:os";
+import { devNull, homedir } from "node:os";
+import { resolveScratchDirectory, scratchEnvironment } from "../scripts/session-scratch.mjs";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import {
   detectRuntimes,
@@ -189,6 +190,7 @@ async function hookDispatch(platform: string, event: string): Promise<void> {
  * Entry point
  * ------------------------------------------------------- */
 
+Object.assign(process.env, scratchEnvironment());
 const args = process.argv.slice(2);
 
 function printHelp(): void {
@@ -1322,7 +1324,7 @@ async function upgrade(opts?: { platform?: string }) {
   // Step 1: Pull latest from GitHub
   p.log.step("Pulling latest from GitHub...");
   const localVersion = getLocalVersion();
-  const tmpDir = join(tmpdir(), `context-mode-upgrade-${Date.now()}`);
+  const tmpDir = join(resolveScratchDirectory(), `context-mode-upgrade-${Date.now()}`);
 
   s.start("Cloning mksglu/context-mode");
   try {

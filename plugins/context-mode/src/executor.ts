@@ -2,6 +2,7 @@ import { spawn, execSync, execFileSync } from "node:child_process";
 import { mkdtempSync, writeFileSync, readFileSync, rmSync, existsSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
+import { resolveScratchDirectory, resolveSessionScratch } from "../scripts/session-scratch.mjs";
 import {
   detectRuntimes,
   buildCommand,
@@ -96,7 +97,7 @@ export function buildPowerShellScriptContent(code: string): string {
  * os.tmpdir() reads TMPDIR from the environment, which some shells/tools
  * set to the project root — causing temp files to pollute the working tree.
  */
-const OS_TMPDIR = (() => {
+function legacyExecutorTmpdir(): string {
   if (isWin) return process.env.TEMP ?? process.env.TMP ?? tmpdir();
   try {
     const result = execFileSync(
@@ -108,7 +109,7 @@ const OS_TMPDIR = (() => {
     if (dir && dir !== process.cwd()) return dir;
   } catch { /* fall through */ }
   return "/tmp";
-})();
+}
 
 /**
  * Pure helper — exported for unit testing. Issue #782.
@@ -283,7 +284,7 @@ export class PolyglotExecutor {
 
   async execute(opts: ExecuteOptions): Promise<ExecResult> {
     const { language, code, timeout, background = false, cwd: cwdOverride } = opts;
-    const tmpDir = mkdtempSync(join(OS_TMPDIR, ".ctx-mode-"));
+    const tmpDir = mkdtempSync(join(resolveScratchDirectory(legacyExecutorTmpdir), ".ctx-mode-"));
 
     try {
       const filePath = this.#writeScript(tmpDir, code, language);
@@ -702,7 +703,12 @@ export class PolyglotExecutor {
     }
 
     // Sandbox overrides — forced values for correct sandbox behavior
-    env["TMPDIR"] = tmpDir;
+    const scratch = resolveSessionScratch();
+    env["TMPDIR"] = scratch?.directory ?? tmpDir;
+    if (scratch) {
+      env["TMP"] = scratch.directory;
+      env["TEMP"] = scratch.directory;
+    }
     env["HOME"] = realHome;
     env["LANG"] = "en_US.UTF-8";
     env["PYTHONDONTWRITEBYTECODE"] = "1";

@@ -14,6 +14,7 @@
 import { readFileSync, readdirSync, statSync, unlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { resolveSessionScratch } from "../../scripts/session-scratch.mjs";
 
 const SENTINEL_PREFIX = "context-mode-mcp-ready-";
 
@@ -28,11 +29,14 @@ const SENTINEL_PREFIX = "context-mode-mcp-ready-";
 const SENTINEL_FRESH_MS = 90_000;
 
 /**
- * Resolve the temp root — hardcoded /tmp on Unix to avoid TMPDIR mismatch.
+ * Managed owners use the validated root. Standalone Unix retains /tmp to
+ * avoid TMPDIR mismatch between independently launched servers and hooks.
  * Tests may override via CONTEXT_MODE_MCP_SENTINEL_DIR to isolate scan from
  * leftover sentinels in the real /tmp.
  */
 export function sentinelDir() {
+  const scratch = resolveSessionScratch();
+  if (scratch) return scratch.directory;
   const override = process.env.CONTEXT_MODE_MCP_SENTINEL_DIR;
   if (override && override.length > 0) return override;
   return process.platform === "win32" ? tmpdir() : "/tmp";
@@ -65,14 +69,15 @@ export function sentinelPath() {
  * Handles:
  * - PPID mismatch (WSL2 shell wrappers) — no ppid dependency
  * - Stale sentinels (SIGKILL, OOM) — PID liveness check + age threshold
- * - TMPDIR mismatch — hardcoded /tmp on Unix
+ * - Standalone TMPDIR mismatch — legacy /tmp on Unix
  * - Shared /tmp across isolated PID namespaces (#844) — a live host PID is
  *   invisible to `kill(pid, 0)` from a sandbox, so a recently-refreshed
  *   sentinel is trusted instead of being deleted.
  */
 export function isMCPReady() {
+  // Validation errors remain visible rather than becoming "MCP unavailable".
+  const dir = sentinelDir();
   try {
-    const dir = sentinelDir();
     const files = readdirSync(dir).filter(f => f.startsWith(SENTINEL_PREFIX));
     const now = Date.now();
     for (const f of files) {

@@ -6,7 +6,10 @@ import { existsSync, unlinkSync, readdirSync, readFileSync, writeFileSync, write
 import { spawnSync, type SpawnSyncOptions, type SpawnSyncReturns } from "node:child_process";
 import { join, dirname, resolve, relative, sep, isAbsolute } from "node:path";
 import { fileURLToPath } from "node:url";
-import { homedir, tmpdir, cpus, platform } from "node:os";
+import { homedir, cpus, platform } from "node:os";
+import { resolveScratchDirectory, resolveSessionScratch, scratchEnvironment } from "../scripts/session-scratch.mjs";
+// @ts-expect-error — shared hook module, no TS declarations
+import { sentinelPathForPid } from "../hooks/core/mcp-ready.mjs";
 import { request as httpsRequest } from "node:https";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { z } from "zod";
@@ -83,6 +86,8 @@ import { resolveProjectDir } from "./util/project-dir.js";
 import { loadDatabase } from "./db-base.js";
 import { probeMcpHandshake, resolveMcpProbeLaunch } from "./util/mcp-handshake.js";
 import { AnalyticsEngine, getLifetimeStats } from "./session/analytics.js";
+// Validate/normalize before runtime detection can launch probe children.
+Object.assign(process.env, scratchEnvironment());
 const __pkg_dir = dirname(fileURLToPath(import.meta.url));
 const VERSION: string = (() => {
   for (const rel of ["../package.json", "./package.json"]) {
@@ -544,7 +549,7 @@ const executor = new PolyglotExecutor({
 // NODE_OPTIONS is denied by the executor's #buildSafeEnv (security).
 // Instead, we inject it as an inline shell env prefix in each batch command.
 // This temp file is loaded via --require when batch commands spawn Node processes.
-const CM_FS_PRELOAD = join(tmpdir(), `cm-fs-preload-${process.pid}.js`);
+const CM_FS_PRELOAD = join(resolveScratchDirectory(), `cm-fs-preload-${process.pid}.js`);
 writeFileSync(
   CM_FS_PRELOAD,
   `(function(){var __cm_fs=0;process.on('exit',function(){if(__cm_fs>0)try{process.stderr.write('__CM_FS__:'+__cm_fs+'\\n')}catch(e){}});try{var f=require('fs');var ors=f.readFileSync;f.readFileSync=function(){var r=ors.apply(this,arguments);if(Buffer.isBuffer(r))__cm_fs+=r.length;else if(typeof r==='string')__cm_fs+=Buffer.byteLength(r);return r;};}catch(e){}})();\n`,
@@ -1548,7 +1553,7 @@ function quotePowerShellSingle(value: string): string {
 }
 
 export function buildBatchNodeOptionsPrefix(shellPath: string, preloadPath: string): string {
-  const option = `--require ${preloadPath}`;
+  const option = `--require ${JSON.stringify(preloadPath)}`;
   const shell = shellPath.toLowerCase();
   const base = shell.split(/[\\/]/).pop() ?? shell;
 
@@ -1557,7 +1562,8 @@ export function buildBatchNodeOptionsPrefix(shellPath: string, preloadPath: stri
   }
 
   if (base === "cmd" || base === "cmd.exe") {
-    return `set "NODE_OPTIONS=${option.replace(/"/g, '""')}" && `;
+    // SET removes its outer quote pair and preserves the loader's inner pair.
+    return `set "NODE_OPTIONS=${option}" && `;
   }
 
   return `NODE_OPTIONS=${quotePosixSingle(option)} `;
@@ -3422,7 +3428,7 @@ async function fetchOneUrl(url: string, source: string | undefined, force: boole
     }
   }
 
-  const outputPath = join(tmpdir(), `ctx-fetch-${Date.now()}-${Math.random().toString(36).slice(2)}.dat`);
+  const outputPath = join(resolveScratchDirectory(), `ctx-fetch-${Date.now()}-${Math.random().toString(36).slice(2)}.dat`);
   try {
     const fetchCode = buildFetchCode(url, outputPath);
     const result = await executor.execute({
@@ -4333,13 +4339,15 @@ server.registerTool(
       const repoUrl = "https://github.com/mksglu/context-mode.git";
       // Write inline script to a temp .mjs file — avoids quote-escaping issues
       // across cmd.exe, PowerShell, and bash (node -e '...' breaks on Windows).
+      const managedDirectory = resolveSessionScratch()?.directory;
+      const upgradeRoot = managedDirectory === undefined ? "tmpdir()" : JSON.stringify(managedDirectory);
       const scriptLines = [
         `import{execFileSync}from"node:child_process";`,
         `import{cpSync,rmSync,existsSync,mkdtempSync,readFileSync,writeFileSync,lstatSync}from"node:fs";`,
         `import{join,resolve,sep}from"node:path";`,
         `import{tmpdir}from"node:os";`,
         `const P=${JSON.stringify(pluginRoot)};`,
-        `const T=mkdtempSync(join(tmpdir(),"ctx-upgrade-"));`,
+        `const T=mkdtempSync(join(${upgradeRoot},"ctx-upgrade-"));`,
         `try{`,
         `console.log("- [x] Starting inline upgrade (no CLI found)");`,
         `execFileSync("git",["clone","--depth","1","${repoUrl}",T],{stdio:"inherit"});`,
@@ -4378,7 +4386,7 @@ server.registerTool(
       ].join("\n");
 
       // Server writes the temp script file — avoids shell quoting issues entirely
-      const tmpScript = resolve(pluginRoot, ".ctx-upgrade-inline.mjs");
+      const tmpScript = join(managedDirectory ?? pluginRoot, managedDirectory ? `.ctx-upgrade-inline-${process.pid}.mjs` : ".ctx-upgrade-inline.mjs");
       const { writeFileSync: writeTmp } = await import("node:fs");
       writeTmp(tmpScript, scriptLines);
       cmd = buildNodeCommand(tmpScript, nodeOpts);
@@ -4844,9 +4852,8 @@ async function main() {
 
   // MCP readiness sentinel path (#230, #347)
   // Uses process.pid (not ppid) — hooks use directory-scan to find any live sentinel.
-  // Hardcoded /tmp on Unix to avoid TMPDIR mismatch (#347).
-  const mcpSentinelDir = process.platform === "win32" ? tmpdir() : "/tmp";
-  const mcpSentinel = join(mcpSentinelDir, `context-mode-mcp-ready-${process.pid}`);
+  // Producer and hooks share validated managed ownership; standalone stays legacy.
+  const mcpSentinel = sentinelPathForPid(process.pid);
   // #844: handle to the periodic sentinel refresh timer (started after connect).
   let sentinelRefresh: ReturnType<typeof setInterval> | undefined;
 

@@ -1,6 +1,7 @@
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { existsSync } from "node:fs";
 import { basename, isAbsolute, resolve } from "node:path";
+import { scratchEnvironment } from "../../scripts/session-scratch.mjs";
 
 export interface McpProbeLaunch {
   command: string;
@@ -89,7 +90,7 @@ function probeMcpHandshakeOnce(
     let child: ChildProcessWithoutNullStreams;
     try {
       const env: NodeJS.ProcessEnv = {
-        ...process.env,
+        ...scratchEnvironment(),
         CONTEXT_MODE_DISABLE_VERSION_CHECK: "1",
       };
       // This process is a top-level diagnostic child, even when ctx_doctor was
