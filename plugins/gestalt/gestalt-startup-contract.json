@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "owner": "gestalt-agents",
+  "blockId": "gestalt:startup",
+  "blockVersion": 1,
+  "source": "startup/bootstrap.md",
+  "composer": "scripts/startup-contract.mjs",
+  "maxWords": 350
+}

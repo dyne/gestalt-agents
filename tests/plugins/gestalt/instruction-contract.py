@@ -17,6 +17,7 @@ ROOT = Path(__file__).resolve().parents[3]
 FIXTURES = Path(__file__).with_name("fixtures")
 ORG = ROOT / "plugins/gestalt/skills/org-plan"
 SOURCES = {
+    "startup": ROOT / "plugins/gestalt/startup/README.md",
     "org": ORG / "SKILL.md",
     "supervision": ORG / "references/supervised-execution.md",
     "evidence": ORG / "references/evidence-report.md",
@@ -112,6 +113,15 @@ def main():
     assert "Org Plans may declare `$gestalt:xerj` when relevant" in documents["xerj"]
     count = check_scenarios(documents)
     check_links()
+    damaged = dict(documents)
+    damaged["startup"] = documents["startup"].replace(
+        "Retain durable instruction bytes", "Replace durable instruction bytes")
+    try:
+        check_scenarios(damaged)
+    except AssertionError:
+        pass
+    else:
+        raise AssertionError("scenario contract accepted silent retained-thread migration")
     # Required references fail closed; a plausible link label is insufficient.
     with tempfile.TemporaryDirectory(prefix="instruction-missing-reference-") as directory:
         entrypoint = Path(directory) / "SKILL.md"
