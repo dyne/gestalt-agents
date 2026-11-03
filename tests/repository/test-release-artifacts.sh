@@ -126,6 +126,11 @@ assert {f"plugins/gestalt/skills/{skill}/SKILL.md" for skill in skills} <= bundl
 # Check delivered bytes, not only filenames. Generate profiles from the actual
 # archive helper in isolation so a stale bootstrap cannot pass source tests.
 instruction_paths = (
+    "plugins/gestalt/gestalt-startup-contract.json",
+    "plugins/gestalt/startup/bootstrap.md",
+    "plugins/gestalt/startup/README.md",
+    "plugins/gestalt/startup/delivery-scenarios.json",
+    "plugins/gestalt/scripts/startup-contract.mjs",
     "scripts/install-org-plan.mjs",
     "plugins/context-mode/scripts/runtime-lock.mjs",
     "plugins/context-mode/scripts/install-runtime.mjs",

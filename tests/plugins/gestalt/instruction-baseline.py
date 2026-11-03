@@ -12,6 +12,7 @@ ROOT = Path(__file__).resolve().parents[3]
 FIXTURES = Path(__file__).with_name("fixtures")
 ORG = "plugins/gestalt/skills/org-plan/"
 SOURCES = {
+    "additive-startup-available": "plugins/gestalt/startup/bootstrap.md",
     "repository": "AGENTS.md",
     "org": ORG + "SKILL.md",
     "supervision": ORG + "references/supervised-execution.md",
@@ -33,6 +34,7 @@ def delivery_inventory(sources):
     host formatting. Deferred references are available bytes, never startup cost.
     """
     groups = {
+        "additive-startup-available-not-delivered": ["additive-startup-available"],
         "repository-bootstrap": ["repository"],
         "skill-entrypoints": ["org", "routing"],
         "generated-profiles": ["profile-reviewer", "profile-executor"],

@@ -547,3 +547,62 @@ never dispatches work or replaces a writer. Interruption remains resumable;
 duplicate identities, active predecessors and unauthorized generations fail
 closed. Agents use one bounded health refresh before escalating and preserve
 the existing physical writer rather than asking for repeated authorization.
+
+## Additive Gestalt startup, L1.1
+
+`plugins/gestalt/gestalt-startup-contract.json` identifies the single canonical
+`startup/bootstrap.md`, owned by Agents. Its version-1 draft is 284 words / 2463
+UTF-8 bytes; the managed wrapper is 2516 bytes. It is packaged available content,
+not yet an active delivery route. `instruction-baseline.py` lists it separately
+from current role-path totals. Actual host delivery remains unknown until the
+Manager/Mobile adapters capture their final configuration/messages; fixture
+composition is not model receipt or adoption.
+
+The package's startup README inventories native foundation/config/repository,
+generated role, dynamic capability, catalog and on-demand workflow layers with
+ownership and lifetime. Its shared side-effect-free composer consumes one
+native effective scalar, preserves bytes outside owned blocks, deduplicates
+version-1 blocks, and fails without mutation on malformed/newer ownership.
+Older missing descriptors preserve the existing value. No native config keys,
+role reads, user/repository instructions or capability readiness are replaced.
+
+The maintained `test-startup-contract.sh` gate runs seven executable structural
+and composition tests using synthetic sentinels. They bind the golden source,
+word ceiling, exact core skill paths, idempotence, preservation, ambiguous/nested
+markers, selected package copies, older missing/unsupported contract behavior
+and separate synthetic byte accounting. Release-artifact tests compare the
+descriptor, source, consumer documentation and composer byte-for-byte in the
+actual archive. Role/lifecycle delivered-message scenarios belong to L1.2;
+these checks do not claim a live CLI/Mobile installation was changed.
+
+Review correction qualifies native writes as ordinary filesystem writes and
+explicitly prefers verified, authorized Serena structured edits under its skill
+and permissions. The instruction-routing test rejects both the former blanket
+native-mutation rule and a permission-bypassing semantic-edit rule. Governing and
+pre-edit reads remain native. This corrects the unpublished version-1 draft.
+
+## Additive Gestalt startup, L1.2
+
+The packaged `startup/delivery-scenarios.json` defines 27 synthetic acceptance
+cases for fresh solo/root, default/inherited child, named executor/reviewer,
+resume, fork, compaction, runtime restart and explicit refresh. The startup gate
+executes the shared composer and actual helper-generated role text, then checks
+complete serialized synthetic config/hook captures with preserved user/native
+foundation/repository/role bytes. It exercises synthetic native-resolved profile,
+project and CLI effective scalars without flattening competing lower layers.
+
+Missing older packages, disabled hooks/skill inclusion, unavailable providers,
+same-channel duplicates, an existing scalar owner versus hook delivery, legacy
+missing/duplicate blocks and unknown newer versions have explicit expectations.
+Retained-thread events preserve bytes; migration requires an idle, supported
+explicit boundary. The block never recurs in the user prompt, generated role
+rules remain intact, and capability availability never proves repository or
+semantic readiness. Existing canonical instruction scenarios still enforce
+mandatory startup reads and checkpoint actions independently.
+
+There are 35 Node tests: seven L1.1 tests, 27 delivery cases and one capture-export
+check. Optional exports contain hashes/lengths/identities and structural facts
+only. These are executable contract fixtures, not native priority integration,
+actual CLI/Mobile delivery or real-model adherence evidence. The startup README
+specifies consumer verification duties and supported refresh admission; no live
+thread, installed profile, runtime permissions or personality is changed.
