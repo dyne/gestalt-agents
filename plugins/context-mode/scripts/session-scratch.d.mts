@@ -10,3 +10,4 @@ export const SESSION_SCRATCH_GUIDANCE: string;
 export function resolveSessionScratch(environment?: NodeJS.ProcessEnv): SessionScratchContext | null;
 export function resolveScratchDirectory(fallback?: () => string): string;
 export function scratchEnvironment(environment?: NodeJS.ProcessEnv): NodeJS.ProcessEnv;
+export function borrowSessionScratch(environment?: NodeJS.ProcessEnv): { release(): void } | null;

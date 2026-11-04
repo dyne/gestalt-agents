@@ -15,6 +15,14 @@ and contents while excluding generated dependencies and build artifacts.
 
 ## Downstream changes
 
+- Publishes delegated v1 execution borrower leases before generated scratch or
+  child startup, using Mobile/Launcher containment and owner fences. Tracks all
+  managed runtime/compiler groups independently of foreground/background results;
+  release requires positive group absence. Bounded asynchronous MCP shutdown
+  retains durable protection after crashes, unknown release or early force-stop.
+  Does not allocate primary owners, reclaim uncertain claims or grant cleanup
+  authority; standalone behavior and persistent storage remain unchanged.
+
 - Consumes Gestalt's shared v1 session/service scratch locator with canonical
   path, no-link, UID/private-mode, marker and active primary-lease validation.
   Routes executor children, transient preload/fetch output, temporary databases,

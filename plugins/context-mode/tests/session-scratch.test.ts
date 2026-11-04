@@ -165,7 +165,11 @@ describe.skipIf(process.platform === "win32")("managed native execution", () => 
     expect(JSON.parse(values[3])).toEqual(context);
     expect(values[4]).toContain(join(context.directory, ".ctx-mode-"));
     expect(fallback).not.toHaveBeenCalled(); expect(allocations).toHaveBeenCalledTimes(1);
-    expect(fs.readdirSync(context.directory)).toEqual([".gestalt-owner.json"]);
+    expect(fs.readdirSync(context.directory).sort()).toEqual([".gestalt-owner.json", "leases"]);
+    const completedLeases = fs.readdirSync(join(context.directory, "leases"))
+      .map(name => JSON.parse(fs.readFileSync(join(context.directory, "leases", name), "utf8")));
+    expect(completedLeases).toHaveLength(1);
+    expect(completedLeases[0]).toMatchObject({ state: "released", consumers: [] });
   });
 
   test("concurrent executions have separate children and preserve sibling crash leftovers", async () => {
@@ -176,7 +180,11 @@ describe.skipIf(process.platform === "win32")("managed native execution", () => 
     expect(results.map(result => result.exitCode)).toEqual([0, 0]);
     expect(results[0].stdout).not.toBe(results[1].stdout);
     expect(fs.existsSync(join(leftover, "keep"))).toBe(true); expect(fs.existsSync(sibling.markerPath)).toBe(true);
-    expect(fs.readdirSync(context.directory).sort()).toEqual([".ctx-mode-crash-leftover", ".gestalt-owner.json"]);
+    expect(fs.readdirSync(context.directory).sort()).toEqual([".ctx-mode-crash-leftover", ".gestalt-owner.json", "leases"]);
+    const completedLeases = fs.readdirSync(join(context.directory, "leases"))
+      .map(name => JSON.parse(fs.readFileSync(join(context.directory, "leases", name), "utf8")));
+    expect(completedLeases).toHaveLength(2);
+    expect(completedLeases.every(lease => lease.state === "released" && lease.consumers.length === 0)).toBe(true);
   });
 
   test("managed TypeScript loads from the runtime installation without the tsx IPC socket", async () => {

@@ -4867,7 +4867,8 @@ async function main() {
     // #844: stop refreshing the sentinel mtime on shutdown.
     if (sentinelRefresh) clearInterval(sentinelRefresh);
   };
-  const gracefulShutdown = async (reason?: string) => {
+  let shuttingDown: Promise<void> | undefined;
+  const gracefulShutdown = (reason?: string): Promise<void> => shuttingDown ??= (async () => {
     if (reason) process.stderr.write(`[context-mode] MCP shutdown: ${reason}\n`);
     // Final stats flush — bypass throttle so the last 0-500ms of
     // bytes_indexed / bytes_returned aren't silently lost on SIGTERM/SIGINT
@@ -4877,9 +4878,12 @@ async function main() {
       _lastStatsPersist = 0;
       persistStats();
     } catch { /* best effort — never block shutdown */ }
+    // Drain tracked foreground/background/compiler groups while this process can
+    // still establish their release. A forced exit leaves active durable leases.
+    await executor.shutdownManagedExecutions();
     shutdown();
     process.exit(0);
-  };
+  })();
   process.on("exit", shutdown);
   process.on("SIGINT", () => { gracefulShutdown("signal SIGINT"); });
   process.on("SIGTERM", () => { gracefulShutdown("signal SIGTERM"); });
