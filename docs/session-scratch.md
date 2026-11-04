@@ -2,7 +2,7 @@
 
 Context-mode consumes the shared Gestalt version 1 context in
 `GESTALT_SESSION_TMP_CONTEXT`. Mobile and the launcher allocate owners; this
-package only validates and consumes them. The JSON locator contains
+package validates them and publishes delegated execution borrower leases. The JSON locator contains
 `schemaVersion: 1`, canonical `workspacePath`, `ownerId`, `directory` and
 `markerPath`. Owners live at `<workspace>/tmp/sessions/<ownerId>/`, with a
 `.gestalt-owner.json` marker. The resolver rejects links, foreign UID,
@@ -14,10 +14,27 @@ fallback to another temporary root.
 Managed subprocesses inherit exactly this context and `TMPDIR`, `TMP`, `TEMP`
 set to its validated owner directory. Each executor invocation creates its own
 `.ctx-mode-*` child and removes only that child after foreground completion.
-Background execution retains its files. Crashes can leave attributed children;
-the resolver never sweeps siblings, changes leases, or infers cleanup authority
-from PID or age. Session scratch remains available until explicit lifecycle
+Background execution retains its files. Each managed operation publishes a
+private v1 borrower before writing scripts or spawning any runtime; compilation
+and execution share that claim. Publication/release use the same outermost-first
+containment locks and owner controller/association fences as Mobile and Launcher.
+The primary marker and other borrowers are never rewritten. A claim is released
+only after operation completion and confirmed absence of every owned execution
+group. Leader exit, a TERM request or an MCP response alone cannot release it.
+Session scratch remains available until explicit lifecycle
 cleanup, including across Mobile stop/reopen.
+
+MCP shutdown drains foreground, compiler and background groups for up to 3.5
+seconds, escalating only while the original leader is live. Busy metadata,
+unknown group probes, an interrupted shutdown or a crash retain the durable
+claim. While the MCP remains alive it retries read-only absence checks and lease
+publication; a later confirmed release unblocks cleanup. After its death an
+unknown claim can keep Forget retryable but blocked: this package does not
+reclaim leases by age/PID or claim to recover crash ownership automatically.
+Windows group absence cannot currently be established, so managed claims there
+remain conservative. Standalone execution retains its existing behavior.
+Delegated publishing supplies protection, never cleanup authority; only the
+owning Mobile/Launcher lifecycle can retire owner directories.
 
 Executor scripts, transient fetch output, filesystem-tracking preloads,
 default temporary databases, upgrade/probe scratch, and MCP readiness sentinels

@@ -1,6 +1,6 @@
-/** Read-only consumer of docs/session-scratch.md's shared v1 ownership contract. */
-import { createHash } from "node:crypto";
-import { constants, closeSync, fstatSync, lstatSync, openSync, readFileSync, realpathSync } from "node:fs";
+/** Validated v1 consumer with delegated execution-borrower publication. */
+import { createHash, randomUUID } from "node:crypto";
+import { constants, closeSync, fstatSync, fsyncSync, lstatSync, mkdirSync, openSync, readFileSync, readdirSync, realpathSync, renameSync, rmdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, isAbsolute, join, parse, resolve, sep } from "node:path";
 
@@ -45,7 +45,7 @@ function jsonRecord(file) {
 }
 
 /** An absent context preserves operator fallback; any present invalid value fails. */
-export function resolveSessionScratch(environment = process.env) {
+function resolveScratchContext(environment, allowReleased = false) {
   if (!Object.hasOwn(environment, SESSION_TMP_CONTEXT)) return null;
   try {
     const context = JSON.parse(environment[SESSION_TMP_CONTEXT]);
@@ -75,7 +75,7 @@ export function resolveSessionScratch(environment = process.env) {
       privateDirectory(leases);
       const lease = jsonRecord(join(leases, marker.authority.leaseId + ".json"));
       assert(lease?.schemaVersion === 1 && lease.ownerId === context.ownerId && lease.workspacePath === context.workspacePath &&
-        lease.leaseId === marker.authority.leaseId && lease.state === "active" && uuid(lease.processIdentity) &&
+        lease.leaseId === marker.authority.leaseId && (lease.state === "active" || allowReleased && lease.state === "released" && lease.consumers.length === 0) && uuid(lease.processIdentity) &&
         timestamp(lease.createdAt) && timestamp(lease.updatedAt) &&
         Array.isArray(lease.consumers) && lease.consumers.every(validId));
     }
@@ -86,6 +86,10 @@ export function resolveSessionScratch(environment = process.env) {
   }
 }
 
+export function resolveSessionScratch(environment = process.env) {
+  return resolveScratchContext(environment);
+}
+
 export function resolveScratchDirectory(fallback = tmpdir) {
   return resolveSessionScratch()?.directory ?? fallback();
 }
@@ -94,4 +98,131 @@ export function resolveScratchDirectory(fallback = tmpdir) {
 export function scratchEnvironment(environment = process.env) {
   const context = resolveSessionScratch(environment);
   return context ? { ...environment, TMPDIR: context.directory, TMP: context.directory, TEMP: context.directory } : { ...environment };
+}
+
+const identity = directory => {
+  const info = lstatSync(directory, { bigint: true });
+  assert(info.isDirectory() && !info.isSymbolicLink());
+  return `${info.dev}:${info.ino}:${info.birthtimeNs}`;
+};
+
+function leaseRecords(context) {
+  const directory = join(context.directory, "leases");
+  privateDirectory(directory);
+  return readdirSync(directory).map(name => {
+    const value = jsonRecord(join(directory, name));
+    assert(uuid(value.leaseId) && name === value.leaseId + ".json" &&
+      value.schemaVersion === 1 && value.ownerId === context.ownerId &&
+      value.workspacePath === context.workspacePath && uuid(value.processIdentity) &&
+      timestamp(value.createdAt) && timestamp(value.updatedAt) &&
+      ["active", "released"].includes(value.state) && Array.isArray(value.consumers) &&
+      value.consumers.every(validId) && (value.state !== "released" || value.consumers.length === 0));
+    return value;
+  });
+}
+
+/** Same outermost-first containment and owner fences as Mobile/Launcher. */
+function withBorrowerFences(context, operation) {
+  const ancestors = [], claims = [];
+  const parts = context.directory.slice(parse(context.directory).root.length).split(sep).filter(Boolean);
+  let directory = parse(context.directory).root;
+  for (let index = 0; index < parts.length; index++) {
+    directory = join(directory, parts[index]);
+    if (index >= 2 && parts[index - 1] === "sessions" && parts[index - 2] === "tmp") {
+      assert(ancestors.length < 64);
+      const workspacePath = dirname(dirname(dirname(directory)));
+      const locator = { schemaVersion: 1, workspacePath, ownerId: parts[index], directory,
+        markerPath: join(directory, ".gestalt-owner.json") };
+      // Capture the path per ancestor, not the mutable traversal variable.
+      const path = directory;
+      const provenance = () => {
+        resolveScratchContext({ [SESSION_TMP_CONTEXT]: JSON.stringify(locator) }, true);
+        const marker = jsonRecord(locator.markerPath);
+        if (readdirSync(path).includes("leases")) leaseRecords(locator);
+        else assert(marker.ownerKind === "mobile-session");
+        return JSON.stringify([identity(path), marker.schemaVersion, marker.ownerKind,
+          marker.ownerId, marker.workspacePath, marker.sessionId, marker.createdAt, marker.authority]);
+      };
+      ancestors.push({ path, provenance, expected: provenance() });
+    }
+  }
+  const claim = path => {
+    mkdirSync(path, { mode: 0o700 });
+    const expected = identity(path);
+    const held = { path, expected, fd: undefined };
+    claims.push(held);
+    privateDirectory(path);
+    held.fd = openSync(path, constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW);
+    const info = fstatSync(held.fd, { bigint: true });
+    assert(expected === `${info.dev}:${info.ino}:${info.birthtimeNs}`);
+  };
+  try {
+    for (const ancestor of ancestors) {
+      claim(join(ancestor.path, ".containment-lock"));
+      assert(ancestor.expected === ancestor.provenance());
+    }
+    const marker = jsonRecord(context.markerPath);
+    claim(join(context.directory, marker.ownerKind === "mobile-session" ? ".controller-lock" : ".association-lock"));
+    resolveScratchContext({ [SESSION_TMP_CONTEXT]: JSON.stringify(context) }, true);
+    for (const ancestor of ancestors) assert(ancestor.expected === ancestor.provenance());
+    if (marker.ownerKind === "mobile-session")
+      assert(!readdirSync(context.directory).includes(".association-lock"));
+    return operation();
+  } finally {
+    let failure;
+    for (const held of claims.reverse()) {
+      try {
+        assert(held.expected === identity(held.path));
+        rmdirSync(held.path);
+      } catch (error) { failure ??= error; }
+      finally { if (held.fd !== undefined) closeSync(held.fd); }
+    }
+    if (failure) throw failure;
+  }
+}
+
+function publishLease(file, value, initial = false) {
+  const staged = initial ? file : join(dirname(file), "." + randomUUID() + ".json");
+  const fd = openSync(staged, "wx", 0o600);
+  try { writeFileSync(fd, JSON.stringify(value) + "\n"); fsyncSync(fd); }
+  finally { closeSync(fd); }
+  if (!initial) renameSync(staged, file);
+}
+
+/** Delegated borrower only: never changes primary ownership or grants cleanup. */
+export function borrowSessionScratch(environment = process.env) {
+  const context = resolveSessionScratch(environment);
+  if (!context) return null;
+  try { return publishBorrower(context); }
+  catch { throw new Error("SESSION_SCRATCH_BORROW_FAILED: managed execution protection unavailable"); }
+}
+
+function publishBorrower(context) {
+  let record, file;
+  withBorrowerFences(context, () => {
+    // Recheck active primary authority after fencing against release/cleanup.
+    resolveSessionScratch({ [SESSION_TMP_CONTEXT]: JSON.stringify(context) });
+    const directory = join(context.directory, "leases");
+    try { mkdirSync(directory, { mode: 0o700 }); }
+    catch (error) { if (error.code !== "EEXIST") throw error; }
+    leaseRecords(context);
+    const leaseId = randomUUID(), time = new Date().toISOString();
+    record = { schemaVersion: 1, ownerId: context.ownerId, workspacePath: context.workspacePath,
+      leaseId, state: "active", processIdentity: randomUUID(), createdAt: time, updatedAt: time,
+      consumers: ["context-mode-execution"] };
+    file = join(directory, leaseId + ".json");
+    publishLease(file, record, true);
+  });
+  let released = false;
+  return {
+    release() {
+      if (released) return;
+      withBorrowerFences(context, () => {
+        const current = leaseRecords(context).find(value => value.leaseId === record.leaseId);
+        assert(current && JSON.stringify(current) === JSON.stringify(record));
+        publishLease(file, { ...record, state: "released", consumers: [], updatedAt: new Date().toISOString() });
+        released = true;
+      });
+    },
+  };
 }

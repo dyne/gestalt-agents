@@ -3,6 +3,7 @@ import { mkdtempSync, writeFileSync, readFileSync, rmSync, existsSync } from "no
 import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { resolveScratchDirectory, resolveSessionScratch } from "../scripts/session-scratch.mjs";
+import { ManagedExecutionLifetime } from "./execution-lifetime.js";
 import {
   detectRuntimes,
   buildCommand,
@@ -245,6 +246,8 @@ export class PolyglotExecutor {
 
   /** PIDs of backgrounded processes — killed on cleanup to prevent zombies. */
   #backgroundedPids = new Set<number>();
+  #managedExecutions = new Set<ManagedExecutionLifetime>();
+  #shuttingDown = false;
 
   constructor(opts?: {
     hardCapBytes?: number;
@@ -282,19 +285,26 @@ export class PolyglotExecutor {
     this.#backgroundedPids.clear();
   }
 
+  /** Includes pending foreground and compiler groups, not just background results. */
+  async shutdownManagedExecutions(): Promise<void> {
+    this.#shuttingDown = true;
+    await Promise.all([...this.#managedExecutions].map(execution => execution.stop()));
+  }
+
   async execute(opts: ExecuteOptions): Promise<ExecResult> {
     const { language, code, timeout, background = false, cwd: cwdOverride } = opts;
-    const tmpDir = mkdtempSync(join(resolveScratchDirectory(legacyExecutorTmpdir), ".ctx-mode-"));
-
+    if (this.#shuttingDown && resolveSessionScratch()) throw new Error("SESSION_EXECUTION_STOPPING");
+    let lifetime: ManagedExecutionLifetime | null = null;
+    lifetime = ManagedExecutionLifetime.begin(() => this.#managedExecutions.delete(lifetime!));
+    if (lifetime) this.#managedExecutions.add(lifetime);
+    let tmpDir: string | undefined;
+    let preserve = false;
     try {
+      // Publish protection before even the generated script can use owner scratch.
+      tmpDir = mkdtempSync(join(resolveScratchDirectory(legacyExecutorTmpdir), ".ctx-mode-"));
       const filePath = this.#writeScript(tmpDir, code, language);
       opts.onScript?.(readFileSync(filePath, "utf8"));
       const cmd = buildCommand(this.#runtimes, language, filePath);
-
-      // Rust: compile then run
-      if (cmd[0] === "__rust_compile_run__") {
-        return await this.#compileAndRun(filePath, tmpDir, timeout);
-      }
 
       // Every language runs in the project directory so git, relative paths,
       // and other project-aware tools resolve naturally. The script FILE lives
@@ -308,17 +318,15 @@ export class PolyglotExecutor {
       // Issue #45 — `cwdOverride` lets per-call sites (Codex MCP handlers) pin
       // cwd without mutating process-wide state.
       const cwd = cwdOverride ?? this.#projectRoot;
-      const result = await this.#spawn(cmd, cwd, tmpDir, timeout, background);
-
-      // Skip tmpDir cleanup if process was backgrounded — it may still need files
-      if (!result.backgrounded) {
-        cleanupTmpDir(tmpDir);
-      }
-
+      const result = cmd[0] === "__rust_compile_run__"
+        ? await this.#compileAndRun(filePath, tmpDir, timeout, lifetime)
+        : await this.#spawn(cmd, cwd, tmpDir, timeout, background, lifetime);
+      preserve = !!result.backgrounded;
       return result;
-    } catch (err) {
-      cleanupTmpDir(tmpDir);
-      throw err;
+    } finally {
+      const cleanup = () => { if (tmpDir && !preserve) cleanupTmpDir(tmpDir); };
+      if (lifetime) lifetime.finish(cleanup);
+      else cleanup();
     }
   }
 
@@ -382,6 +390,7 @@ export class PolyglotExecutor {
     srcPath: string,
     cwd: string,
     timeout: number | undefined,
+    lifetime: ManagedExecutionLifetime | null,
   ): Promise<ExecResult> {
     const binSuffix = isWin ? ".exe" : "";
     const binPath = srcPath.replace(/\.rs$/, "") + binSuffix;
@@ -390,7 +399,15 @@ export class PolyglotExecutor {
     // overall timeout (a hung compile shouldn't run forever even if the
     // caller is fine with a long-running binary afterwards).
     try {
-      execFileSync("rustc", [srcPath, "-o", binPath], {
+      if (lifetime) {
+        // A synchronous compiler hides its process group from shutdown. Managed
+        // compilation uses the same tracked spawn contract as every other runtime.
+        const compiled = await this.#spawn(["rustc", srcPath, "-o", binPath], cwd, cwd,
+          timeout === undefined ? 60_000 : Math.min(timeout, 60_000), false, lifetime);
+        if (compiled.exitCode !== 0 || compiled.timedOut || compiled.processError) {
+          return { ...compiled, stdout: "", stderr: `Compilation failed:\n${compiled.stderr}` };
+        }
+      } else execFileSync("rustc", [srcPath, "-o", binPath], {
         cwd,
         timeout: timeout === undefined ? 60_000 : Math.min(timeout, 60_000),
         encoding: "utf-8",
@@ -409,7 +426,7 @@ export class PolyglotExecutor {
     }
 
     // Run
-    return this.#spawn([binPath], cwd, cwd, timeout);
+    return this.#spawn([binPath], cwd, cwd, timeout, false, lifetime);
   }
 
   async #spawn(
@@ -418,6 +435,7 @@ export class PolyglotExecutor {
     sandboxTmpDir: string,
     timeout: number | undefined,
     background = false,
+    lifetime: ManagedExecutionLifetime | null = null,
   ): Promise<ExecResult> {
     return new Promise((res) => {
       // Only .cmd/.bat shims need shell on Windows; real executables don't.
@@ -462,6 +480,7 @@ export class PolyglotExecutor {
       // the args-array form of spawn(). Colllapsing to a string avoids the
       // warning while preserving the same shell behavior.
       let proc: ReturnType<typeof spawn>;
+      lifetime?.assertRunning();
       if (needsShell) {
         const fullCmd = [spawnCmd, ...spawnArgs]
           .map(a => /\s/.test(a) ? JSON.stringify(a) : a)
@@ -470,6 +489,11 @@ export class PolyglotExecutor {
       } else {
         proc = spawn(spawnCmd, spawnArgs, { ...commonOpts, shell: false });
       }
+      lifetime?.track(proc);
+      const terminate = () => {
+        if (lifetime && (proc.exitCode !== null || proc.signalCode !== null)) return;
+        killTree(proc);
+      };
 
       let timedOut = false;
       let resolved = false;
@@ -483,7 +507,7 @@ export class PolyglotExecutor {
         if (background) {
           // Background mode: detach process, return partial output, keep running
           resolved = true;
-          if (proc.pid) this.#backgroundedPids.add(proc.pid);
+          if (proc.pid && !lifetime) this.#backgroundedPids.add(proc.pid);
           proc.unref();
           // Do NOT destroy stdout/stderr — closing the read end of the pipe
           // sends SIGPIPE to the child on its next write, killing it.
@@ -510,7 +534,7 @@ export class PolyglotExecutor {
             exitCodeObserved: false,
           });
         } else {
-          killTree(proc);
+          terminate();
         }
       }, timeout);
 
@@ -529,7 +553,7 @@ export class PolyglotExecutor {
           stdoutChunks.push(chunk);
         } else if (!capExceeded) {
           capExceeded = true;
-          killTree(proc);
+          terminate();
         }
       });
 
@@ -539,7 +563,7 @@ export class PolyglotExecutor {
           stderrChunks.push(chunk);
         } else if (!capExceeded) {
           capExceeded = true;
-          killTree(proc);
+          terminate();
         }
       });
 
