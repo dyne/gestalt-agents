@@ -146,6 +146,32 @@ def main():
         pass
     else:
         raise AssertionError("scenario contract accepted silent retained-thread migration")
+    for before, after in (
+            ("pass `sinceRevision` on subsequent reads", "omit revisions on subsequent reads"),
+            ("reuse accepted ownership until current control", "repeat takeover regardless of control"),
+            ("Lifecycle\nmutations still require projection and host `update_plan`", "Lifecycle mutations skip projection")):
+        damaged = dict(documents)
+        assert before in documents["supervision"]
+        damaged["supervision"] = documents["supervision"].replace(before, after)
+        try:
+            check_scenarios(damaged)
+        except AssertionError:
+            pass
+        else:
+            raise AssertionError("scenario contract accepted revision/takeover/projection regression")
+    for source, before, after in (
+            ("routing", "before fetching failed-job logs", "after fetching every job log"),
+            ("routing", "separate, never sum them", "sum them for total savings"),
+            ("supervision", "Expiry\nalone is not a bug", "Expiry alone proves a bug")):
+        assert before in documents[source]
+        damaged = dict(documents)
+        damaged[source] = documents[source].replace(before, after)
+        try:
+            check_scenarios(damaged)
+        except AssertionError:
+            pass
+        else:
+            raise AssertionError("scenario contract accepted evidence/wait economy regression")
     # Required references fail closed; a plausible link label is insufficient.
     with tempfile.TemporaryDirectory(prefix="instruction-missing-reference-") as directory:
         entrypoint = Path(directory) / "SKILL.md"

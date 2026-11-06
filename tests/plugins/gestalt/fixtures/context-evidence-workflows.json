@@ -121,6 +121,7 @@
     "limitation": "Temporary files and a synthetic scoped index; not live provider caching or model adherence.",
     "cases": [
       {"id":"one-shot","questions":1,"expectedAction":"execute_file","expectedIndexes":0},
+      {"id":"small-bounded-native","small":true,"questions":3,"expectedAction":"native-read","expectedIndexes":0},
       {"id":"same-artifact-followup","questions":3,"expectedAction":"scoped-search","expectedIndexes":1},
       {"id":"old-unchanged-local","questions":2,"change":"age","expectedAction":"scoped-search","expectedIndexes":1},
       {"id":"changed-file-hash","questions":2,"change":"artifact","expectedAction":"current-read","expectedIndexes":2},

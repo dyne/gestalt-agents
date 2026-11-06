@@ -78,6 +78,14 @@ provenance, closed authority or an unapproved generation remain conflicts.
 Report the precise code and existing identity if reconciliation cannot finish;
 never spawn, rename, change policy or fabricate receipts to repair ownership.
 
+Call takeover only for an explicit user-directed new-supervisor takeover.
+Ordinary root continuation is not a new takeover request. Retain the pending
+request identity across retries; reuse accepted ownership until current control
+evidence invalidates it. A pending request is not acceptance and does not grant
+dispatch, replacement or permission to bypass Manual Off, attention or model
+admission. On rejection/conflict, inspect the affected facts and preserve the
+existing writer; never create another identity to make the request succeed.
+
 ## Start supervision
 
 The first tool call reads this skill completely and performs no other command.
@@ -157,6 +165,29 @@ executor/process state once, reusing current event facts. Refresh affected facts
 after mutation, change or contradiction. Inspect delta scope/report/evidence and
 rerun invalidated checks; reuse never replaces independent verification.
 
+Start with compact `gestalt_org_plan_health` (`view: "compact"`), retain its
+revision and snapshot, then pass `sinceRevision` on subsequent reads. An
+`unchanged: true` result contains no snapshot: reuse the retained facts.
+Apply `changes` only to its matching baseline: replace each named top-level
+section, retain omitted sections, and clear explicit nulls; never recursively
+merge sections. Retain the returned revision. A reset or expired/unknown revision
+returns `reset: true` and a full compact `snapshot`: replace the retained
+snapshot without a full-health round trip. If a baseline or replacement is
+missing, recover with a fresh compact read without `sinceRevision` before
+deciding. Missing baseline, changed
+plan/session/runtime or executor identity invalidates affected retained facts;
+reconcile ownership and current model admission before dispatch. Unchanged
+health alone cannot establish fresh test evidence or override an event conflict.
+
+Do not automatically fetch projection, roster or full health when compact facts
+answer the decision. Retrieve only missing or contradictory facts; an unchanged
+continuation needs one conditional health read and no takeover or extra state
+round trip. This is a decision rule, not a maximum-call quota. Lifecycle
+mutations still require projection and host `update_plan` under SKILL invariant
+4; L1 transitions still verify predecessor closure and the new writer, and all
+review, model and checkpoint gates remain mandatory. Manual Off and attention
+permit ownership observation only, never automatic dispatch.
+
 For running work without a pending decision, use available agent/process event
 waits in the same turn or accepted long-wait leases below. No repeated
 health/list/status loops or gratuitous followups. Use `followup_task` only for
@@ -173,6 +204,8 @@ control interval, call `gestalt_autopilot_wait_lease` with version 2, unique
 the deadline resumes normal Autopilot control. This is one episode, not a pulse
 policy change. If the wait remains justified after that later turn begins, the
 root must reassess it and explicitly register another episode.
+An accepted lease yield is a legal disposition, not failed progress. Expiry
+alone is not a bug: inspect the current result and reassess the next action.
 
 | Lease outcome | Required root action |
 | --- | --- |

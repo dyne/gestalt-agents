@@ -1,5 +1,53 @@
 # Instruction delivery and preservation ledger
 
+## Evidence and wait economy, L5.2
+
+Context-mode remains the routing owner: independent inspections batch, dependent
+actions stay sequential, process-sensitive tests execute natively/through the
+host with saved-log analysis, and available process/test-run waits replace clock
+polling. Structured GitHub status precedes failed-job logs; unchanged identities
+reuse captures while candidate/attempt/status/artifact changes invalidate them.
+Existing scoped artifact, schema-generation and complete-failure/denied-access
+contracts remain authoritative. Small bounded reads stay native, and overlapping
+wrapper/inner costs remain separate with unknown provider usage retained.
+S clarifies that accepted lease yields and expiry preserve normal reassessment.
+
+Three instruction decisions and reversed-rule controls bind these additions.
+Existing gates add a small repeated native-read case, repeated denial checks,
+structured CI status/capture reuse and identity invalidation with saved synthetic
+artifacts, separate cost controls, and owned event-wait/lease disposition cases.
+The lease actor performs same-writer followup and owned-result consumption,
+holds accepted episodes until a modeled wake, and reassesses expiry. Negative
+controls remove continuation, yield on rejection, change writer or continue
+after accepted yield; the independent action-trace oracle rejects each.
+No live GitHub/provider/runtime efficiency or adoption is inferred. The original
+evidence/handoff/overflow, schema, dirty-candidate and supervision checks remain.
+
+## Revision-aware supervision, L5.1
+
+S retains the first compact health revision and snapshot, uses `sinceRevision`
+for subsequent reads, and distinguishes unchanged, delta and reset/expiry.
+Wire fixtures use `view: "compact"`, unchanged replies without snapshots,
+top-level `changes` section replacement, omission retention, explicit null
+clearing and full replacement `snapshot` on reset. Lost-cache recovery requests
+compact state without `sinceRevision`, with no roster/full-health escalation.
+Missing baselines or changed plan/session/runtime/writer facts require affected
+state and admission checks. Compact observations avoid automatic projection,
+roster and full-health reads when the decision is already answered; lifecycle
+mutations still project through host `update_plan`. Review/model gates and
+checkpoint-last-tool boundaries remain unchanged. Takeover requires an explicit
+new-supervisor request; pending retries retain identity and accepted ownership
+is reused until invalidated. Off, attention and replacement conflicts never
+gain dispatch authority from ownership observation.
+
+Three instruction decisions bind these clauses. The existing scripted
+supervision gate adds a test-only compact client actor for unchanged reads,
+expiry replacement, changed executor/runtime, pending/accepted takeover,
+Off/attention/conflict, L1 closure, mandatory projection and checkpoint fences.
+Assertions inspect actual actor calls and rejected side effects; they establish
+neither Mobile runtime behavior nor real-model adoption or measured savings.
+The original disposable helper lifecycle and all prior scenarios remain.
+
 ## Source routing delivery parity, L4.3
 
 The existing startup gate now assembles fresh root/executor/solo inputs using
