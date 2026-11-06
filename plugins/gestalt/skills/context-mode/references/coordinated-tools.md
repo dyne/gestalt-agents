@@ -9,15 +9,15 @@ The tool skills remain authoritative for their operations and permissions.
 
 | Task | Route | Evidence required before relying on it |
 | --- | --- | --- |
-| Broad or repeated source discovery in one or several repositories | Lexical XERJ when its service and index cover the requested scope | Identify the source repositories, aliases and freshness; verify relevant hits in current files. |
-| Exact known file, governing instructions, current source verification, Git or edits | Native tools | Read the authorized current path; account for dirty tracked and untracked files. |
-| Local definitions, callers or structured semantic edits | Managed Serena when the needed operations work | Check the effective repository/build, a bounded overview, and a known definition/caller relationship. |
+| Broad or repeated source discovery in one or several repositories | Bounded lexical XERJ query when its service and index cover the requested scope | Reuse verified repository/alias/freshness observations; verify hits in current files and continue the task. |
+| Exact known file, governing/pre-edit reads, current source verification, Git or ordinary filesystem writes | Native tools | Read the authorized current path; account for dirty tracked and untracked files. |
+| Local definitions/bodies, callers or structured semantic edits | Managed Serena when the needed operations work | Follow [Serena's operation table](../../serena/SKILL.md#operation-workflow): local extraction for definition/body; verified references for callers/interface impact; edit authority remains separate. |
 | Large or uncertain logs, tests, API results or several inspections | Context-mode analysis of saved evidence | Preserve the original, exact command/exit/counts, provenance and every failure locator. |
 | One saved artifact question | File execution | Return bounded derived findings and retrievable references. |
 | Repeated artifact questions or reviewer handoff | A scoped index or authorized manifest transfer | Reauthorize the original and verify its identity before reuse; receivers resolve their own tools and indexes. |
 
 These are intent boundaries, not call quotas. For detailed provenance and native
-fallback decisions see [XERJ](../../xerj/SKILL.md); for local semantic checks,
+fallback decisions see the [XERJ retrieval workflow](../../xerj/SKILL.md#retrieval-workflow); for local semantic checks,
 oversized-overview recovery and compilation inputs see
 [Serena](../../serena/SKILL.md). Empty, stale, partial or unavailable indexes
 justify a precise native fallback. A shared-content hit retains all aliases;

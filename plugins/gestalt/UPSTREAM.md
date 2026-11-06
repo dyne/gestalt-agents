@@ -22,7 +22,7 @@ generation are omitted. Setup no longer selects those six overlapping skills;
 it does not delete user-installed copies. The plugin skill remains the single
 runtime source; operator details stay in its on-demand lifecycle reference.
 
-- Downstream adaptation version: `1.0.0` (coding, security, scripting)
+- Downstream adaptation versions: `1.0.1` (coding); `1.0.0` (security, scripting)
 - Imported local snapshot: `skills-used`, supplied by the user, 2026-10-26
 - Canonical packages: `skills/coding`, `skills/security`, `skills/scripting`
 - Source snapshot manifest: `tests/plugins/gestalt/fixtures/engineering-sources.json`
@@ -58,6 +58,12 @@ replaced with an invented permission grant.
 ## Coverage and deliberate changes
 
 ### Coding
+
+Adaptation `1.0.1` adds an optional `$gestalt:xerj` discovery pointer with native
+search fallback. The named skill is used only when available; no external file
+link or required companion is introduced. Architecture content and original
+source attribution are unchanged; the adapted package checksum records this
+entrypoint revision.
 
 Four entrypoints and sixteen overlapping architecture references become one
 entrypoint and five topic references plus provenance. All topic families remain:

@@ -149,6 +149,113 @@ const roles = await (async () => {
 const captures = [];
 const blockCount = value => (JSON.stringify(value).match(/<!-- gestalt:startup:v\d+ -->/gu) ?? []).length;
 
+// Assemble current package inputs using the real composer/generated profiles.
+// Capability availability is synthetic; this is not either host's adapter or a
+// claim that a connected provider has current repository/semantic coverage.
+const routingSources = Object.fromEntries(await Promise.all(['xerj', 'serena', 'context-mode'].map(async name =>
+  [name, await readFile(resolve(plugin, `skills/${name}/SKILL.md`), 'utf8')])));
+const routingCaptures = [];
+function sourceRoutingCapture(context, xerj, serena) {
+  const role = context === 'root' ? roles.reviewer : context === 'executor' ? roles.executor : '';
+  return {
+    context, role,
+    developerInstructions: composeStartup(user + (role ? `\n\n${role}` : ''), contract),
+    implicitRouting: routingSources['context-mode'],
+    capabilities: Object.fromEntries(Object.entries({ xerj, serena }).map(([name, available]) => [name, {
+      available, loadedPath: available ? `skills/${name}/SKILL.md` : null,
+      guidance: available ? routingSources[name] : '',
+      notice: available ? '' : `${name} unavailable; earlier capability guidance inactive; use native tools.`,
+      repositoryCoverage: null, symbolReadiness: null, referenceReadiness: null,
+    }])),
+  };
+}
+
+function assertSourceRoutingCapture(capture, expected) {
+  const role = expected.context === 'root' ? roles.reviewer : expected.context === 'executor' ? roles.executor : '';
+  assert.equal(capture.context, expected.context);
+  assert.equal(capture.role, role);
+  assert.equal(capture.developerInstructions, composeStartup(user + (role ? `\n\n${role}` : ''), contract));
+  assert.equal(blockCount(capture.developerInstructions), 1);
+  assert.equal(capture.implicitRouting, routingSources['context-mode']);
+  assert.match(capture.implicitRouting, /prefer lexical XERJ.*fresh index coverage/u);
+  assert.doesNotMatch(capture.developerInstructions, /Use native tools for instructions, bounded reads, edits, mutations/u);
+  if (role) assert.match(role, /Follow the context-mode routing contract for source discovery, native reads\/writes and evidence analysis/u);
+  for (const name of ['xerj', 'serena']) {
+    const capability = capture.capabilities[name];
+    assert.equal(capability.available, expected[name]);
+    assert.equal(capability.loadedPath, expected[name] ? `skills/${name}/SKILL.md` : null);
+    assert.equal(capability.guidance, expected[name] ? routingSources[name] : '');
+    for (const field of ['repositoryCoverage', 'symbolReadiness', 'referenceReadiness']) assert.equal(capability[field], null);
+    assert.ok(capture.developerInstructions.includes(`[$gestalt:${name}](../skills/${name}/SKILL.md)`));
+    if (!expected[name]) {
+      assert.match(capability.notice, /unavailable; earlier capability guidance inactive; use native tools/u);
+      continue;
+    }
+    assert.equal(capability.notice, '');
+    assert.ok(Buffer.byteLength(capability.guidance) < 16_384, 'host guidance size limit');
+    const description = /^description: (.+)$/mu.exec(capability.guidance)?.[1];
+    if (name === 'xerj') {
+      assert.match(description, /bounded lexical queries.*broad or repeated source discovery.*fresh covered repositories/u);
+      assert.match(capability.guidance.replace(/\s+/gu, ' '), /perform `xerj_search`.*task-specific lexical query/u);
+      assert.match(capability.guidance, /Mapping is preparation, not the retrieval result/u);
+    } else {
+      assert.match(description, /Navigate symbols, trace references.*structured code edits/u);
+      assert.match(capability.guidance, /Local extraction suffices; unrelated callers are not a prerequisite/u);
+      assert.match(capability.guidance, /Interface changes also require verified references/u);
+      assert.match(capability.guidance, /A denied tool call is not permission to retry through another transport/u);
+    }
+  }
+}
+
+for (const context of ['root', 'executor', 'solo']) {
+  for (const xerj of [true, false]) for (const serena of [true, false]) {
+    test(`source routing delivery: ${context}/xerj-${xerj}/serena-${serena}`, () => {
+      const expected = { context, xerj, serena };
+      const capture = sourceRoutingCapture(context, xerj, serena);
+      assertSourceRoutingCapture(capture, expected);
+      // Provider state never changes the stable scalar or appends workflow text
+      // to it. On-demand/capability bytes are disclosed separately.
+      const unavailable = sourceRoutingCapture(context, false, false);
+      assert.equal(capture.developerInstructions, unavailable.developerInstructions);
+      routingCaptures.push({ id: `${context}/${xerj}/${serena}`, context,
+        evidenceKind: 'synthetic-source-routing-delivery',
+        scalarBytes: Buffer.byteLength(capture.developerInstructions),
+        scalarWords: capture.developerInstructions.trim().split(/\s+/u).length,
+        scalarSha256: hash(capture.developerInstructions),
+        implicitBytes: Buffer.byteLength(capture.implicitRouting),
+        capabilities: Object.fromEntries(Object.entries(capture.capabilities).map(([name, value]) => [name, {
+          available: value.available, loadedPath: value.loadedPath, guidanceBytes: Buffer.byteLength(value.guidance),
+          guidanceSha256: value.guidance ? hash(value.guidance) : null,
+          repositoryCoverage: value.repositoryCoverage, symbolReadiness: value.symbolReadiness,
+          referenceReadiness: value.referenceReadiness,
+        }])), liveHostDelivery: false, modelAdherence: 'unobserved' });
+    });
+  }
+}
+
+test('source routing delivery rejects stale guidance, probes-only text, caller gates and coverage promotion', () => {
+  const expected = { context: 'root', xerj: true, serena: true };
+  const ready = sourceRoutingCapture('root', true, true);
+  assertSourceRoutingCapture(ready, expected);
+  const damaged = [
+    value => { value.capabilities.xerj.guidance = value.capabilities.xerj.guidance.replace('perform `xerj_search`', 'stop after `xerj_map`'); },
+    value => { value.capabilities.serena.guidance = value.capabilities.serena.guidance.replace('Local extraction suffices; unrelated callers are not a prerequisite', 'Verify callers before every body lookup'); },
+    value => { value.capabilities.serena.referenceReadiness = 'ready'; },
+    value => { value.implicitRouting = ''; },
+    value => { value.developerInstructions += `\n${canonical}`; },
+    value => { value.capabilities.xerj.loadedPath = 'other-checkout/skills/xerj/SKILL.md'; },
+  ];
+  for (const mutate of damaged) {
+    const capture = structuredClone(ready);
+    mutate(capture);
+    assert.throws(() => assertSourceRoutingCapture(capture, expected), assert.AssertionError);
+  }
+  const unavailable = sourceRoutingCapture('solo', false, false);
+  assertSourceRoutingCapture(unavailable, { context: 'solo', xerj: false, serena: false });
+  unavailable.capabilities.serena.guidance = routingSources.serena;
+  assert.throws(() => assertSourceRoutingCapture(unavailable, { context: 'solo', xerj: false, serena: false }), assert.AssertionError);
+});
+
 function composeDeliveryFixture(input, nativeResolved, before) {
   const after = structuredClone(before);
   let diagnostic = null;
@@ -252,7 +359,9 @@ for (const input of deliveryFixture.cases) {
 test('synthetic capture export retains structural hashes only', async () => {
   assert.equal(captures.length, deliveryFixture.cases.length);
   assert.equal(new Set(captures.map(capture => capture.id)).size, captures.length);
-  const report = JSON.stringify({ schemaVersion: 1, cases: captures }, null, 2);
+  assert.equal(routingCaptures.length, 12);
+  assert.equal(new Set(routingCaptures.map(capture => capture.id)).size, routingCaptures.length);
+  const report = JSON.stringify({ schemaVersion: 1, cases: captures, routingCases: routingCaptures }, null, 2);
   assert.doesNotMatch(report, /USER_SENTINEL|PROFILE_SENTINEL|TASK_SENTINEL|First tool call:|developerInstructions/u);
   if (process.env.STARTUP_CAPTURE_PATH) await writeFile(process.env.STARTUP_CAPTURE_PATH, report + '\n');
 });

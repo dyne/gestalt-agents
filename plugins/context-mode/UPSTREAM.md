@@ -15,6 +15,13 @@ and contents while excluding generated dependencies and build artifacts.
 
 ## Downstream changes
 
+- Runs the CI overhead entrypoint, its isolated frozen-corpus worker and its
+  CLI regressions, fake-model CLI tests and bounded-review CLI tests through
+  the installed tsx Node loader instead of the tsx CLI's
+  length-limited IPC socket. Keeps inherited scratch paths, corpus isolation,
+  benchmark arguments and quality/budget assertions intact; loader URLs and
+  script paths preserve spaces. No runtime execution or scratch policy changes.
+
 - Publishes delegated v1 execution borrower leases before generated scratch or
   child startup, using Mobile/Launcher containment and owner fences. Tracks all
   managed runtime/compiler groups independently of foreground/background results;

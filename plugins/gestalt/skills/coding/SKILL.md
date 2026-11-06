@@ -1,7 +1,7 @@
 ---
 name: coding
 metadata:
-  adaptation_version: "1.0.0"
+  adaptation_version: "1.0.1"
 description: Write, review, or refactor application code and architecture. Use for features, APIs, DDD, bounded contexts, aggregates, Clean/Hexagonal Architecture, vertical slices, ports/adapters, repositories, CQRS, events, and monolith decomposition. Follow existing conventions; apply deeper patterns only when needed. Shell-only work belongs to scripting.
 ---
 
@@ -14,6 +14,8 @@ Slice Architecture. They answer different questions and can be used together;
 none is a prerequisite for every feature. No other architecture skill is needed.
 
 ## Workflow
+
+For broad/repeated discovery, follow `$gestalt:xerj` when available; otherwise use native search.
 
 1. Inspect the requested behavior, current implementation, repository rules,
    tests, and framework conventions. Identify the use case, inputs, observable

@@ -4,7 +4,11 @@ import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
+import { createRequire } from "node:module";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { runFakeModelTrials, summarizeModelTrials, verifyEmbeddedEvidence, distribution } from "../../benchmark/model-trials.js";
+
+const tsxLoader = pathToFileURL(createRequire(import.meta.url).resolve("tsx")).href;
 
 describe("opt-in controlled model comparison", () => {
   test("repeats identical fake inputs three times per configuration and difficulty", () => {
@@ -106,8 +110,8 @@ describe("opt-in controlled model comparison", () => {
     const root = mkdtempSync(join(tmpdir(), "model-trials-cli-"));
     try {
       const output = join(root, "must-not-exist.json");
-      const run = spawnSync(process.execPath, [new URL("../../node_modules/tsx/dist/cli.mjs", import.meta.url).pathname,
-        new URL("../../benchmark/model-trials.ts", import.meta.url).pathname, "--live", output], { encoding: "utf8" });
+      const run = spawnSync(process.execPath, ["--import", tsxLoader,
+        fileURLToPath(new URL("../../benchmark/model-trials.ts", import.meta.url)), "--live", output], { encoding: "utf8" });
       expect(run.status).not.toBe(0); expect(run.stderr).toContain("live dispatch is unsupported");
       expect(existsSync(output)).toBe(false);
     } finally { rmSync(root, { recursive: true, force: true }); }
@@ -117,8 +121,8 @@ describe("opt-in controlled model comparison", () => {
     try {
       const input = join(root, "fake.json"), output = join(root, "summary.json");
       const invoke = (...args: string[]) => spawnSync(process.execPath, [
-        new URL("../../node_modules/tsx/dist/cli.mjs", import.meta.url).pathname,
-        new URL("../../benchmark/model-trials.ts", import.meta.url).pathname, ...args], { encoding: "utf8" });
+        "--import", tsxLoader,
+        fileURLToPath(new URL("../../benchmark/model-trials.ts", import.meta.url)), ...args], { encoding: "utf8" });
       expect(invoke("--fake", input).status).toBe(0);
       const before = readFileSync(input);
       expect(invoke("--summarize", input, output).status).toBe(0);

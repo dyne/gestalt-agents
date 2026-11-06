@@ -23,12 +23,15 @@ SOURCES = {
     "evidence": ORG / "references/evidence-report.md",
     "routing": ROOT / "plugins/gestalt/skills/context-mode/SKILL.md",
     "retrieval": ROOT / "plugins/gestalt/skills/context-mode/references/bounded-retrieval.md",
+    "coordinated": ROOT / "plugins/gestalt/skills/context-mode/references/coordinated-tools.md",
     "continuity": ORG / "references/continuity-ledger.md",
     "format": ORG / "references/plan-format.md",
     "policy": ORG / "references/model-policy-workflow.md",
     "selection": ORG / "references/model-selection.md",
     "xerj": ROOT / "plugins/gestalt/skills/xerj/SKILL.md",
     "serena": ROOT / "plugins/gestalt/skills/serena/SKILL.md",
+    "coding": ROOT / "plugins/gestalt/skills/coding/SKILL.md",
+    "debugging": ROOT / "plugins/gestalt/skills/systematic-debugging/SKILL.md",
 }
 
 
@@ -40,10 +43,10 @@ def sections(text):
 def scenario_text(documents, case):
     text = sections(documents[case["source"]])[case["section"]]
     if "outcome" in case:
-        rows = [line.split("|")[1:3] for line in text.splitlines()
+        rows = [line.split("|")[1:-1] for line in text.splitlines()
                 if line.startswith("|")]
-        rows = [action for key, action in rows
-                if re.search(r"(?<![\w])" + re.escape(case["outcome"]) + r"(?![\w])", key)]
+        rows = [" | ".join(row[1:]) for row in rows
+                if re.search(r"(?<![\w])" + re.escape(case["outcome"]) + r"(?![\w])", row[0])]
         assert len(rows) == 1, (case["id"], "missing/ambiguous decision row")
         text = rows[0]
     return re.sub(r"\s+", " ", text.replace("`", ""))
@@ -85,6 +88,8 @@ def check_profiles(directory):
         assert "Then read its supervised-execution reference and governing AGENTS.md before inspecting the plan or repository" in text
         assert "Gestalt skills may be declared in L1 Skills or loaded on demand when relevant" in text
         assert "Conditional capabilities require runtime readiness" in text
+        assert "Follow the context-mode routing contract for source discovery, native reads/writes and evidence analysis" in text
+        assert "Use native tools for instructions, bounded reads, edits, mutations" not in text
         assert "direct state edits are forbidden" in text
         assert "inspect git diff --cached --name-only" in text and ".gestalt/*.org" in text
         assert "Context-mode never mutates Org state" in text
@@ -113,6 +118,25 @@ def main():
     assert "Org Plans may declare `$gestalt:xerj` when relevant" in documents["xerj"]
     count = check_scenarios(documents)
     check_links()
+    assert "`$gestalt:xerj` when available; otherwise use native search" in documents["coding"]
+    assert "../xerj/SKILL.md#retrieval-workflow" in documents["debugging"]
+    for source, before, after in (
+            ("xerj", "perform `xerj_search`", "stop after `xerj_map`"),
+            ("xerj", "Reuse an unchanged verified map", "Repeat the map before each query"),
+            ("serena", "Local extraction suffices; unrelated callers are not a prerequisite",
+             "Require unrelated callers before every body lookup"),
+            ("serena", "Reuse successful observations with their original time",
+             "Repeat all successful probes before each operation"),
+            ("coordinated", "local extraction for definition/body; verified references for callers/interface impact",
+             "a bounded overview and a known definition/caller relationship for every operation")):
+        damaged = dict(documents)
+        damaged[source] = documents[source].replace(before, after)
+        try:
+            check_scenarios(damaged)
+        except AssertionError:
+            pass
+        else:
+            raise AssertionError(f"scenario contract accepted nonoperational {source} guidance")
     damaged = dict(documents)
     damaged["startup"] = documents["startup"].replace(
         "Retain durable instruction bytes", "Replace durable instruction bytes")

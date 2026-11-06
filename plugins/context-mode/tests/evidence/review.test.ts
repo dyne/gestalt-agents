@@ -3,12 +3,15 @@ import {mkdtempSync,realpathSync,readFileSync,rmSync,writeFileSync,mkdirSync} fr
 import {tmpdir} from 'node:os';
 import {join,resolve,sep} from 'node:path';
 import {spawnSync} from 'node:child_process';
+import {createRequire} from 'node:module';
+import {pathToFileURL} from 'node:url';
 import {digest} from '../../src/evidence/github.js';
 import {ingestEvidence} from '../../src/evidence/extract.js';
 import {createReviewPacket,verifyReviewPacket,type ReviewState,type ReviewPacket} from '../../src/evidence/review.js';
 
 let root:string,state:ReviewState;
 const plugin=resolve(import.meta.dirname,'../..');
+const tsxLoader=pathToFileURL(createRequire(import.meta.url).resolve('tsx')).href;
 const authorize=(path:string)=>resolve(path).startsWith(root+sep);
 const ref=(path:string)=>{const bytes=readFileSync(path);return {path,sha256:digest(bytes),bytes:bytes.length};};
 function report(failed=false,command='npm test') {
@@ -110,7 +113,7 @@ describe('independent review packet contradictions',()=>{
 
 describe('native bounded review helper',()=>{
   const save=(name:string,value:unknown)=>{const path=join(root,name),body=JSON.stringify(value);writeFileSync(path,body);return {path,sha256:digest(body)};};
-  const run=(args:string[])=>spawnSync(process.execPath,[join(plugin,'node_modules/tsx/dist/cli.mjs'),join(plugin,'scripts/review-evidence.ts'),...args],{cwd:plugin,encoding:'utf8'});
+  const run=(args:string[])=>spawnSync(process.execPath,['--import',tsxLoader,join(plugin,'scripts/review-evidence.ts'),...args],{cwd:plugin,encoding:'utf8'});
   it('prepares and independently compares digest-bound files with a bounded summary and complete result artifact',()=>{
     const current=save('current.json',state),output=join(root,'packet.json');
     const prepared=run(['prepare','--workspace',root,'--current',current.path,'--current-sha256',current.sha256,'--milestone','L3.4','--output',output]);
