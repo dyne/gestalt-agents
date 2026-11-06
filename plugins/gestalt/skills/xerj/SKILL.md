@@ -1,6 +1,6 @@
 ---
 name: xerj
-description: Prefer XERJ for broad or repeated source discovery within one repository or across repositories with fresh index coverage and working tools. Retain repository and path provenance, verify current source, and keep precise known-file lookup native.
+description: Use XERJ for bounded lexical queries during broad or repeated source discovery in fresh covered repositories. Preserve provenance and aliases, verify current source, and keep exact known-file lookup native.
 ---
 
 # xerj global engineering knowledge
@@ -15,8 +15,7 @@ choosing retrieval arguments.
 - Prefer lexical XERJ over broad or repeated grep/rg/ag discovery when fresh
   indexes cover the requested single-repository or multi-repository scope.
   Keep precise known-file lookup native. This is intent-based routing, with no
-  tool-call quota or blanket grep ban. For broad native fallback, briefly record
-  a relevant coverage/readiness limitation, not boilerplate for every command.
+  tool-call quota or blanket grep ban.
   Search across indexed repositories for related implementations and prior art.
   Do not assume retrieved code belongs to the current repository. Treat it as
   reference material unless the task explicitly concerns its source repository.
@@ -33,12 +32,6 @@ choosing retrieval arguments.
   contents. Dirty files and edits after indexing can make hits stale. If
   freshness or identity cannot be established, use hits only as possible
   locators and verify the current files; use `rg` when that is more direct.
-- Discover available indexes with `xerj_map`, then search relevant indexes or
-  a catalog-verified index glob with a specific query and a small result limit.
-  Read `xerj_map` before constructing field-specific query DSL. Prefer lexical
-  search; do not enable external reranking or model downloads implicitly.
-  Peer-corpus `xerj_code_search` uses a separately identified corpus; retain
-  its provenance and licence warnings.
 - Cite the source repository and path when describing prior art. Resolve
   relative paths against the source repository, never the current workspace.
   Before claiming current local behavior or editing, inspect the actual target
@@ -47,7 +40,30 @@ choosing retrieval arguments.
   is not proof of absence; check the explicitly targeted repository directly.
 - If tools become unavailable mid-task, report that bounded limitation and
   continue with `rg` and file reads. Do not repeatedly restart or repair the
-  service; readiness is rechecked at the next runtime boundary.
+  service.
+
+## Retrieval workflow
+
+1. Identify the requested repository/fork and discovery scope. Exact known-file
+   lookup stays native. Reuse readiness only for the same scope, source/configuration
+   fingerprints, catalog and tool/runtime generation; retain its observation time.
+2. If coverage is unverified, inspect `xerj_map` and available root/index metadata,
+   then compare current source. Counts alone prove neither identity nor freshness.
+   Reuse an unchanged verified map; do not remap before each query.
+3. With suitable coverage, perform `xerj_search` against the relevant indexes or
+   catalog-verified glob using a task-specific lexical query and `size: 5`.
+   Mapping is preparation, not the retrieval result. Read the map before field DSL;
+   leave external reranking and model downloads disabled. Peer `xerj_code_search`
+   requires an identified corpus and preserved provenance/licence warnings.
+4. Verify useful hits in current target files, retaining repository, all aliases
+   and dirty-source differences. A no-match requires direct current-source checks
+   in the requested scope before an absence claim. Continue the requested work
+   using those verified findings, rather than ending at readiness.
+5. For stale, empty, missing, partial or unavailable coverage, record one concrete
+   limitation and continue natively. Reuse that fallback without repeating probes
+   or explanations until affected source/configuration, scope, catalog or runtime
+   changes; refresh only the invalidated evidence. Fresh executors resolve their
+   own tools and readiness.
 
 All workspaces share `$CODEX_HOME/xerj-data` (default
 `~/.codex-gestalt/xerj-data`). Shared storage does not make reference material

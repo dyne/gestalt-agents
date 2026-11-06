@@ -4,9 +4,12 @@ import { mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "n
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
+import { createRequire } from "node:module";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { assessOverhead, assessWakeTrace, collectOverhead, loadOverheadBudgets, retainBudgetDiagnostics, retainOverheadReport, instructionSizeReport, instructionSummary, instructionGrowthWarnings, instructionWarningText, validateBudgetAmendment } from "../../benchmark/overhead.js";
 
 let measured: ReturnType<typeof collectOverhead>;
+const tsxLoader = pathToFileURL(createRequire(import.meta.url).resolve("tsx")).href;
 beforeAll(() => { measured = collectOverhead(); }, 30_000);
 
 describe("stable overhead CI budgets", () => {
@@ -159,12 +162,12 @@ describe("stable overhead CI budgets", () => {
     } finally { rmSync(root, { recursive: true, force: true }); }
   });
   test.each([false, true])("CI entrypoint produces a bounded passing report (symlinked temp: %s)", symlinked => {
-    const root = mkdtempSync(join(tmpdir(), "overhead-cli-"));
+    const root = mkdtempSync(join(tmpdir(), "overhead cli-"));
     try {
       const temp = join(root, "temp-link");
       if (symlinked) symlinkSync(root, temp, "dir");
-      const run = spawnSync(process.execPath, [new URL("../../node_modules/tsx/dist/cli.mjs", import.meta.url).pathname,
-        new URL("../../benchmark/overhead.ts", import.meta.url).pathname, "--evidence-dir", root], {
+      const run = spawnSync(process.execPath, ["--import", tsxLoader,
+        fileURLToPath(new URL("../../benchmark/overhead.ts", import.meta.url)), "--evidence-dir", root], {
         encoding: "utf8", timeout: 30_000, env: { ...process.env, GITHUB_STEP_SUMMARY: join(root, "summary.md"), ...(symlinked ? { TMPDIR: temp, TEMP: temp, TMP: temp } : {}) },
       });
       expect(run.status, run.stderr).toBe(0);
@@ -176,8 +179,8 @@ describe("stable overhead CI budgets", () => {
   test("an unavailable comparison base fails with a recoverable bounded diagnostic", () => {
     const root = mkdtempSync(join(tmpdir(), "overhead-base-"));
     try {
-      const run = spawnSync(process.execPath, [new URL("../../node_modules/tsx/dist/cli.mjs", import.meta.url).pathname,
-        new URL("../../benchmark/overhead.ts", import.meta.url).pathname,
+      const run = spawnSync(process.execPath, ["--import", tsxLoader,
+        fileURLToPath(new URL("../../benchmark/overhead.ts", import.meta.url)),
         "--base", "missing-overhead-base-000000", "--evidence-dir", root], { encoding: "utf8", timeout: 30_000,
           env: { ...process.env, GITHUB_STEP_SUMMARY: join(root, "summary.md") } });
       expect(run.status).toBe(1); expect(Buffer.byteLength(run.stdout)).toBeLessThanOrEqual(2048);

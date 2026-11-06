@@ -54,7 +54,7 @@ attention_contract_requirements() {
 
 routing_contract_requirements() {
   # shellcheck disable=SC2016 # Literal profile instructions retain $gestalt.
-  printf '%s' ' First tool call: read the org-plan skill completely and do nothing else. Then read its supervised-execution reference and governing AGENTS.md before inspecting the plan or repository. Gestalt skills may be declared in L1 Skills or loaded on demand when relevant; catalog availability does not mean instructions are loaded. Conditional capabilities require runtime readiness. Use native tools for instructions, bounded reads, edits, mutations, and short commands; use context-mode for large or uncertain analysis. Context-mode never mutates Org state.'
+  printf '%s' ' First tool call: read the org-plan skill completely and do nothing else. Then read its supervised-execution reference and governing AGENTS.md before inspecting the plan or repository. Gestalt skills may be declared in L1 Skills or loaded on demand when relevant; catalog availability does not mean instructions are loaded. Conditional capabilities require runtime readiness. Follow the context-mode routing contract for source discovery, native reads/writes and evidence analysis. Context-mode never mutates Org state.'
 }
 
 supervision_continuation_requirements() {

@@ -25,7 +25,7 @@
     "test:use-cases": "npx tsx tests/use-cases.ts",
     "test:compare": "npx tsx tests/context-comparison.ts",
     "test:ecosystem": "npx tsx tests/ecosystem-benchmark.ts",
-    "test:overhead": "tsx benchmark/overhead.ts",
+    "test:overhead": "node --import tsx benchmark/overhead.ts",
     "benchmark:payloads": "tsx benchmark/model-payloads.ts",
     "benchmark:evidence": "tsx scripts/benchmark-evidence.ts"
   },

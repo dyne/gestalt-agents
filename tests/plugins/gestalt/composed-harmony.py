@@ -37,7 +37,7 @@ def run():
                 if source_case["expected"] == "xerj":
                     source_case["expectedAliases"] = ["alpha/src/cart.py", "fork/src/cart.py"]
             source = routing.replay(root, files, source_case)
-            routing.validate(source_case, source)
+            routing.validate(source_case, source, root)
             semantic_root = root / "semantic"
             semantic_root.mkdir()
             semantic = routing.SemanticActor(semantic_root, case)

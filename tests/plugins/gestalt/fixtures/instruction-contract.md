@@ -1,5 +1,74 @@
 # Instruction delivery and preservation ledger
 
+## Source routing delivery parity, L4.3
+
+The existing startup gate now assembles fresh root/executor/solo inputs using
+the actual generated profiles, shared startup composer, implicit routing and
+selected canonical skill bytes. Twelve ready/unavailable provider combinations
+check current trigger descriptions/links, useful XERJ retrieval, local-body versus
+caller/interface evidence, separate authority and unavailable-guidance fallback.
+Seven mutations reject probes-only or stale content, mandatory caller gates,
+coverage promotion, missing routing, duplicate startup blocks and wrong-package
+paths. Positive captures are validated before negative controls run.
+
+The gate executes 48 tests, retaining all 35 prior startup cases. Its optional
+export adds only structural hashes, byte/word counts and unknown readiness.
+Provider state leaves each stable scalar unchanged; source capability bytes
+are measured separately. No product instruction text changes in L4.3. Existing
+root/executor paths remain 29 bytes below the admitted L4 baseline; discovery
+remains 5398 versus 5437 bytes. These are source assembly contracts, not CLI or
+Mobile runtime delivery, repository coverage or observed model adoption.
+
+## Useful semantic work, L4.2
+
+Serena's operation table distinguishes local definition/body extraction from
+caller/interface verification and fitting authorized symbol edits. Ready body
+work does not require unrelated callers. Successful and failed observations keep
+their original time and operation/source/build/runtime/executor scope; unchanged
+caller readiness is reused, while caller changes leave an unchanged local body
+usable. Oversized requests narrow or use a justified bound. Native pre-edit
+reads, current authorization and denied-transport fences remain binding.
+
+The semantic gate now runs 46 synthetic cases over current source files, ASTs
+and C/C++ build inputs. Useful outcomes contain retrieved bodies/definitions,
+actual caller locations, or changed source with executed Python behavior checks.
+Cases include Python/TypeScript and C/C++, local/interface edits, native text
+edits, read/edit/warmup denial, successful reuse, appropriate invalidation and
+wrong compilation standards/include paths. Negative controls remove outcomes,
+continuation or pre-edit evidence. Three static decisions bind the canonical
+operation flow, scoped reuse and coordinated-guide parity; a negative control
+rejects the guide imposing callers on every operation. These fixtures establish
+source contracts,
+not live semantic coverage or model adoption; no runtime is installed/switched.
+
+## Actionable source retrieval, L4.1
+
+The existing broad/repeated single- and multi-repository XERJ preference now
+points to one canonical retrieval workflow in the XERJ skill: scope, reused
+identity-bound readiness, bounded lexical query, current-target verification,
+then task continuation. Map preparation alone is insufficient. Stable native
+fallback records one concrete limitation until affected inputs change. Coding
+names the optional `$gestalt:xerj` skill with native fallback, preserving its
+self-contained distribution; debugging links to that workflow. Generated Org
+profiles defer routing to
+the existing implicit context-mode contract instead of broadly prescribing
+native reads/edits. Exact known-file lookup and mandatory native reads remain.
+
+The routing gate now executes 34 source scenarios over temporary current files
+and an immutable synthetic lexical index. Requests carry actual query/index
+scope and a five-hit bound; verified findings feed continuation. Repeated ready
+work maps once, and seven unavailable/coverage variants retain one fallback.
+Source/untracked, configuration, catalog, scope, runtime and fresh-executor
+changes invalidate affected observations; unrelated source changes preserve
+them and cached observations keep their original time. No-match checks can
+discover a dirty current match. Existing shared aliases and dirty-source checks
+remain. Negative controls reject map-only/queryless work, unbounded requests,
+invented findings, repeated probes, lost continuation, aliases and source drift.
+Two instruction decisions bind the canonical flow and stable fallback; links
+and generated bootstrap checks preserve one routing owner. These are contract
+fixtures, not live-provider integration or model-adoption measurements. Safety,
+scratch/persistent-state guidance and instruction ceilings remain unchanged.
+
 ## Tool harmony routing
 
 L3.1 adds identity-bound artifact reuse to the existing conditional bounded

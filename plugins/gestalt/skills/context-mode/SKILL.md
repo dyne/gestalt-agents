@@ -10,8 +10,8 @@ analysis.
 
 ## Routing contract
 
-Use native tools for bounded filesystem work; context-mode analyzes evidence
-that is large, uncertain, or needs filtering, indexing, or repeated retrieval.
+Keep governing/pre-edit reads and ordinary filesystem writes native. Route
+source discovery and large or uncertain evidence by intent below.
 
 1. Use an available native reader for small bounded reads and always for
    governing `AGENTS.md`, selected `SKILL.md`, plugin manifests, and a file
@@ -54,7 +54,7 @@ preserve standalone/operator fallback.
 
 For broad or repeated source discovery within one repository or across repositories,
 prefer lexical XERJ with a working service and fresh index coverage of the requested
-scope; follow [XERJ provenance and fallback](../xerj/SKILL.md). Keep precise
+scope; follow the [XERJ retrieval workflow](../xerj/SKILL.md#retrieval-workflow). Keep precise
 known-file lookups, governing reads, current-file verification, Git and writes
 native. Use ready Serena for local symbol relationships and structured edits.
 Analyze large evidence with context-mode. Use no tool-call quota or blanket grep
