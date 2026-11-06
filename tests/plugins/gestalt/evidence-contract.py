@@ -284,6 +284,10 @@ def handoff_scenarios(cases):
             if case["expected"] == "denied":
                 assert receiver.rejected
                 assert not set(receiver.reads) & set(receiver.rejected), "denied bytes read"
+                # A repeated question cannot turn a sender's retained access
+                # claim into receiver authority or retry another transport.
+                assert receiver.receive(packet, current) == "denied"
+                assert not set(receiver.reads) & set(receiver.rejected)
             if case["expected"] in ("supported", "failed"):
                 assert str(artifact.resolve()) in receiver.reads, "sender summary trusted without inspection"
                 assert receiver.sources == {"fresh-receiver/source-1": TIME}
@@ -292,6 +296,64 @@ def handoff_scenarios(cases):
             if change == "id-only":
                 assert not receiver.reads
     print(f"fresh handoffs: {len(ids)} decisions passed; 0 failed/0 skipped; synthetic authorization only")
+
+
+def ci_status_scenarios():
+    """Scripted structured status and saved artifacts, not a GitHub client."""
+    calls, retained = [], {}
+    with tempfile.TemporaryDirectory(prefix="ci-status-contract-") as temporary:
+        directory = Path(temporary)
+        log = directory / "failed-job.json"
+        failures = ["checkout: empty cart", "payment: timeout"]
+        log.write_bytes(encode({"failures": failures}))
+
+        def inspect(status, authorized=True):
+            calls.append("structured-status")
+            # Status binds the whole capture, not just a job's conclusion.
+            key = tuple(status[k] for k in ("repository", "sha", "dirty", "run", "attempt", "job", "state", "artifact"))
+            if status["state"] != "failure":
+                return []
+            if not authorized:
+                calls.append("denied")
+                return None  # No cached findings or alternate transport.
+            if key not in retained:
+                calls.append("failed-job-log")
+                retained[key] = json.loads(log.read_bytes())["failures"]
+            return retained[key]
+
+        status = dict(repository="fixture/project", sha="a" * 40, dirty="clean", run=42,
+                      attempt=1, job=7, state="pending", artifact=digest(log.read_bytes()))
+        assert inspect(status) == [] and calls == ["structured-status"]
+        status["state"] = "failure"
+        assert inspect(status) == failures
+        before = len(calls)
+        assert inspect(status) == failures
+        assert calls[before:] == ["structured-status"], "unchanged status refetched logs"
+        assert inspect(status, authorized=False) is None
+        assert calls[-2:] == ["structured-status", "denied"]
+        for field, value in [("attempt", 2), ("dirty", "changed-untracked"),
+                             ("sha", "b" * 40), ("job", 8), ("artifact", "new-artifact")]:
+            status[field] = value
+            before = len(calls)
+            assert inspect(status) == failures
+            assert calls[before:] == ["structured-status", "failed-job-log"]
+        # Cost categories overlap; reporting a synthetic total would double count.
+        costs = dict(wrapperBytes=1000, innerBytes=800, providerUsage=None, total=None)
+
+        def validate_costs(report):
+            assert report["total"] is None, "overlapping wrapper/inner costs cannot be summed"
+            assert report["providerUsage"] is None, "unknown provider usage is not zero"
+
+        validate_costs(costs)
+        for wrong in [dict(costs, total=1800), dict(costs, providerUsage=0)]:
+            try:
+                validate_costs(wrong)
+            except AssertionError:
+                pass
+            else:
+                raise AssertionError("unsupported cost claim accepted")
+    print("CI evidence: 9 structured-status decisions; unchanged reuse, denial and 5 identity invalidations; "
+          "2 overlap/unknown cost controls; 0 failed/0 skipped; synthetic artifacts only")
 
 
 def main():
@@ -385,6 +447,7 @@ def main():
     print(f"role forms: generated assignment {len(assignment.encode())} bytes and review "
           f"{len(request.encode())} bytes; reports exercised against all {len(cases['cases'])} root decisions")
     handoff_scenarios(cases["handoffs"])
+    ci_status_scenarios()
 
 
 if __name__ == "__main__":

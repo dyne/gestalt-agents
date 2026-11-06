@@ -624,6 +624,7 @@ class ArtifactActor:
         self.sources = {}
         self.corpus = True
         self.expired = False
+        self.bounded_native = False
         self.now = "2026-10-18T10:00:00Z"
         self.capture = {"observedAt": "2026-10-18T10:00:00Z", "command": "fixture-check",
                         "exit": 1, "completeness": "complete"}
@@ -653,12 +654,12 @@ class ArtifactActor:
         current = self.identity()
         if current["candidate"] != self.retained["candidate"]:
             return {"action": "stale", "findings": [], "reference": self.retained}
-        action = "scoped-search" if repeated else "execute_file"
+        action = "native-read" if self.bounded_native else "scoped-search" if repeated else "execute_file"
         if current["sha256"] != self.retained["sha256"]:
             action = "current-read"
             self.retained = current
             self.sources.clear()
-        if repeated:
+        if repeated and not self.bounded_native:
             if not self.corpus or getattr(self, "source", None) not in self.sources:
                 if action != "current-read":
                     action = "reindex" if self.indexes else "scoped-search"
@@ -700,6 +701,10 @@ def artifact_scenarios():
         ids.add(case["id"])
         with tempfile.TemporaryDirectory(prefix="artifact-contract-") as directory:
             actor = ArtifactActor(Path(directory))
+            if case.get("small"):
+                actor.bounded_native = True
+                actor.path.write_text("FAIL payment: timeout\n")
+                actor.retained = actor.identity()
             for n in range(case["questions"]):
                 if n == 1:
                     change = case.get("change")
