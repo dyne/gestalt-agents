@@ -15,6 +15,11 @@ export default defineConfig({
     // Native addons (better-sqlite3) can segfault in worker_threads during
     // process cleanup. Use forks on all platforms for stable isolation.
     pool: "forks",
+    // Managed fixtures nest below one inherited owner and therefore share its
+    // ancestor containment fence across worker processes. Schedule files one
+    // at a time; concurrency exercised inside each file remains unchanged.
+    // Standalone runs retain normal parallel file scheduling and worker caps.
+    fileParallelism: process.env.GESTALT_SESSION_TMP_CONTEXT === undefined,
     // Cap parallel workers to prevent fork exhaustion (#258).
     // Tests that spawnSync + better-sqlite3 cause worker SIGKILL under
     // unlimited parallelism. Benchmarked: 3 workers = 2.8x speedup with

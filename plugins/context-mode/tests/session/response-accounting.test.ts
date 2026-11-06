@@ -150,8 +150,13 @@ describe("production handler response boundary → persistence → analytics", (
     const snapshots = readdirSync(join(state, "sessions")).filter(name => name.startsWith("stats-") && name.endsWith(".json"));
     expect(snapshots.length).toBeGreaterThan(0);
     const snapshot = JSON.parse(readFileSync(join(state, "sessions", snapshots[0]), "utf8"));
-    expect(snapshot).toMatchObject({ schemaVersion: 3, bytes_returned_scope: "known_only", comparison_coverage: "unavailable", reduction_pct: null,
+    expect(snapshot).toMatchObject({ schemaVersion: 3, bytes_returned_scope: "known_only", bytes_sandboxed: null,
+      bytes_sandboxed_scope: "unavailable", comparison_coverage: "unavailable", reduction_pct: null,
       tokens_saved: null, dollars_saved_session: null, tokens_saved_lifetime: null, dollars_saved_lifetime: null });
+    // These aggregate fields are known lower bounds, excluding unobserved
+    // sandbox reads. No missing byte count is converted into measured zero.
+    expect(snapshot.kept_out).toBe(snapshot.bytes_indexed + snapshot.cache_bytes_saved);
+    expect(snapshot.total_processed).toBe(snapshot.kept_out + snapshot.bytes_returned);
     const invalid = await call("ctx_stats", { report: "../../PRIVATE_CANARY" }); await flush();
     expect(invalid.isError).toBe(true); expect(JSON.stringify(invalid)).not.toContain("PRIVATE_CANARY");
   });

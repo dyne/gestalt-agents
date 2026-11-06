@@ -295,7 +295,7 @@ async function startServer(context: SessionScratchContext) {
 
 const resultText = (result: any) => result.content.filter((part: any) => part.type === "text").map((part: any) => part.text).join("\n");
 
-test.skipIf(process.platform === "win32")("real MCP handshake, execution, preload and reopen use isolated owners and durable workspace state", async () => {
+test.skipIf(process.platform === "win32")("real MCP handshake, execution, batch and reopen use isolated owners and durable workspace state", async () => {
   const a = owner("session-a"), b = owner("session-b");
   const [first, second] = await Promise.all([startServer(a), startServer(b)]);
   expect(fs.existsSync(join(a.directory, `context-mode-mcp-ready-${first.pid}`))).toBe(true);
@@ -304,13 +304,22 @@ test.skipIf(process.platform === "win32")("real MCP handshake, execution, preloa
     const response = await server.call("ctx_execute", { language: "javascript", code: "console.log('managed-ok', process.env.TMPDIR, process.env.TMP, process.env.TEMP)", timeout: 5_000 });
     expect(response.isError, resultText(response)).not.toBe(true);
     expect(resultText(response)).toContain("managed-ok"); expect(resultText(response)).toContain(context.directory);
-    expect(fs.readdirSync(context.directory).some(name => name.startsWith("cm-fs-preload-"))).toBe(true);
+    expect(fs.readdirSync(context.directory).some(name => name.startsWith("cm-fs-preload-"))).toBe(false);
+    const claims = () => fs.readdirSync(join(context.directory, "leases")).map(name =>
+      JSON.parse(fs.readFileSync(join(context.directory, "leases", name), "utf8")));
+    expect(claims().length).toBeGreaterThan(0);
+    for (const claim of claims()) expect(claim).toMatchObject({ schemaVersion: 1,
+      ownerId: context.ownerId, workspacePath: context.workspacePath });
+    // A response alone does not prove release. Wait for the executor's durable
+    // group-absence transition while preserving the existing lifetime tests.
+    await vi.waitFor(() => expect(claims().every(claim => claim.state === "released" && claim.consumers.length === 0)).toBe(true));
   }
-  const readFile = join(a.workspacePath, "preload input.txt"); fs.writeFileSync(readFile, "preload input");
-  const script = `require('node:fs').readFileSync(${JSON.stringify(readFile)}); console.log('preload-ok')`;
+  const readFile = join(a.workspacePath, "batch input.txt"); fs.writeFileSync(readFile, "batch input");
+  const script = `require('node:fs').readFileSync(${JSON.stringify(readFile)}); console.log('managed-batch-ok')`;
   const shellQuote = (value: string) => "'" + value.replace(/'/g, "'\\''") + "'";
-  const batch = await first.call("ctx_batch_execute", { commands: [{ label: "preload", command: `${shellQuote(process.execPath)} -e ${shellQuote(script)}` }], queries: ["preload-ok"] });
-  expect(batch.isError, resultText(batch)).not.toBe(true); expect(resultText(batch)).toContain("preload-ok");
+  const batch = await first.call("ctx_batch_execute", { commands: [{ label: "managed-read", command: `${shellQuote(process.execPath)} -e ${shellQuote(script)}` }], queries: ["managed-batch-ok"], response_bytes: 8192 });
+  expect(batch.isError, resultText(batch)).not.toBe(true); expect(resultText(batch)).toContain("managed-batch-ok");
+  expect(resultText(batch)).not.toContain("__CM_FS__");
   const indexed = await first.call("ctx_index", { content: "# Durable nebula\n\nThe durable nebula evidence survives a session scratch cleanup.", source: "scratch-nebula" });
   expect(indexed.isError, resultText(indexed)).not.toBe(true);
   await first.close();

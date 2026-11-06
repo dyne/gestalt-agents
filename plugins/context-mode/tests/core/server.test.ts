@@ -3001,74 +3001,35 @@ describe("Version outdated warning in trackResponse", () => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
-// FS read instrumentation (mirrors network interceptor pattern)
+// Arbitrary execution accounting must not alter application streams.
 // ═══════════════════════════════════════════════════════════════════════════
 
-describe("FS read instrumentation", () => {
-  const serverSrc = readFileSync(
-    resolve(__dirname, "../../src/server.ts"),
-    "utf-8",
-  );
+describe("observational execution accounting", () => {
+  const serverSrc = readFileSync(resolve(__dirname, "../../src/server.ts"), "utf-8");
 
-  test("wrapper contains __CM_FS__ marker for stderr reporting", () => {
-    expect(serverSrc).toContain("__CM_FS__:");
+  test("does not create or inherit an accounting preload", () => {
+    expect(serverSrc).not.toContain("CM_FS_PRELOAD");
+    expect(serverSrc).toContain('const nodeOptsPrefix = "";');
   });
 
-  test("wrapper instruments readFileSync to count bytes", () => {
-    expect(serverSrc).toContain("readFileSync");
-    expect(serverSrc).toContain("__cm_fs+=");
+  test("does not patch filesystem or network APIs", () => {
+    expect(serverSrc).not.toContain("__cm_fs");
+    expect(serverSrc).not.toContain("__cm_net");
+    expect(serverSrc).not.toContain("globalThis.fetch=");
   });
 
-  test("wrapper instruments readFile (async) to count bytes", () => {
-    expect(serverSrc).toMatch(/readFile/);
-    expect(serverSrc).toContain("__cm_fs+=d.length");
+  test("does not interpret application marker text as telemetry", () => {
+    expect(serverSrc).not.toContain("__CM_FS__");
+    expect(serverSrc).not.toContain("__CM_NET__");
   });
 
-  test("parses __CM_FS__ from stderr and adds to bytesSandboxed", () => {
-    expect(serverSrc).toContain("__CM_FS__:(\\d+)");
-    expect(serverSrc).toContain("sessionStats.bytesSandboxed += parseInt(fsMatch[1])");
+  test("discloses sandbox read accounting as unavailable", () => {
+    expect(serverSrc).toContain("bytesSandboxed: null");
+    expect(serverSrc).toContain('bytes_sandboxed_scope: "unavailable"');
   });
 
-  test("cleans __CM_FS__ marker from stderr output", () => {
-    expect(serverSrc).toContain('result.stderr.replace(/\\n?__CM_FS__:\\d+\\n?/g, "")');
-  });
-});
-
-// ═══════════════════════════════════════════════════════════════════════════
-// batch_execute FS read tracking via NODE_OPTIONS preload
-// ═══════════════════════════════════════════════════════════════════════════
-
-describe("batch_execute FS read tracking", () => {
-  const serverSrc = readFileSync(
-    resolve(__dirname, "../../src/server.ts"),
-    "utf-8",
-  );
-
-  test("creates CM_FS_PRELOAD temp file with FS tracking script", () => {
-    expect(serverSrc).toContain("CM_FS_PRELOAD");
-    expect(serverSrc).toContain("cm-fs-preload-");
-    // Preload script must write __CM_FS__ marker to stderr on exit
-    expect(serverSrc).toMatch(/writeFileSync\(\s*CM_FS_PRELOAD/);
-  });
-
-  test("sets NODE_OPTIONS with --require for batch commands", () => {
-    expect(serverSrc).toContain("buildBatchNodeOptionsPrefix");
-    expect(serverSrc).toContain("nodeOptsPrefix");
-  });
-
-  test("parses __CM_FS__ from batch output and updates bytesSandboxed", () => {
-    expect(serverSrc).toContain("/__CM_FS__:(\\d+)/g");
-    // Handler wires the FS-bytes callback to sessionStats; the runner strips/parses.
-    expect(serverSrc).toContain("sessionStats.bytesSandboxed += bytes");
-    expect(serverSrc).toContain("onFsBytes?.(cmdFsBytes)");
-  });
-
-  test("strips __CM_FS__ markers from batch command output", () => {
-    expect(serverSrc).toContain('output.replace(/__CM_FS__:\\d+\\n?/g, "")');
-  });
-
-  test("cleans up preload file on shutdown", () => {
-    expect(serverSrc).toContain("unlinkSync(CM_FS_PRELOAD)");
+  test("successful execution retains application stderr", () => {
+    expect(serverSrc).toContain('const stdout = combineExecOutput(result) || "(no output)";');
   });
 
   test("handler accepts concurrency input field with min/max bounds", () => {
@@ -3375,7 +3336,7 @@ describe("runBatchCommands parallel path (concurrency>1)", () => {
     expect(maxInFlight).toBeLessThanOrEqual(2);
   });
 
-  test("FS bytes callback fires per-command in parallel branch", async () => {
+  test("parallel application markers cannot establish FS byte accounting", async () => {
     const exec = mkMockExecutor((code) => ({
       stdout: code.includes("a") ? "out a\n__CM_FS__:100\n" : "out b\n__CM_FS__:200\n",
     }));
@@ -3389,9 +3350,9 @@ describe("runBatchCommands parallel path (concurrency>1)", () => {
       { timeout: 5000, concurrency: 2, nodeOptsPrefix: NOOP_PREFIX, onFsBytes: (b) => { totalBytes += b; } },
       exec,
     );
-    expect(totalBytes).toBe(300);
-    // markers stripped from output
-    expect(outputs.join("")).not.toContain("__CM_FS__");
+    expect(totalBytes).toBe(0); // Callback never called; accounting remains unknown.
+    expect(outputs.join("")).toContain("__CM_FS__:100");
+    expect(outputs.join("")).toContain("__CM_FS__:200");
   });
 });
 
@@ -3478,10 +3439,7 @@ describe("runBatchCommands P0 hardening", () => {
     expect(outputs.every((o) => typeof o === "string" && o.length > 0)).toBe(true);
   });
 
-  test("finding B: timed-out parallel command still strips __CM_FS__ markers + counts bytes", async () => {
-    // Real subprocess timeouts often return partial stdout *with* the marker.
-    // Pre-fix the parallel branch wrote the (timed out) sentinel directly,
-    // bypassing formatCommandOutput → markers leaked into context, bytes uncounted.
+  test("timed-out parallel command preserves literal markers without accounting", async () => {
     const exec = mkMockExecutor(() => ({
       stdout: "partial line 1\n__CM_FS__:512\npartial line 2\n",
       timedOut: true,
@@ -3493,8 +3451,8 @@ describe("runBatchCommands P0 hardening", () => {
       exec,
     );
     expect(timedOut).toBe(true);
-    expect(totalBytes).toBe(512); // marker counted
-    expect(outputs[0]).not.toContain("__CM_FS__"); // marker stripped
+    expect(totalBytes).toBe(0); // No telemetry inferred from application output.
+    expect(outputs[0]).toContain("__CM_FS__:512");
     expect(outputs[0]).toContain("partial line 1");
     expect(outputs[0]).toContain("partial line 2");
     expect(outputs[0]).toContain("(timed out after 100ms)"); // sentinel still appended

@@ -113,7 +113,8 @@ describe("compact execution provenance and explicit authorized audit", () => {
     const audit = await report(meta.audit.report);
     expect(audit.sources.map((source: any) => source.submitted)).toEqual(commands.map(command => command.command));
     expect(audit.sources[1].state.exitCode).toBe(7);
-    expect(audit.sources[0].executed).toContain("NODE_OPTIONS=");
+    expect(audit.sources[0].executed).not.toContain("NODE_OPTIONS=");
+    expect(audit.sources[0].executed).toContain(commands[0].command);
     const search = await call("ctx_search", { queries: ["batch-finding"], response_bytes: 4096 });
     expect(text(search)).not.toContain("BATCH-SOURCE-CANARY");
   });
