@@ -543,23 +543,6 @@ const executor = new PolyglotExecutor({
   projectRoot: () => getProjectDir(),
 });
 
-// ─────────────────────────────────────────────────────────
-// FS read tracking preload for ctx_batch_execute
-// ─────────────────────────────────────────────────────────
-// NODE_OPTIONS is denied by the executor's #buildSafeEnv (security).
-// Instead, we inject it as an inline shell env prefix in each batch command.
-// This temp file is loaded via --require when batch commands spawn Node processes.
-const CM_FS_PRELOAD = join(resolveScratchDirectory(), `cm-fs-preload-${process.pid}.js`);
-writeFileSync(
-  CM_FS_PRELOAD,
-  `(function(){var __cm_fs=0;process.on('exit',function(){if(__cm_fs>0)try{process.stderr.write('__CM_FS__:'+__cm_fs+'\\n')}catch(e){}});try{var f=require('fs');var ors=f.readFileSync;f.readFileSync=function(){var r=ors.apply(this,arguments);if(Buffer.isBuffer(r))__cm_fs+=r.length;else if(typeof r==='string')__cm_fs+=Buffer.byteLength(r);return r;};}catch(e){}})();\n`,
-);
-// In the stdio MCP path, main() also removes this file during graceful
-// shutdown. Plugin-native OpenCode/Kilo imports skip main() (#574), so
-// register a top-level best-effort cleanup too to avoid leaking preload
-// snippets under /tmp when the host process exits.
-process.on("exit", () => { try { unlinkSync(CM_FS_PRELOAD); } catch { /* best effort */ } });
-
 // Lazy singleton — no DB overhead unless index/search is used
 let _store: ContentStore | null = null;
 
@@ -888,7 +871,9 @@ const sessionStats = {
   calls: {} as Record<string, number>,
   bytesReturned: {} as Record<string, number>,
   bytesIndexed: 0,
-  bytesSandboxed: 0, // network I/O consumed inside sandbox (never enters context)
+  // Arbitrary child FS/network reads are unobserved. Never use application
+  // streams or inherited runtime preloads as an accounting transport.
+  bytesSandboxed: null,
   cacheHits: 0,
   cacheMisses: 0, // ctx_fetch_and_index calls that bypassed the TTL cache
   cacheBytesSaved: 0, // bytes avoided by TTL cache hits
@@ -1181,7 +1166,6 @@ function persistStats(): void {
     );
     const keptOut =
       sessionStats.bytesIndexed +
-      sessionStats.bytesSandboxed +
       sessionStats.cacheBytesSaved;
     const totalProcessed = keptOut + totalReturned;
     const payload = {
@@ -1195,6 +1179,7 @@ function persistStats(): void {
       bytes_returned_scope: "known_only",
       bytes_indexed: sessionStats.bytesIndexed,
       bytes_sandboxed: sessionStats.bytesSandboxed,
+      bytes_sandboxed_scope: "unavailable",
       cache_hits: sessionStats.cacheHits,
       cache_bytes_saved: sessionStats.cacheBytesSaved,
       kept_out: keptOut,
@@ -1535,8 +1520,10 @@ export interface BatchRunOptions {
    */
   timeout: number | undefined;
   concurrency: number;
+  /** Explicit caller prefix for the standalone runner; registered tools use none. */
   nodeOptsPrefix: string;
   cwd?: string;
+  /** @deprecated Application output cannot establish FS read accounting. Never called. */
   onFsBytes?: (bytes: number) => void;
 }
 
@@ -1588,15 +1575,8 @@ export function resolveExecTimeout(timeout: number | undefined): number | undefi
   return Number.isFinite(override) && override > 0 ? override : AGY_DEFAULT_EXEC_TIMEOUT_MS;
 }
 
-function formatCommandOutput(label: string, command: string, raw: string, onFsBytes?: (bytes: number) => void): string {
-  let output = raw || "(no output)";
-  const fsMatches = output.matchAll(/__CM_FS__:(\d+)/g);
-  let cmdFsBytes = 0;
-  for (const m of fsMatches) cmdFsBytes += parseInt(m[1]);
-  if (cmdFsBytes > 0) {
-    onFsBytes?.(cmdFsBytes);
-    output = output.replace(/__CM_FS__:\d+\n?/g, "");
-  }
+function formatCommandOutput(label: string, command: string, raw: string): string {
+  const output = raw || "(no output)";
   // Searchable output keeps source identity without repeating executable text.
   const digest = createHash("sha256").update(command).digest("hex");
   const operation = executionStateContext.getStore()?.audit?.operationId;
@@ -1649,7 +1629,7 @@ export async function runBatchCommands(
   opts: BatchRunOptions,
   executor: BatchExecutor,
 ): Promise<BatchRunResult> {
-  const { timeout, concurrency, nodeOptsPrefix, cwd, onFsBytes } = opts;
+  const { timeout, concurrency, nodeOptsPrefix, cwd } = opts;
 
   if (concurrency <= 1) {
     // Serial path — shared timeout budget, cascading skip on timeout.
@@ -1680,7 +1660,7 @@ export async function runBatchCommands(
         onScript: source => { const audit = executionStateContext.getStore()?.audit;
           if (audit?.sources[i]) audit.sources[i].executed = source; },
       }));
-      outputs.push(formatCommandOutput(cmd.label, cmd.command, combineExecOutput(result), onFsBytes));
+      outputs.push(formatCommandOutput(cmd.label, cmd.command, combineExecOutput(result)));
       if (result.timedOut) {
         timedOut = true;
         for (let j = i + 1; j < commands.length; j++) {
@@ -1706,9 +1686,8 @@ export async function runBatchCommands(
         onScript: source => { const audit = executionStateContext.getStore()?.audit;
           if (audit?.sources[i]) audit.sources[i].executed = source; },
       }));
-      // Always route partial output through formatCommandOutput so __CM_FS__
-      // markers are stripped + counted, even when the command timed out.
-      const formatted = formatCommandOutput(cmd.label, cmd.command, combineExecOutput(result), onFsBytes);
+      // Partial output is application data, including any marker-like text.
+      const formatted = formatCommandOutput(cmd.label, cmd.command, combineExecOutput(result));
       const output = result.timedOut
         ? formatted.replace(/\n$/, "") + `\n(timed out after ${timeout ?? "?"}ms)\n`
         : formatted;
@@ -1895,72 +1874,15 @@ EXAMPLE: ctx_execute(language: "javascript", code: "const out = require('child_p
     }
 
     try {
-      // For JS/TS: wrap in async IIFE with fetch + http/https interceptors to track network bytes
+      // Keep async JS/TS execution without mutating FS/network APIs or streams.
       let instrumentedCode = code;
       if (language === "javascript" || language === "typescript") {
-        // Wrap user code in a closure that shadows CJS require with http/https interceptor.
-        // globalThis.require does NOT work because CJS require is module-scoped, not global.
-        // The closure approach (function(__cm_req){ var require=...; })(require) correctly
-        // shadows the CJS require for all code inside, including __cm_main().
         instrumentedCode = `
-// FS read instrumentation — count bytes read via fs.readFileSync/readFile
-let __cm_fs=0;
-process.on('exit',()=>{if(__cm_fs>0)try{process.stderr.write('__CM_FS__:'+__cm_fs+'\\n')}catch{}});
-(function(){
-  try{
-    var f=typeof require!=='undefined'?require('fs'):null;
-    if(!f)return;
-    var ors=f.readFileSync;
-    f.readFileSync=function(){var r=ors.apply(this,arguments);if(Buffer.isBuffer(r))__cm_fs+=r.length;else if(typeof r==='string')__cm_fs+=Buffer.byteLength(r);return r;};
-    var orf=f.readFile;
-    if(orf)f.readFile=function(){var a=Array.from(arguments),cb=a.pop();orf.apply(this,a.concat([function(e,d){if(!e&&d){if(Buffer.isBuffer(d))__cm_fs+=d.length;else if(typeof d==='string')__cm_fs+=Buffer.byteLength(d);}cb(e,d);}]));};
-  }catch{}
-})();
-let __cm_net=0;
-// Report network bytes on process exit — works with both promise and callback patterns.
-// process.on('exit') fires after all I/O completes, unlike .finally() which fires
-// when __cm_main() resolves (immediately for callback-based http.get without await).
-process.on('exit',()=>{if(__cm_net>0)try{process.stderr.write('__CM_NET__:'+__cm_net+'\\n')}catch{}});
-;(function(__cm_req){
-// Intercept globalThis.fetch
-const __cm_f=globalThis.fetch;
-globalThis.fetch=async(...a)=>{const r=await __cm_f(...a);
-try{const cl=r.clone();const b=await cl.arrayBuffer();__cm_net+=b.byteLength}catch{}
-return r};
-// Shadow CJS require with http/https network tracking.
-const __cm_hc=new Map();
-const __cm_hm=new Set(['http','https','node:http','node:https']);
-function __cm_wf(m,origFn){return function(...a){
-  const li=a.length-1;
-  if(li>=0&&typeof a[li]==='function'){const oc=a[li];a[li]=function(res){
-    res.on('data',function(c){__cm_net+=c.length});oc(res);};}
-  const req=origFn.apply(m,a);
-  const oOn=req.on.bind(req);
-  req.on=function(ev,cb,...r){
-    if(ev==='response'){return oOn(ev,function(res){
-      res.on('data',function(c){__cm_net+=c.length});cb(res);
-    },...r);}
-    return oOn(ev,cb,...r);
-  };
-  return req;
-}}
-var require=__cm_req?function(id){
-  const m=__cm_req(id);
-  if(!__cm_hm.has(id))return m;
-  const k=id.replace('node:','');
-  if(__cm_hc.has(k))return __cm_hc.get(k);
-  const w=Object.create(m);
-  if(typeof m.get==='function')w.get=__cm_wf(m,m.get);
-  if(typeof m.request==='function')w.request=__cm_wf(m,m.request);
-  __cm_hc.set(k,w);return w;
-}:__cm_req;
-if(__cm_req){if(__cm_req.resolve)require.resolve=__cm_req.resolve;
-if(__cm_req.cache)require.cache=__cm_req.cache;}
 async function __cm_main(){
 ${code}
 }
 __cm_main().catch(e=>{console.error(e);process.exitCode=1});${background ? '\nsetInterval(()=>{},2147483647);' : ''}
-})(typeof require!=='undefined'?require:null);`;
+`;
       }
       const effTimeout = resolveExecTimeout(timeout);
       const auditState = executionStateContext.getStore();
@@ -1972,23 +1894,8 @@ __cm_main().catch(e=>{console.error(e);process.exitCode=1});${background ? '\nse
       const executionState = executionStateContext.getStore();
       if (executionState) executionState.execution = observedExecutionState(result);
 
-      // Parse sandbox network metrics from stderr
-      const netMatch = result.stderr?.match(/__CM_NET__:(\d+)/);
-      if (netMatch) {
-        sessionStats.bytesSandboxed += parseInt(netMatch[1]);
-        // Clean the metric line from stderr
-        result.stderr = result.stderr.replace(/\n?__CM_NET__:\d+\n?/g, "");
-      }
-
-      // Parse sandbox FS read metrics from stderr
-      const fsMatch = result.stderr?.match(/__CM_FS__:(\d+)/);
-      if (fsMatch) {
-        sessionStats.bytesSandboxed += parseInt(fsMatch[1]);
-        result.stderr = result.stderr.replace(/\n?__CM_FS__:\d+\n?/g, "");
-      }
-
       if (result.timedOut) {
-        const partialOutput = result.stdout?.trim();
+        const partialOutput = combineExecOutput(result);
         if (result.backgrounded && partialOutput) {
           // Background mode: process is still running, return partial output as success
           return trackResponse("ctx_execute", {
@@ -2053,7 +1960,7 @@ __cm_main().catch(e=>{console.error(e);process.exitCode=1});${background ? '\nse
         });
       }
 
-      const stdout = result.stdout || "(no output)";
+      const stdout = combineExecOutput(result) || "(no output)";
 
       // Intent-driven search: if intent provided and output is large enough
       if (intent && intent.trim().length > 0 && Buffer.byteLength(stdout) > INTENT_SEARCH_THRESHOLD) {
@@ -3896,10 +3803,8 @@ EXAMPLE: ctx_batch_execute(
     }
 
     try {
-      // Inject NODE_OPTIONS for FS read tracking in spawned Node processes.
-      // The executor denies NODE_OPTIONS in its env (security), so we set it
-      // as an inline shell prefix. This only affects child `node` invocations.
-      const nodeOptsPrefix = buildBatchNodeOptionsPrefix(runtimes.shell, CM_FS_PRELOAD);
+      // Do not inject runtime options into arbitrary commands or descendants.
+      const nodeOptsPrefix = "";
 
       // Full stdout is preserved per-command and indexed into FTS5 (Issue #61, #197).
       // Concurrency>1 switches to a worker pool with per-command timeouts.
@@ -3916,7 +3821,6 @@ EXAMPLE: ctx_batch_execute(
           concurrency,
           nodeOptsPrefix,
           cwd,
-          onFsBytes: (bytes) => { sessionStats.bytesSandboxed += bytes; },
         },
         executor,
       );
@@ -4579,7 +4483,7 @@ EXAMPLE: ctx_purge(confirm: true, scope: "project")`,
       sessionStats.calls = {};
       sessionStats.bytesReturned = {};
       sessionStats.bytesIndexed = 0;
-      sessionStats.bytesSandboxed = 0;
+      sessionStats.bytesSandboxed = null;
       sessionStats.cacheHits = 0;
       sessionStats.cacheBytesSaved = 0;
       sessionStats.sessionStart = Date.now();
@@ -4857,11 +4761,10 @@ async function main() {
   // #844: handle to the periodic sentinel refresh timer (started after connect).
   let sentinelRefresh: ReturnType<typeof setInterval> | undefined;
 
-  // Clean up own DB + backgrounded processes + preload script on shutdown
+  // Clean up own DB and backgrounded processes on shutdown
   const shutdown = () => {
     executor.cleanupBackgrounded();
     if (_store) _store.close(); // persist DB for --continue sessions
-    try { unlinkSync(CM_FS_PRELOAD); } catch { /* best effort */ }
     // Remove MCP readiness sentinel (#230)
     try { unlinkSync(mcpSentinel); } catch { /* best effort */ }
     // #844: stop refreshing the sentinel mtime on shutdown.

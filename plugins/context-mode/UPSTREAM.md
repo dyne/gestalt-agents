@@ -15,6 +15,23 @@ and contents while excluding generated dependencies and build artifacts.
 
 ## Downstream changes
 
+- Removes inherited batch accounting preloads and execution FS/network API
+  patches. Application stdout/stderr, nested child exit status and literal
+  `__CM_FS__`/`__CM_NET__` text remain application data, including partial output.
+  Registered batches add no `NODE_OPTIONS`; explicit caller prefixes and safe
+  environment restrictions retain their existing contracts. Async JS/TS wrapping
+  and managed execution/borrower/group shutdown protection remain intact.
+  Sandbox read bytes are unobserved (`null`, scope `unavailable`), not measured
+  zero. Schema 3 `kept_out` and `total_processed` remain known lower bounds:
+  indexed/cache bytes, plus known returned bytes for the latter, excluding
+  unobserved sandbox input; token/dollar savings and comparisons remain null.
+  Default release tests include nested stream/status, literal marker, JS/TS,
+  parallel, timeout and cleanup regressions plus a packaged synthetic validator.
+  When a managed scratch context is inherited, Vitest schedules files serially
+  because their nested fixture owners share the live ancestor containment fence.
+  Standalone file parallelism, within-file concurrency assertions, owner paths
+  and production locking/release behavior remain unchanged.
+
 - Runs the CI overhead entrypoint, its isolated frozen-corpus worker and its
   CLI regressions, fake-model CLI tests and bounded-review CLI tests through
   the installed tsx Node loader instead of the tsx CLI's
