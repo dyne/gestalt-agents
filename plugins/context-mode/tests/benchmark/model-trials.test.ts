@@ -1,14 +1,116 @@
 import { describe, expect, test } from "vitest";
 import { createHash } from "node:crypto";
-import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { createRequire } from "node:module";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { runFakeModelTrials, summarizeModelTrials, verifyEmbeddedEvidence, distribution } from "../../benchmark/model-trials.js";
+import { runFakeModelTrials, summarizeModelTrials, verifyEmbeddedEvidence, distribution, validateAdoptionReport } from "../../benchmark/model-trials.js";
 
 const tsxLoader = pathToFileURL(createRequire(import.meta.url).resolve("tsx")).href;
+
+// Invented structural records exercise validation, never real-model execution.
+function adoptionReport(kind = "not-run"): any {
+  const evidence = (source: string) => ({ kind: kind === "fixture" ? "fixture" : source,
+    reference: "test-only-structural-reference", sha256: "a".repeat(64), observedAt: "2026-11-06T00:00:00Z" });
+  return { schemaVersion: 1, evidenceKind: kind, sourceRevision: "b".repeat(40), installedSourceEquivalence: "unverified",
+    roles: ["root", "executor", "solo"].map(role => ({ role, status: kind === "not-run" ? "not-run" : "observed",
+      missingInputs: kind === "not-run" ? ["No authorized live provider adapter"] : [],
+      runtimeEvidence: kind === "not-run" ? null : evidence("runtime-observation"),
+      outcome: kind === "not-run" ? null : { passed: true, evidence: evidence("outcome-check") },
+      operations: kind === "not-run" ? [] : ["xerj/query", "serena/symbol", "serena/references", "native/fallback"].map(id => {
+        const [tool, operation] = id.split("/");
+        return { tool, operation, sourceRevision: "b".repeat(40), locator: "src/example.py:1",
+          fallbackReason: tool === "native" ? "Exact-file lookup" : null, evidence: evidence("tool-observation") };
+      }), usage: Object.fromEntries(["inputTokens", "outputTokens", "providerLatencyMs"].map(metric => [metric, { value: null, evidence: null }])) })) };
+}
+
+describe("bounded adoption report admission", () => {
+  test("validates all roles through the read-only CLI and exports only a structural verdict", () => {
+    for (const kind of ["not-run", "fixture", "real-model"]) {
+      const result = validateAdoptionReport(adoptionReport(kind));
+      expect(result).toMatchObject({ valid: true, evidenceKind: kind, liveAdoption: "unverified", installedSourceEquivalence: "unverified" });
+      expect(result.roles).toHaveLength(3);
+    }
+    const root = mkdtempSync(join(tmpdir(), "adoption-report-cli-"));
+    try {
+      const input = join(root, "input.json"), output = join(root, "verdict.json");
+      const report = adoptionReport();
+      writeFileSync(input, JSON.stringify(report));
+      const before = readFileSync(input);
+      const invoke = () => spawnSync(process.execPath, ["--import", tsxLoader,
+        fileURLToPath(new URL("../../benchmark/model-trials.ts", import.meta.url)), "--validate-adoption-report", input, output], { encoding: "utf8" });
+      const run = invoke();
+      expect(run.status).toBe(0); expect(run.stdout).toBe("");
+      expect(readFileSync(input)).toEqual(before);
+      expect(JSON.parse(readFileSync(output, "utf8"))).toEqual(validateAdoptionReport(report));
+      rmSync(output);
+      report.roles[0].runtimeEvidence = { prompt: "PRIVATE_SENTINEL" };
+      writeFileSync(input, JSON.stringify(report));
+      const rejected = invoke();
+      expect(rejected.status).not.toBe(0); expect(existsSync(output)).toBe(false);
+      expect(rejected.stdout + rejected.stderr).not.toContain("PRIVATE_SENTINEL");
+      writeFileSync(input, "PRIVATE_SENTINEL malformed non-JSON input");
+      const malformed = invoke();
+      expect(malformed.status).not.toBe(0); expect(existsSync(output)).toBe(false);
+      expect(malformed.stdout + malformed.stderr).not.toContain("PRIVATE_");
+    } finally { rmSync(root, { recursive: true, force: true }); }
+  });
+  test("rejects fixture-only records relabelled real-model", () => {
+    const report = adoptionReport("fixture"); report.evidenceKind = "real-model";
+    expect(() => validateAdoptionReport(report)).toThrow("ADOPTION_EVIDENCE_KIND_INVALID");
+    for (const reference of ["embedded:artifacts/result", "fake-provider:run", "fixture:run", " \tEmBeDdEd:artifacts/result ", "\n fake-provider:run", " fixture:run\t"]) {
+      const relabelled = adoptionReport("real-model"); relabelled.roles[0].runtimeEvidence.reference = reference;
+      expect(() => validateAdoptionReport(relabelled)).toThrow("ADOPTION_FIXTURE_AS_REAL");
+    }
+    expect(() => validateAdoptionReport(runFakeModelTrials())).toThrow("ADOPTION_FIELDS_INVALID");
+  });
+  test("requires outcomes, every role, required operations and fallback provenance", () => {
+    const edits = [(r: any) => { r.roles[0].outcome = null; }, (r: any) => { r.roles.pop(); },
+      (r: any) => { r.roles[0].operations.pop(); }, (r: any) => { r.roles[0].operations[3].fallbackReason = null; },
+      (r: any) => { delete r.roles[0].operations[0].evidence; }];
+    for (const edit of edits) {
+      const report = adoptionReport("real-model"); edit(report);
+      expect(() => validateAdoptionReport(report)).toThrow(/ADOPTION_/);
+    }
+    const notRun = adoptionReport(); notRun.roles[0].missingInputs = [];
+    expect(() => validateAdoptionReport(notRun)).toThrow("ADOPTION_NOT_RUN_CONTRADICTION");
+    for (const observedAt of [null, "2026-11-06", "2026-11-06T00:00:00", "1234", "2026-11-06T00:00:00+00:00", "2026-02-31T00:00:00Z"]) {
+      const report = adoptionReport("real-model"); report.roles[0].runtimeEvidence.observedAt = observedAt;
+      expect(() => validateAdoptionReport(report)).toThrow("ADOPTION_EVIDENCE_INVALID");
+    }
+  });
+  test("keeps unknown usage null and requires observed evidence even for zero", () => {
+    const report = adoptionReport("real-model");
+    expect(validateAdoptionReport(report).valid).toBe(true);
+    report.roles[0].usage.inputTokens.value = 0;
+    expect(() => validateAdoptionReport(report)).toThrow("ADOPTION_OBSERVED_USAGE_EVIDENCE_REQUIRED");
+    report.roles[0].usage.inputTokens.evidence = { ...report.roles[0].runtimeEvidence, kind: "provider-observation" };
+    expect(validateAdoptionReport(report).valid).toBe(true);
+    report.roles[0].usage.providerLatencyMs = { value: 0.125, evidence: report.roles[0].usage.inputTokens.evidence };
+    expect(validateAdoptionReport(report).valid).toBe(true);
+    report.roles[0].usage.inputTokens.value = 0.5;
+    expect(() => validateAdoptionReport(report)).toThrow("ADOPTION_OBSERVED_USAGE_EVIDENCE_REQUIRED");
+    report.roles[0].usage.inputTokens.value = null;
+    expect(() => validateAdoptionReport(report)).toThrow("ADOPTION_UNKNOWN_USAGE_INVALID");
+  });
+  test("rejects raw payload fields at nested export boundaries", () => {
+    for (const field of ["prompt", "modelOutput", "environment", "transcript"]) {
+      for (const select of [(r: any) => r, (r: any) => r.roles[0], (r: any) => r.roles[0].outcome,
+        (r: any) => r.roles[0].operations[0].evidence, (r: any) => r.roles[0].usage.inputTokens]) {
+        const report = adoptionReport("fixture"); select(report)[field] = "PRIVATE_SENTINEL";
+        expect(() => validateAdoptionReport(report)).toThrow("ADOPTION_FIELDS_INVALID");
+      }
+    }
+  });
+  test("rejects source-to-installed equivalence and preserves source evidence limits", () => {
+    const report = adoptionReport("real-model"); report.installedSourceEquivalence = "verified";
+    expect(() => validateAdoptionReport(report)).toThrow("ADOPTION_INSTALLATION_CLAIM_UNSUPPORTED");
+    report.installedSourceEquivalence = "unverified";
+    expect(validateAdoptionReport(report).limits).toContain("No execution or installation attestation");
+  });
+});
 
 describe("opt-in controlled model comparison", () => {
   test("repeats identical fake inputs three times per configuration and difficulty", () => {
@@ -85,6 +187,19 @@ describe("opt-in controlled model comparison", () => {
     const manifest = runFakeModelTrials(); manifest.mode = "live";
     expect(() => summarizeModelTrials(manifest)).toThrow("COMPARISON_AUTHORIZATION_REFERENCE_REQUIRED");
     manifest.authorizationReference = { reference: "test-only-invented-authorization", sha256: "a".repeat(64), observedAt: "2026-10-21T00:00:00Z" };
+    expect(() => summarizeModelTrials(manifest)).toThrow("COMPARISON_FIXTURE_AS_LIVE");
+    for (const reference of [" \tembedded:artifacts/result ", "\n FaKe-PrOvIdEr:run", " fixture:run\t"]) {
+      const relabelled = structuredClone(manifest); delete relabelled.artifacts;
+      for (const trial of relabelled.trials) for (const field of ["resultEvidence", "accountingEvidence", "effectiveSettingsEvidence", "acceptanceEvidence"]) {
+        if (trial[field]) trial[field].reference = reference;
+      }
+      expect(() => summarizeModelTrials(relabelled)).toThrow("COMPARISON_FIXTURE_AS_LIVE");
+    }
+    // Invented external references test format compatibility, not execution provenance.
+    delete manifest.artifacts;
+    for (const trial of manifest.trials) for (const field of ["resultEvidence", "accountingEvidence", "effectiveSettingsEvidence", "acceptanceEvidence"]) {
+      if (trial[field]) trial[field].reference = `test-only-external-reference/${field}`;
+    }
     const summary = summarizeModelTrials(manifest);
     expect(summary.validation.executionAuthorized).toBe(false);
     expect(summary.liveExecutionSupported).toBe(false); expect(summary.liveQuality).toBe("unverified");

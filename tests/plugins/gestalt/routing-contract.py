@@ -6,8 +6,13 @@ model adherence. Actual source reads check provenance and post-retrieval drift.
 import ast
 import hashlib
 import json
+import os
 from pathlib import Path
+import runpy
+import subprocess
+import sys
 import tempfile
+import time
 
 FIXTURES = Path(__file__).with_name("fixtures")
 
@@ -742,6 +747,222 @@ def artifact_scenarios():
     print(f"artifact reuse: {len(ids)} scenarios passed; 0 failed/0 skipped; synthetic index only")
 
 
+def economy_scenarios():
+    """Paired executable adapters, reusing the existing offline contract actors.
+
+    Only the outer adapter request/result is accounted. Inner actor operations
+    are disclosed separately, never added again as wrapper costs. These are
+    scripted routes, not model decisions, installed providers or live adoption.
+    """
+    reports = []
+    owned_paths = []
+
+    def paired(case_id, fixture, adapters, expected):
+        sides = []
+        for name, adapter in adapters:
+            calls = []
+            started = time.perf_counter()
+
+            def invoke(operation, request, supplied):
+                result = supplied(request)  # Execute; a tool-name label cannot pass.
+                calls.append({"operation": operation,
+                              "requestBytes": len(json.dumps(request, sort_keys=True).encode()),
+                              "responseBytes": len(json.dumps(result, sort_keys=True).encode())})
+                return result
+
+            result = adapter(invoke)
+            assert all(not path.exists() for path in owned_paths), "owned fixture cleanup incomplete"
+            assert calls, f"{case_id}: adapter never executed"
+            assert result["outcome"] == expected, f"{case_id}/{name}: incorrect outcome"
+            assert result["locators"], f"{case_id}: missing useful locator"
+            sides.append({"path": name, "outcomeSha256": digest(json.dumps(result["outcome"], sort_keys=True)),
+                          "locators": result["locators"], "fallbackReason": result.get("fallbackReason"),
+                          "operations": calls, "innerOperations": result.get("innerOperations", {}),
+                          "calls": len(calls), "retries": 0,
+                          "requestBytes": sum(row["requestBytes"] for row in calls),
+                          "responseBytes": sum(row["responseBytes"] for row in calls),
+                          "instructionBytes": None, "instructionUnknownReason": "measured separately in delivery fixtures",
+                          "elapsedMs": (time.perf_counter() - started) * 1000,
+                          "providerUsage": None, "usageUnknownReason": "offline adapters; no model/provider dispatched",
+                          "completeness": "complete"})
+        assert sides[0]["outcomeSha256"] == sides[1]["outcomeSha256"]
+        costs = [side["requestBytes"] + side["responseBytes"] for side in sides]
+        reports.append({"id": case_id, "fixtureSha256": digest(json.dumps(fixture, sort_keys=True)),
+                        "sides": sides, "expectedOutcome": expected, "byteDelta": costs[1] - costs[0],
+                        "byteOutcome": "improved" if costs[1] < costs[0] else "regressed" if costs[1] > costs[0] else "equal"})
+
+    source = json.loads((FIXTURES / "context-evidence-workflows.json").read_text())["sourceRouting"]
+    # A covered broad scope has real distractor bytes to avoid rewarding a
+    # provider label over the same single-file work. Index construction is
+    # fixture setup, not a hidden extra query or claimed indexing speedup.
+    source["files"].update({f"alpha/src/helper_{number}.py":
+                            f"def helper_{number}(): return {number}\n" * 100
+                            for number in range(20)})
+    for precise in (False, True):
+        case = {"id": "economy", "repositories": ["alpha"], "intent": "precise" if precise else "broad", "query": "checkout"}
+        expected = sorted(path for path, content in source["files"].items()
+                          if path.startswith("alpha/") and "checkout" in content)
+
+        def route(mode):
+            def run(invoke):
+                with tempfile.TemporaryDirectory(prefix="economy-routing-") as directory:
+                    root = Path(directory)
+                    owned_paths.append(root)
+                    for path, content in source["files"].items():
+                        target = root / path
+                        target.parent.mkdir(parents=True, exist_ok=True)
+                        target.write_text(content)
+                    if precise:
+                        path = "alpha/src/cart.py"
+                        content = invoke("native-exact-file", {"path": path}, lambda request: (root / request["path"]).read_text())
+                        return {"outcome": [path] if "checkout" in content else [], "locators": [path],
+                                "innerOperations": {"currentReads": 1, "queries": 0}}
+                    request = dict(case, intent="precise") if mode == "native" else case
+                    result = invoke(mode, request, lambda request: replay(root, source["files"], request))
+                    return {"outcome": result["outcome"]["matches"], "locators": result["outcome"]["matches"],
+                            "fallbackReason": result["reason"], "innerOperations": {"currentReads": len(result["inspected"]),
+                                                                                     "queries": len(result["queries"])}}
+            return run
+
+        paired("exact-file-lookup" if precise else "broad-covered-discovery", {"files": source["files"], "case": case},
+               [("native", route("native")), ("routed", route("routed"))], expected)
+
+    for unsupported in (False, True):
+        case = {"operation": "edit", "interfaceChange": True} if not unsupported else {
+            "operation": "callers", "language": "cpp", "compilation": "missing"}
+
+        def semantic(native):
+            def run(invoke):
+                with tempfile.TemporaryDirectory(prefix="economy-semantic-") as directory:
+                    owned_paths.append(Path(directory))
+                    actor = SemanticActor(Path(directory), dict(case))
+                    if native:
+                        def current_task(_):
+                            if unsupported:
+                                return actor.source().read_text()
+                            # Check the caller relation against current ASTs before the edit.
+                            assert actor.known_relation(True)
+                            before = actor.definition.read_text()
+                            actor.definition.write_text(before.replace("return 1", "return 2", 1))
+                            return actor.definition.read_text()
+                        after = invoke("native-current-edit" if not unsupported else "native-current-read", {}, current_task)
+                        reason = "compilation" if unsupported else None
+                    else:
+                        result = invoke("semantic-probe-and-task", case, lambda _: actor.probe())
+                        after = result["outcome"]["current"] if unsupported else result["outcome"]["after"]
+                        reason = result["reason"]
+                        assert reason == ("compilation" if unsupported else None)
+                        if not unsupported:
+                            assert result["relation"] and "references" in actor.events
+                    if not unsupported:
+                        namespace = {}
+                        exec(compile(after, "synthetic-target", "exec"), namespace)
+                        assert namespace["target"]() == 2
+                    return {"outcome": after, "locators": [str(actor.source().relative_to(actor.root))],
+                            "fallbackReason": reason, "innerOperations": {"probes": actor.probes, "warmups": actor.warmups}}
+            return run
+
+        expected = '#include "generated.h"\nint target() { return 1; }\nint caller() { return target(); }\n' if unsupported else "def target(): return 2\n"
+        paired("unsupported-cpp-readiness" if unsupported else "verified-caller-edit", case,
+               [("native", semantic(True)), ("routed", semantic(False))], expected)
+
+    def evidence(reuse):
+        def run(invoke):
+            with tempfile.TemporaryDirectory(prefix="economy-evidence-") as directory:
+                owned_paths.append(Path(directory))
+                actor = ArtifactActor(Path(directory))
+                findings = []
+                for _ in range(3):
+                    if not reuse:
+                        actor.sources.clear()  # Deliberately redundant baseline indexing.
+                    result = invoke("retained-evidence-query", {"question": "FAIL", "repeated": True},
+                                    lambda request: actor.query(request["question"], request["repeated"]))
+                    findings.append(result["findings"])
+                    assert result["reference"]["sha256"] == digest(actor.path.read_text())
+                return {"outcome": findings, "locators": ["run.log:5001", "run.log:5002"],
+                        "innerOperations": {"indexes": actor.indexes}}
+        return run
+
+    failures = ["FAIL checkout: empty cart", "FAIL payment: timeout"]
+    paired("repeated-evidence-questions", {"questions": ["FAIL"] * 3, "failures": failures},
+           [("reindex", evidence(False)), ("reuse", evidence(True))], [failures] * 3)
+    assert [side["innerOperations"]["indexes"] for side in reports[-1]["sides"]] == [3, 1]
+
+    supervisor = runpy.run_path(str(Path(__file__).with_name("supervision-scenario.py")))["CompactSupervisor"]
+    facts = {"control": {"owner": "root", "enabled": True, "attention": False, "conflict": False},
+             "executor": {"writer": "l9", "runtime": "fixture"}, "admission": True, "activity": {"padding": "x" * 2000}}
+
+    def supervision(compact):
+        def run(invoke):
+            actor = supervisor()
+            for attempt in range(3):
+                reply = {"revision": "r1", "unchanged": False, "snapshot": facts} if not compact or not attempt else {
+                    "revision": "r1", "unchanged": True}
+                observed = invoke("health", {"view": "compact", "sinceRevision": actor.revision}, lambda _: reply)
+                actor.observe(observed)
+            actor.dispatch("l9")
+            assert [name for name, _ in actor.calls].count("followup") == 1
+            return {"outcome": {"writer": actor.state["executor"]["writer"], "decision": "followup-once"},
+                    "locators": ["supervision-scenario.py:CompactSupervisor.observe/dispatch"]}
+        return run
+
+    paired("unchanged-supervision", facts, [("snapshots", supervision(False)), ("revision-reuse", supervision(True))],
+           {"writer": "l9", "decision": "followup-once"})
+
+    program = "import sys; print('FAIL-CHILD'); print('child-cause', file=sys.stderr); sys.exit(7)"
+
+    def process_path(wrapped):
+        def run(invoke):
+            def execute(_):
+                result = subprocess.run([sys.executable, "-c", program], capture_output=True, text=True, timeout=5)
+                return {"stdout": result.stdout, "stderr": result.stderr, "exit": result.returncode}
+            result = invoke("wrapped-process" if wrapped else "native-process", {"programSha256": digest(program)},
+                            lambda request: {"result": execute(request), "completeness": "complete"} if wrapped else execute(request))
+            return {"outcome": result["result"] if wrapped else result, "locators": ["synthetic-process:stdout/stderr/exit"]}
+        return run
+
+    paired("process-sensitive-execution", {"program": program}, [("native", process_path(False)), ("wrapped", process_path(True))],
+           {"stdout": "FAIL-CHILD\n", "stderr": "child-cause\n", "exit": 7})
+
+    def tiny(wrapped):
+        def run(invoke):
+            with tempfile.TemporaryDirectory(prefix="economy-tiny-") as directory:
+                owned_paths.append(Path(directory))
+                path = Path(directory) / "tiny.txt"
+                path.write_text("FAIL tiny\n")
+                result = invoke("wrapped-read" if wrapped else "native-read", {"path": "tiny.txt"},
+                                lambda _: {"content": path.read_text(), "completeness": "complete", "source": "tiny.txt"} if wrapped else path.read_text())
+                return {"outcome": result["content"] if wrapped else result, "locators": ["tiny.txt:1"]}
+        return run
+
+    paired("small-native-wins", {"content": "FAIL tiny\n"}, [("native", tiny(False)), ("wrapped", tiny(True))], "FAIL tiny\n")
+    assert reports[-1]["byteOutcome"] == "regressed"
+    assert reports[-3]["byteOutcome"] == "improved"
+    # Prove labels, no-op providers and smaller incorrect results cannot pass.
+    for missing in (True, False):
+        def broken(invoke):
+            if not missing:
+                invoke("claimed-provider", {}, lambda _: [])
+            return {"outcome": [], "locators": ["invented"]}
+        try:
+            paired("negative-adapter", {}, [("broken", broken)], ["required-failure"])
+        except AssertionError:
+            pass
+        else:
+            raise AssertionError("nonexecuting or incorrect adapter accepted")
+    report = {"version": 1, "kind": "offline-scripted-adapter-pairs", "cases": reports,
+              "accountingScope": "outer serialized adapter requests/results only; inner operations excluded from byte/call totals",
+              "unknowns": ["provider usage", "model adherence", "installed revision", "counterfactual model choices"],
+              "cleanupVerified": all(not path.exists() for path in owned_paths),
+              "removedFixtureDirectories": len(owned_paths), "negativeAdapterChecks": 2}
+    for row in reports:
+        for side in row["sides"]:
+            assert side["providerUsage"] is None and side["completeness"] == "complete"
+    if os.environ.get("TOOL_ECONOMY_CAPTURE_PATH"):
+        Path(os.environ["TOOL_ECONOMY_CAPTURE_PATH"]).write_text(json.dumps(report, sort_keys=True, indent=2) + "\n")
+    print(f"adoption economy: {len(reports)} paired scenarios passed; 0 failed/0 skipped; offline scripted adapters only")
+
+
 def main():
     fixture = json.loads((FIXTURES / "context-evidence-workflows.json").read_text())["sourceRouting"]
     assert fixture["version"] == 1
@@ -807,6 +1028,7 @@ def main():
     semantic_scenarios()
     discovery_scenarios()
     artifact_scenarios()
+    economy_scenarios()
 
 
 if __name__ == "__main__":
