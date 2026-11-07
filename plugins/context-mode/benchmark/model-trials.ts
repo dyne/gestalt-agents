@@ -26,6 +26,11 @@ export function distribution(values: Array<number | null>, expected = values.len
 export function summarizeModelTrials(manifest: any) {
   const validation = validateModelComparison(manifest);
   assert.equal(validation.valid, true, validation.code);
+  if (manifest.mode === "live") {
+    assert.ok(!manifest.artifacts && !manifest.trials.some((trial: any) =>
+      ["resultEvidence", "accountingEvidence", "effectiveSettingsEvidence", "acceptanceEvidence"].some(field =>
+        /^(embedded:|fake-provider:|fixture:)/i.test((trial[field]?.reference ?? "").trim()))), "COMPARISON_FIXTURE_AS_LIVE");
+  }
   const groups = manifest.tasks.flatMap((task: any) => manifest.configurations.map((config: any) => {
     const trials = manifest.trials.filter((trial: any) => trial.taskId === task.id && trial.configurationId === config.id);
     const accepted = trials.filter((trial: any) => trial.accepted === true).length;
@@ -136,12 +141,90 @@ export function verifyEmbeddedEvidence(manifest: any) {
   }
 }
 
+/** Structural admission only; references still require independent provenance review. */
+export function validateAdoptionReport(report: any) {
+  const check = (condition: unknown, code: string) => assert.ok(condition, `ADOPTION_${code}`);
+  const object = (value: any) => value !== null && typeof value === "object" && !Array.isArray(value);
+  const keys = (value: any, allowed: string[]) => check(object(value)
+    && Object.keys(value).length === allowed.length && allowed.every(key => Object.hasOwn(value, key)), "FIELDS_INVALID");
+  const text = (value: any) => typeof value === "string" && value.trim().length > 0 && value.length <= 512;
+  const sha = (value: any, length: number) => typeof value === "string" && new RegExp(`^[a-f0-9]{${length}}$`).test(value);
+  keys(report, ["schemaVersion", "evidenceKind", "sourceRevision", "installedSourceEquivalence", "roles"]);
+  check(report.schemaVersion === 1 && ["fixture", "real-model", "not-run"].includes(report.evidenceKind), "KIND_INVALID");
+  check(sha(report.sourceRevision, 40), "SOURCE_REQUIRED");
+  check(report.installedSourceEquivalence === "unverified", "INSTALLATION_CLAIM_UNSUPPORTED");
+  const evidence = (value: any, expected: string) => {
+    keys(value, ["kind", "reference", "sha256", "observedAt"]);
+    check(text(value.reference) && sha(value.sha256, 64) && text(value.observedAt)
+      && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z$/.test(value.observedAt)
+      && Number.isFinite(Date.parse(value.observedAt))
+      && new Date(value.observedAt).toISOString().slice(0, 19) === value.observedAt.slice(0, 19), "EVIDENCE_INVALID");
+    check(value.kind === (report.evidenceKind === "fixture" ? "fixture" : expected), "EVIDENCE_KIND_INVALID");
+    if (report.evidenceKind === "real-model") check(!/^(embedded:|fake-provider:|fixture:)/i.test(value.reference.trim()), "FIXTURE_AS_REAL");
+  };
+  check(Array.isArray(report.roles) && report.roles.length === 3, "ROLES_REQUIRED");
+  const roles = new Set<string>();
+  for (const row of report.roles) {
+    keys(row, ["role", "status", "missingInputs", "runtimeEvidence", "outcome", "operations", "usage"]);
+    check(["root", "executor", "solo"].includes(row.role) && !roles.has(row.role), "ROLES_REQUIRED");
+    roles.add(row.role);
+    check(["observed", "not-run"].includes(row.status) && Array.isArray(row.missingInputs)
+      && row.missingInputs.every(text) && Array.isArray(row.operations), "STATUS_INVALID");
+    keys(row.usage, ["inputTokens", "outputTokens", "providerLatencyMs"]);
+    for (const [name, metric] of Object.entries(row.usage) as [string, any][]) {
+      keys(metric, ["value", "evidence"]);
+      if (metric.value === null) check(metric.evidence === null, "UNKNOWN_USAGE_INVALID");
+      else {
+        check((name === "providerLatencyMs" ? Number.isFinite(metric.value) : Number.isSafeInteger(metric.value))
+          && metric.value >= 0 && metric.evidence !== null, "OBSERVED_USAGE_EVIDENCE_REQUIRED");
+        evidence(metric.evidence, "provider-observation");
+      }
+    }
+    if (row.status === "not-run") {
+      check(row.missingInputs.length > 0 && row.runtimeEvidence === null && row.outcome === null
+        && row.operations.length === 0 && Object.values(row.usage).every((metric: any) => metric.value === null), "NOT_RUN_CONTRADICTION");
+      continue;
+    }
+    check(report.evidenceKind !== "not-run" && row.missingInputs.length === 0, "STATUS_INVALID");
+    evidence(row.runtimeEvidence, "runtime-observation");
+    keys(row.outcome, ["passed", "evidence"]);
+    check(typeof row.outcome.passed === "boolean", "OUTCOME_REQUIRED");
+    evidence(row.outcome.evidence, "outcome-check");
+    const operations = new Set<string>();
+    for (const op of row.operations) {
+      keys(op, ["tool", "operation", "sourceRevision", "locator", "fallbackReason", "evidence"]);
+      const id = `${op.tool}/${op.operation}`;
+      check(["xerj/query", "serena/symbol", "serena/references", "native/fallback"].includes(id)
+        && sha(op.sourceRevision, 40) && text(op.locator), "OPERATION_INVALID");
+      check(id === "native/fallback" ? text(op.fallbackReason) : op.fallbackReason === null, "FALLBACK_INVALID");
+      evidence(op.evidence, "tool-observation");
+      operations.add(id);
+    }
+    check(operations.size === 4, "USEFUL_OPERATIONS_REQUIRED");
+  }
+  check(report.evidenceKind === "not-run" || report.roles.some((row: any) => row.status === "observed"), "OBSERVATION_REQUIRED");
+  return { schemaVersion: 1, valid: true, evidenceKind: report.evidenceKind,
+    roles: report.roles.map((row: any) => ({ role: row.role, status: row.status })),
+    liveAdoption: "unverified", installedSourceEquivalence: "unverified",
+    limits: "Structural validation only; independently authorize and verify referenced runtime, tool, outcome and provider evidence. No execution or installation attestation." };
+}
+
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
   const [operation, input, output] = process.argv.slice(2);
-  assert.ok((operation === "--fake" && input && !output) || (operation === "--summarize" && input && output),
-    "usage: model-trials.ts --fake OUTPUT_JSON | --summarize MANIFEST_JSON OUTPUT_JSON; live dispatch is unsupported");
-  const imported = operation === "--fake" ? null : JSON.parse(readFileSync(resolve(input), "utf8"));
-  const manifest = operation === "--fake" ? runFakeModelTrials() : imported.manifest ?? imported;
-  if (operation === "--fake") verifyEmbeddedEvidence(manifest);
-  writeFileSync(resolve(operation === "--fake" ? input : output), JSON.stringify({ manifest, summary: summarizeModelTrials(manifest) }, null, 2) + "\n", { mode: 0o600 });
+  assert.ok((operation === "--fake" && input && !output)
+    || (["--summarize", "--validate-adoption-report"].includes(operation) && input && output),
+    "usage: model-trials.ts --fake OUTPUT_JSON | --summarize MANIFEST_JSON OUTPUT_JSON | --validate-adoption-report INPUT_JSON OUTPUT_JSON; live dispatch is unsupported");
+  let imported: any = null;
+  if (operation !== "--fake") {
+    const content = readFileSync(resolve(input), "utf8");
+    try { imported = JSON.parse(content); }
+    catch { throw new Error("MODEL_TRIAL_INPUT_INVALID"); }
+  }
+  if (operation === "--validate-adoption-report") {
+    writeFileSync(resolve(output), JSON.stringify(validateAdoptionReport(imported), null, 2) + "\n", { mode: 0o600 });
+  } else {
+    const manifest = operation === "--fake" ? runFakeModelTrials() : imported.manifest ?? imported;
+    if (operation === "--fake") verifyEmbeddedEvidence(manifest);
+    writeFileSync(resolve(operation === "--fake" ? input : output), JSON.stringify({ manifest, summary: summarizeModelTrials(manifest) }, null, 2) + "\n", { mode: 0o600 });
+  }
 }

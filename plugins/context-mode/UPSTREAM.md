@@ -15,6 +15,19 @@ and contents while excluding generated dependencies and build artifacts.
 
 ## Downstream changes
 
+- Adds a read-only structural adoption-report validation command to the existing
+  model-trial harness. Requires explicit root/executor/solo observations or
+  missing prerequisites, outcome/tool evidence, nullable usage and unverified
+  installation equivalence; rejects nested payload fields and fixture references
+  relabelled real, including whitespace-padded references. Requires ISO UTC
+  observation timestamps; preserves fractional observed provider latency and
+  integer token counts. Existing comparison import rejects embedded fake data labelled
+  live while retaining unauthenticated external-reference import compatibility.
+  Documents repeatable trials and current missing live dispatcher prerequisites.
+  Validation never dispatches providers or authenticates referenced evidence.
+  Shared CLI JSON parsing emits a static input-invalid diagnostic for malformed
+  content, suppressing parser excerpts while retaining filesystem errors.
+
 - Removes inherited batch accounting preloads and execution FS/network API
   patches. Application stdout/stderr, nested child exit status and literal
   `__CM_FS__`/`__CM_NET__` text remain application data, including partial output.

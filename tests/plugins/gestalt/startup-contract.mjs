@@ -147,6 +147,7 @@ const roles = await (async () => {
   }
 })();
 const captures = [];
+const economyCaptures = [];
 const blockCount = value => (JSON.stringify(value).match(/<!-- gestalt:startup:v\d+ -->/gu) ?? []).length;
 
 // Assemble current package inputs using the real composer/generated profiles.
@@ -356,12 +357,50 @@ for (const input of deliveryFixture.cases) {
   });
 }
 
+test('offline fresh/resumed CLI and Mobile root/child/solo pairs separate startup and recurring bytes', () => {
+  // Consumer-contract replay through the real composer, not either host's live
+  // config resolver, model receipt or a counterfactual model-adherence trial.
+  for (const host of ['cli', 'mobile']) for (const roleName of ['reviewer', 'executor', 'none']) {
+    for (const boundary of ['fresh', 'resume']) {
+      const role = roles[roleName] ?? '';
+      const scalar = user + (role ? `\n\n${role}` : '');
+      const before = { developerInstructions: boundary === 'fresh' ? scalar : composeStartup(scalar, contract),
+        hookOutputs: [], repositoryInstructions: project, baseInstructions: 'NATIVE_FOUNDATION_SENTINEL',
+        userOverrides: {}, userPrompt: 'TASK_SENTINEL' };
+      const input = { boundary, channel: 'developer', role: roleName };
+      const result = composeDeliveryFixture(input, { developerInstructions: scalar }, before);
+      assert.equal(blockCount(result.after), 1);
+      assert.equal(result.after.userPrompt, before.userPrompt);
+      assert.equal(result.after.repositoryInstructions, before.repositoryInstructions);
+      assert.equal(result.diagnostic, null);
+      if (boundary === 'resume') assert.deepEqual(result.after, before);
+      const beforeBytes = Buffer.byteLength(before.developerInstructions);
+      const afterBytes = Buffer.byteLength(result.after.developerInstructions);
+      assert.equal(afterBytes - beforeBytes, boundary === 'fresh' ? Buffer.byteLength(canonical) + 2 : 0);
+      const recurringPromptBytes = Buffer.byteLength(result.after.userPrompt);
+      assert.equal(recurringPromptBytes, Buffer.byteLength(before.userPrompt));
+      economyCaptures.push({ host, role: roleName, boundary, evidenceKind: 'synthetic-consumer-composition',
+        beforeBytes, afterBytes, startupAddedBytes: afterBytes - beforeBytes,
+        recurringPromptBytes, recurringAddedBytes: 0,
+        sourceContractSha256: hash(contract.text), roleSha256: role ? hash(role) : null,
+        outputSha256: hash(JSON.stringify(result.after)), bootstrapBlocks: 1,
+        liveHostDeliveredBytes: null, modelReceipt: null, modelAdherence: 'unobserved',
+        providerUsage: null, installedSourceEquivalence: 'unverified' });
+    }
+  }
+  assert.equal(economyCaptures.length, 12);
+  assert.deepEqual([...new Set(economyCaptures.map(row => row.startupAddedBytes))].sort((a,b) => a-b), [0, 2518]);
+  // Equal composition inputs do not establish equal host delivery or receipt.
+  assert.ok(economyCaptures.every(row => row.liveHostDeliveredBytes === null && row.providerUsage === null));
+});
+
 test('synthetic capture export retains structural hashes only', async () => {
   assert.equal(captures.length, deliveryFixture.cases.length);
   assert.equal(new Set(captures.map(capture => capture.id)).size, captures.length);
   assert.equal(routingCaptures.length, 12);
   assert.equal(new Set(routingCaptures.map(capture => capture.id)).size, routingCaptures.length);
-  const report = JSON.stringify({ schemaVersion: 1, cases: captures, routingCases: routingCaptures }, null, 2);
+  const report = JSON.stringify({ schemaVersion: 1, cases: captures, routingCases: routingCaptures,
+    economyCases: economyCaptures }, null, 2);
   assert.doesNotMatch(report, /USER_SENTINEL|PROFILE_SENTINEL|TASK_SENTINEL|First tool call:|developerInstructions/u);
   if (process.env.STARTUP_CAPTURE_PATH) await writeFile(process.env.STARTUP_CAPTURE_PATH, report + '\n');
 });
