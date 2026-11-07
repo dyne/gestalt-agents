@@ -10,8 +10,8 @@ analysis.
 
 ## Routing contract
 
-Use native tools for bounded filesystem work; context-mode analyzes evidence
-that is large, uncertain, or needs filtering, indexing, or repeated retrieval.
+Keep governing/pre-edit reads and ordinary filesystem writes native. Route
+source discovery and large or uncertain evidence by intent below.
 
 1. Use an available native reader for small bounded reads and always for
    governing `AGENTS.md`, selected `SKILL.md`, plugin manifests, and a file
@@ -54,7 +54,7 @@ preserve standalone/operator fallback.
 
 For broad or repeated source discovery within one repository or across repositories,
 prefer lexical XERJ with a working service and fresh index coverage of the requested
-scope; follow [XERJ provenance and fallback](../xerj/SKILL.md). Keep precise
+scope; follow the [XERJ retrieval workflow](../xerj/SKILL.md#retrieval-workflow). Keep precise
 known-file lookups, governing reads, current-file verification, Git and writes
 native. Use ready Serena for local symbol relationships and structured edits.
 Analyze large evidence with context-mode. Use no tool-call quota or blanket grep
@@ -71,6 +71,14 @@ without narrating every command.
 | Indexed follow-up or session-memory query | `ctx_search` |
 | External documentation to retrieve repeatedly | `ctx_fetch_and_index` |
 | Inspect context-mode health, usage, or stored data | `ctx_doctor`, `ctx_stats`, `ctx_purge` |
+
+Batch independent inspections; keep dependent checks and mutations sequential.
+Run process-sensitive tests through native execution or the supported host test
+runner, then analyze saved logs here. Prefer existing process/test-run waits to
+clock polling; analysis tools do not execute or wait for CI on your behalf.
+Inspect structured GitHub run/attempt/job status before fetching failed-job logs.
+Reuse unchanged identity-bound captures; fetch affected logs after status,
+attempt, candidate or artifact changes, retaining original observation times.
 
 For shipped `ctx_test_evidence`, use `operation: "github"` with a repository,
 run and attempt, or `operation: "local"` with existing file paths and observed
@@ -110,6 +118,9 @@ index its path once and query with scoped `ctx_search`. Reuse only identity-boun
 artifacts; [bounded retrieval](references/bounded-retrieval.md#artifact-reuse)
 defines provenance, invalidation and missing-source recovery. Native pre-edit
 reads still apply.
+Small bounded questions stay native when indexing or analysis would cost more
+than reading the needed bytes. Report correctness, failure coverage and unknowns
+alongside cost; keep overlapping wrapper/inner costs separate, never sum them.
 
 An empty `rg` result does not establish absence: confirm the search root, ignored
 paths and symlink targets. For a huge single-line JSON artifact, parse it into

@@ -12,6 +12,13 @@ const plugin = resolve(import.meta.dirname, "../..");
 let root: string, workspace: string, policy: string, client: Client;
 const clients: Client[] = [];
 const sha = "a".repeat(40);
+
+it("default release tests select stream transparency and all scratch lifetime contracts", () => {
+  const command = JSON.parse(readFileSync(join(plugin, "package.json"), "utf8")).scripts.test.split(/\s+/);
+  for (const path of ["tests/execution-transparency.test.ts", "tests/session-scratch-execution-lifetime.test.ts",
+    "tests/session-scratch-borrower.test.ts", "tests/session-scratch.test.ts"])
+    expect(command.filter((entry: string) => entry === path)).toHaveLength(1);
+});
 const fakeGh = `#!/usr/bin/env node
 const fs=require('node:fs'),a=process.argv.slice(2),mode=fs.readFileSync(process.env.FAKE_MODE,'utf8');
 fs.appendFileSync(process.env.FAKE_ARGV,JSON.stringify(a)+'\\n');
@@ -104,6 +111,29 @@ describe.skipIf(process.platform === "win32")("packaged test evidence MCP", () =
     const schema = matches[0].inputSchema as any;
     expect(schema.properties.github.properties.run.type).toBe("integer"); expect(schema.properties.files.type).toBe("array");
     expect(JSON.stringify(schema)).not.toMatch(/token|password|credential/i);
+  });
+
+  it("packaged batch preserves the nested package validator's exact stderr and status", async () => {
+    const input = join(workspace, "validator-input.json");
+    writeFileSync(input, '{"valid":true}');
+    const nested = `require('node:fs').readFileSync(${JSON.stringify(input)}); process.stdout.write('validator-ok\\n')`;
+    const parent = join(workspace, "package validator.cjs");
+    writeFileSync(parent, `const assert = require('node:assert/strict');
+const result = require('node:child_process').spawnSync(process.execPath, ['-e', ${JSON.stringify(nested)}], { encoding: 'utf8' });
+assert.deepEqual({ stdout: result.stdout, stderr: result.stderr, status: result.status }, { stdout: 'validator-ok\\n', stderr: '', status: 0 });
+process.stdout.write('packaged-validator-ok');`);
+    const quote = (value: string) => `'${value.replace(/'/g, "'\\''")}'`;
+    try {
+      const result: any = await client.callTool({ name: "ctx_batch_execute", arguments: {
+        commands: [{ label: "package-validator", command: `${quote(process.execPath)} ${quote(parent)}` }],
+        queries: ["packaged-validator-ok"], concurrency: 1, response_bytes: 8192,
+      } });
+      expect(result.isError).not.toBe(true);
+      const output = result.content.map((part: any) => part.text).join("\n");
+      expect(output).toContain("packaged-validator-ok");
+      expect(JSON.parse(output.split("\n")[0].slice("Execution: ".length)).execution.exitCode).toBe(0);
+      expect(output).not.toContain("__CM_FS__");
+    } finally { rmSync(parent, { force: true }); rmSync(input, { force: true }); }
   });
   it("invokes authenticated fake gh and preserves failures behind bounded provenance references", async () => {
     const result = await call({ operation: "github", github: { repository: "owner/repo", run: 10, attempt: 2, job: 20 } });

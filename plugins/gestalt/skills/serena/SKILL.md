@@ -10,12 +10,11 @@ connection when the session profile selects it. Package discovery and a connecte
 tool catalog do not establish project language readiness. Use the existing
 connection, always managed with `--context codex --mode editing`.
 
-- Read Serena's initial instructions when exposed. On encountering a repository,
-  assess readiness for the language and operations the task needs. A symbol
-  overview for a known source file proves local symbol extraction only. Before
-  relying on cross-file navigation, check diagnostics when available and verify
-  a known definition/reference relationship against current source. An empty
-  reference result is not evidence of no callers when indexing is incomplete.
+## Operation workflow
+
+- Read Serena's initial instructions when exposed. Identify the requested
+  operation and reuse its identity-bound readiness below. A connection proves
+  neither extraction nor references; an overview proves local extraction only.
 - Decide whether symbol-cache warmup is useful for the task; do not require the
   user to request an index command. When prerequisites are satisfied and cache
   writes are permitted, run `gestalt serena index --cwd /absolute/workspace`
@@ -28,14 +27,16 @@ connection, always managed with `--context codex --mode editing`.
   for affected operations. Do not repeatedly index unchanged failing inputs.
   Routine indexing does not authorize installation, project or mode switching,
   service restarts, or wider permissions.
-- Use symbol overview/search to locate the target, then read only the needed
-  symbol bodies. Inspect references before changing an interface and diagnostics
-  when the backend exposes them. Discover arguments from the live tool schema;
-  use precise paths, symbol names and bounded result scopes.
-- For authorized edits, prefer symbol-body replacement or insertion around a
-  verified symbol when it fits the change. Read current source first, inspect
-  the resulting diff and run the relevant checks. Use native edits for changes
-  that do not fit the structured tools. Retrieval and an advertised editing
+- Discover arguments from the live schema; keep paths, symbols and output bounded.
+  Perform the requested useful operation, then continue the task:
+
+  | Need | Operation and required evidence |
+  |---|---|
+  | Find a definition or read its body | Locate the symbol, then retrieve its definition/body. Local extraction suffices; unrelated callers are not a prerequisite. |
+  | Analyze callers or interface impact | Query references; check diagnostics when exposed and verify a known definition/reference relationship against current source. Empty references do not prove no callers. |
+  | Replace a body or insert around a symbol | Read current source natively; use the fitting structured edit on the verified symbol when authorized. Interface changes also require verified references. Inspect the diff and run relevant checks. |
+  | Edit prose or text without a fitting symbol operation | Use native edits. |
+- Retrieval and an advertised editing
   tool grant no write authority: native filesystem restrictions and per-tool
   approvals remain binding. Collaboration plan-mode instructions prohibit edits
   even if the tool is listed; this is an agent instruction, not an OS mode bit.
@@ -66,6 +67,10 @@ variant, relevant source/configuration fingerprints and tool/runtime generation.
 Reuse a failure for unchanged inputs; recheck after those inputs change. Never
 transfer readiness or a cached failure between forks or build variants. Verify
 the known definition/reference relation in current source before relying on it.
+Reuse successful observations with their original time too; do not repeat an
+overview before each useful operation. Keep extraction and reference evidence
+separate: a changed caller invalidates its graph, not an unchanged local body;
+a disconnected runtime or fresh executor invalidates that runtime's bindings.
 Missing prerequisites retain native fallback without installation or project
 switching. For C/C++, verify the target repository/build's compilation database,
 flags and generated headers using the linked command reference; a sibling

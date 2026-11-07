@@ -1,5 +1,122 @@
 # Instruction delivery and preservation ledger
 
+## Evidence and wait economy, L5.2
+
+Context-mode remains the routing owner: independent inspections batch, dependent
+actions stay sequential, process-sensitive tests execute natively/through the
+host with saved-log analysis, and available process/test-run waits replace clock
+polling. Structured GitHub status precedes failed-job logs; unchanged identities
+reuse captures while candidate/attempt/status/artifact changes invalidate them.
+Existing scoped artifact, schema-generation and complete-failure/denied-access
+contracts remain authoritative. Small bounded reads stay native, and overlapping
+wrapper/inner costs remain separate with unknown provider usage retained.
+S clarifies that accepted lease yields and expiry preserve normal reassessment.
+
+Three instruction decisions and reversed-rule controls bind these additions.
+Existing gates add a small repeated native-read case, repeated denial checks,
+structured CI status/capture reuse and identity invalidation with saved synthetic
+artifacts, separate cost controls, and owned event-wait/lease disposition cases.
+The lease actor performs same-writer followup and owned-result consumption,
+holds accepted episodes until a modeled wake, and reassesses expiry. Negative
+controls remove continuation, yield on rejection, change writer or continue
+after accepted yield; the independent action-trace oracle rejects each.
+No live GitHub/provider/runtime efficiency or adoption is inferred. The original
+evidence/handoff/overflow, schema, dirty-candidate and supervision checks remain.
+
+## Revision-aware supervision, L5.1
+
+S retains the first compact health revision and snapshot, uses `sinceRevision`
+for subsequent reads, and distinguishes unchanged, delta and reset/expiry.
+Wire fixtures use `view: "compact"`, unchanged replies without snapshots,
+top-level `changes` section replacement, omission retention, explicit null
+clearing and full replacement `snapshot` on reset. Lost-cache recovery requests
+compact state without `sinceRevision`, with no roster/full-health escalation.
+Missing baselines or changed plan/session/runtime/writer facts require affected
+state and admission checks. Compact observations avoid automatic projection,
+roster and full-health reads when the decision is already answered; lifecycle
+mutations still project through host `update_plan`. Review/model gates and
+checkpoint-last-tool boundaries remain unchanged. Takeover requires an explicit
+new-supervisor request; pending retries retain identity and accepted ownership
+is reused until invalidated. Off, attention and replacement conflicts never
+gain dispatch authority from ownership observation.
+
+Three instruction decisions bind these clauses. The existing scripted
+supervision gate adds a test-only compact client actor for unchanged reads,
+expiry replacement, changed executor/runtime, pending/accepted takeover,
+Off/attention/conflict, L1 closure, mandatory projection and checkpoint fences.
+Assertions inspect actual actor calls and rejected side effects; they establish
+neither Mobile runtime behavior nor real-model adoption or measured savings.
+The original disposable helper lifecycle and all prior scenarios remain.
+
+## Source routing delivery parity, L4.3
+
+The existing startup gate now assembles fresh root/executor/solo inputs using
+the actual generated profiles, shared startup composer, implicit routing and
+selected canonical skill bytes. Twelve ready/unavailable provider combinations
+check current trigger descriptions/links, useful XERJ retrieval, local-body versus
+caller/interface evidence, separate authority and unavailable-guidance fallback.
+Seven mutations reject probes-only or stale content, mandatory caller gates,
+coverage promotion, missing routing, duplicate startup blocks and wrong-package
+paths. Positive captures are validated before negative controls run.
+
+The gate executes 48 tests, retaining all 35 prior startup cases. Its optional
+export adds only structural hashes, byte/word counts and unknown readiness.
+Provider state leaves each stable scalar unchanged; source capability bytes
+are measured separately. No product instruction text changes in L4.3. Existing
+root/executor paths remain 29 bytes below the admitted L4 baseline; discovery
+remains 5398 versus 5437 bytes. These are source assembly contracts, not CLI or
+Mobile runtime delivery, repository coverage or observed model adoption.
+
+## Useful semantic work, L4.2
+
+Serena's operation table distinguishes local definition/body extraction from
+caller/interface verification and fitting authorized symbol edits. Ready body
+work does not require unrelated callers. Successful and failed observations keep
+their original time and operation/source/build/runtime/executor scope; unchanged
+caller readiness is reused, while caller changes leave an unchanged local body
+usable. Oversized requests narrow or use a justified bound. Native pre-edit
+reads, current authorization and denied-transport fences remain binding.
+
+The semantic gate now runs 46 synthetic cases over current source files, ASTs
+and C/C++ build inputs. Useful outcomes contain retrieved bodies/definitions,
+actual caller locations, or changed source with executed Python behavior checks.
+Cases include Python/TypeScript and C/C++, local/interface edits, native text
+edits, read/edit/warmup denial, successful reuse, appropriate invalidation and
+wrong compilation standards/include paths. Negative controls remove outcomes,
+continuation or pre-edit evidence. Three static decisions bind the canonical
+operation flow, scoped reuse and coordinated-guide parity; a negative control
+rejects the guide imposing callers on every operation. These fixtures establish
+source contracts,
+not live semantic coverage or model adoption; no runtime is installed/switched.
+
+## Actionable source retrieval, L4.1
+
+The existing broad/repeated single- and multi-repository XERJ preference now
+points to one canonical retrieval workflow in the XERJ skill: scope, reused
+identity-bound readiness, bounded lexical query, current-target verification,
+then task continuation. Map preparation alone is insufficient. Stable native
+fallback records one concrete limitation until affected inputs change. Coding
+names the optional `$gestalt:xerj` skill with native fallback, preserving its
+self-contained distribution; debugging links to that workflow. Generated Org
+profiles defer routing to
+the existing implicit context-mode contract instead of broadly prescribing
+native reads/edits. Exact known-file lookup and mandatory native reads remain.
+
+The routing gate now executes 34 source scenarios over temporary current files
+and an immutable synthetic lexical index. Requests carry actual query/index
+scope and a five-hit bound; verified findings feed continuation. Repeated ready
+work maps once, and seven unavailable/coverage variants retain one fallback.
+Source/untracked, configuration, catalog, scope, runtime and fresh-executor
+changes invalidate affected observations; unrelated source changes preserve
+them and cached observations keep their original time. No-match checks can
+discover a dirty current match. Existing shared aliases and dirty-source checks
+remain. Negative controls reject map-only/queryless work, unbounded requests,
+invented findings, repeated probes, lost continuation, aliases and source drift.
+Two instruction decisions bind the canonical flow and stable fallback; links
+and generated bootstrap checks preserve one routing owner. These are contract
+fixtures, not live-provider integration or model-adoption measurements. Safety,
+scratch/persistent-state guidance and instruction ceilings remain unchanged.
+
 ## Tool harmony routing
 
 L3.1 adds identity-bound artifact reuse to the existing conditional bounded
@@ -547,3 +664,62 @@ never dispatches work or replaces a writer. Interruption remains resumable;
 duplicate identities, active predecessors and unauthorized generations fail
 closed. Agents use one bounded health refresh before escalating and preserve
 the existing physical writer rather than asking for repeated authorization.
+
+## Additive Gestalt startup, L1.1
+
+`plugins/gestalt/gestalt-startup-contract.json` identifies the single canonical
+`startup/bootstrap.md`, owned by Agents. Its version-1 draft is 284 words / 2463
+UTF-8 bytes; the managed wrapper is 2516 bytes. It is packaged available content,
+not yet an active delivery route. `instruction-baseline.py` lists it separately
+from current role-path totals. Actual host delivery remains unknown until the
+Manager/Mobile adapters capture their final configuration/messages; fixture
+composition is not model receipt or adoption.
+
+The package's startup README inventories native foundation/config/repository,
+generated role, dynamic capability, catalog and on-demand workflow layers with
+ownership and lifetime. Its shared side-effect-free composer consumes one
+native effective scalar, preserves bytes outside owned blocks, deduplicates
+version-1 blocks, and fails without mutation on malformed/newer ownership.
+Older missing descriptors preserve the existing value. No native config keys,
+role reads, user/repository instructions or capability readiness are replaced.
+
+The maintained `test-startup-contract.sh` gate runs seven executable structural
+and composition tests using synthetic sentinels. They bind the golden source,
+word ceiling, exact core skill paths, idempotence, preservation, ambiguous/nested
+markers, selected package copies, older missing/unsupported contract behavior
+and separate synthetic byte accounting. Release-artifact tests compare the
+descriptor, source, consumer documentation and composer byte-for-byte in the
+actual archive. Role/lifecycle delivered-message scenarios belong to L1.2;
+these checks do not claim a live CLI/Mobile installation was changed.
+
+Review correction qualifies native writes as ordinary filesystem writes and
+explicitly prefers verified, authorized Serena structured edits under its skill
+and permissions. The instruction-routing test rejects both the former blanket
+native-mutation rule and a permission-bypassing semantic-edit rule. Governing and
+pre-edit reads remain native. This corrects the unpublished version-1 draft.
+
+## Additive Gestalt startup, L1.2
+
+The packaged `startup/delivery-scenarios.json` defines 27 synthetic acceptance
+cases for fresh solo/root, default/inherited child, named executor/reviewer,
+resume, fork, compaction, runtime restart and explicit refresh. The startup gate
+executes the shared composer and actual helper-generated role text, then checks
+complete serialized synthetic config/hook captures with preserved user/native
+foundation/repository/role bytes. It exercises synthetic native-resolved profile,
+project and CLI effective scalars without flattening competing lower layers.
+
+Missing older packages, disabled hooks/skill inclusion, unavailable providers,
+same-channel duplicates, an existing scalar owner versus hook delivery, legacy
+missing/duplicate blocks and unknown newer versions have explicit expectations.
+Retained-thread events preserve bytes; migration requires an idle, supported
+explicit boundary. The block never recurs in the user prompt, generated role
+rules remain intact, and capability availability never proves repository or
+semantic readiness. Existing canonical instruction scenarios still enforce
+mandatory startup reads and checkpoint actions independently.
+
+There are 35 Node tests: seven L1.1 tests, 27 delivery cases and one capture-export
+check. Optional exports contain hashes/lengths/identities and structural facts
+only. These are executable contract fixtures, not native priority integration,
+actual CLI/Mobile delivery or real-model adherence evidence. The startup README
+specifies consumer verification duties and supported refresh admission; no live
+thread, installed profile, runtime permissions or personality is changed.

@@ -35,7 +35,7 @@ export function runCorpusPass(pluginRoot: string) {
   for (const key of ["PATH", "SystemRoot", "WINDIR", "TMPDIR", "TEMP", "TMP"]) {
     if (process.env[key] !== undefined) env[key] = process.env[key]!;
   }
-  const run = spawnSync(process.execPath, [join(HERE, "../node_modules/tsx/dist/cli.mjs"),
+  const run = spawnSync(process.execPath, ["--import", pathToFileURL(createRequire(import.meta.url).resolve("tsx")).href,
     fileURLToPath(import.meta.url), "--worker", resolve(pluginRoot)], {
     encoding: "utf8", timeout: 60_000, env, maxBuffer: 2 * 1024 * 1024,
   });

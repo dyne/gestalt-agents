@@ -15,6 +15,43 @@ and contents while excluding generated dependencies and build artifacts.
 
 ## Downstream changes
 
+- Adds a read-only structural adoption-report validation command to the existing
+  model-trial harness. Requires explicit root/executor/solo observations or
+  missing prerequisites, outcome/tool evidence, nullable usage and unverified
+  installation equivalence; rejects nested payload fields and fixture references
+  relabelled real, including whitespace-padded references. Requires ISO UTC
+  observation timestamps; preserves fractional observed provider latency and
+  integer token counts. Existing comparison import rejects embedded fake data labelled
+  live while retaining unauthenticated external-reference import compatibility.
+  Documents repeatable trials and current missing live dispatcher prerequisites.
+  Validation never dispatches providers or authenticates referenced evidence.
+  Shared CLI JSON parsing emits a static input-invalid diagnostic for malformed
+  content, suppressing parser excerpts while retaining filesystem errors.
+
+- Removes inherited batch accounting preloads and execution FS/network API
+  patches. Application stdout/stderr, nested child exit status and literal
+  `__CM_FS__`/`__CM_NET__` text remain application data, including partial output.
+  Registered batches add no `NODE_OPTIONS`; explicit caller prefixes and safe
+  environment restrictions retain their existing contracts. Async JS/TS wrapping
+  and managed execution/borrower/group shutdown protection remain intact.
+  Sandbox read bytes are unobserved (`null`, scope `unavailable`), not measured
+  zero. Schema 3 `kept_out` and `total_processed` remain known lower bounds:
+  indexed/cache bytes, plus known returned bytes for the latter, excluding
+  unobserved sandbox input; token/dollar savings and comparisons remain null.
+  Default release tests include nested stream/status, literal marker, JS/TS,
+  parallel, timeout and cleanup regressions plus a packaged synthetic validator.
+  When a managed scratch context is inherited, Vitest schedules files serially
+  because their nested fixture owners share the live ancestor containment fence.
+  Standalone file parallelism, within-file concurrency assertions, owner paths
+  and production locking/release behavior remain unchanged.
+
+- Runs the CI overhead entrypoint, its isolated frozen-corpus worker and its
+  CLI regressions, fake-model CLI tests and bounded-review CLI tests through
+  the installed tsx Node loader instead of the tsx CLI's
+  length-limited IPC socket. Keeps inherited scratch paths, corpus isolation,
+  benchmark arguments and quality/budget assertions intact; loader URLs and
+  script paths preserve spaces. No runtime execution or scratch policy changes.
+
 - Publishes delegated v1 execution borrower leases before generated scratch or
   child startup, using Mobile/Launcher containment and owner fences. Tracks all
   managed runtime/compiler groups independently of foreground/background results;

@@ -27,6 +27,7 @@ not reproducible, gather more data or report that limitation; do not guess.
 
 ### 2. Compare patterns
 
+- For broad/repeated discovery, follow the [XERJ retrieval workflow](../xerj/SKILL.md#retrieval-workflow).
 - Find the nearest working example in the same codebase.
 - Read any reference implementation completely.
 - List every relevant difference between the working and failing paths.
