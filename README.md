@@ -279,10 +279,14 @@ retaining per-skill activation and Org Plan's explicit milestone skill loading.
 
 For **Codex desktop classic plan drafting**, download `org-plan-vX.Y.Z.zip`
 from [Releases](https://github.com/dyne/gestalt-agents/releases). This is a
-standalone skill ZIP with one `org-plan/` folder containing `SKILL.md`, interface
-metadata, and a plan template. Import that ZIP through your client's skill
-import UI if available. For filesystem installation, extract `org-plan/` into
-`~/.agents/skills/` and restart the session. Then ask:
+single-skill plugin ZIP for ChatGPT's drag-and-drop or Upload plugin importer.
+Its root contains `.codex-plugin/plugin.json` and `LICENSE`; its only skill is
+`skills/org-plan/`, containing `SKILL.md`, skill interface metadata, and the plan
+template. The plugin manifest includes the release version, Dyne.org foundation
+attribution and copyright, and `https://dyne.org/gestalt`. See the
+[OpenAI plugin layout](https://developers.openai.com/plugins/build/plugins).
+For filesystem installation, extract to a temporary directory and copy only
+`skills/org-plan/` into `~/.agents/skills/`, then restart the session. Then ask:
 `Use $org-plan to draft a detailed implementation plan for <your task>.`
 
 This authoring-only edition needs no Gestalt installation or MCP server. It
@@ -294,7 +298,8 @@ Gestalt supervision runtime. Avoid enabling it alongside the full Gestalt
 `org-plan` skill, which has the same name and includes execution instructions.
 The maintained desktop templates live beside the canonical skill under
 `plugins/gestalt/skills/org-plan/assets/desktop/`; release packaging renames
-`SKILL.md.in` to `SKILL.md` without adding another discoverable source skill.
+`SKILL.md.in` to `SKILL.md` and versions `plugin.json.in` from the release tag,
+without adding another discoverable source skill.
 
 # 📃 Plan
 

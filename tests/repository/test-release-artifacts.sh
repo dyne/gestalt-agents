@@ -81,7 +81,8 @@ def regular_entries(archive: Path) -> set[str]:
 skill_archive = artifacts / f"org-plan-{tag}.zip"
 skill_entries = regular_entries(skill_archive)
 assert skill_entries == {
-    "org-plan/SKILL.md", "org-plan/agents/openai.yaml", "org-plan/plan-template.org",
+    ".codex-plugin/plugin.json", "LICENSE", "skills/org-plan/SKILL.md",
+    "skills/org-plan/agents/openai.yaml", "skills/org-plan/plan-template.org",
 }
 desktop_source = root / "plugins/gestalt/skills/org-plan/assets/desktop"
 with zipfile.ZipFile(skill_archive) as bundle:
@@ -92,20 +93,44 @@ with zipfile.ZipFile(skill_archive) as bundle:
     for source, target in (("SKILL.md.in", "SKILL.md"),
                            ("openai.yaml", "agents/openai.yaml"),
                            ("plan-template.org.in", "plan-template.org")):
-        assert bundle.read(f"org-plan/{target}") == (desktop_source / source).read_bytes()
-    instructions = bundle.read("org-plan/SKILL.md").decode()
+        assert bundle.read(f"skills/org-plan/{target}") == (desktop_source / source).read_bytes()
+    manifest = json.loads(bundle.read(".codex-plugin/plugin.json"))
+    expected_manifest = json.loads((desktop_source / "plugin.json.in").read_text())
+    expected_manifest["version"] = tag.removeprefix("v")
+    assert manifest == expected_manifest
+    assert manifest["name"] == "org-plan"
+    assert manifest["version"] == tag.removeprefix("v")
+    assert manifest["skills"] == "./skills/"
+    assert manifest["author"] == {"name": "Dyne.org foundation", "url": "https://dyne.org/gestalt"}
+    assert manifest["homepage"] == "https://dyne.org/gestalt"
+    assert manifest["repository"] == "https://github.com/dyne/gestalt-agents"
+    assert manifest["license"] == "MIT"
+    assert manifest["interface"]["developerName"] == "Dyne.org foundation"
+    assert manifest["interface"]["websiteURL"] == "https://dyne.org/gestalt"
+    assert "Copyright (c) 2026 Dyne.org foundation" in manifest["interface"]["longDescription"]
+    assert bundle.read("LICENSE") == (desktop_source / "LICENSE").read_bytes()
+    assert b"Copyright (c) 2026 Dyne.org foundation" in bundle.read("LICENSE")
+    assert b"Copyright (c) 2025 Jesse Vincent" in bundle.read("LICENSE")
+    instructions = bundle.read("skills/org-plan/SKILL.md").decode()
     assert instructions.startswith("---\nname: org-plan\ndescription: ")
     assert len(instructions.split("---", 2)) == 3
     for target in re.findall(r"\[[^\]]+\]\(([^)]+)\)", instructions):
-        assert f"org-plan/{target}" in skill_entries, target
+        assert f"skills/org-plan/{target}" in skill_entries, target
     bundle.extractall(artifacts / "standalone")
+
+# Validate the plugin that will be imported, including the declared skill path
+# and UI metadata. A plain skill directory must no longer satisfy this check.
+subprocess.run([
+    "ruby", str(root / "scripts/validate-codex-packages.rb"), str(artifacts / "standalone"),
+], check=True, capture_output=True)
+assert {path.name for path in (artifacts / "standalone/skills").iterdir()} == {"org-plan"}
 
 # Validate the delivered template using the production parser, without a
 # Gestalt installation or any lifecycle mutation. Placeholder skill names are
 # syntactically valid but explicitly do not establish execution readiness.
 subprocess.run([
     "bash", str(root / "plugins/gestalt/skills/org-plan/scripts/org-plan"),
-    "validate", str(artifacts / "standalone/org-plan/plan-template.org"),
+    "validate", str(artifacts / "standalone/skills/org-plan/plan-template.org"),
 ], check=True, capture_output=True)
 
 bundle_entries = regular_entries(artifacts / f"gestalt-agents-{tag}.zip")
@@ -206,7 +231,7 @@ for label, options, entry in entries:
     assert public_helper.is_file(), f"delivered Org publisher {label} silently skipped installation"
     assert "Org helper bundle installed:" in installation.stdout, label
     subprocess.run([str(public_helper), "validate",
-                    str(artifacts / "standalone/org-plan/plan-template.org")],
+                    str(artifacts / "standalone/skills/org-plan/plan-template.org")],
                    check=True, capture_output=True)
     installed_profiles = artifacts / ("installed-profiles-" + label)
     subprocess.run([str(public_helper), "prepare-supervision", "--agents-dir",

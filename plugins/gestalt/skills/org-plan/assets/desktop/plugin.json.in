@@ -1,0 +1,26 @@
+{
+  "name": "org-plan",
+  "version": "@VERSION@",
+  "description": "Draft detailed Org-mode implementation plans with milestones, dependencies, tests, and acceptance criteria. Authoring only; no Gestalt runtime or MCP server required.",
+  "author": {
+    "name": "Dyne.org foundation",
+    "url": "https://dyne.org/gestalt"
+  },
+  "homepage": "https://dyne.org/gestalt",
+  "repository": "https://github.com/dyne/gestalt-agents",
+  "license": "MIT",
+  "keywords": ["skills", "org-mode", "planning", "gestalt"],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Org Plan Drafting",
+    "shortDescription": "Draft detailed Org plans with verifiable milestones",
+    "longDescription": "Draft and revise detailed Org-mode implementation plans using the bundled authoring skill and plan template. Includes milestones, dependencies, tests, and acceptance criteria. This edition stops at the authoring handoff and requires no Gestalt installation or MCP server. Copyright (c) 2026 Dyne.org foundation.",
+    "developerName": "Dyne.org foundation",
+    "category": "Developer Tools",
+    "capabilities": ["Planning"],
+    "websiteURL": "https://dyne.org/gestalt",
+    "defaultPrompt": [
+      "Use $org-plan to draft a detailed Org-mode implementation plan for this workspace."
+    ]
+  }
+}
