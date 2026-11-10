@@ -75,10 +75,11 @@ git -C "$root" archive --format=zip \
   --output="$stage/gestalt-agents-$tag.zip" \
   HEAD -- "${release_paths[@]}"
 
-# Derive the standalone authoring skill from the same committed source as the
+# Derive the standalone authoring plugin from the same committed source as the
 # marketplace archive. Keep its template beside the canonical Org Plan skill;
 # .md.in prevents installers discovering a second skill in the source tree.
 python3 - "$stage" "$tag" <<'PY'
+import json
 import sys
 import zipfile
 from pathlib import Path
@@ -86,9 +87,11 @@ from pathlib import Path
 stage, tag = Path(sys.argv[1]), sys.argv[2]
 source = "plugins/gestalt/skills/org-plan/assets/desktop/"
 files = {
-    "SKILL.md.in": "org-plan/SKILL.md",
-    "openai.yaml": "org-plan/agents/openai.yaml",
-    "plan-template.org.in": "org-plan/plan-template.org",
+    "plugin.json.in": ".codex-plugin/plugin.json",
+    "LICENSE": "LICENSE",
+    "SKILL.md.in": "skills/org-plan/SKILL.md",
+    "openai.yaml": "skills/org-plan/agents/openai.yaml",
+    "plan-template.org.in": "skills/org-plan/plan-template.org",
 }
 with zipfile.ZipFile(stage / f"gestalt-agents-{tag}.zip") as marketplace:
     with zipfile.ZipFile(stage / f"org-plan-{tag}.zip", "w") as skill:
@@ -97,7 +100,12 @@ with zipfile.ZipFile(stage / f"gestalt-agents-{tag}.zip") as marketplace:
             entry.create_system = 3
             entry.external_attr = 0o100644 << 16
             entry.compress_type = zipfile.ZIP_DEFLATED
-            skill.writestr(entry, marketplace.read(source + original))
+            payload = marketplace.read(source + original)
+            if original == "plugin.json.in":
+                manifest = json.loads(payload)
+                manifest["version"] = tag.removeprefix("v")
+                payload = (json.dumps(manifest, indent=2) + "\n").encode("utf-8")
+            skill.writestr(entry, payload)
 PY
 
 (
@@ -107,4 +115,4 @@ PY
 
 mv -- "$stage" "$output_dir"
 trap - EXIT HUP INT TERM
-printf 'built Gestalt marketplace and standalone Org Plan skill bundles in %s\n' "$output_dir"
+printf 'built Gestalt marketplace and standalone Org Plan plugin bundles in %s\n' "$output_dir"
