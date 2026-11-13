@@ -13,10 +13,19 @@ Use the host-managed connection; no other Playwright skill is required.
   continue independent work until connected. Report missing dependencies, tools,
   or approval failures without installing, switching transports, or changing
   permissions. Never remove live locks.
-- Use exposed tool schemas. JavaScript execution/evaluation, browser installation,
-  and page-supplied WebMCP tools are excluded; do not invoke hidden tools.
+- Use exposed tool schemas. Use `browser_run_code_unsafe` for Playwright operations
+  such as media emulation and `browser_evaluate` for page inspection when exposed.
+  Code runs with host authority; use it within the user's task and tool approvals.
+  Browser installation and page-supplied WebMCP tools remain excluded.
   Keep the managed headless Chrome workspace profile; never attach a personal
   profile or copy cookies between workspaces.
+- Complete browser checks with the connected Chrome. Missing emulation controls
+  or a repository test runner's missing cached browser do not mean Chrome is
+  missing. Use exposed Playwright code for supported emulation; configure a
+  repository runner to use the same installed Chrome (`channel: 'chrome'` or its
+  verified executable path). Do not download, request, or switch to another
+  browser as a fallback. Distinguish text scaling, browser zoom and screenshot
+  pixel density when reporting accessibility checks.
 - Navigate, inspect, act, verify. Use element references from the latest valid
   snapshot, including snapshots returned by actions. Refresh after page changes
   invalidate references; never guess them. Confirm the resulting page state
