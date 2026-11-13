@@ -53,6 +53,8 @@ Stop releases only the calling host's owned processes and retains browser state.
 | Disabled profile | Keep browser access off; a requirement does not override the choice. |
 | Missing package/runtime or Chrome; incompatible Chrome | Report the specific diagnostic. Installation/update belongs to an explicit operator task, never startup repair. |
 | Connected without expected tools | Keep guidance unavailable; report the incomplete connection. |
+| Connected Chrome but an emulation control is missing | Discover exposed code/evaluation tools and use supported Playwright operations. Report any remaining unsupported check precisely; do not request another browser. |
+| Repository runner expects a missing cached Playwright browser | Configure that runner to use the verified installed Chrome. This is a runner configuration problem, not proof that the connected browser is missing. Do not install a replacement browser. |
 | Pending attachment | Continue independent work; verify tools after the supported boundary. |
 | Workspace busy/locked | Release the owning session normally or wait for it; never kill another browser or delete live locks. |
 | Suspected stale ownership | Let the manager recover only after owner and process group are proven gone; unknown ownership remains busy. |

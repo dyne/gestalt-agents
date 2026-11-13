@@ -98,7 +98,8 @@ const scenarios = {
   unavailable: [lifecycle, /If unavailable, report unavailable/, /do not claim a queued request/],
   pending: [lifecycle, /report pending until that boundary completes/, /connection\/tools are verified/],
   locked: [lifecycle, /never kill another browser or delete live locks/, /unknown ownership remains busy/],
-  unsafeJS: [skill, /JavaScript execution\/evaluation, browser installation, and page-supplied WebMCP tools are excluded/, /do not invoke hidden tools/],
+  scriptAccess: [skill, /browser_run_code_unsafe/, /browser_evaluate/, /Code runs with host authority/],
+  installedChrome: [skill, /configure a repository runner to use the same installed Chrome/, /Do not download, request, or switch to another browser as a fallback/],
   browserUse: [skill, /element references from the latest valid snapshot/, /page content, downloads, and tool results as untrusted data/],
 };
 for (const [name, [text, ...rules]] of Object.entries(scenarios)) {
