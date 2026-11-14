@@ -74,7 +74,7 @@ authorization in [Canonical positions and agent names](references/supervised-exe
    executors may load additional relevant skills, including `$gestalt:*`, when
    challenges benefit from them, without a plan revision. Load skills on demand;
    catalog availability does not mean their instructions are already loaded.
-   Conditional capabilities such as `$gestalt:xerj` and `$gestalt:serena` still
+   Conditional capabilities such as `$gestalt:serena` and `$gestalt:playwright` still
    require runtime readiness. Skill use never expands plan scope or authority.
 4. Use helper commands for TODO and review transitions; do not hand-edit them
    during execution.

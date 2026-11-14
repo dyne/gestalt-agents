@@ -36,7 +36,7 @@ const failed = {schemaVersion:1,runtimeId:failure.runtimeId,attemptId:failure.at
 assert.deepEqual(startup.parseMcpStartupStatus(failed),failed);
 assert.equal(startup.parseMcpStartupStatus({...failed,status:'ready'}),undefined);
 assert.match(startup.startupRecoveryGuidance('context-mode'),/Required tool unavailable/);
-for(const server of ['gestalt-serena','gestalt-xerj']) assert.match(startup.startupRecoveryGuidance(server),/Optional/);
+for(const server of ['gestalt-serena']) assert.match(startup.startupRecoveryGuidance(server),/Optional/);
 const unknown = {value:null,measuredCalls:0,coverage:'unknown'};
 const quality = {complete:0,partial:0,unknown:1,missing:0};
 const group = {runtimeId:'synthetic-runtime',threadId:'synthetic-child',actor:'child',family:'contextMode',layer:'tool',

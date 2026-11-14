@@ -9,8 +9,8 @@ on demand. Existing mandatory governing reads and role startup order still apply
 - Completion claims: [$gestalt:verification-before-completion](../skills/verification-before-completion/SKILL.md).
 - Explicit or durable cross-session plans: [$gestalt:org-plan](../skills/org-plan/SKILL.md).
   Ordinary bounded tasks use native planning; Org authoring does not authorize execution.
-- Broad or repeated source discovery: [$gestalt:xerj](../skills/xerj/SKILL.md)
-  when relevant repository coverage is fresh. Symbols and references:
+- Broad or repeated source discovery: scoped native search and current source reads.
+  Symbols and references:
   [$gestalt:serena](../skills/serena/SKILL.md) when the needed
   operations work on current source. Use the dynamic catalog for other task skills.
 

@@ -20,7 +20,7 @@ CODEX_HOME="$codex_home" GESTALT_HOME="$gestalt_home" CONTEXT_MODE_PACKAGE_MANAG
 CODEX_HOME="$codex_home" codex plugin list \
   --marketplace dyne-gestalt-agents --json >"$codex_home/plugins.json"
 
-python3 - "$codex_home/plugins.json" "$codex_home" "$gestalt_home" <<'PY'
+python3 - "$codex_home/plugins.json" "$codex_home" "$gestalt_home" "$root" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -37,6 +37,10 @@ codex_home = Path(sys.argv[2])
 gestalt_home = Path(sys.argv[3])
 gestalt = codex_home / "plugins/cache/dyne-gestalt-agents/gestalt" / installed["gestalt"]["version"]
 context_mode = codex_home / "plugins/cache/dyne-gestalt-agents/context-mode" / installed["context-mode"]["version"]
+source_skills = {path.parent.name for path in (Path(sys.argv[4]) / "plugins/gestalt/skills").glob("*/SKILL.md")}
+installed_skills = {path.parent.name for path in (gestalt / "skills").glob("*/SKILL.md")}
+assert len(source_skills) == 19 and "xerj" not in source_skills
+assert installed_skills == source_skills, (installed_skills, source_skills)
 assert (gestalt / "skills/org-plan/SKILL.md").is_file()
 assert (gestalt / ".mcp.json").is_file()
 assert (gestalt / "org-plan-mcp.mjs").is_file()
@@ -76,7 +80,7 @@ PY
 
 CODEX_HOME="$codex_home" node "$root/scripts/verify-gestalt-skill-catalog.mjs" "$root" \
   >"$codex_home/skills-catalog.out"
-if ! grep -F 'verified 17 enabled fixed Gestalt skills and 3 conditional skills in skills/list' "$codex_home/skills-catalog.out" >/dev/null; then
+if ! grep -F 'verified 17 enabled fixed Gestalt skills and 2 conditional skills in skills/list' "$codex_home/skills-catalog.out" >/dev/null; then
   printf 'Unexpected installed Gestalt skill catalog:\n' >&2
   cat "$codex_home/skills-catalog.out" >&2
   exit 1

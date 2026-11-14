@@ -1,5 +1,13 @@
 # Consolidated engineering skills: source and adaptation record
 
+The Xerj skill and its managed-command reference are retired from this package.
+Startup, discovery/catalog contracts and source-routing guidance now use native
+text search for lexical discovery, verified optional Serena for semantic work,
+and context-mode for large evidence. The retained skill catalog contains 17
+fixed skills and conditional Serena/Playwright. Historical instruction and cost
+measurements remain historical; retirement does not delete users' index data or
+modify installed profiles. Other upstream attributions and licenses are unchanged.
+
 The conditional `skills/playwright` guidance is original Gestalt integration
 documentation, not vendored upstream source. It consumes the managed launcher
 and read-only metadata contract version 1 from `gestalt-playwright-mcp` commit
@@ -22,7 +30,7 @@ generation are omitted. Setup no longer selects those six overlapping skills;
 it does not delete user-installed copies. The plugin skill remains the single
 runtime source; operator details stay in its on-demand lifecycle reference.
 
-- Downstream adaptation versions: `1.0.1` (coding); `1.0.0` (security, scripting)
+- Downstream adaptation versions: `1.0.2` (coding); `1.0.0` (security, scripting)
 - Imported local snapshot: `skills-used`, supplied by the user, 2026-10-26
 - Canonical packages: `skills/coding`, `skills/security`, `skills/scripting`
 - Source snapshot manifest: `tests/plugins/gestalt/fixtures/engineering-sources.json`
@@ -59,11 +67,11 @@ replaced with an invented permission grant.
 
 ### Coding
 
-Adaptation `1.0.1` adds an optional `$gestalt:xerj` discovery pointer with native
-search fallback. The named skill is used only when available; no external file
-link or required companion is introduced. Architecture content and original
-source attribution are unchanged; the adapted package checksum records this
-entrypoint revision.
+Adaptation `1.0.2` retires the optional Xerj discovery pointer introduced in
+`1.0.1`. Broad/repeated discovery uses scoped native search and current source
+verification, including repository/path provenance. No external file link or
+required companion is introduced. Architecture content and original source
+attribution are unchanged; the adapted checksum records this entrypoint revision.
 
 Four entrypoints and sixteen overlapping architecture references become one
 entrypoint and five topic references plus provenance. All topic families remain:

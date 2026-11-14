@@ -16,7 +16,8 @@ const pluginRoot = join(root, 'plugins/gestalt');
 const catalog = readdirSync(join(pluginRoot, 'skills')).map(name => ({
   name: `gestalt:${name}`, enabled: true, path: join(pluginRoot, 'skills', name, 'SKILL.md'),
 }));
-assert.equal(catalog.length, 20);
+assert.equal(catalog.length, 19);
+assert.ok(!catalog.some(skill => skill.name === 'gestalt:xerj'));
 const executable = join(temporary, 'codex');
 writeFileSync(executable, `#!/usr/bin/env node
 const { createInterface } = require('node:readline');
@@ -38,17 +39,17 @@ const verify = async skills => {
     environment: { ...process.env, PATH: `${temporary}:${process.env.PATH}`, CATALOG_FIXTURE: fixture } });
 };
 try {
-  assert.match(await verify(catalog), /17 enabled fixed Gestalt skills and 3 conditional skills/);
+  assert.match(await verify(catalog), /17 enabled fixed Gestalt skills and 2 conditional skills/);
   for (const name of ['gestalt:coding', 'gestalt:security', 'gestalt:scripting']) {
     await assert.rejects(verify(catalog.map(skill => ({ ...skill,
       enabled: skill.name !== name }))), new RegExp(`disabled: ${name}`));
   }
-  for (const disabledNames of [['gestalt:xerj'], ['gestalt:serena'], ['gestalt:playwright'],
-      ['gestalt:xerj', 'gestalt:serena', 'gestalt:playwright']]) {
+  for (const disabledNames of [['gestalt:serena'], ['gestalt:playwright'],
+      ['gestalt:serena', 'gestalt:playwright']]) {
     const disabled = catalog.map(skill => ({ ...skill, enabled: !disabledNames.includes(skill.name) }));
-    assert.match(await verify(disabled), /3 conditional skills/);
+    assert.match(await verify(disabled), /2 conditional skills/);
   }
-  for (const name of ['gestalt:xerj', 'gestalt:serena', 'gestalt:playwright']) {
+  for (const name of ['gestalt:serena', 'gestalt:playwright']) {
     await assert.rejects(verify(catalog.filter(skill => skill.name !== name)), /catalog mismatch/);
     await assert.rejects(verify([...catalog, catalog.find(skill => skill.name === name)]), /duplicate/);
     await assert.rejects(verify(catalog.map(skill => ({ ...skill,
@@ -57,7 +58,8 @@ try {
   await assert.rejects(verify(catalog.map(skill => ({ ...skill,
     enabled: skill.name !== 'gestalt:org-plan' }))), /disabled: gestalt:org-plan/);
   await assert.rejects(verify([...catalog, { name: 'gestalt:unknown', enabled: true }]), /catalog mismatch/);
-  console.log('19 capability-aware catalog cases passed');
+  await assert.rejects(verify([...catalog, { name: 'gestalt:xerj', enabled: true }]), /catalog mismatch/);
+  console.log('16 capability-aware catalog cases passed');
 } finally {
   rmSync(temporary, { recursive: true, force: true });
 }

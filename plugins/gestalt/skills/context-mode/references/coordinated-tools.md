@@ -9,19 +9,20 @@ The tool skills remain authoritative for their operations and permissions.
 
 | Task | Route | Evidence required before relying on it |
 | --- | --- | --- |
-| Broad or repeated source discovery in one or several repositories | Bounded lexical XERJ query when its service and index cover the requested scope | Reuse verified repository/alias/freshness observations; verify hits in current files and continue the task. |
+| Broad or repeated source discovery in one or several repositories | Scoped `rg`, or another native text search when unavailable | Identify each repository and path, verify findings in current files, include dirty/untracked source and continue the task. |
 | Exact known file, governing/pre-edit reads, current source verification, Git or ordinary filesystem writes | Native tools | Read the authorized current path; account for dirty tracked and untracked files. |
 | Local definitions/bodies, callers or structured semantic edits | Managed Serena when the needed operations work | Follow [Serena's operation table](../../serena/SKILL.md#operation-workflow): local extraction for definition/body; verified references for callers/interface impact; edit authority remains separate. |
 | Large or uncertain logs, tests, API results or several inspections | Context-mode analysis of saved evidence | Preserve the original, exact command/exit/counts, provenance and every failure locator. |
 | One saved artifact question | File execution | Return bounded derived findings and retrievable references. |
 | Repeated artifact questions or reviewer handoff | A scoped index or authorized manifest transfer | Reauthorize the original and verify its identity before reuse; receivers resolve their own tools and indexes. |
 
-These are intent boundaries, not call quotas. For detailed provenance and native
-fallback decisions see the [XERJ retrieval workflow](../../xerj/SKILL.md#retrieval-workflow); for local semantic checks,
+These are intent boundaries, not call quotas. For native reads and evidence
+analysis see the [routing contract](../SKILL.md#routing-contract); for local semantic checks,
 oversized-overview recovery and compilation inputs see
-[Serena](../../serena/SKILL.md). Empty, stale, partial or unavailable indexes
-justify a precise native fallback. A shared-content hit retains all aliases;
-an alias from another checkout does not establish current local behavior.
+[Serena](../../serena/SKILL.md). Native discovery needs no optional service or
+index. Confirm current source and the requested search scope before an absence
+claim. Shared-content findings retain all aliases; an alias from another
+checkout does not establish current local behavior.
 
 ## Interpret readiness per repository and operation
 
@@ -36,19 +37,19 @@ before considering useful, authorized cache warmup.
 In Mobile, **Unverified** covers unknown or unobserved readiness, **Stale** means
 an observation was invalidated, and **Degraded** means unavailable. Repository,
 build, runtime/generation and original observation time matter. Do not promote
-connection readiness into symbol/reference coverage, or treat XERJ and Serena
-as having the same coverage. Readiness never grants write authority.
+connection readiness into symbol/reference coverage. Native source search needs
+no semantic readiness. Readiness never grants write authority.
 
 ## Diagnose safely
 
 1. Resolve the intended repository/build and inspect the current status or
    startup observation. Preserve the runtime, attempt, physical thread and tool
    identities when supplied; unavailable child exit/signal details remain null.
-2. Inspect read-only operator diagnostics: `gestalt xerj status`,
+2. Inspect read-only operator diagnostics:
    `gestalt serena doctor --cwd /absolute/workspace`, or the exposed `ctx-doctor`
-   capability. See the managed [XERJ commands](../../xerj/references/commands.md)
-   and [Serena commands](../../serena/references/commands.md) for exact arguments.
-3. Optional XERJ/Serena failure permits native work with the relevant coverage
+   capability. See the managed [Serena commands](../../serena/references/commands.md)
+   for exact arguments.
+3. Optional Serena failure permits native work with the relevant coverage
    limitation. A configured required context-mode startup failure stops the
    affected startup; do not disguise it as optional or fabricate readiness.
    Saved-output fallback during an existing session follows the
@@ -56,7 +57,7 @@ as having the same coverage. Readiness never grants write authority.
 4. Recheck only after relevant source, configuration, runtime or availability
    changes. Keep the original failure identity and observation time. Diagnosis
    does not authorize an installation, restart, project switch, index mutation
-   or permission change. Mobile owns XERJ indexing; Serena warmup follows its
+   or permission change. Serena warmup follows its
    existing useful-work and workspace-write conditions.
 
 ## Reuse evidence without refreshing its claims

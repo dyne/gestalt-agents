@@ -1,5 +1,27 @@
 # Instruction delivery and preservation ledger
 
+## Xerj distribution retirement
+
+The canonical Xerj skill and its command reference are removed. Plugin layout,
+the installed catalog verifier and isolated `npx skills` discovery agree on
+19 skills: 17 fixed skills and conditional Serena/Playwright. Catalog cases
+reject a stale Xerj entry, and clean-distribution checks reject links to its
+removed files. Startup uses native source discovery and retains semantic-tool
+readiness and authority boundaries. No installed profiles are rewritten.
+
+Earlier source-routing measurements below describe historical fixtures; their
+Xerj-specific provider assumptions do not establish current runtime support.
+
+Current routing contracts execute scoped native source search, current-file
+verification and task continuation without any optional search service or skill.
+Sixteen native cases preserve repository scope, aliases, no-match checks, dirty
+and untracked changes, repeated queries and hosts without `rg`. The 46 semantic,
+9 schema-discovery, 14 artifact-reuse and 8 economy cases retain their separate
+authority/evidence boundaries. Startup checks cover 43 cases, including ready
+and unavailable Serena across root, executor and solo delivery. Adoption-report
+fixtures require useful `native/search` evidence and reject the retired provider.
+These remain offline contracts, not installed-runtime or real-model observations.
+
 ## Evidence and wait economy, L5.2
 
 Context-mode remains the routing owner: independent inspections batch, dependent
@@ -260,7 +282,7 @@ each row preserves all listed clauses, not just its topic name.
 | --- | --- | --- |
 | scope | O Route/Choose: simplest viable plan, fresh lesser-model executability; ordinary bounded work uses native planning; select durable Org only for explicit need | O Route planning work |
 | authority | O/A: authoring is separate authorization, stop at validated handoff until ordered execution; no setup during ordinary supervision; exact supplied skill/helper/plan, workspace root independent of repo | O Choose a workflow; S Start supervision for strict startup ordering |
-| format | O invariants 1–3: one nonempty SKILLS and REVIEW_STATUS per L1, UNREVIEWED initially, neither on L2; smallest exact optional catalog skills, implicit Gestalt excluded, xerj readiness conditional | O Invariants |
+| format | O invariants 1–3: one nonempty SKILLS and REVIEW_STATUS per L1, UNREVIEWED initially, neither on L2; smallest exact optional catalog skills, implicit Gestalt excluded, Serena/Playwright readiness conditional | O Invariants |
 | skill-load | O/S/P: verify and load declared skills (including Gestalt); additional relevant skills may be loaded on demand before repository inspection/edits; missing inputs/skills stop without edits | O Invariants; P retains pre-inspection guard |
 | identity | O/S/A/P: one-based L1/L2 labels, IDs remain keys, exact l0/l<a> roster/task names, no title/role suffix | S Canonical positions and agent names; O shared position convention |
 | replacement | O/S/P: use only exact physical identity from durable Mobile authorization with predecessor/evidence; never infer generations; absent authorization resume assigned physical executor or report control conflict | S Canonical positions and agent names; compact P guard |

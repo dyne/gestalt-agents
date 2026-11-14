@@ -77,43 +77,29 @@
   },
   "sourceRouting": {
     "version": 1,
-    "limitation": "Deterministic contract replay, not actual provider calls or real-model adherence.",
-    "files": {"alpha/src/cart.py": "def checkout(): return 'current'\n", "fork/src/cart.py": "def checkout(): return 'current'\n", "beta/src/pay.py": "def payment(): return 'paid'\n"},
+    "limitation": "Native executable search over disposable current files; not real-model adherence.",
+    "files": {
+      "alpha/src/cart.py": "def checkout(): return 'current'\n",
+      "fork/src/cart.py": "def checkout(): return 'current'\n",
+      "beta/src/pay.py": "def payment(): return 'paid'\n"
+    },
     "cases": [
-      {"id":"broad-single-rg","intent":"broad","alternative":"rg","repositories":["alpha"],"query":"checkout","expected":"xerj"},
-      {"id":"broad-single-grep","intent":"broad","alternative":"grep","repositories":["alpha"],"query":"checkout","expected":"xerj"},
-      {"id":"broad-multi-ag","intent":"broad","alternative":"ag","repositories":["alpha","beta"],"query":"def","expected":"xerj"},
-      {"id":"repeated-broad","intent":"broad","repositories":["alpha"],"query":"checkout","queries":["checkout","current","def"],"repeat":3,"expected":"xerj"},
+      {"id":"broad-single-rg","intent":"broad","repositories":["alpha"],"query":"checkout","expected":"native"},
+      {"id":"broad-single-grep","intent":"broad","repositories":["alpha"],"query":"checkout","expected":"native"},
+      {"id":"broad-multi-ag","intent":"broad","repositories":["alpha","beta"],"query":"def","expected":"native"},
+      {"id":"repeated-broad","intent":"broad","repositories":["alpha"],"query":"checkout","queries":["checkout","current","def"],"repeat":3,"expected":"native"},
       {"id":"known-file","intent":"precise","repositories":["alpha"],"query":"checkout","expected":"native"},
-      {"id":"empty-catalog","intent":"broad","repositories":["alpha"],"catalog":"empty","query":"checkout","expected":"native","reason":"empty"},
-      {"id":"unindexed","intent":"broad","repositories":["alpha"],"catalog":"unindexed","query":"checkout","expected":"native","reason":"unindexed"},
-      {"id":"partial-coverage","intent":"broad","repositories":["alpha","beta"],"catalog":"partial","query":"def","expected":"native","reason":"partial"},
-      {"id":"stale-index","intent":"broad","repositories":["alpha"],"catalog":"stale","query":"checkout","expected":"native","reason":"stale"},
-      {"id":"unknown-freshness","intent":"broad","repositories":["alpha"],"catalog":"unknown","query":"checkout","expected":"native","reason":"unknown"},
-      {"id":"unavailable-service","intent":"broad","repositories":["alpha"],"catalog":"unavailable","query":"checkout","expected":"native","reason":"unavailable"},
-      {"id":"no-match","intent":"broad","repositories":["alpha"],"query":"missing","expected":"xerj","confirmNoMatch":true},
-      {"id":"shared-fork-aliases","intent":"broad","repositories":["alpha","fork"],"query":"checkout","expected":"xerj","expectedAliases":["alpha/src/cart.py","fork/src/cart.py"]},
-      {"id":"authoritative-dirty-source","intent":"broad","repositories":["alpha"],"query":"checkout","expected":"xerj","editAfterRetrieval":true},
-      {"id":"cached-empty","intent":"broad","repositories":["alpha"],"catalog":"empty","query":"checkout","repeat":3,"expected":"native","reason":"empty"},
-      {"id":"cached-missing-catalog","intent":"broad","repositories":["alpha"],"catalog":"missing","query":"checkout","repeat":3,"expected":"native","reason":"missing"},
-      {"id":"cached-unindexed","intent":"broad","repositories":["alpha"],"catalog":"unindexed","query":"checkout","repeat":3,"expected":"native","reason":"unindexed"},
-      {"id":"cached-stale","intent":"broad","repositories":["alpha"],"catalog":"stale","query":"checkout","repeat":3,"expected":"native","reason":"stale"},
-      {"id":"cached-partial","intent":"broad","repositories":["alpha","beta"],"catalog":"partial","query":"def","repeat":3,"expected":"native","reason":"partial"},
-      {"id":"cached-unknown","intent":"broad","repositories":["alpha"],"catalog":"unknown","query":"checkout","repeat":3,"expected":"native","reason":"unknown"},
-      {"id":"cached-unavailable","intent":"broad","repositories":["alpha"],"catalog":"unavailable","query":"checkout","repeat":3,"expected":"native","reason":"unavailable"},
-      {"id":"source-invalidates","intent":"broad","repositories":["alpha"],"query":"checkout","repeat":2,"change":"source","expected":"native","reason":"stale","expectedTools":["xerj","native"],"expectedMaps":2},
-      {"id":"untracked-invalidates","intent":"broad","repositories":["alpha"],"query":"checkout","repeat":2,"change":"untracked","expected":"native","reason":"stale","expectedTools":["xerj","native"],"expectedMaps":2},
-      {"id":"config-invalidates","intent":"broad","repositories":["alpha"],"query":"checkout","repeat":2,"change":"config","expected":"xerj","expectedMaps":2},
-      {"id":"runtime-invalidates","intent":"broad","repositories":["alpha"],"query":"checkout","repeat":2,"change":"runtime","expected":"xerj","expectedMaps":2},
-      {"id":"executor-resolves-independently","intent":"broad","repositories":["alpha"],"query":"checkout","repeat":2,"change":"executor","expected":"xerj","expectedMaps":2},
-      {"id":"catalog-invalidates","intent":"broad","repositories":["alpha"],"query":"checkout","repeat":2,"change":"catalog","expected":"xerj","expectedMaps":2},
-      {"id":"scope-invalidates","intent":"broad","repositories":["alpha"],"query":"checkout","repeat":2,"change":"scope","expected":"xerj","expectedMaps":2},
-      {"id":"no-match-reveals-dirty-current-match","intent":"broad","repositories":["alpha"],"query":"changed","expected":"xerj","editAfterRetrieval":true,"currentMatchAfterNoMatch":true},
+      {"id":"no-match","intent":"broad","repositories":["alpha"],"query":"missing","expected":"native","confirmNoMatch":true},
+      {"id":"shared-fork-aliases","intent":"broad","repositories":["alpha","fork"],"query":"checkout","expected":"native","expectedAliases":["alpha/src/cart.py","fork/src/cart.py"]},
+      {"id":"authoritative-dirty-source","intent":"broad","repositories":["alpha"],"query":"checkout","expected":"native","editAfterRetrieval":true},
+      {"id":"source-invalidates","intent":"broad","repositories":["alpha"],"query":"checkout","repeat":2,"change":"source","expected":"native"},
+      {"id":"untracked-invalidates","intent":"broad","repositories":["alpha"],"query":"checkout","repeat":2,"change":"untracked","expected":"native"},
+      {"id":"scope-invalidates","intent":"broad","repositories":["alpha"],"query":"checkout","repeat":2,"change":"scope","expected":"native"},
+      {"id":"no-match-reveals-dirty-current-match","intent":"broad","repositories":["alpha"],"query":"changed","expected":"native","editAfterRetrieval":true,"currentMatchAfterNoMatch":true},
       {"id":"precise-repeat-never-maps","intent":"precise","repositories":["alpha"],"query":"checkout","repeat":3,"expected":"native"},
-      {"id":"unavailable-runtime-changes","intent":"broad","repositories":["alpha"],"catalog":"unavailable","query":"checkout","repeat":2,"change":"runtime","expected":"native","reason":"unavailable","expectedReports":2,"expectedRuntimeChecks":2},
-      {"id":"unrelated-source-keeps-readiness","intent":"broad","repositories":["alpha"],"query":"checkout","repeat":2,"change":"unrelated-source","expected":"xerj"},
-      {"id":"observed-runtime-unavailable","intent":"broad","repositories":["alpha"],"query":"checkout","repeat":2,"change":"unavailable","expected":"native","reason":"unavailable","expectedTools":["xerj","native"],"expectedReports":1,"expectedRuntimeChecks":1},
-      {"id":"observed-runtime-restored","intent":"broad","repositories":["alpha"],"catalog":"unavailable","query":"checkout","repeat":2,"change":"available","expected":"xerj","expectedTools":["native","xerj"],"expectedMaps":1,"expectedReports":1}
+      {"id":"unrelated-source-keeps-readiness","intent":"broad","repositories":["alpha"],"query":"checkout","repeat":2,"change":"unrelated-source","expected":"native"},
+      {"id":"no-optional-tools-or-skill","intent":"broad","repositories":["alpha"],"query":"checkout","expected":"native","withoutRg":true},
+      {"id":"native-multi-without-serena","intent":"broad","repositories":["alpha","fork"],"query":"checkout","expected":"native","connected":false}
     ]
   },
   "artifactReuse": {
@@ -149,10 +135,10 @@
     "limitation": "Deterministic synthetic providers plus executable context-mode evidence ingestion; does not prove real-model adherence or live readiness.",
     "mobile": {
       "repository": "dyne/gestalt-mobile",
-      "commit": "ea8ad34ac93930d39fb8230cb262625fe48b47eb",
+      "commit": "03a9682f71b03d9a77ed7f01c7b5196acc196a55",
       "contracts": {
         "src/shared/contracts/retrieval-readiness.ts": "4beffee0f7fe331d1466c47a00908973efa839e94c1b8c6df21110b5fd59dad5",
-        "src/shared/contracts/mcp-startup-failure.ts": "d8aae035a47c8c8c724953136e56f58fee2bd3de2e67b8b5df7a874410874e68",
+        "src/shared/contracts/mcp-startup-failure.ts": "a8762381b797811e7993138d0bc0fb6042f9118457c8a1b2c8b8bb45a2e8da9f",
         "src/shared/contracts/tool-efficiency.ts": "06c60021e3d10d719205abd04bffa7ddfd29d9ed63a220d92beb96103f546dd2"
       }
     },
@@ -165,12 +151,10 @@
         "intent": "precise"
       },
       {
-        "id": "stale-index",
-        "catalog": "stale"
+        "id": "native-without-source-service"
       },
       {
-        "id": "empty-index",
-        "catalog": "empty"
+        "id": "native-without-source-skill"
       },
       {
         "id": "oversized-overview",
