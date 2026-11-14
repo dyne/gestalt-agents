@@ -1,7 +1,7 @@
 """Offline routing contract replay; never invokes providers or changes indexes.
 
-Synthetic source/index facts exercise the guidance's decision boundaries, not
-model adherence. Actual source reads check provenance and post-retrieval drift.
+Synthetic current source facts exercise the guidance's decision boundaries, not
+model adherence. Actual source reads check provenance and post-search drift.
 """
 import ast
 import hashlib
@@ -9,6 +9,7 @@ import json
 import os
 from pathlib import Path
 import runpy
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -22,149 +23,107 @@ def digest(data):
 
 
 def replay(root, files, case):
-    """Execute lexical queries over immutable fixture bytes, then read live files."""
-    index, cache, events, steps = {}, {}, [], []
-    for path, content in files.items():
-        hit = index.setdefault(digest(content), {"content": content, "aliases": []})
-        hit["aliases"].append(path)
-    runtime, config, agent, catalog = "runtime-1", "config-1", "executor-1", "catalog-1"
+    """Execute scoped native searches over current files, without service probes."""
     repositories = case["repositories"]
-    state = case.get("catalog", "fresh")
+    events, steps = [], []
     for attempt in range(case.get("repeat", 1)):
         if attempt == 1:
             change = case.get("change")
             if change == "source":
                 path = root / "alpha/src/cart.py"
-                path.write_text(path.read_text() + "# dirty source\n")
-                state = "stale"
+                path.write_text("def checkout(): return 'changed'\n")
             elif change == "untracked":
                 (root / "alpha/src/new.py").write_text("def checkout(): return 'untracked'\n")
-                state = "stale"
             elif change == "unrelated-source":
                 (root / "beta/src/pay.py").write_text("def payment(): return 'unrelated change'\n")
-            elif change == "runtime":
-                runtime = "runtime-2"
-            elif change == "config":
-                config = "config-2"
-            elif change == "executor":
-                agent = "executor-2"
-            elif change == "catalog":
-                catalog = "catalog-2"
             elif change == "scope":
                 repositories = ["fork"]
-            elif change in ("unavailable", "available"):
-                state = "unavailable" if change == "unavailable" else "fresh"
-                cache.clear()  # An observed availability change invalidates bindings.
         targets = sorted(str(p.relative_to(root)) for repository in repositories
                          for p in (root / repository).rglob("*") if p.is_file())
-        source = tuple((p, digest((root / p).read_text())) for p in targets)
-        key = (tuple(repositories), source, config, catalog, runtime, agent)
-        trace, queries, hits = [], [], []
-        reason, readiness = None, None
-        if case["intent"] == "precise":
-            tool = "native"
-        else:
-            if key not in cache:
-                trace.append("runtime-check" if state == "unavailable" else "map")
-                cache[key] = {"reason": None if state == "fresh" else state,
-                              "observedAt": f"2026-11-01T10:00:0{attempt}Z"}
-                if cache[key]["reason"]:
-                    trace.append("fallback-report")
-            else:
-                trace.append("cached-readiness")
-            readiness = cache[key]
-            reason = readiness["reason"]
-            tool = "native" if reason else "xerj"
-        trace.append(tool)
-        if tool == "xerj":
-            # The synthetic provider actually evaluates the lexical query,
-            # scopes indexes and bounds results; an event label alone cannot pass.
-            query = case.get("queries", [case["query"]] * case.get("repeat", 1))[attempt]
-            request = {"indexes": [f"index-{repo}" for repo in repositories],
-                       "query": query, "size": 5}
-            hits = [{"sha256": sha, "aliases": sorted(hit["aliases"]),
-                     "content": hit["content"]}
-                    for sha, hit in index.items() if query in hit["content"]
-                    and any(p in targets for p in hit["aliases"])][:request["size"]]
-            queries.append({"request": request, "hits": hits})
-        else:
-            query = case["query"]
+        query = case.get("queries", [case["query"]] * case.get("repeat", 1))[attempt]
+        trace, queries, hits = ["native"], [], []
+        if case["intent"] == "broad":
+            # Exercise the native executable and verify its paths against live
+            # source. grep is the supported fallback on hosts without rg.
+            executable = "rg" if shutil.which("rg") and not case.get("withoutRg") else "grep"
+            command = [executable, "-l", "-F", "--", query, *repositories] if executable == "rg" else [
+                executable, "-R", "-l", "-F", "--", query, *repositories]
+            completed = subprocess.run(command, cwd=root, capture_output=True, text=True)
+            assert completed.returncode in (0, 1), completed.stderr
+            matched = sorted(completed.stdout.splitlines())
+            grouped = {}
+            for path in matched:
+                assert path in targets, "search escaped requested repositories"
+                content = (root / path).read_text()
+                hit = grouped.setdefault(digest(content), {"content": content, "aliases": []})
+                hit["aliases"].append(path)
+            hits = [{"sha256": sha, **hit} for sha, hit in grouped.items()]
+            queries = [{"request": {"paths": list(repositories), "query": query},
+                        "command": command, "exit": completed.returncode, "hits": hits}]
+            trace.append("native-search")
         if case.get("editAfterRetrieval"):
             (root / targets[0]).write_text("def checkout(): return 'changed'\n")
-        paths = sorted({p for hit in hits for p in hit["aliases"] if p in targets})
-        if tool == "native" or not hits:
-            paths = targets
+        # Inspect current scope even after no-match: search output is a locator,
+        # and changed/untracked source must not inherit an old absence claim.
         inspected = {}
-        for path in paths:
+        for path in targets:
             trace.append("current-file")
             current = (root / path).read_text()
             inspected[path] = {"repository": path.split("/")[0], "sha256": digest(current),
                                "matches": query in current, "current": current}
-        # Continue with concrete current findings, including a verified no-match.
         trace.append("continue")
         outcome = {"query": query, "matches": sorted(p for p, row in inspected.items() if row["matches"]),
                    "checked": sorted(inspected)}
-        steps.append({"tool": tool, "reason": reason, "events": trace, "queries": queries,
-                      "hits": hits, "inspected": inspected, "outcome": outcome,
-                      "readiness": readiness})
+        steps.append({"tool": "native", "reason": None, "events": trace, "queries": queries,
+                      "hits": hits, "inspected": inspected, "outcome": outcome, "readiness": None})
         events.extend(trace)
     return {**steps[-1], "events": events, "steps": steps}
 
 
 def validate(case, result, root):
-    assert result["tool"] == case["expected"], case["id"]
-    assert result["reason"] == case.get("reason"), case["id"]
+    assert result["tool"] == case["expected"] == "native", case["id"]
+    assert result["reason"] is None and result["readiness"] is None
     assert result["inspected"], "current source was never inspected"
-    repeats = case.get("repeat", 1)
-    assert len(result["steps"]) == repeats
-    tools = case.get("expectedTools", [case["expected"]] * repeats)
-    assert [step["tool"] for step in result["steps"]] == tools
-    broad = case["intent"] == "broad"
-    default_maps = int(broad and case.get("catalog") != "unavailable")
-    assert result["events"].count("map") == case.get("expectedMaps", default_maps)
-    assert result["events"].count("runtime-check") == case.get(
-        "expectedRuntimeChecks", int(broad and case.get("catalog") == "unavailable"))
-    default_reports = int(broad and case.get("reason") is not None)
-    assert result["events"].count("fallback-report") == case.get("expectedReports", default_reports)
+    assert len(result["steps"]) == case.get("repeat", 1)
+    assert not set(result["events"]) & {"map", "runtime-check", "cached-readiness", "install", "index"}
+    assert result["events"] == [event for step in result["steps"] for event in step["events"]]
     for number, step in enumerate(result["steps"]):
-        assert step["inspected"], "current source was never inspected"
-        assert step["events"][-1] == "continue", "readiness replaced useful work"
-        assert step["events"].index("current-file") > step["events"].index(step["tool"])
+        repositories = ["fork"] if number and case.get("change") == "scope" else case["repositories"]
+        assert step["tool"] == "native" and step["inspected"]
+        assert step["events"][-1] == "continue", "route label replaced useful work"
+        assert step["events"].index("current-file") > step["events"].index("native")
         expected = sorted(p for p, row in step["inspected"].items()
                           if step["outcome"]["query"] in row["current"])
         assert step["outcome"]["matches"] == expected
         assert step["outcome"]["checked"] == sorted(step["inspected"])
+        assert all(path.split("/")[0] in repositories for path in step["inspected"])
         for path, row in step["inspected"].items():
             assert row["repository"] == path.split("/")[0]
             assert row["sha256"] == digest(row["current"])
-        if step["tool"] == "xerj":
-            assert len(step["queries"]) == 1, "map/route label without a useful query"
+        if case["intent"] == "broad":
+            assert len(step["queries"]) == 1, "no native lexical search executed"
             request = step["queries"][0]["request"]
-            assert request["query"] == step["outcome"]["query"] and request["query"]
-            assert 0 < request["size"] <= 5
-            repositories = ["fork"] if number and case.get("change") == "scope" else case["repositories"]
-            assert request["indexes"] == [f"index-{repo}" for repo in repositories]
-            assert len(step["hits"]) <= request["size"]
+            assert request == {"paths": repositories, "query": step["outcome"]["query"]}
+            assert step["queries"][0]["exit"] in (0, 1)
             assert step["queries"][0]["hits"] == step["hits"]
+            assert step["queries"][0]["command"][0] in ("rg", "grep")
+            if case.get("withoutRg"):
+                assert step["queries"][0]["command"][0] == "grep"
             assert all(request["query"] in hit["content"] for hit in step["hits"])
             assert all(hit["sha256"] == digest(hit["content"]) for hit in step["hits"])
         else:
             assert not step["queries"]
-        if "cached-readiness" in step["events"]:
-            assert step["readiness"] == result["steps"][number - 1]["readiness"]
     for path, row in result["inspected"].items():
-        assert row["sha256"] == digest(row["current"])
         assert row["current"] == (root / path).read_text(), "findings differ from current source"
+        assert row["sha256"] == digest(row["current"])
     if case.get("expectedAliases"):
         assert result["hits"][0]["aliases"] == case["expectedAliases"]
-        assert {v["repository"] for v in result["inspected"].values()} == set(case["repositories"])
     if case.get("confirmNoMatch"):
         assert not result["hits"] and not result["outcome"]["matches"]
     if case.get("currentMatchAfterNoMatch"):
         assert not result["hits"] and result["outcome"]["matches"]
     if case.get("editAfterRetrieval") and result["hits"]:
         assert result["inspected"]["alpha/src/cart.py"]["sha256"] != result["hits"][0]["sha256"]
-        assert "changed" in result["inspected"]["alpha/src/cart.py"]["current"]
     if case.get("change") == "untracked":
         assert "alpha/src/new.py" in result["inspected"]
 
@@ -792,9 +751,8 @@ def economy_scenarios():
                         "byteOutcome": "improved" if costs[1] < costs[0] else "regressed" if costs[1] > costs[0] else "equal"})
 
     source = json.loads((FIXTURES / "context-evidence-workflows.json").read_text())["sourceRouting"]
-    # A covered broad scope has real distractor bytes to avoid rewarding a
-    # provider label over the same single-file work. Index construction is
-    # fixture setup, not a hidden extra query or claimed indexing speedup.
+    # Broad scope has real distractor bytes; native query execution and current
+    # file verification must preserve the same findings as direct reads.
     source["files"].update({f"alpha/src/helper_{number}.py":
                             f"def helper_{number}(): return {number}\n" * 100
                             for number in range(20)})
@@ -824,7 +782,7 @@ def economy_scenarios():
                                                                                      "queries": len(result["queries"])}}
             return run
 
-        paired("exact-file-lookup" if precise else "broad-covered-discovery", {"files": source["files"], "case": case},
+        paired("exact-file-lookup" if precise else "broad-native-discovery", {"files": source["files"], "case": case},
                [("native", route("native")), ("routed", route("routed"))], expected)
 
     for unsupported in (False, True):
@@ -978,15 +936,9 @@ def main():
                 target.write_text(content)
             result = replay(root, fixture["files"], case)
             validate(case, result, root)
-            mutations = ["route", "current-file", "continuation", "findings"]
-            if result["tool"] == "xerj":
-                mutations.extend(["query", "query-bound", "query-scope"])
-            if case.get("repeat", 1) > 1:
-                mutations.append("reprobe")
-            if any("cached-readiness" in step["events"] for step in result["steps"]):
-                mutations.append("observation-time")
-            if result["events"].count("fallback-report"):
-                mutations.append("repeat-report")
+            mutations = ["route", "current-file", "continuation", "findings", "service-probe"]
+            if case["intent"] == "broad":
+                mutations.extend(["query", "query-scope"])
             if case.get("expectedAliases"):
                 mutations.append("aliases")
             if case.get("editAfterRetrieval") and result["hits"]:
@@ -994,7 +946,7 @@ def main():
             for mutation in mutations:
                 broken = json.loads(json.dumps(result))
                 if mutation == "route":
-                    broken["tool"] = "native" if result["tool"] == "xerj" else "xerj"
+                    broken["tool"] = "unavailable-provider"
                 elif mutation == "current-file":
                     broken["inspected"] = {}
                 elif mutation == "aliases":
@@ -1003,28 +955,21 @@ def main():
                     broken["inspected"]["alpha/src/cart.py"]["sha256"] = result["hits"][0]["sha256"]
                 elif mutation == "query":
                     broken["steps"][-1]["queries"] = []
-                elif mutation == "query-bound":
-                    broken["steps"][-1]["queries"][0]["request"]["size"] = 0
                 elif mutation == "query-scope":
-                    broken["steps"][-1]["queries"][0]["request"]["indexes"] = ["index-other"]
+                    broken["steps"][-1]["queries"][0]["request"]["paths"] = ["other"]
                 elif mutation == "continuation":
                     broken["steps"][-1]["events"].pop()
                 elif mutation == "findings":
                     broken["steps"][-1]["outcome"]["matches"] = ["invented/path"]
-                elif mutation == "reprobe":
-                    broken["events"].append("map")
-                elif mutation == "repeat-report":
-                    broken["events"].append("fallback-report")
-                elif mutation == "observation-time":
-                    step = next(step for step in broken["steps"] if "cached-readiness" in step["events"])
-                    step["readiness"]["observedAt"] = "invented refresh"
+                elif mutation == "service-probe":
+                    broken["events"].append("runtime-check")
                 try:
                     validate(case, broken, root)
                 except AssertionError:
                     pass
                 else:
                     raise AssertionError(f"{mutation} regression accepted")
-    print(f"source routing: {len(ids)} scenarios passed; 0 failed/0 skipped; synthetic providers only")
+    print(f"source routing: {len(ids)} scenarios passed; 0 failed/0 skipped; native search over disposable current files")
     semantic_scenarios()
     discovery_scenarios()
     artifact_scenarios()

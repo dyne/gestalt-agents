@@ -20,11 +20,11 @@ const project = 'REPOSITORY_SENTINEL_β\n';
 
 test('canonical golden text stays concise with exact resolvable core skill references', async () => {
   assert.equal(contract.status, 'ready');
-  assert.equal(hash(contract.text), '160d98edd064e6a6fcc26f370ab58998c2cb967d1a653875871993ca396d6686');
+  assert.equal(hash(contract.text), '83cf47f2b27c897c218eab7070335548a9962d5aea2a34c1d2fe659730541c63');
   assert.equal(contract.text.trim().split(/\s+/u).length, 284);
   assert.ok(contract.text.trim().split(/\s+/u).length <= contract.descriptor.maxWords);
   const names = ['coding', 'development-testing', 'systematic-debugging',
-    'verification-before-completion', 'org-plan', 'xerj', 'serena'];
+    'verification-before-completion', 'org-plan', 'serena'];
   const links = [...contract.text.matchAll(/\[\$gestalt:([^\]]+)\]\(([^)]+)\)/gu)];
   assert.deepEqual(links.map(match => match[1]), names);
   for (const [, name, path] of links) {
@@ -121,8 +121,8 @@ test('delivery accounting keeps synthetic capture separate from repository inven
   const capture = { kind: 'synthetic-composition', textBytes: Buffer.byteLength(contract.text),
     blockBytes: Buffer.byteLength(canonical), effectiveBytes: Buffer.byteLength(effective),
     effectiveSha256: hash(effective), hostDeliveredBytes: null, modelAdherence: 'unobserved' };
-  assert.equal(capture.textBytes, 2463);
-  assert.equal(capture.blockBytes, 2516);
+  assert.equal(capture.textBytes, 2425);
+  assert.equal(capture.blockBytes, 2478);
   assert.equal(capture.effectiveBytes, Buffer.byteLength(user) + 2 + capture.blockBytes);
   assert.match(capture.effectiveSha256, /^[a-f0-9]{64}$/u);
   assert.equal(capture.hostDeliveredBytes, null);
@@ -153,16 +153,16 @@ const blockCount = value => (JSON.stringify(value).match(/<!-- gestalt:startup:v
 // Assemble current package inputs using the real composer/generated profiles.
 // Capability availability is synthetic; this is not either host's adapter or a
 // claim that a connected provider has current repository/semantic coverage.
-const routingSources = Object.fromEntries(await Promise.all(['xerj', 'serena', 'context-mode'].map(async name =>
+const routingSources = Object.fromEntries(await Promise.all(['serena', 'context-mode'].map(async name =>
   [name, await readFile(resolve(plugin, `skills/${name}/SKILL.md`), 'utf8')])));
 const routingCaptures = [];
-function sourceRoutingCapture(context, xerj, serena) {
+function sourceRoutingCapture(context, serena) {
   const role = context === 'root' ? roles.reviewer : context === 'executor' ? roles.executor : '';
   return {
     context, role,
     developerInstructions: composeStartup(user + (role ? `\n\n${role}` : ''), contract),
     implicitRouting: routingSources['context-mode'],
-    capabilities: Object.fromEntries(Object.entries({ xerj, serena }).map(([name, available]) => [name, {
+    capabilities: Object.fromEntries(Object.entries({ serena }).map(([name, available]) => [name, {
       available, loadedPath: available ? `skills/${name}/SKILL.md` : null,
       guidance: available ? routingSources[name] : '',
       notice: available ? '' : `${name} unavailable; earlier capability guidance inactive; use native tools.`,
@@ -178,10 +178,13 @@ function assertSourceRoutingCapture(capture, expected) {
   assert.equal(capture.developerInstructions, composeStartup(user + (role ? `\n\n${role}` : ''), contract));
   assert.equal(blockCount(capture.developerInstructions), 1);
   assert.equal(capture.implicitRouting, routingSources['context-mode']);
-  assert.match(capture.implicitRouting, /prefer lexical XERJ.*fresh index coverage/u);
+  assert.match(capture.implicitRouting, /use scoped `rg`.*verify findings in current source/u);
+  assert.deepEqual(Object.keys(capture.capabilities), ['serena']);
+  assert.match(capture.implicitRouting.replace(/\s+/gu, ' '), /Native discovery needs no optional service or index/u);
+  assert.match(capture.implicitRouting.replace(/\s+/gu, ' '), /Serena is missing or its needed operation is unverified, use native tools/u);
   assert.doesNotMatch(capture.developerInstructions, /Use native tools for instructions, bounded reads, edits, mutations/u);
   if (role) assert.match(role, /Follow the context-mode routing contract for source discovery, native reads\/writes and evidence analysis/u);
-  for (const name of ['xerj', 'serena']) {
+  for (const name of ['serena']) {
     const capability = capture.capabilities[name];
     assert.equal(capability.available, expected[name]);
     assert.equal(capability.loadedPath, expected[name] ? `skills/${name}/SKILL.md` : null);
@@ -195,30 +198,24 @@ function assertSourceRoutingCapture(capture, expected) {
     assert.equal(capability.notice, '');
     assert.ok(Buffer.byteLength(capability.guidance) < 16_384, 'host guidance size limit');
     const description = /^description: (.+)$/mu.exec(capability.guidance)?.[1];
-    if (name === 'xerj') {
-      assert.match(description, /bounded lexical queries.*broad or repeated source discovery.*fresh covered repositories/u);
-      assert.match(capability.guidance.replace(/\s+/gu, ' '), /perform `xerj_search`.*task-specific lexical query/u);
-      assert.match(capability.guidance, /Mapping is preparation, not the retrieval result/u);
-    } else {
-      assert.match(description, /Navigate symbols, trace references.*structured code edits/u);
-      assert.match(capability.guidance, /Local extraction suffices; unrelated callers are not a prerequisite/u);
-      assert.match(capability.guidance, /Interface changes also require verified references/u);
-      assert.match(capability.guidance, /A denied tool call is not permission to retry through another transport/u);
-    }
+    assert.match(description, /Navigate symbols, trace references.*structured code edits/u);
+    assert.match(capability.guidance, /Local extraction suffices; unrelated callers are not a prerequisite/u);
+    assert.match(capability.guidance, /Interface changes also require verified references/u);
+    assert.match(capability.guidance, /A denied tool call is not permission to retry through another transport/u);
   }
 }
 
 for (const context of ['root', 'executor', 'solo']) {
-  for (const xerj of [true, false]) for (const serena of [true, false]) {
-    test(`source routing delivery: ${context}/xerj-${xerj}/serena-${serena}`, () => {
-      const expected = { context, xerj, serena };
-      const capture = sourceRoutingCapture(context, xerj, serena);
+  for (const serena of [true, false]) {
+    test(`source routing delivery: ${context}/serena-${serena}`, () => {
+      const expected = { context, serena };
+      const capture = sourceRoutingCapture(context, serena);
       assertSourceRoutingCapture(capture, expected);
       // Provider state never changes the stable scalar or appends workflow text
       // to it. On-demand/capability bytes are disclosed separately.
-      const unavailable = sourceRoutingCapture(context, false, false);
+      const unavailable = sourceRoutingCapture(context, false);
       assert.equal(capture.developerInstructions, unavailable.developerInstructions);
-      routingCaptures.push({ id: `${context}/${xerj}/${serena}`, context,
+      routingCaptures.push({ id: `${context}/${serena}`, context,
         evidenceKind: 'synthetic-source-routing-delivery',
         scalarBytes: Buffer.byteLength(capture.developerInstructions),
         scalarWords: capture.developerInstructions.trim().split(/\s+/u).length,
@@ -235,26 +232,26 @@ for (const context of ['root', 'executor', 'solo']) {
 }
 
 test('source routing delivery rejects stale guidance, probes-only text, caller gates and coverage promotion', () => {
-  const expected = { context: 'root', xerj: true, serena: true };
-  const ready = sourceRoutingCapture('root', true, true);
+  const expected = { context: 'root', serena: true };
+  const ready = sourceRoutingCapture('root', true);
   assertSourceRoutingCapture(ready, expected);
   const damaged = [
-    value => { value.capabilities.xerj.guidance = value.capabilities.xerj.guidance.replace('perform `xerj_search`', 'stop after `xerj_map`'); },
+    value => { value.implicitRouting = value.implicitRouting.replace('use scoped `rg`', 'require a search service'); },
     value => { value.capabilities.serena.guidance = value.capabilities.serena.guidance.replace('Local extraction suffices; unrelated callers are not a prerequisite', 'Verify callers before every body lookup'); },
     value => { value.capabilities.serena.referenceReadiness = 'ready'; },
     value => { value.implicitRouting = ''; },
     value => { value.developerInstructions += `\n${canonical}`; },
-    value => { value.capabilities.xerj.loadedPath = 'other-checkout/skills/xerj/SKILL.md'; },
+    value => { value.capabilities.serena.loadedPath = 'other-checkout/skills/serena/SKILL.md'; },
   ];
   for (const mutate of damaged) {
     const capture = structuredClone(ready);
     mutate(capture);
     assert.throws(() => assertSourceRoutingCapture(capture, expected), assert.AssertionError);
   }
-  const unavailable = sourceRoutingCapture('solo', false, false);
-  assertSourceRoutingCapture(unavailable, { context: 'solo', xerj: false, serena: false });
+  const unavailable = sourceRoutingCapture('solo', false);
+  assertSourceRoutingCapture(unavailable, { context: 'solo', serena: false });
   unavailable.capabilities.serena.guidance = routingSources.serena;
-  assert.throws(() => assertSourceRoutingCapture(unavailable, { context: 'solo', xerj: false, serena: false }), assert.AssertionError);
+  assert.throws(() => assertSourceRoutingCapture(unavailable, { context: 'solo', serena: false }), assert.AssertionError);
 });
 
 function composeDeliveryFixture(input, nativeResolved, before) {
@@ -389,7 +386,7 @@ test('offline fresh/resumed CLI and Mobile root/child/solo pairs separate startu
     }
   }
   assert.equal(economyCaptures.length, 12);
-  assert.deepEqual([...new Set(economyCaptures.map(row => row.startupAddedBytes))].sort((a,b) => a-b), [0, 2518]);
+  assert.deepEqual([...new Set(economyCaptures.map(row => row.startupAddedBytes))].sort((a,b) => a-b), [0, 2480]);
   // Equal composition inputs do not establish equal host delivery or receipt.
   assert.ok(economyCaptures.every(row => row.liveHostDeliveredBytes === null && row.providerUsage === null));
 });
@@ -397,7 +394,7 @@ test('offline fresh/resumed CLI and Mobile root/child/solo pairs separate startu
 test('synthetic capture export retains structural hashes only', async () => {
   assert.equal(captures.length, deliveryFixture.cases.length);
   assert.equal(new Set(captures.map(capture => capture.id)).size, captures.length);
-  assert.equal(routingCaptures.length, 12);
+  assert.equal(routingCaptures.length, 6);
   assert.equal(new Set(routingCaptures.map(capture => capture.id)).size, routingCaptures.length);
   const report = JSON.stringify({ schemaVersion: 1, cases: captures, routingCases: routingCaptures,
     economyCases: economyCaptures }, null, 2);

@@ -53,13 +53,17 @@ preserve standalone/operator fallback.
 ## Tool selection
 
 For broad or repeated source discovery within one repository or across repositories,
-prefer lexical XERJ with a working service and fresh index coverage of the requested
-scope; follow the [XERJ retrieval workflow](../xerj/SKILL.md#retrieval-workflow). Keep precise
+use scoped `rg` and verify findings in current source. If `rg` is unavailable,
+use another native text search. Preserve repository/path identities, including
+shared aliases and dirty or untracked source. Confirm the requested scope and
+current files before an absence claim. Continue the task using verified findings.
+Keep precise
 known-file lookups, governing reads, current-file verification, Git and writes
 native. Use ready Serena for local symbol relationships and structured edits.
 Analyze large evidence with context-mode. Use no tool-call quota or blanket grep
-ban. For broad native fallback, state a relevant coverage/readiness reason
-without narrating every command.
+ban. Native discovery needs no optional service or index. When Serena is missing
+or its needed operation is unverified, use native tools with the specific
+limitation; do not repeat unchanged readiness probes.
 
 | Need | Tool |
 |---|---|

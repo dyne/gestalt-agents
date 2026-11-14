@@ -318,7 +318,7 @@ and stops without edits when a required skill is unavailable. Executors may
 load additional relevant skills as challenges arise without revising the plan.
 Skills are loaded on demand, not all at startup; being advertised in the catalog
 is not the same as having read their instructions. Conditional capabilities such
-as `gestalt:xerj` and `gestalt:serena` still require verified runtime tools.
+as `gestalt:serena` and `gestalt:playwright` still require verified runtime tools.
 Skill use does not expand the plan's scope or the executor's authority.
 
 ## 💼 License
@@ -368,14 +368,6 @@ boundary; only verified connected tools establish readiness. Read the
 [browser lifecycle guide](plugins/gestalt/skills/playwright/references/lifecycle.md)
 for supervisor requests, disabled profiles, missing Chrome and busy workspaces.
 
-The canonical `gestalt:xerj` skill is packaged with Gestalt. Managed runtime
-launchers expose it only alongside verified xerj MCP tools, and force it into
-the effective session skills when ready. Installation and package discovery do
-not establish runtime readiness. A missing service or unindexed repository
-falls back to `rg` and direct file reads. Indexing requires an explicit request
-for the identified repository; startup never autoindexes a workspace. Existing
-Gestalt workflow skills retain their fixed inclusion.
-
 The conditional `gestalt:serena` skill uses the verified managed connection for
 symbol navigation, references, diagnostics and structured edits in the active
 workspace. CLI and Mobile select it only when its MCP connection is verified,
@@ -384,8 +376,8 @@ uses `--context codex --mode editing`; native filesystem policy, per-tool
 approvals and collaboration plan-mode instructions still govern edits. A
 connected catalog does not prove language readiness: require a successful
 symbol overview and fall back to native tools for unsupported languages or
-startup failures. Serena and XERJ readiness are independent; use XERJ for broad
-cross-project references and context-mode to analyze large outputs. Startup
+startup failures. Use scoped native search for broad cross-project references
+and context-mode to analyze large outputs. Startup
 does not install or index Serena implicitly.
 
 For adoption, use the [coordinated tools guide](plugins/gestalt/skills/context-mode/references/coordinated-tools.md):

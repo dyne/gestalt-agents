@@ -19,14 +19,22 @@ function adoptionReport(kind = "not-run"): any {
       missingInputs: kind === "not-run" ? ["No authorized live provider adapter"] : [],
       runtimeEvidence: kind === "not-run" ? null : evidence("runtime-observation"),
       outcome: kind === "not-run" ? null : { passed: true, evidence: evidence("outcome-check") },
-      operations: kind === "not-run" ? [] : ["xerj/query", "serena/symbol", "serena/references", "native/fallback"].map(id => {
+      operations: kind === "not-run" ? [] : ["native/search", "serena/symbol", "serena/references", "native/fallback"].map(id => {
         const [tool, operation] = id.split("/");
         return { tool, operation, sourceRevision: "b".repeat(40), locator: "src/example.py:1",
-          fallbackReason: tool === "native" ? "Exact-file lookup" : null, evidence: evidence("tool-observation") };
+          fallbackReason: operation === "fallback" ? "Exact-file lookup" : null, evidence: evidence("tool-observation") };
       }), usage: Object.fromEntries(["inputTokens", "outputTokens", "providerLatencyMs"].map(metric => [metric, { value: null, evidence: null }])) })) };
 }
 
 describe("bounded adoption report admission", () => {
+  test("requires useful native search and rejects the retired provider operation", () => {
+    const report = adoptionReport("fixture");
+    expect(report.roles[0].operations[0]).toMatchObject({ tool: "native", operation: "search", fallbackReason: null });
+    expect(validateAdoptionReport(report).valid).toBe(true);
+    report.roles[0].operations[0].tool = "xerj";
+    report.roles[0].operations[0].operation = "query";
+    expect(() => validateAdoptionReport(report)).toThrow("ADOPTION_OPERATION_INVALID");
+  });
   test("validates all roles through the read-only CLI and exports only a structural verdict", () => {
     for (const kind of ["not-run", "fixture", "real-model"]) {
       const result = validateAdoptionReport(adoptionReport(kind));

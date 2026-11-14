@@ -28,6 +28,16 @@ import re
 import sys
 
 skills = Path(sys.argv[1])
+assert not (skills / "xerj").exists(), "retired skill must not be distributed"
+# Check relative links across the complete clean skill distribution. Fenced
+# code examples can contain regular expressions rather than Markdown links.
+for entry in skills.rglob("*.md"):
+    prose = re.sub(r"^```.*?^```[^\n]*$", "", entry.read_text(), flags=re.MULTILINE | re.DOTALL)
+    for target in re.findall(r"\]\(([^)]+)\)", prose):
+        if "://" not in target:
+            relative = target.split("#", 1)[0]
+            destination = entry.parent / relative if relative else entry
+            assert destination.is_file(), (entry, target)
 # New conditional instructions must resolve in the distributable tree as well
 # as the working checkout. Discovery must not depend on development fixtures.
 for entry in [skills / "org-plan/SKILL.md", skills / "context-mode/SKILL.md",
@@ -71,7 +81,6 @@ expected = {
     "systematic-debugging",
     "verification-before-completion",
     "writing-skills",
-    "xerj",
     "serena",
     "playwright",
 }

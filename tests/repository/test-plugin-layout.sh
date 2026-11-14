@@ -29,7 +29,6 @@ expected_skills = {
     "development-testing",
     "verification-before-completion",
     "writing-skills",
-    "xerj",
     "serena",
     "playwright",
 }

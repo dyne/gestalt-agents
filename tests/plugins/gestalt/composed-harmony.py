@@ -30,12 +30,9 @@ def run():
                       for p in root.rglob("*") if p.is_file()}
             source_case = dict(case, intent=case.get("intent", "broad"),
                                repositories=["alpha", "fork"], query="checkout")
-            source_case["expected"] = "native" if source_case["intent"] == "precise" or case.get("catalog") else "xerj"
-            if case.get("catalog"):
-                source_case["reason"] = case["catalog"]
-            else:
-                if source_case["expected"] == "xerj":
-                    source_case["expectedAliases"] = ["alpha/src/cart.py", "fork/src/cart.py"]
+            source_case["expected"] = "native"
+            if source_case["intent"] == "broad":
+                source_case["expectedAliases"] = ["alpha/src/cart.py", "fork/src/cart.py"]
             source = routing.replay(root, files, source_case)
             routing.validate(source_case, source, root)
             semantic_root = root / "semantic"

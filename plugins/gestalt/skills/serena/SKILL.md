@@ -45,8 +45,8 @@ connection, always managed with `--context codex --mode editing`.
   switching, mode management, or shell execution through Serena. Let the managed
   connection retain the session's native sandbox policy; never call an unconfined
   backend directly or replace per-tool prompt approvals with blanket approval.
-- Use XERJ for broad or repeated source discovery in fresh covered repositories,
-  including one repository, retaining repository provenance and path aliases;
+- Use scoped `rg` and current source reads for broad or repeated source discovery,
+  including across repositories, retaining repository provenance and path aliases;
   verify references against current local source before applying them. Serena
   supplies semantics for the active workspace. Use context-mode for large tool,
   diagnostic or file output when available.

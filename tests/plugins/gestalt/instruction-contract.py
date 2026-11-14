@@ -28,7 +28,6 @@ SOURCES = {
     "format": ORG / "references/plan-format.md",
     "policy": ORG / "references/model-policy-workflow.md",
     "selection": ORG / "references/model-selection.md",
-    "xerj": ROOT / "plugins/gestalt/skills/xerj/SKILL.md",
     "serena": ROOT / "plugins/gestalt/skills/serena/SKILL.md",
     "coding": ROOT / "plugins/gestalt/skills/coding/SKILL.md",
     "debugging": ROOT / "plugins/gestalt/skills/systematic-debugging/SKILL.md",
@@ -115,14 +114,15 @@ def check_profiles(directory):
 def main():
     documents = {key: path.read_text() for key, path in SOURCES.items()}
     assert "Plans may declare `$gestalt:context-mode` when relevant" in documents["routing"]
-    assert "Org Plans may declare `$gestalt:xerj` when relevant" in documents["xerj"]
     count = check_scenarios(documents)
     check_links()
-    assert "`$gestalt:xerj` when available; otherwise use native search" in documents["coding"]
-    assert "../xerj/SKILL.md#retrieval-workflow" in documents["debugging"]
+    assert "use scoped `rg` and current source reads" in documents["coding"]
+    assert "use scoped native text search and current source reads" in documents["debugging"]
+    for source in ("routing", "coding", "debugging", "serena", "org", "format", "coordinated"):
+        assert "xerj" not in documents[source].lower(), source
     for source, before, after in (
-            ("xerj", "perform `xerj_search`", "stop after `xerj_map`"),
-            ("xerj", "Reuse an unchanged verified map", "Repeat the map before each query"),
+            ("routing", "Continue the task using verified findings", "Stop after choosing a route"),
+            ("routing", "Native discovery needs no optional service or index", "Require a service and index before native discovery"),
             ("serena", "Local extraction suffices; unrelated callers are not a prerequisite",
              "Require unrelated callers before every body lookup"),
             ("serena", "Reuse successful observations with their original time",
@@ -208,9 +208,9 @@ def main():
         pass
     else:
         raise AssertionError("scenario contract accepted inherited Astra")
-    for replacement in ("Use a tool-call quota and blanket grep ban", "Always use native grep"):
+    for replacement in ("Use a tool-call quota and blanket grep ban", "Require Serena for every source search"):
         damaged = dict(documents)
-        damaged["routing"] = re.sub(r"For broad or repeated source discovery.*?every command\.",
+        damaged["routing"] = re.sub(r"For broad or repeated source discovery.*?unchanged readiness probes\.",
                                       replacement, documents["routing"], flags=re.S)
         try:
             check_scenarios(damaged)
@@ -250,7 +250,7 @@ def main():
             assert current["sources"][name][unit] <= limits[unit], (name, unit, "profile ceiling exceeded")
     delivery = current["delivery"]
     assert delivery["hostInstructions"] is None and delivery["toolSchemas"] is None
-    assert delivery["discoveryCatalog"]["count"] == 20
+    assert delivery["discoveryCatalog"]["count"] == 19
     categories = delivery["categories"]
     assert categories["required-references"]["sources"] == ["supervision", "evidence"]
     assert categories["inactive-vendor-example"]["sources"] == ["vendor-codex-guidance-inactive"]

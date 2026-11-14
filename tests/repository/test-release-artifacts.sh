@@ -33,9 +33,15 @@ git -C "$root" init -q
 # maintenance writing into the disposable repository after validation finishes.
 git -C "$root" config maintenance.auto false
 git -C "$root" config gc.auto 0
-git -C "$root" add -- .
+# The copy already contains only distributable source paths. Preserve tracked
+# vendor files that match their own ignore rules (for example configs/AGENTS.md).
+git -C "$root" add --force -- .
 git -C "$root" -c user.name='Release fixture' -c user.email='fixture@example.invalid' \
   -c commit.gpgsign=false commit -qm 'test: snapshot distributable fixture'
+
+# Validate the same exact skill and plugin metadata contract in the clean copy
+# used for packaging, rather than relying only on the development checkout.
+bash "$root/tests/repository/test-plugin-layout.sh"
 
 version=$(python3 - "$root/plugins/gestalt/.codex-plugin/plugin.json" <<'PY'
 import json
@@ -307,6 +313,13 @@ fi
 if "$root/scripts/build-release-artifacts.sh" v1.0.0 "$tmp/v1" 2>/dev/null; then
   printf 'packager unexpectedly accepted a pre-v2 release tag\n' >&2
   exit 1
+fi
+
+if [[ -n ${RELEASE_ARTIFACT_EVIDENCE_DIR:-} ]]; then
+  # Preserve only validated bundles/checksums; the disposable fixture and its
+  # installation/profile experiments retain their ordinary cleanup boundary.
+  mkdir -- "$RELEASE_ARTIFACT_EVIDENCE_DIR"
+  cp -- "$artifacts"/*.zip "$artifacts/SHA256SUMS" "$RELEASE_ARTIFACT_EVIDENCE_DIR/"
 fi
 
 printf 'release marketplace and standalone skill bundles are complete\n'

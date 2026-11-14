@@ -51,8 +51,8 @@ workspace is inferred from cwd. The standalone `tsx` CLI is unchanged.
 
 Workspace `.gestalt/context-mode` databases, evidence, source maps and session
 state retain their existing persistent storage rules. Source, Git, history,
-auth, installations, dependency caches, browser profiles and Serena/XERJ indexes
-are persistent. Destination-local atomic installation staging remains beside
+auth, installations, dependency caches, browser profiles, Serena caches and
+legacy Xerj index data are persistent. Destination-local atomic installation staging remains beside
 its destination; changing temporary routing does not grant deletion authority.
 The runtime installer's `.stage-*` tree and its `.context-mode-prepare-tmp`
 remain an installation transaction beside the persistent runtime destination.

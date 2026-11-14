@@ -15,6 +15,16 @@ and contents while excluding generated dependencies and build artifacts.
 
 ## Downstream changes
 
+- Retires Xerj assumptions from the offline adoption harness: useful lexical
+  discovery is `native/search`, while verified Serena symbol/reference work and
+  native fallback retain their separate evidence requirements. Regression
+  fixtures reject the retired provider operation. No provider is dispatched,
+  dependency upgraded or historical measurement rebased. The read-only Mobile
+  compatibility fixture is refreshed from `ea8ad34ac93930d39fb8230cb262625fe48b47eb`
+  to accepted removal commit `03a9682f71b03d9a77ed7f01c7b5196acc196a55`;
+  readiness and efficiency bytes are unchanged, and startup guidance no longer
+  tests the removed server as an available optional integration.
+
 - Adds a read-only structural adoption-report validation command to the existing
   model-trial harness. Requires explicit root/executor/solo observations or
   missing prerequisites, outcome/tool evidence, nullable usage and unverified

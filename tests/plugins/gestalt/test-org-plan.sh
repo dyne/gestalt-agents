@@ -148,7 +148,7 @@ done
 for skills in \
   '$gestalt:development-testing' \
   '$gestalt:coding $vite $gestalt:systematic-debugging' \
-  '$gestalt:xerj $gestalt:serena'; do
+  '$gestalt:playwright $gestalt:serena'; do
   copy valid-minimal.org gestalt-skills.org
   sed "s/:SKILLS:.*/:SKILLS: $skills/" "$tmp/gestalt-skills.org" >"$tmp/changed" && \
     mv "$tmp/changed" "$tmp/gestalt-skills.org"

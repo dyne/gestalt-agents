@@ -194,7 +194,7 @@ export function validateAdoptionReport(report: any) {
     for (const op of row.operations) {
       keys(op, ["tool", "operation", "sourceRevision", "locator", "fallbackReason", "evidence"]);
       const id = `${op.tool}/${op.operation}`;
-      check(["xerj/query", "serena/symbol", "serena/references", "native/fallback"].includes(id)
+      check(["native/search", "serena/symbol", "serena/references", "native/fallback"].includes(id)
         && sha(op.sourceRevision, 40) && text(op.locator), "OPERATION_INVALID");
       check(id === "native/fallback" ? text(op.fallbackReason) : op.fallbackReason === null, "FALLBACK_INVALID");
       evidence(op.evidence, "tool-observation");

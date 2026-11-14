@@ -77,8 +77,8 @@ runtime or build prerequisite.
 
 The `gestalt` plugin distributes 19 Codex skills: nine development and engineering
 skills, eight context-mode routing and command skills, and two conditional
-retrieval capabilities (XERJ and Serena). The 17 non-conditional skills are
-enabled by default; retrieval capabilities depend on runtime readiness.
+managed capabilities (Serena and Playwright). The 17 non-conditional skills are
+enabled by default; managed capabilities depend on runtime readiness.
 
 Use `$gestalt:coding` for coding and architecture, `$gestalt:scripting` for Bash
 and shell work, and `$gestalt:security` for requested security reviews, secure

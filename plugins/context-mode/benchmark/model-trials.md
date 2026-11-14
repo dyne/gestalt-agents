@@ -68,8 +68,9 @@ quality and savings remain unverified even after importing a format-valid file.
 ## Root, executor and solo adoption trial
 
 Current status: **not-run**. This package has no live provider/dispatch adapter.
-The current tool-economy runtime has no verified named-fork XERJ index coverage
-or usable Python/MJS Serena reference navigation (its active server is Svelte).
+Historical tool-economy runs lacked named-fork index coverage and usable
+Python/MJS Serena references. Those observations do not establish current
+runtime readiness; native search has no index prerequisite.
 Plan continuation does not authorize live provider quota. Supply an explicitly
 authorized test runtime/provider adapter, task coverage and language readiness
 before observing model adoption. Do not install, index, switch projects, start
@@ -81,15 +82,15 @@ For adoption, repeat these steps separately for `root`, `executor` and `solo`:
 
 1. Freeze the source branch/base/HEAD and dirty diff, installed package revision,
    runtime/tool configuration, task inputs and exact outcome checks outside Git.
-   Choose a covered broad discovery question, a supported symbol/caller question
+   Choose a scoped native discovery question, a supported symbol/caller question
    and an exact-file or unsupported-language fallback. Use the same acceptance
    criteria across roles; root work remains read-only and executor edits require
    their existing scope authority. Use disposable task fixtures for edits.
-2. Verify connected XERJ catalog repository/path provenance and current coverage.
+2. Verify native search repository/path scope against current source.
    Verify Serena's definition/reference relation against current source. Record
    missing prerequisites as `not-run`; an advertised tool or symbol overview
    alone does not establish reference readiness. Do not create missing inputs.
-3. In the separately authorized runtime, observe one useful XERJ query, a Serena
+3. In the separately authorized runtime, observe one useful native source search, a Serena
    symbol operation and reference operation, and a correct native fallback per
    role. Retain selected operations, source revisions, useful locators, fallback
    reason and independent outcome-check references. Verify actual current files
@@ -135,7 +136,7 @@ are rejected):
   `runtimeEvidence`, `outcome`, `operations` and `usage`.
 - An observed role has empty `missingInputs`, runtime evidence, an outcome
   `{passed: boolean, evidence}`, and operations for all four pairs:
-  `xerj/query`, `serena/symbol`, `serena/references`, `native/fallback`.
+  `native/search`, `serena/symbol`, `serena/references`, `native/fallback`.
   Each operation has `tool`, `operation`, `sourceRevision`, `locator`,
   `fallbackReason` (nonempty only for fallback) and `evidence`.
 - `usage` has `inputTokens`, `outputTokens`, `providerLatencyMs`, each
@@ -154,7 +155,7 @@ are rejected):
   kinds require at least one observed role and may retain unrun roles explicitly.
 
 For the current not-run record, use all three roles with
-`missingInputs: ["Authorized live provider adapter", "Verified task index and language reference readiness"]`.
+`missingInputs: ["Authorized live provider adapter", "Verified source scope and language reference readiness"]`.
 No observed operations, outcome or usage can be inferred from passing offline
 fixtures. The validator's verdict always leaves live adoption and installed
 equivalence unverified; a positive live claim requires independent observations.
