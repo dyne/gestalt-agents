@@ -1,4 +1,4 @@
-0644 5ee86a35304719b35d1645c17c51030ce1327d162f64fe08e2d279938432656b  tests/scripts/configure-codex.test.ts
+0644 b8651e572b7742bc499887a003e4f3c049c8d61f5ff634375fc099bd7b7efead  tests/scripts/configure-codex.test.ts
 0644 00f094275f9376343897d6ac82c995ddc99e7a68c3c74e840a064011c22600c3  tests/session/session-goal.test.ts
 0644 613c70ac86540c792135412a238a1425ad4609a131c8d88ff819848f8d3b67bb  src/cli.ts
 0644 016b08806075962abb8b0ebd160d9cb5c5ca3aa0055dd4a10ef52894b1ffed20  tests/fixtures/playwright-network.txt
@@ -105,7 +105,7 @@
 0644 3ebc05d31d9ac68d3b950d05546f29b01586322660c38c8c94c4447c60cc359f  tests/fixtures/tsc-errors.txt
 0644 3f04e6ae11958ebc17545b5c69649c8a11fa0e90bc04439e179b61067b33de63  tests/adapters/opencode.test.ts
 0644 3f06cfbce24fdfde17b4ff03bb25796471c8a9eadd671c125cd8ec6ba1bacb91  configs/codex/AGENTS.md
-0644 fb9116f71a923139fc496c6ee530cab6e40a1791410d46dbb90b891bd51e767f  UPSTREAM.md
+0644 63bb064276e0bc94d646e9edf7c2846989ff2209ee1ffa30e4a9df4c2668af96  UPSTREAM.md
 0644 61aeba0f65fb32040e77fff98675a05ae804ef7b3dc52294b7dd1705c571b3d6  .codex-plugin/plugin.json
 0644 a39581c0e7bc14fe2e28b9187fefeed053a9c4e82d8f92ec868f9719c7a1467d  src/server.ts
 0644 2933d8a81c02a7475973a05328ce2c5acb9021bb89938936dbff1342b8b3c284  scripts/runtime-preflight.mjs
@@ -156,7 +156,7 @@
 0644 615b46fac8199c16bcf641b9f610026f839b159dc90cedbd6bd69e1b2b6ea067  tests/integration/project-dir-strict.test.ts
 0644 62236eed15011d6cca701fa565044042d8d1b9ed1fa77b5324318f74a15d5d1b  tests/util/package-deps-policy.test.ts
 0644 62af1941eca55afe7802e9a3b30036620650f29049bc47dc26ebedaec8381ad8  tests/hooks/sessionstart-shell-snapshot-heal.test.ts
-0644 3385eb414c0a14222e53c91ac3616c6b2ba29da9de91226ee057af8ef07c5242  scripts/configure-codex.mjs
+0644 5e14bbccfbc88d7e9c44778d02d0256d6a954cd00658e4d38064bcb2211bcc32  scripts/configure-codex.mjs
 0644 637963ccb6881e3e61d9acbea781ce97709ec2108c44fa47bb21931f91fc4d17  tests/session/format-datetime.test.ts
 0644 63d70f789db4f4c6d0a68f16c4da7b9fc7152005c1032cd7c13d8989ee3029f5  src/adapters/claude-code/index.ts
 0644 652b0f7e7e092e44ff84f6b769748edb1e4baac0aa4258ec253db9493b94d94c  tests/context-comparison.ts

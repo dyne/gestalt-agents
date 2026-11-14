@@ -2,6 +2,7 @@ import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "no
 import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { spawnSync } from "node:child_process";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   configureCodexIntegration,
@@ -32,6 +33,133 @@ afterEach(async () => {
 });
 
 describe("Codex context-mode integration configurator", () => {
+  it.each([
+    ["LF and final newline", "\n", "\n", "\n"],
+    ["CRLF and final newline", "\r\n", "\r\n", "\r\n"],
+    ["mixed endings and no final newline", "\r\n", "\n", ""],
+    ["mixed endings and CRLF EOF", "\n", "\r\n", "\r\n"],
+  ])("preserves adjacent operator comments and user MCP bytes through repeated actual writes: %s", async (_label, managedEol, userEol, eof) => {
+    const paths = await fixture();
+    mkdirSync(paths.codexHome, { recursive: true });
+    const prefix = `# operator prefix${managedEol}[features]${managedEol}hooks = true${managedEol}` +
+      `[plugins."${pluginId}"]${managedEol}enabled = false${managedEol}`;
+    const user = [
+      "  # operator comment retained exactly",
+      "[mcp_servers.xerj]",
+      'command = "/operator/unrelated-server" # keep operator command',
+      'args = ["--operator-option", "keep spaces"]',
+      "enabled = false",
+      "# trailing operator comment",
+    ].join(userEol) + eof;
+    const source = prefix + `[mcp_servers.context-mode]${managedEol}` +
+      `command = "old"${managedEol}args = ["/old/context-mode-mcp.mjs"]${managedEol}${managedEol}` + user;
+    const configPath = join(paths.codexHome, "config.toml");
+    writeFileSync(configPath, source, { mode: 0o600 });
+    const first = configureCodexIntegration({ ...paths, pluginId });
+    const output = readFileSync(configPath, "utf8");
+    expect(first.changed).toContain(configPath);
+    expect(output.startsWith(prefix)).toBe(true);
+    expect(output.endsWith(user)).toBe(true);
+    expect(statSync(configPath).mode & 0o777).toBe(0o600);
+    const parse = (text: string) => {
+      const parsed = spawnSync("python3", ["-c", "import json,sys,tomllib; print(json.dumps(tomllib.loads(sys.stdin.read())['mcp_servers']['xerj']))"], { input: text, encoding: "utf8" });
+      expect(parsed.status, parsed.stderr).toBe(0);
+      return JSON.parse(parsed.stdout);
+    };
+    expect(parse(output)).toEqual(parse(source));
+    expect(configureCodexIntegration({ ...paths, pluginId }).changed).toEqual([]);
+    expect(readFileSync(configPath, "utf8")).toBe(output);
+  });
+
+  it.each(['"""', "'''"])("keeps table-like text and comment markers inside multiline values (%s)", quote => {
+    const unrelated = `description = ${quote}\n[features]\nhooks = false\n[mcp_servers.context-mode]\n# text, not an operator comment\n${quote}\n` +
+      '[mcp_servers.operator]\nargs = [\n  "[mcp_servers.context-mode]", # array note\n  "keep # literal",\n]\n';
+    const source = unrelated + '\n[mcp_servers.context-mode]\ncommand = "old"\n' +
+      '# preserved standalone note\nargs = [\n  "old", # preserved inline note\n]\n';
+    const output = reconcileCodexToml(source, { launcherPath: "/new/mcp.mjs", pluginId });
+    expect(output.startsWith(unrelated)).toBe(true);
+    expect(output).toContain("# preserved standalone note\n");
+    expect(output).toContain(" # preserved inline note\n");
+    expect(output).toContain('args = ["/new/mcp.mjs"]');
+    expect(reconcileCodexToml(output, { launcherPath: "/new/mcp.mjs", pluginId })).toBe(output);
+  });
+
+  it("removes a complete legacy inline assignment without touching its neighboring multiline value", () => {
+    const user = 'operator = { command = "keep", args = ["[mcp_servers.context-mode]", "# literal"] }\r\n';
+    const source = '[mcp_servers]\r\ncontext-mode = { command = "old", args = ["old"] } # operator note\r\n' + user;
+    const output = reconcileCodexToml(source, { launcherPath: "/new/mcp.mjs", pluginId });
+    expect(output).toContain(user);
+    expect(output).toContain(" # operator note\r\n");
+    expect(output).not.toContain('command = "old"');
+    expect(reconcileCodexToml(output, { launcherPath: "/new/mcp.mjs", pluginId })).toBe(output);
+  });
+
+  it.each([
+    'mcp_servers = { operator = { command = "/operator/server" } }\n',
+    '"mcp_servers" = { operator = { command = "/operator/server" } }\n',
+    "'mcp_servers' = { operator = { command = '/operator/server' } }\n",
+    `[plugins]\n"${pluginId}" = { enabled = true }\n`,
+    `["plugins"]\n'${pluginId}' = { enabled = true }\n`,
+    `plugins."${pluginId}" = { enabled = true }\n`,
+    `"plugins".'${pluginId}' = { enabled = true }\n`,
+    'mcp_servers."context-mode".command = "old"\n',
+    '[mcp_servers]\n"context-mode".args = ["old"]\n',
+    `[plugins]\n"${pluginId}".enabled = true\n`,
+    '[mcp_servers.context-mode.command]\noperator = true\n',
+    '[features.hooks]\noperator = true\n',
+    `[plugins."${pluginId}".enabled]\noperator = true\n`,
+    '[[mcp_servers]]\noperator = "keep"\n',
+    '[[plugins]]\noperator = "keep"\n',
+  ])("rejects valid but unsupported managed-parent forms before any integration write: %s", async source => {
+    const parsed = spawnSync("python3", ["-c", "import sys,tomllib; tomllib.loads(sys.stdin.read())"], { input: source, encoding: "utf8" });
+    expect(parsed.status, parsed.stderr).toBe(0);
+    const paths = await fixture();
+    mkdirSync(join(paths.codexHome, "bin"), { recursive: true });
+    const files = {
+      "config.toml": source,
+      "hooks.json": '{"operator":true}\n',
+      "bin/context-mode-mcp.mjs": "// keep current MCP launcher\n",
+      "bin/context-mode-hook.mjs": "// keep current hook launcher\n",
+    };
+    for (const [name, text] of Object.entries(files)) writeFileSync(join(paths.codexHome, name), text);
+    expect(() => configureCodexIntegration({ ...paths, pluginId })).toThrow("Unsupported or ambiguous Codex TOML");
+    for (const [name, text] of Object.entries(files)) expect(readFileSync(join(paths.codexHome, name), "utf8")).toBe(text);
+  });
+
+  it.each([
+    '[mcp_servers]\noperator = { command = "/operator/server" }\n',
+    '"mcp_servers".operator.command = "/operator/server"\n',
+    'plugins.operator = { enabled = true }\n',
+    '[mcp_servers.context-mode.env]\nOPERATOR = "keep"\n',
+  ])("preserves supported sibling/child tables with valid output and repeat stability: %s", source => {
+    const output = reconcileCodexToml(source, { launcherPath: "/new/mcp.mjs", pluginId });
+    expect(output.startsWith(source)).toBe(true);
+    const parsed = spawnSync("python3", ["-c", "import sys,tomllib; tomllib.loads(sys.stdin.read())"], { input: output, encoding: "utf8" });
+    expect(parsed.status, parsed.stderr).toBe(0);
+    expect(reconcileCodexToml(output, { launcherPath: "/new/mcp.mjs", pluginId })).toBe(output);
+  });
+
+  it.each([
+    '[mcp_servers.context-mode]\ncommand = """unterminated',
+    '[mcp_servers.context-mode]\nargs = ["old", }\n',
+    '[features]\nhooks = false\nhooks = true\n',
+    '[mcp_servers.context-mode]\ncommand = "old"\n[mcp_servers."context-mode"]\ncommand = "other"\n',
+    'features.hooks = false\n',
+    '[[mcp_servers.context-mode]]\ncommand = "old"\n',
+    'description = "invalid\\\ncontinuation"\n',
+  ])("rejects unsupported or ambiguous TOML before changing any integration file: %s", async source => {
+    const paths = await fixture();
+    mkdirSync(join(paths.codexHome, "bin"), { recursive: true });
+    const files = {
+      "config.toml": source,
+      "hooks.json": '{"operator":true}\n',
+      "bin/context-mode-mcp.mjs": "// keep current MCP launcher\n",
+      "bin/context-mode-hook.mjs": "// keep current hook launcher\n",
+    };
+    for (const [name, text] of Object.entries(files)) writeFileSync(join(paths.codexHome, name), text);
+    expect(() => configureCodexIntegration({ ...paths, pluginId })).toThrow("Unsupported or ambiguous Codex TOML");
+    for (const [name, text] of Object.entries(files)) expect(readFileSync(join(paths.codexHome, name), "utf8")).toBe(text);
+  });
   it("refuses a prerelease cache fixture before it can replace the live launcher", async () => {
     const paths = await fixture();
     const invalidRoot = join(paths.pluginRoot, "..", "0.0.0-test");

@@ -15,6 +15,18 @@ and contents while excluding generated dependencies and build artifacts.
 
 ## Downstream changes
 
+- Reconciles Codex TOML as byte-preserving logical records instead of deleting
+  physical-line sections. Managed registration replacement retains standalone
+  operator comments, unrelated values, mixed line endings and trailing bytes;
+  repeated configuration remains stable. Quoted/multiline values and nested
+  array delimiters cannot introduce false table boundaries. Unsupported or
+  ambiguous managed syntax is rejected before launchers, TOML or hooks are
+  written. Decoded path-prefix checks also reject sealed inline/dotted parents,
+  array parents and table forms that conflict with generated controlled fields;
+  unrelated sibling tables and supported child environment tables remain intact.
+  This bounded lexical editor is not a general TOML semantic validator;
+  supported registration, approval and hook settings remain unchanged.
+
 - Retires Xerj assumptions from the offline adoption harness: useful lexical
   discovery is `native/search`, while verified Serena symbol/reference work and
   native fallback retain their separate evidence requirements. Regression
