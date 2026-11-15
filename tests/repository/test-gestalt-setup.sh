@@ -35,9 +35,11 @@ tmp=$(mktemp -d "${TMPDIR:-/tmp}/gestalt-setup-test.XXXXXX")
 trap 'rm -rf "$tmp"' EXIT HUP INT TERM
 tmp_real=$(CDPATH='' cd -- "$tmp" && pwd -P)
 output=$(env -u CODEX_HOME HOME="$tmp" bash "$script" --dry-run)
-assert_contains "$output" "$tmp/.codex-gestalt" "dry-run uses the isolated default Codex home"
+# HOME deliberately retains the caller's spelling (including macOS /var and
+# repeated separators). The setup owner reports its validated physical root.
+assert_contains "$output" "$tmp_real/.codex-gestalt" "dry-run uses the isolated physical Codex home"
 assert_contains "$output" "prepare-supervision" "dry-run prepares supervision profiles"
-assert_contains "$output" "$tmp/.codex-gestalt/bin/org-plan" \
+assert_contains "$output" "$tmp_real/.codex-gestalt/bin/org-plan" \
   "dry-run installs the stable Org Plan helper"
 assert_contains "$output" "$root/scripts/install-org-plan.mjs" \
   "dry-run schedules the complete validated Org Plan bundle publisher"
@@ -47,6 +49,16 @@ assert_contains "$output" "configure context-mode MCP and hooks" \
 assert_contains "$output" "install-managed-commands.mjs" \
   "dry-run schedules stable public commands"
 assert_absent "$tmp/.codex-gestalt" "dry-run does not create the Codex home"
+
+# Exercise lexical-to-physical HOME normalization on Linux too, without changing
+# the caller's validated scratch environment or permitting profile creation.
+ln -s "$tmp_real" "$tmp/home-alias"
+alias_output=$(env -u CODEX_HOME HOME="$tmp/home-alias/./" \
+  GESTALT_HOME="$tmp/alias-gestalt" bash "$script" --dry-run)
+assert_contains "$alias_output" "$tmp_real/.codex-gestalt/bin/org-plan" \
+  "dry-run canonicalizes a symlinked HOME inside the same isolated fixture"
+assert_absent "$tmp/.codex-gestalt" "aliased dry-run does not create the Codex home"
+assert_absent "$tmp/alias-gestalt" "aliased dry-run does not create the Gestalt home"
 
 # Exercise the exact publisher command emitted by setup, including normal Org
 # commands through the uninstrumented public launcher on fresh and flat homes.
