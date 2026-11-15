@@ -142,9 +142,17 @@ subprocess.run([
 bundle_entries = regular_entries(artifacts / f"gestalt-agents-{tag}.zip")
 assert ".agents/plugins/marketplace.json" in bundle_entries
 assert "gestalt-setup.sh" in bundle_entries
+assert "gestalt-setup.mjs" in bundle_entries
+assert "scripts/setup-agents.mjs" in bundle_entries
+assert "scripts/setup-api.md" in bundle_entries
+assert "scripts/setup-storage.mjs" in bundle_entries
+assert "scripts/prepare-agent-profiles.mjs" in bundle_entries
 assert "scripts/install-managed-commands.mjs" in bundle_entries
+assert "scripts/native-command-shims.mjs" in bundle_entries
 assert "scripts/install-org-plan.mjs" in bundle_entries
 assert "scripts/verify-gestalt-skill-catalog.mjs" in bundle_entries
+assert "plugins/context-mode/scripts/setup-command-context.mjs" in bundle_entries
+assert "plugins/context-mode/scripts/native-command.mjs" in bundle_entries
 assert "README.md" in bundle_entries
 assert "USAGE.md" in bundle_entries
 assert "plugins/gestalt/.codex-plugin/plugin.json" in bundle_entries
@@ -163,7 +171,11 @@ instruction_paths = (
     "plugins/gestalt/startup/delivery-scenarios.json",
     "plugins/gestalt/scripts/startup-contract.mjs",
     "scripts/install-org-plan.mjs",
+    "scripts/native-command-shims.mjs",
+    "scripts/setup-storage.mjs",
     "plugins/context-mode/scripts/runtime-lock.mjs",
+    "plugins/context-mode/scripts/setup-command-context.mjs",
+    "plugins/context-mode/scripts/native-command.mjs",
     "plugins/context-mode/scripts/install-runtime.mjs",
     "plugins/context-mode/scripts/prepare-runtime.mjs",
     "plugins/context-mode/scripts/runtime-preflight.mjs",
@@ -198,11 +210,28 @@ with zipfile.ZipFile(artifacts / f"gestalt-agents-{tag}.zip") as bundle:
     assert gestalt["skills"] == "./skills/"
     assert "skills" not in context, "duplicate active routing-skill provider"
 
+# The marketplace archive already includes this support closure independently
+# of plugin activation. Import only the extracted bytes before any installation
+# can hide a missing dependency behind local namespace/permission preconditions.
+# No context-mode manifest, package, node_modules or prepared runtime is present
+# in this clean delivery fixture.
+publisher_import = subprocess.run(
+    ["node", "--input-type=module", "--eval",
+     f"await import({json.dumps((delivered / 'scripts/install-org-plan.mjs').resolve().as_uri())})"],
+    cwd=artifacts, capture_output=True, text=True,
+)
+assert publisher_import.returncode == 0, publisher_import.stderr
+assert publisher_import.stdout == "" and publisher_import.stderr == ""
+assert not (delivered / "plugins/context-mode/package.json").exists()
+assert not (delivered / "plugins/context-mode/.codex-plugin").exists()
+print("delivered Org publisher dependency closure imports without an activated context-mode plugin", flush=True)
+
 helper = "plugins/gestalt/skills/org-plan/scripts/org-plan"
 for source, destination in ((root, artifacts / "source-profiles"),
                             (delivered, artifacts / "delivered-profiles")):
-    subprocess.run(["bash", str(source / helper), "prepare-supervision",
-                    "--agents-dir", str(destination)], check=True, capture_output=True)
+    generated = subprocess.run(["bash", str(source / helper), "prepare-supervision",
+                                "--agents-dir", str(destination)], capture_output=True, text=True)
+    assert generated.returncode == 0, f"profile generation from {source} failed: {generated.stderr}"
 for role in ("reviewer", "executor"):
     relative = f"org-plan-{role}.toml"
     source = (artifacts / "source-profiles" / relative).read_bytes()
@@ -225,7 +254,7 @@ entries = (
 )
 for label, options, entry in entries:
     installed_home = artifacts / ("installed-delivery-" + label)
-    installed_home.mkdir()
+    installed_home.mkdir(mode=0o700)
     installation = subprocess.run(["node", *options, str(entry),
                                    str(delivered), str(installed_home)],
                                   cwd=artifacts, capture_output=True, text=True)
@@ -256,7 +285,7 @@ for arguments in ([], [str(delivered)], [str(delivered), str(invalid_home), "ext
 # Import the actual delivered module through Node's eval/stdin entry modes.
 # Valid installation operands make an accidental CLI dispatch observable.
 import_home = artifacts / "library-import-home"
-import_home.mkdir()
+import_home.mkdir(mode=0o700)
 unrelated_entry = artifacts / "unrelated-entry.mjs"
 unrelated_entry.write_text("// Existing unrelated entry for the library import probe.\n")
 missing_entry = artifacts / "missing-entry.mjs"
@@ -293,13 +322,18 @@ tracked = subprocess.check_output(
     [
         "git", "-C", str(root), "ls-tree", "-r", "--name-only", "HEAD", "--",
         ".agents/plugins/marketplace.json", "README.md", "USAGE.md", "gestalt-setup.sh",
+        "gestalt-setup.mjs", "scripts/setup-agents.mjs", "scripts/setup-api.md", "scripts/setup-storage.mjs", "scripts/prepare-agent-profiles.mjs",
         "scripts/install-managed-commands.mjs", "scripts/verify-gestalt-skill-catalog.mjs",
         "scripts/install-org-plan.mjs",
+        "scripts/native-command-shims.mjs",
         "plugins/gestalt", "plugins/context-mode",
     ],
     text=True,
 ).splitlines()
-assert set(tracked) == bundle_entries
+assert set(tracked) == bundle_entries, {
+    "missing": sorted(set(tracked) - bundle_entries),
+    "unexpected": sorted(bundle_entries - set(tracked)),
+}
 PY
 
 if "$root/scripts/build-release-artifacts.sh" "$tag" "$artifacts" 2>/dev/null; then

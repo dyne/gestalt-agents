@@ -4,11 +4,11 @@ import {
   readFileSync,
   realpathSync,
   unlinkSync,
-  writeFileSync,
 } from "node:fs";
 import { basename, dirname, isAbsolute, join } from "node:path";
 import { readPlan, projection } from "./org-plan-parser.mjs";
 import { MODEL_POLICY_CAPABILITY } from "./org-plan-model-schema.mjs";
+import { ensureManagedRoot, writePrivateFile } from "./org-plan-storage.mjs";
 
 // Trusted host assertions are independent: schema support does not prove model
 // availability or effective launch settings. Legacy consumers ignore metadata.
@@ -44,15 +44,7 @@ import {
 function safeStatusDirectory(path) {
   try {
     const canonicalPath = realpathSync(path);
-    const status = lstatSync(canonicalPath);
-    if (
-      status.isSymbolicLink() ||
-      !status.isDirectory() ||
-      status.uid !== process.getuid() ||
-      status.mode & 0o022
-    ) {
-      fail("unsafe status file directory");
-    }
+    ensureManagedRoot(canonicalPath, { privateMode: false, create: false });
     return canonicalPath;
   } catch (error) {
     if (
@@ -141,7 +133,7 @@ export function publishStatus(path, reason, options = {}) {
           requiredCapabilities: [MODEL_POLICY_CAPABILITY],
         }),
       };
-      writeFileSync(temporary, `${JSON.stringify(record)}\n`, { mode: 0o600 });
+      writePrivateFile(temporary, `${JSON.stringify(record)}\n`);
       chmodThroughPath(temporary, 0o600);
       renameStatusThroughPath(temporary, target);
       if (supervisionMarker) {
@@ -150,7 +142,7 @@ export function publishStatus(path, reason, options = {}) {
           `.${basename(supervisionMarker)}.tmp.${randomUUID()}`,
         );
         try {
-          writeFileSync(markerTemporary, `${planPath}\n`, { mode: 0o600 });
+          writePrivateFile(markerTemporary, `${planPath}\n`);
           chmodThroughPath(markerTemporary, 0o600);
           renameStatusThroughPath(markerTemporary, supervisionMarker);
         } catch (error) {

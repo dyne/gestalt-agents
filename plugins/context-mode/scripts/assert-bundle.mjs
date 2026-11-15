@@ -14,9 +14,9 @@
 // Usage:
 //   node scripts/assert-bundle.mjs <file> [<file>...]
 
-import { readFileSync, existsSync } from "node:fs";
+import { readFileSync, existsSync, realpathSync } from "node:fs";
 import { resolve } from "node:path";
-import { pathToFileURL } from "node:url";
+import { fileURLToPath } from "node:url";
 
 /** @type {Array<{ name: string; pattern: RegExp; reason: string }>} */
 const FORBIDDEN_PATTERNS = [
@@ -89,16 +89,14 @@ function main() {
   process.exit(failed ? 1 : 0);
 }
 
-// Run only when invoked directly, not when imported.
-// On Windows, `import.meta.url` is `file:///C:/...` (forward slashes),
-// while `process.argv[1]` is `C:\...` (backslashes). A literal-string
-// `file://${argv[1]}` template never matches, so the prior comparison
-// silently skipped main() on Windows and the script exited 0 with empty
-// stdout — making the assert-bundle CI guardrail vacuous. Use
-// `pathToFileURL` so the entry-point comparison is OS-agnostic.
-const isDirectInvocation =
-  process.argv[1] != null &&
-  import.meta.url === pathToFileURL(process.argv[1]).href;
-if (isDirectInvocation) {
+// Compare physical entry files on every OS, including /var -> /private/var,
+// user symlinks and Windows junctions. An alias must not turn validation into
+// a successful no-op; eval/stdin library imports still have no matching entry.
+function isDirectInvocation() {
+  if (!process.argv[1]) return false;
+  try { return realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url)); }
+  catch { return false; }
+}
+if (isDirectInvocation()) {
   main();
 }

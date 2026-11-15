@@ -1,0 +1,127 @@
+name: Native Agents setup
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  unix:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - uses: actions/checkout@v7
+        with:
+          repository: dyne/gestalt
+          ref: 1caf7665427dc9992d72caaffc21fa731ddabc2b
+          path: .native-manager-fixture
+          persist-credentials: false
+      - name: Build pinned ownership fixture for integration tests only
+        run: node scripts/prepare-owned-setup-fixture.mjs .native-manager-fixture
+      - run: npm install --global --ignore-scripts @openai/codex@latest
+      - name: Prepare disposable Ubuntu ownership namespace prerequisites
+        if: runner.os == 'Linux' && runner.environment == 'github-hosted'
+        run: |
+          set -euo pipefail
+          mkdir -p native-evidence
+          {
+            current_userns=$(sysctl -n kernel.unprivileged_userns_clone 2>/dev/null || true)
+            printf 'before kernel.unprivileged_userns_clone=%s\n' "$current_userns"
+            if [[ -n $current_userns && $current_userns != 1 ]]; then
+              sudo sysctl -w kernel.unprivileged_userns_clone=1
+            fi
+            current_apparmor=$(sysctl -n kernel.apparmor_restrict_unprivileged_userns 2>/dev/null || true)
+            printf 'before kernel.apparmor_restrict_unprivileged_userns=%s\n' "$current_apparmor"
+            if [[ -n $current_apparmor && $current_apparmor != 0 ]]; then
+              sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+            fi
+            printf 'after kernel.unprivileged_userns_clone=%s\n' "$(sysctl -n kernel.unprivileged_userns_clone 2>/dev/null || true)"
+            printf 'after kernel.apparmor_restrict_unprivileged_userns=%s\n' "$(sysctl -n kernel.apparmor_restrict_unprivileged_userns 2>/dev/null || true)"
+          } > native-evidence/linux-namespace-prerequisites.log
+      - name: Run native Node setup contracts and actual package installation
+        env:
+          GESTALT_NATIVE_TEST_EVIDENCE: native-evidence
+        run: |
+          mkdir -p native-evidence
+          node --test --test-reporter=tap tests/repository/test-setup-api.mjs tests/repository/test-setup-command-port.mjs tests/repository/test-setup-rpc.mjs tests/repository/test-native-setup.mjs tests/repository/test-native-helpers.mjs tests/native-setup-smoke.mjs tests/native-owned-setup-smoke.mjs > native-evidence/contracts.tap 2>&1
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: native-agents-${{ matrix.os }}
+          path: native-evidence/
+          retention-days: 14
+
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - uses: actions/checkout@v7
+        with:
+          repository: dyne/gestalt
+          ref: 1caf7665427dc9992d72caaffc21fa731ddabc2b
+          path: .native-manager-fixture
+          persist-credentials: false
+      - name: Build pinned ownership fixture for integration tests only
+        run: node scripts/prepare-owned-setup-fixture.mjs .native-manager-fixture
+      - name: Run native setup with an isolated standard-user token
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $name = 'ga' + [Guid]::NewGuid().ToString('N').Substring(0, 12)
+          $password = ConvertTo-SecureString ([Guid]::NewGuid().ToString('N') + '!aA1') -AsPlainText -Force
+          $user = New-LocalUser -Name $name -Password $password -AccountNeverExpires
+          $work = Join-Path $env:RUNNER_TEMP $name
+          try {
+            $users = Get-LocalGroup -SID 'S-1-5-32-545'
+            Add-LocalGroupMember -Group $users -Member $user
+            New-Item -ItemType Directory -Path $work | Out-Null
+            $source = Join-Path $work 'source'
+            & robocopy $env:GITHUB_WORKSPACE $source /E /XD .git node_modules native-evidence /NFL /NDL /NJH /NJS /NP
+            if ($LASTEXITCODE -gt 7) { throw 'Native candidate copy failed' }
+            & icacls $work /grant ('*' + $user.SID.Value + ':(OI)(CI)F') /T /Q | Out-Null
+            if ($LASTEXITCODE -ne 0) { throw 'Native fixture access setup failed' }
+            $checkoutSha = (& git rev-parse HEAD).Trim()
+            $checkoutTree = (& git rev-parse 'HEAD^{tree}').Trim()
+            $copiedEvidence = Join-Path $source 'native-evidence'
+            New-Item -ItemType Directory -Path $copiedEvidence -Force | Out-Null
+            $identity = @{ schemaVersion = 1; checkoutSha = $checkoutSha; checkoutTree = $checkoutTree; githubSha = $env:GITHUB_SHA }
+            [IO.File]::WriteAllText((Join-Path $copiedEvidence 'checkout.json'), ($identity | ConvertTo-Json), (New-Object Text.UTF8Encoding($false)))
+            $credential = New-Object Management.Automation.PSCredential(($env:COMPUTERNAME + '\' + $name), $password)
+            $node = (Get-Command node.exe).Source
+            $script = Join-Path $source 'scripts/test-setup-standard-user.ps1'
+            $arguments = '-NoLogo -NoProfile -NonInteractive -File "' + $script + '" -Repository "' + $source + '" -Node "' + $node + '"'
+            $process = Start-Process -FilePath "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe" -Credential $credential -LoadUserProfile -ArgumentList $arguments -Wait -PassThru -RedirectStandardOutput (Join-Path $work 'contracts.tap') -RedirectStandardError (Join-Path $work 'runner.stderr')
+            New-Item -ItemType Directory native-evidence -Force | Out-Null
+            Copy-Item (Join-Path $work 'contracts.tap') native-evidence/
+            Copy-Item (Join-Path $work 'runner.stderr') native-evidence/
+            $reports = Join-Path $source 'native-evidence'
+            if (Test-Path -LiteralPath $reports) { Copy-Item -Path ($reports + '\*') -Destination native-evidence/ -Recurse -Force }
+            if ($process.ExitCode -ne 0) { throw "Native standard-user setup exited $($process.ExitCode)" }
+          } finally {
+            Remove-LocalUser -Name $name -ErrorAction SilentlyContinue
+          }
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: native-agents-windows
+          path: native-evidence/
+          retention-days: 14

@@ -1,4 +1,4 @@
-"""Exercise real setup/launcher publication in private, instrumented installations.
+"""Exercise real Node bundle/launcher publication in private installations.
 
 Only unrelated plugin/runtime setup is stubbed. Helper implementations retain
 their production bodies; appended version exports and a probe CLI branch make
@@ -27,6 +27,7 @@ MODULES = (
     "org-plan-model-policy", "org-plan-model-schema", "org-plan-executor-launch",
     "org-plan-effective-settings", "org-plan-model-comparison",
     "org-plan-publication", "org-plan-transitions",
+    "org-plan-profiles", "org-plan-profile-defaults", "org-plan-storage",
 )
 TIMEOUT = 12
 
@@ -100,11 +101,12 @@ class Installation:
         self.gestalt = self.home / "custom gestalt"
         self.bin = directory / "path"
         self.bin.mkdir()
-        self.home.mkdir()
-        self.gestalt.mkdir()
+        self.home.mkdir(mode=0o700)
+        self.gestalt.mkdir(mode=0o700)
         cache = self.codex / "plugins/cache/dyne-gestalt-agents/context-mode/fixture"
         cache.mkdir(parents=True)
         (cache / "start.mjs").write_text("")
+        self.codex.chmod(0o700)
         self.processes = []
         self.connections = []
         self.server = socket.socket(socket.AF_UNIX)
@@ -123,6 +125,33 @@ class Installation:
                         PATH=str(self.bin) + os.pathsep + os.environ["PATH"],
                         PUBLICATION_SOCKET=self.address,
                         PUBLICATION_REAL_INSTALL=shutil.which("install"))
+        # Native copy no longer invokes a Unix install command. Inject at the
+        # actual filesystem boundary without adding production-only test hooks.
+        self.copy_preload = directory / "copy-preload.mjs"
+        self.copy_preload.write_text(r'''
+import fs from 'node:fs';
+import { syncBuiltinESMExports } from 'node:module';
+import { spawnSync } from 'node:child_process';
+const copy = fs.copyFileSync, chmod = fs.chmodSync;
+const gate = (name) => {
+ const code = "import socket,os; s=socket.socket(socket.AF_UNIX); s.settimeout(12); s.connect(os.environ['PUBLICATION_SOCKET']); s.sendall("+JSON.stringify(name+"\n")+".encode()); assert s.recv(1)==b'!'";
+ const result = spawnSync(process.env.PUBLICATION_GATE_PYTHON, ['-c', code], {stdio:'inherit'});
+ if(result.status!==0)throw new Error('copy gate failed');
+};
+fs.copyFileSync = (source, target, ...args) => {
+ if(String(source).endsWith('/org-plan-core.mjs') && process.env.PUBLICATION_FAIL==='copy')throw new Error('injected copy failure');
+ const result=copy(source,target,...args);
+ if(String(source).endsWith('/org-plan-parser.mjs')) {
+  if(process.env.PUBLICATION_TAMPER==='symlink'){fs.unlinkSync(target);fs.symlinkSync(source,target);}
+  if(process.env.PUBLICATION_TAMPER==='inventory')fs.writeFileSync(new URL('unexpected-file', 'file://'+target),'unexpected');
+ }
+ if(String(source).endsWith('/org-plan-cli.mjs')&&process.env.PUBLICATION_COPY_GATE)gate('copied-cli');
+ return result;
+};
+fs.chmodSync=(path,mode)=>{const result=chmod(path,mode);if(String(path).endsWith('/org-plan-parser.mjs')&&process.env.PUBLICATION_TAMPER==='mode')chmod(path,0o777);return result;};
+syncBuiltinESMExports();
+''')
+        self.env["PUBLICATION_GATE_PYTHON"] = sys.executable
         for key in list(self.env):
             if key.startswith("GESTALT_MOBILE_ORG_PLAN_"):
                 self.env.pop(key)
@@ -131,16 +160,33 @@ class Installation:
         source = self.root / ("source " + version)
         (source / SCRIPTS).mkdir(parents=True)
         shutil.copy2(ROOT / "gestalt-setup.sh", source)
+        shutil.copy2(ROOT / "gestalt-setup.mjs", source)
+        shutil.copytree(ROOT / "scripts", source / "scripts", dirs_exist_ok=True)
+        shutil.copytree(ROOT / "plugins/context-mode/scripts", source / "plugins/context-mode/scripts", dirs_exist_ok=True)
+        shutil.copytree(ROOT / "plugins/gestalt/scripts", source / "plugins/gestalt/scripts", dirs_exist_ok=True)
         manifest = source / ".agents/plugins/marketplace.json"
         manifest.parent.mkdir(parents=True)
         shutil.copy2(ROOT / ".agents/plugins/marketplace.json", manifest)
         shutil.copytree(ROOT / SCRIPTS, source / SCRIPTS, dirs_exist_ok=True)
         shutil.copy2(ROOT / "plugins/gestalt/LICENSE", source / "plugins/gestalt/LICENSE")
-        (source / "scripts").mkdir()
+        (source / "scripts").mkdir(exist_ok=True)
         shutil.copy2(ROOT / "scripts/install-org-plan.mjs", source / "scripts/install-org-plan.mjs")
+        shutil.copy2(ROOT / "scripts/setup-storage.mjs", source / "scripts/setup-storage.mjs")
+        shutil.copy2(ROOT / "scripts/native-command-shims.mjs", source / "scripts/native-command-shims.mjs")
         lock = source / "plugins/context-mode/scripts/runtime-lock.mjs"
-        lock.parent.mkdir(parents=True)
+        lock.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(ROOT / "plugins/context-mode/scripts/runtime-lock.mjs", lock)
+        shutil.copy2(ROOT / "plugins/context-mode/scripts/native-command.mjs", lock.with_name("native-command.mjs"))
+        shutil.copy2(ROOT / "plugins/context-mode/scripts/setup-command-context.mjs", lock.with_name("setup-command-context.mjs"))
+        shutil.copy2(ROOT / "plugins/context-mode/scripts/session-scratch.mjs", lock.with_name("session-scratch.mjs"))
+        (source / "publication-install.mjs").write_text('''
+if (process.env.PUBLICATION_READY_GATE) {
+ const { createConnection } = await import('node:net');
+ await new Promise((resolve,reject)=>{const c=createConnection(process.env.PUBLICATION_SOCKET);c.setTimeout(12000,()=>c.destroy(new Error('gate timeout')));c.on('error',reject);c.on('connect',()=>c.write('setup-ready\\n'));c.on('data',()=>{c.end();resolve();});});
+}
+const { installOrgPlan } = await import('./scripts/install-org-plan.mjs');
+await installOrgPlan(process.argv[2], process.env.CODEX_HOME);
+''')
         for module in MODULES:
             path = source / SCRIPTS / (module + ".mjs")
             with path.open("a") as stream:
@@ -160,25 +206,6 @@ class Installation:
             (source / SCRIPTS / "org-plan-parser.mjs").write_text("invalid fixture syntax !!!\n")
         # Keep production publication and module resolution intact. Substitute
         # unrelated runtime/plugin/profile-adjacent setup, without network use.
-        for relative in ("plugins/context-mode/scripts/install-runtime.mjs",
-                         "plugins/context-mode/scripts/configure-codex.mjs",
-                         "scripts/install-managed-commands.mjs"):
-            path = source / relative
-            path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text("import { mkdirSync } from 'node:fs'; mkdirSync(process.env.GESTALT_HOME, { recursive: true });\n")
-        verifier = source / "scripts/verify-gestalt-skill-catalog.mjs"
-        verifier.write_text('''
-if (process.env.PUBLICATION_READY_GATE) {
-  const { createConnection } = await import("node:net");
-  await new Promise((resolve, reject) => {
-    const connection = createConnection(process.env.PUBLICATION_SOCKET);
-    connection.setTimeout(12000, () => connection.destroy(new Error("setup gate timeout")));
-    connection.on("error", reject);
-    connection.on("connect", () => connection.write("setup-ready\\n"));
-    connection.on("data", () => { connection.end(); resolve(); });
-  });
-}
-''')
         return source
 
     def legacy(self, version="old"):
@@ -254,7 +281,9 @@ syncBuiltinESMExports();
         return process.returncode, output
 
     def setup(self, source, **extra):
-        return self.start(["bash", str(source / "gestalt-setup.sh")], **extra)
+        options = extra.pop("NODE_OPTIONS", "")
+        options += " --import=" + json.dumps(str(self.copy_preload))
+        return self.start(["node", str(source / "publication-install.mjs"), str(source)], NODE_OPTIONS=options.strip(), **extra)
 
     @property
     def launcher(self):

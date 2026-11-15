@@ -22,6 +22,7 @@ let polls = 0;
 // shortening wall time must not skip the remaining lock-wait budget.
 Date.now = () => realNow() + elapsed;
 globalThis.setTimeout = (callback, milliseconds, ...args) => {
+  if (milliseconds !== 250) return realTimeout(callback, milliseconds, ...args);
   elapsed += milliseconds;
   polls++;
   return realTimeout(callback, 2, ...args);
@@ -115,6 +116,17 @@ function artifacts(root, manifest = false) {
   }
   fs.writeFileSync(join(root, "node_modules", "better-sqlite3", "index.cjs"),
     "module.exports = class Database { close() {} };\n");
+  for (const entry of ["esbuild/install.js", "prebuild-install/bin.js", "typescript/bin/tsc"]) {
+    const path = join(root, "node_modules", entry);
+    fs.mkdirSync(dirname(path), { recursive: true });
+    fs.writeFileSync(path, "// Dependency entrypoint fixture; execution is intercepted.\n");
+  }
+  const binaryName = `@esbuild/${process.platform}-${process.arch}`;
+  const binaryRoot = join(root, "node_modules", binaryName);
+  fs.mkdirSync(join(binaryRoot, "bin"), { recursive: true });
+  fs.writeFileSync(join(binaryRoot, "package.json"), JSON.stringify({ name: binaryName, version: "0.27.7" }));
+  fs.writeFileSync(join(binaryRoot, process.platform === "win32" ? "esbuild.exe" : "bin/esbuild"), "fixture binary");
+  fs.writeFileSync(join(root, "node_modules/esbuild/package.json"), JSON.stringify({ version: "0.27.7", optionalDependencies: { [binaryName]: "0.27.7" } }));
   if (manifest) fs.writeFileSync(join(root, ".context-mode-prepared.json"), JSON.stringify({
     schemaVersion: 2, packageVersion: "1.0.0", nodeModulesAbi: process.versions.modules,
     platform: process.platform, arch: process.arch, files,
@@ -137,19 +149,23 @@ function build(root) {
   }
   artifacts(root, config.kind === "install");
 }
-// Preparation still performs its real manifest and native-dependency checks.
-childProcess.execFileSync = (_command, _args, options) => {
-  build(options.cwd);
-  return Buffer.from("");
-};
-syncBuiltinESMExports();
+// Keep real locks, dependency inventory, manifest and publication. Only the
+// expensive external command capability is controlled by this fixture.
+const { SetupCommandContext } = await import(pathToFileURL(join(config.scripts, "setup-command-context.mjs")));
+let commandId = 0;
+const commandContext = new SetupCommandContext({ mode: "managed", commands: { apiVersion: 1, async launch(_executable, invocation) {
+  let failure; try { build(invocation.cwd); } catch (error) { failure = error; }
+  const id = `fixture-${++commandId}`, result = failure ? { kind: "spawn-error", message: failure.message } : { kind: "exit", code: 0 };
+  const proof = { kind: "released", lease: id, backend: "controlled-lock-fixture", result };
+  return { id, result: Promise.resolve(result), completed: Promise.resolve(proof), stop: async () => proof };
+} } });
 try {
   if (config.kind === "install") {
     const { installRuntime } = await import(pathToFileURL(join(config.scripts, "install-runtime.mjs")));
     await installRuntime(config.source, { force: config.force, env: { GESTALT_HOME: config.home }, prepare: async (stage) => build(stage) });
   } else {
     const { prepareRuntime } = await import(pathToFileURL(join(config.scripts, "prepare-runtime.mjs")));
-    await prepareRuntime(config.source, { force: config.force });
+    await prepareRuntime(config.source, { force: config.force, commandContext });
   }
   console.log(JSON.stringify({ status: "completed", entered, elapsed, polls }));
 } catch (error) {

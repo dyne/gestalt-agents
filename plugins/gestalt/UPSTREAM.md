@@ -1,5 +1,43 @@
 # Consolidated engineering skills: source and adaptation record
 
+Setup API v1 calls the existing filesystem owners in the host namespace and
+uses an explicit asynchronous command capability for Org validation and Codex
+catalog/RPC sessions. No complete-tree proof is inferred from child output or
+exit. The profile owner accepts setup-only environment, cancellation and cleanup
+policy options; installed CLI defaults, schemas and encoded success records are
+preserved. Fixed host ACL helpers use bounded system executable calls. Unknown
+managed command lifetime retains transaction state and locks.
+Setup diagnostic RPC closes stdin before bounded owned shutdown, keeping normal
+standalone completion separate from an interrupted or unknown lifetime.
+
+Native setup and installed Org helpers share a Node profile transaction and
+canonical default module captured from the existing Org profile contract. Profile instruction
+bytes, role names and default models are preserved. The independent Gestalt
+plugin carries its own original native npm command-shim recognizer for Codex
+diagnostics; context-mode packages the same utility for its separately installed
+external runtime. The recognizer observes npm 11.19.1/cmd-shim 8.0.0's complete
+plain-Node shim protocol and never evaluates arbitrary batch source.
+Setup's Windows directory ACL creation/inspection is adapted from the original
+MIT-licensed `windows-system.ts` helper in dyne/gestalt commit
+`cb7dbf1bfb2221bd0b3f4366311280e53cd712be`; its copyright/permission notice is
+retained beside the shared Org storage implementation. Native status publication
+uses exclusive private-file creation and native filesystem rename/chmod;
+profile preparation preserves existing modes, rollback and encoded records,
+with explicit CODEX_HOME isolation. The Unix Org entry is a compatibility
+adapter. Success-record paths preserve the caller's exact spelling (including
+repeated separators); profile writes use the validated physical destination.
+Immutable installed bundles use a single atomic Node dispatcher;
+standard npm-form .cmd shims provide cmd/PowerShell entry without Developer
+Mode, symlinks, administrator rights or PowerShell execution-policy changes.
+Their directory assignment is quoted to keep ampersands in installation paths
+literal; the bounded native recognizers accept either complete known form and
+the installer atomically upgrades its exact earlier unquoted shim. Org parsing
+accepts LF/CRLF logical lines, keeps byte-based fingerprints and preserves the
+selected line-ending convention and final-newline state during mutations.
+Managed commands are self-contained Node launchers with literal argv/stdin/exit
+forwarding. No manager package or native
+helper download is required.
+
 The Xerj skill and its managed-command reference are retired from this package.
 Startup, discovery/catalog contracts and source-routing guidance now use native
 text search for lexical discovery, verified optional Serena for semantic work,

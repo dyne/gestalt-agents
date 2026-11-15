@@ -38,7 +38,9 @@ GESTALT_HOME="$tmp/caller-gestalt" HOME="$tmp/home" \
 [[ $(snapshot "$CODEX_HOME") == "$before" ]] ||
   fail "extra-skills suite changed its caller's exported CODEX_HOME"
 
-for tool in node npm npx codex install; do
+# The Node adapter must start its owner before validating paths. Downstream
+# tools remain forbidden until destination validation succeeds.
+for tool in npm npx codex install; do
   cat >"$tmp/bin/$tool" <<'SH'
 #!/usr/bin/env bash
 printf '%s\n' "${0##*/}" >>"$UNEXPECTED_SETUP_LOG"

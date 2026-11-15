@@ -33,6 +33,19 @@ afterEach(async () => {
 });
 
 describe("Codex context-mode integration configurator", () => {
+  it("executes encoded hook paths and forwards event, stdin and exit through the native shell", async () => {
+    const paths = await fixture();
+    const launcher = join(paths.pluginRoot, "hook ü & ' literal.mjs");
+    writeFileSync(launcher, "import {readFileSync} from 'node:fs';console.log(JSON.stringify({event:process.argv[2],input:readFileSync(0,'utf8')}));process.exit(17);\n");
+    const hooks = JSON.parse(reconcileCodexHooks("{}", launcher));
+    const command = hooks.hooks.SessionStart[0].hooks[0].command;
+    const result = process.platform === "win32"
+      ? spawnSync(process.env.ComSpec!, ["/d", "/s", "/c", command], { encoding: "utf8", input: "literal ü input\n", windowsVerbatimArguments: true })
+      : spawnSync("/bin/sh", ["-c", command], { encoding: "utf8", input: "literal ü input\n" });
+    expect(result.status, result.stderr).toBe(17);
+    expect(JSON.parse(result.stdout)).toEqual({ event: "sessionstart", input: "literal ü input\n" });
+  });
+
   it.each([
     ["LF and final newline", "\n", "\n", "\n"],
     ["CRLF and final newline", "\r\n", "\r\n", "\r\n"],
@@ -202,7 +215,7 @@ describe("Codex context-mode integration configurator", () => {
       "Stop",
     ]);
     expect(hooks.hooks.SessionStart[0].hooks[0].command).toBe(
-      `: 'context-mode hook codex sessionstart'; node '${result.hookLauncherPath}' sessionstart`,
+      `node --input-type=commonjs -e "/* context-mode hook codex sessionstart */ process.argv[1]=Buffer.from(process.argv[1],'base64').toString('utf8'); import(require('node:url').pathToFileURL(process.argv[1]).href)" ${Buffer.from(result.hookLauncherPath).toString("base64")} sessionstart`,
     );
   });
 
@@ -267,7 +280,7 @@ enabled = true
     expect(output.preserved).toBe(42);
     expect(output.hooks.Stop).toHaveLength(2);
     expect(output.hooks.Stop[0].hooks[0].command).toBe("node keep-this.mjs");
-    expect(output.hooks.Stop[1].hooks[0].command).toContain("/new/context-mode-hook.mjs");
+    expect(output.hooks.Stop[1].hooks[0].command).toContain(Buffer.from("/new/context-mode-hook.mjs").toString("base64"));
   });
 
   it("is byte-idempotent after upgrading a partially configured installation", async () => {

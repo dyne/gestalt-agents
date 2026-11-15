@@ -45,9 +45,11 @@ function tomlString(value) {
   return JSON.stringify(value);
 }
 
-function shellQuote(value) {
+function portableHookCommand(value, event) {
   if (/\0|\r|\n/.test(value)) throw new Error("hook launcher path contains an unsupported character");
-  return `'${value.replaceAll("'", `'\\''`)}'`;
+  // Fixed source plus base64 data is identical in POSIX sh, cmd and PowerShell.
+  // Preserve argv[2] for the hook event, including the dynamic imported owner.
+  return `node --input-type=commonjs -e "/* context-mode hook codex ${event} */ process.argv[1]=Buffer.from(process.argv[1],'base64').toString('utf8'); import(require('node:url').pathToFileURL(process.argv[1]).href)" ${Buffer.from(value).toString("base64")} ${event}`;
 }
 
 function tomlError() {
@@ -299,7 +301,7 @@ export function reconcileCodexHooks(source, hookLauncherPath) {
       hooks: [
         {
           type: "command",
-          command: `: ${shellQuote(`context-mode hook codex ${argument}`)}; node ${shellQuote(hookLauncherPath)} ${argument}`,
+          command: portableHookCommand(hookLauncherPath, argument),
         },
       ],
     };

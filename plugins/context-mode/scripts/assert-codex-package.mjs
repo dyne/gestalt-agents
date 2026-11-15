@@ -11,11 +11,13 @@ const required = [
   "hooks/hooks.json",
   "start.mjs",
   "scripts/prepare-runtime.mjs",
+  "scripts/build-runtime.mjs",
   "scripts/install-runtime.mjs",
   "scripts/configure-codex.mjs",
   "scripts/runtime-location.mjs",
   "scripts/runtime-preflight.mjs",
   "scripts/runtime-lock.mjs",
+  "scripts/native-command.mjs",
   "scripts/session-scratch.mjs",
   "hooks/runtime-hook.mjs",
 ];

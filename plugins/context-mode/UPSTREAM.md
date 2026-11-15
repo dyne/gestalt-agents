@@ -15,6 +15,47 @@ and contents while excluding generated dependencies and build artifacts.
 
 ## Downstream changes
 
+- Runtime setup now accepts the call-scoped asynchronous command context owned
+  by Agents setup API v1. Host filesystem staging, manifest validation and
+  publication remain in the orchestrator; npm/Bun, dependency installer JS,
+  native SQLite verification and the TypeScript/esbuild worker use the injected
+  external-command capability. The standalone default retains direct-child
+  compatibility without claiming complete-tree absence. Managed unknown lifetime
+  retains stages, backups, snapshots and fenced locks even after owner PID death.
+  The runtime payload manifest includes its command-context and native-command
+  dependencies; a same-version older payload must be prepared again.
+
+- Configured Codex hook commands now use fixed Node source and a base64-encoded
+  launcher path, preserving hook-event argv and stdin on POSIX shells, cmd and
+  PowerShell. Paths containing spaces, Unicode and shell metacharacters remain
+  data; no Bash, POSIX colon command or platform-specific path quoting is needed.
+  Managed-hook recognition and unrelated hook preservation remain unchanged.
+  The original strict npm-shim recognizer additionally accepts Gestalt's complete
+  quoted-directory variant; it still never interprets arbitrary batch source.
+
+- Resolves the build and bundle-assertion CLI entry files physically before
+  deciding whether to execute them. macOS `/var` aliases, Unix symlinks and
+  Windows junctions can no longer turn those commands into successful no-ops.
+  Library imports through unrelated entrypoints, eval and stdin remain inert.
+  Native preparation regressions require artifact creation and missing-bundle
+  rejection through an aliased path. The concurrent nested MCP smoke retains
+  both installer waits and reaps both children before removing fixture scratch.
+
+- Makes explicit runtime preparation execute npm's standard Node shims with
+  native argv instead of evaluating batch files through a shell. The original
+  bounded recognizer checks complete npm cmd-shim forms (npm 11.19.1,
+  cmd-shim 8.0.0); unknown forms fail explicitly. Runtime dependency installation
+  disables lifecycle scripts and explicitly invokes only the required esbuild
+  installer and better-sqlite3 prebuilt installer through Node argv. No native
+  compiler fallback is attempted. The locked esbuild optional platform binary
+  must exist before its installer runs, preventing shell-based npm repair.
+  TypeScript and the shared esbuild bundle owner also use direct Node entrypoints.
+  These changes avoid npm batch dispatch truncating metacharacter-containing
+  runtime paths and leave global npm policy unchanged. Inherited managed scratch context and TMP variables
+  remain intact; standalone preparation keeps its destination-local temporary
+  directory. The command utility is packaged here because the external runtime
+  is independent of the separately installable Gestalt plugin.
+
 - Reconciles Codex TOML as byte-preserving logical records instead of deleting
   physical-line sections. Managed registration replacement retains standalone
   operator comments, unrelated values, mixed line endings and trailing bytes;

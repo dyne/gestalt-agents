@@ -210,7 +210,10 @@ function validateLifecycle(items) {
 }
 
 export function parsePlan(text) {
-  const lines = text.split("\n");
+  // Parse logical lines while retaining the source convention for mutations.
+  // Fingerprints continue to describe the exact original bytes.
+  const lineEnding = text.match(/\r?\n/)?.[0] ?? "\n";
+  const lines = text.split(/\r?\n/);
   const metadata = new Map();
   const items = parseHeadings(lines, metadata);
 
@@ -244,7 +247,7 @@ export function parsePlan(text) {
     item.modelPolicy = parseModelPolicy(item, modelPolicyVersion);
   }
   validateLifecycle(items);
-  return { text, lines, items, modelPolicyVersion, modelPolicyAssurance, fingerprint: fingerprint(text) };
+  return { text, lines, lineEnding, items, modelPolicyVersion, modelPolicyAssurance, fingerprint: fingerprint(text) };
 }
 
 export function readPlan(path) {

@@ -35,9 +35,11 @@ tmp=$(mktemp -d "${TMPDIR:-/tmp}/gestalt-setup-test.XXXXXX")
 trap 'rm -rf "$tmp"' EXIT HUP INT TERM
 tmp_real=$(CDPATH='' cd -- "$tmp" && pwd -P)
 output=$(env -u CODEX_HOME HOME="$tmp" bash "$script" --dry-run)
-assert_contains "$output" "$tmp/.codex-gestalt" "dry-run uses the isolated default Codex home"
+# HOME deliberately retains the caller's spelling (including macOS /var and
+# repeated separators). The setup owner reports its validated physical root.
+assert_contains "$output" "$tmp_real/.codex-gestalt" "dry-run uses the isolated physical Codex home"
 assert_contains "$output" "prepare-supervision" "dry-run prepares supervision profiles"
-assert_contains "$output" "$tmp/.codex-gestalt/bin/org-plan" \
+assert_contains "$output" "$tmp_real/.codex-gestalt/bin/org-plan" \
   "dry-run installs the stable Org Plan helper"
 assert_contains "$output" "$root/scripts/install-org-plan.mjs" \
   "dry-run schedules the complete validated Org Plan bundle publisher"
@@ -47,6 +49,16 @@ assert_contains "$output" "configure context-mode MCP and hooks" \
 assert_contains "$output" "install-managed-commands.mjs" \
   "dry-run schedules stable public commands"
 assert_absent "$tmp/.codex-gestalt" "dry-run does not create the Codex home"
+
+# Exercise lexical-to-physical HOME normalization on Linux too, without changing
+# the caller's validated scratch environment or permitting profile creation.
+ln -s "$tmp_real" "$tmp/home-alias"
+alias_output=$(env -u CODEX_HOME HOME="$tmp/home-alias/./" \
+  GESTALT_HOME="$tmp/alias-gestalt" bash "$script" --dry-run)
+assert_contains "$alias_output" "$tmp_real/.codex-gestalt/bin/org-plan" \
+  "dry-run canonicalizes a symlinked HOME inside the same isolated fixture"
+assert_absent "$tmp/.codex-gestalt" "aliased dry-run does not create the Codex home"
+assert_absent "$tmp/alias-gestalt" "aliased dry-run does not create the Gestalt home"
 
 # Exercise the exact publisher command emitted by setup, including normal Org
 # commands through the uninstrumented public launcher on fresh and flat homes.
@@ -81,7 +93,7 @@ for line in output.read_text().splitlines():
     args = shlex.split(line.removeprefix("DRY-RUN:"))
     if len(args) < 2 or args[1] != str(root / "scripts/install-org-plan.mjs"):
         continue
-    assert args == ["node", str(root / "scripts/install-org-plan.mjs"), root_arg, home_arg]
+    assert args == ["node", str(root / "scripts/install-org-plan.mjs"), root_arg, str(home.resolve())]
     publication_commands.append(args)
 assert len(publication_commands) == 1
 expected = {
@@ -91,6 +103,7 @@ expected = {
     "org-plan-executor-launch.mjs",
     "org-plan-effective-settings.mjs",
     "org-plan-model-comparison.mjs",
+    "org-plan-profiles.mjs", "org-plan-profile-defaults.mjs", "org-plan-storage.mjs",
 }
 assert {path.name for path in source_scripts.iterdir()} == expected
 
@@ -107,7 +120,9 @@ for key in list(probe_env):
 
 for kind in ("fresh", "legacy-upgrade"):
     selected_home = home if kind == "fresh" else home.with_name("legacy-home")
-    selected_home.mkdir()
+    # This fixture is an actual managed Codex root, including legacy upgrades.
+    # Public-read profile subdirectories retain their separate policy below.
+    selected_home.mkdir(mode=0o700)
     launcher = selected_home / "bin/org-plan"
     flat = selected_home / "lib/gestalt-org-plan"
     user_home = selected_home / "isolated-user-home"
@@ -192,13 +207,12 @@ if bash "$script" --force --extra-skills-only >"$tmp/only-incompatible.out" 2>&1
 fi
 
 configured="$tmp/configured marketplace"
-mkdir -p "$configured" "$tmp/bin"
-cat >"$configured/gestalt-setup.sh" <<'SH'
-#!/usr/bin/env bash
-printf 'delegated home=%s args=' "$CODEX_HOME"
-printf '<%s>' "$@"
-printf '\n'
-SH
+mkdir -p "$configured/scripts" "$tmp/bin"
+cat >"$configured/scripts/setup-agents.mjs" <<'JS'
+export const SETUP_API_VERSION=1;
+export const SETUP_API_CAPABILITIES=['async-owned-commands-v1','host-filesystem-v1','shared-context-v1'];
+export async function setupAgents(args,{environment,streams}) {await streams.stdout(Buffer.from(`delegated home=${environment.CODEX_HOME} args=${args.map(x => `<${x}>`).join('')}\n`));}
+JS
 cat >"$tmp/bin/codex" <<SH
 #!/usr/bin/env bash
 if [[ \$* == 'plugin marketplace list' ]]; then
@@ -208,9 +222,10 @@ if [[ \$* == 'plugin marketplace list' ]]; then
 fi
 exit 99
 SH
-chmod +x "$configured/gestalt-setup.sh" "$tmp/bin/codex"
+chmod +x "$tmp/bin/codex"
 configured_real=$(CDPATH='' cd -- "$configured" && pwd -P)
-delegated=$(CODEX_HOME="$tmp/delegated-home" PATH="$tmp/bin:$PATH" \
+mkdir -m 700 "$tmp/delegated-home"
+delegated=$(CODEX_HOME="$tmp/delegated-home" GESTALT_HOME="$tmp/delegated-gestalt" PATH="$tmp/bin:$PATH" \
   bash "$script" --force --extra-skills)
 assert_contains "$delegated" "continuing from configured marketplace $configured_real" \
   "setup delegates to the canonical configured marketplace"

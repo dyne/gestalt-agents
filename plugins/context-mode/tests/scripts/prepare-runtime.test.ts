@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { mkdtempSync, readFileSync, rmSync, symlinkSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
@@ -20,16 +20,38 @@ describe("explicit runtime preparation", () => {
     expect(source).toContain("prepareRuntime");
   });
 
-  it("probes Bun before selecting it", () => {
-    expect(source).toContain('execFileSync(candidate, ["--version"]');
-    expect(source).toContain('selection === "npm"');
+  it("awaits the external Bun probe before using that executable for install", async () => {
+    const root = mkdtempSync(resolve(tmpdir(), "context-mode-bun-probe-"));
+    const executable = resolve(root, "bun", "bin", process.platform === "win32" ? "bun.exe" : "bun");
+    mkdirSync(resolve(root, "bun", "bin"), { recursive: true });
+    writeFileSync(executable, "controlled command capability fixture");
+    const calls: { command: string; argv: string[] }[] = [];
+    const { prepareRuntime } = await import("../../scripts/prepare-runtime.mjs");
+    // No process is launched: this unit observes selection through the explicit
+    // async seam. Native ownership proof belongs to the hosted integration.
+    const context = {
+      check() {}, canCleanup: () => true,
+      protectLock: (_path: string, release: () => void) => release,
+      async run(command: string, argv: string[]) {
+        calls.push({ command, argv });
+        if (argv[0] === "--version") { await Promise.resolve(); return "1.3"; }
+        throw new Error("controlled install boundary");
+      },
+    };
+    try {
+      await expect(prepareRuntime(root, { commandContext: context, env: { ...process.env, BUN_INSTALL: resolve(root, "bun"), CONTEXT_MODE_PACKAGE_MANAGER: "bun" } })).rejects.toThrow("controlled install boundary");
+      expect(calls).toEqual([
+        { command: executable, argv: ["--version"] },
+        { command: executable, argv: ["install", "--frozen-lockfile", "--ignore-scripts"] },
+      ]);
+    } finally { rmSync(root, { recursive: true, force: true }); }
   });
 
   it("uses the committed lockfile for deterministic npm preparation", () => {
     const lock = JSON.parse(readFileSync(resolve(ROOT, "package-lock.json"), "utf8"));
     expect(lock.lockfileVersion).toBe(3);
     expect(lock.packages[""]?.name).toBe("context-mode");
-    expect(source).toContain('["ci", "--no-audit", "--no-fund"]');
+    expect(source).toContain('["ci", "--no-audit", "--no-fund", "--ignore-scripts=true", "--include=optional"]');
   });
 
   it("permits only required native and bundler install scripts under npm", () => {

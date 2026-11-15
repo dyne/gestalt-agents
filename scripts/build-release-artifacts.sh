@@ -52,7 +52,13 @@ release_paths=(
   README.md
   USAGE.md
   gestalt-setup.sh
+  gestalt-setup.mjs
+  scripts/setup-agents.mjs
+  scripts/setup-api.md
+  scripts/setup-storage.mjs
+  scripts/prepare-agent-profiles.mjs
   scripts/install-managed-commands.mjs
+  scripts/native-command-shims.mjs
   scripts/install-org-plan.mjs
   scripts/verify-gestalt-skill-catalog.mjs
   plugins/gestalt

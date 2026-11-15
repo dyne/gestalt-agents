@@ -31,7 +31,7 @@ const MEASURED_PROPERTIES = [
 ];
 
 function writePlan(path, plan, reason, options = {}) {
-  const text = plan.lines.join("\n");
+  const text = plan.lines.join(plan.lineEnding);
   const candidate = parsePlan(text);
   projection(candidate);
   requireConsumerCapabilities(candidate, options);
@@ -39,7 +39,7 @@ function writePlan(path, plan, reason, options = {}) {
   const status = lstatSync(canonicalPath);
   const temporary = temporarySibling(canonicalPath);
   try {
-    writeFileSync(temporary, text, { mode: status.mode & 0o777 });
+    writeFileSync(temporary, text, { mode: status.mode & 0o777, flag: "wx" });
     chmodThroughPath(temporary, status.mode & 0o777);
     renameThroughPath(temporary, canonicalPath);
   } catch (error) {

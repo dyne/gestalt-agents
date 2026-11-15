@@ -23,7 +23,7 @@ function fixture(t, kind, scenario) {
   const lock = kind === "install" ? join(home, "runtime", "context-mode.install.lock") : join(source, ".context-mode-prepare.lock");
   mkdirSync(source);
   mkdirSync(dirname(lock), { recursive: true });
-  writeFileSync(join(source, "package.json"), '{"version":"1.0.0"}');
+  writeFileSync(join(source, "package.json"), '{"version":"1.0.0","allowScripts":{"better-sqlite3":true,"esbuild":true}}');
   const children = [];
   const gates = [];
   t.after(async () => {
@@ -141,7 +141,7 @@ for (const kind of ["install", "prepare"]) {
     assert.equal(existsSync(f.lock), false);
     assert.equal(readdirSync(dirname(f.lock)).some((name) => name.includes(".claim-")), false);
   });
-  test(`${kind}: interrupted owner preserves prepared runtime and can be recovered`, { timeout: 15000 }, async (t) => {
+  test(`${kind}: interrupted owner preserves runtime and requires command absence before recovery`, { timeout: 15000 }, async (t) => {
     const f = fixture(t, kind, "interrupted");
     assert.equal((await f.result(f.start())).status, "completed");
     const preparedRoot = kind === "install" ? join(f.home, "runtime", "context-mode") : f.source;
@@ -155,8 +155,17 @@ for (const kind of ["install", "prepare"]) {
     const stopped = await child.done;
     assert.equal(stopped.signal, "SIGTERM");
     assert.equal(readFileSync(manifest, "utf8"), original, "previous prepared runtime remains intact");
-    assert.equal((await f.result(f.start({ force: true, entered: join(f.directory, "recovered-entered") }))).status, "completed");
-    assert.equal(existsSync(f.lock), false);
+    const recovery = await f.result(f.start({ force: true, entered: join(f.directory, "recovered-entered") }));
+    if (kind === "prepare") {
+      assert.equal(recovery.status, "completed"); assert.equal(recovery.entered, false);
+      // Reading the previously valid manifest is allowed; claiming the held
+      // lock or entering a replacement build still requires absence proof.
+      assert.ok(readdirSync(f.lock).some((name) => name.startsWith("command-")), "dead orchestration PID cannot erase unresolved command lifetime");
+      assert.equal(readFileSync(manifest, "utf8"), original);
+    } else {
+      // This install fixture's custom prepare performs no external command.
+      assert.equal(recovery.status, "completed"); assert.equal(existsSync(f.lock), false);
+    }
   });
   test(`${kind}: abandoned unpublished claim recovers`, { timeout: 10000 }, async (t) => {
     const f = fixture(t, kind, "claim");
