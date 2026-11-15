@@ -103,6 +103,7 @@ expected = {
     "org-plan-executor-launch.mjs",
     "org-plan-effective-settings.mjs",
     "org-plan-model-comparison.mjs",
+    "org-plan-profiles.mjs", "org-plan-profile-defaults.mjs", "org-plan-storage.mjs",
 }
 assert {path.name for path in source_scripts.iterdir()} == expected
 

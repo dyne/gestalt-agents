@@ -27,6 +27,7 @@ MODULES = (
     "org-plan-model-policy", "org-plan-model-schema", "org-plan-executor-launch",
     "org-plan-effective-settings", "org-plan-model-comparison",
     "org-plan-publication", "org-plan-transitions",
+    "org-plan-profiles", "org-plan-profile-defaults", "org-plan-storage",
 )
 TIMEOUT = 12
 
@@ -101,10 +102,11 @@ class Installation:
         self.bin = directory / "path"
         self.bin.mkdir()
         self.home.mkdir()
-        self.gestalt.mkdir()
+        self.gestalt.mkdir(mode=0o700)
         cache = self.codex / "plugins/cache/dyne-gestalt-agents/context-mode/fixture"
         cache.mkdir(parents=True)
         (cache / "start.mjs").write_text("")
+        self.codex.chmod(0o700)
         self.processes = []
         self.connections = []
         self.server = socket.socket(socket.AF_UNIX)
@@ -167,6 +169,7 @@ syncBuiltinESMExports();
         (source / "scripts").mkdir()
         shutil.copy2(ROOT / "scripts/install-org-plan.mjs", source / "scripts/install-org-plan.mjs")
         shutil.copy2(ROOT / "scripts/setup-storage.mjs", source / "scripts/setup-storage.mjs")
+        shutil.copy2(ROOT / "scripts/native-command-shims.mjs", source / "scripts/native-command-shims.mjs")
         lock = source / "plugins/context-mode/scripts/runtime-lock.mjs"
         lock.parent.mkdir(parents=True)
         shutil.copy2(ROOT / "plugins/context-mode/scripts/runtime-lock.mjs", lock)

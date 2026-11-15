@@ -17,6 +17,9 @@ is the Bash `org-plan` launcher and these eleven modules, all under
 | org-plan-model-comparison.mjs | Comparison records; model-policy |
 | org-plan-publication.mjs | Status publication; parser, model-schema, files |
 | org-plan-transitions.mjs | Plan mutations; files, parser, publication |
+| org-plan-profiles.mjs | Setup-only role profiles; canonical defaults and storage |
+| org-plan-profile-defaults.mjs | Exact role bootstrap text and default settings |
+| org-plan-storage.mjs | Private native storage, namespace checks and recoverable setup snapshots |
 
 The helper has no npm dependencies or current dynamic imports. The source
 launcher loads its colocated CLI. The installed public path is

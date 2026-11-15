@@ -9,14 +9,17 @@ import {
 import { isAbsolute, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { runtimeLockTimeout, tryAcquireRuntimeLock } from "../plugins/context-mode/scripts/runtime-lock.mjs";
+import { installCmdShim } from "./native-command-shims.mjs";
+import { ensureManagedRoot } from "./setup-storage.mjs";
 
 const MODULES = [
   "cli", "core", "files", "parser", "model-policy", "model-schema",
   "executor-launch", "effective-settings", "model-comparison", "publication", "transitions",
+  "profiles", "profile-defaults", "storage",
 ].map((name) => `org-plan-${name}.mjs`);
 const FILES = ["org-plan", ...MODULES, "LICENSE"];
 const RECORD = ".publication.json";
-const DISPATCH_HEADER = "#!/bin/sh\n# Gestalt Org helper dispatcher v1\n";
+const DISPATCH_HEADER = "#!/usr/bin/env node\n// Gestalt Org helper dispatcher v2\n";
 const delay = (ms) => new Promise((done) => setTimeout(done, ms));
 const sha256 = (bytes) => createHash("sha256").update(bytes).digest("hex");
 
@@ -36,10 +39,11 @@ function directory(path) {
   catch (error) { if (error?.code !== "EEXIST") throw error; }
   const info = lstatSync(path);
   if (!info.isDirectory() || info.isSymbolicLink()) throw new Error(`not a real helper directory: ${path}`);
+  ensureManagedRoot(path, { privateMode: false });
 }
 
-function command(executable, args) {
-  const result = spawnSync(executable, args, { encoding: "utf8", maxBuffer: 65536 });
+function command(executable, args, input) {
+  const result = spawnSync(executable, args, { encoding: "utf8", maxBuffer: 65536, input });
   if (result.error) throw result.error;
   if (result.status !== 0) throw new Error(`helper validation/copy failed: ${executable} (${result.status ?? result.signal}): ${(result.stderr ?? "").trim().slice(0, 400)}`);
 }
@@ -110,6 +114,7 @@ export async function installOrgPlan(sourceRoot, codexHome) {
   if (!isAbsolute(sourceRoot) || !isAbsolute(codexHome)) throw new Error("Org helper source and Codex home must be absolute");
   sourceRoot = realpathSync(sourceRoot);
   codexHome = realpathSync(codexHome);
+  ensureManagedRoot(codexHome);
   const inventory = sourceInventory(sourceRoot);
   const bin = join(codexHome, "bin");
   const lib = join(codexHome, "lib");
@@ -133,6 +138,7 @@ export async function installOrgPlan(sourceRoot, codexHome) {
   const temporary = join(bin, `.org-plan-${process.pid}-${token}.tmp`);
   let ownsStage = false;
   let ownsTemporary = false;
+  let ownsShim = false;
   try {
     const existing = optionalStat(publicPath);
     if (existing && (!existing.isFile() || existing.isSymbolicLink())) throw new Error(`not a regular public Org helper: ${publicPath}`);
@@ -153,22 +159,24 @@ export async function installOrgPlan(sourceRoot, codexHome) {
     // The literal UUID pins the wrapper and its imports, even if this open
     // dispatcher inode is replaced. Resolve once relative to the public path
     // to preserve relocation; there is no mutable current-version pointer.
-    const dispatcher = process.platform === "win32"
-      ? `#!/usr/bin/env node\n// Gestalt Org helper dispatcher v1\nimport { pathToFileURL } from 'node:url';\nimport { dirname, resolve } from 'node:path';\nawait import(pathToFileURL(resolve(dirname(process.argv[1]), '../lib/gestalt-org-plan/bundles/${token}/org-plan-cli.mjs')).href);\n`
-      : `${DISPATCH_HEADER}bundle=$(CDPATH='' cd -- "$(dirname -- "$0")/../lib/gestalt-org-plan/bundles/${token}" && pwd -P) || exit 1\nexec "$bundle/org-plan" "$@"\n`;
+    // Dynamic import is valid with or without a surrounding package.json type.
+    const dispatcher = `${DISPATCH_HEADER}(async () => {\nconst { pathToFileURL } = await import('node:url');\nconst { dirname, resolve } = await import('node:path');\nconst { realpathSync } = await import('node:fs');\nawait import(pathToFileURL(resolve(dirname(realpathSync(process.argv[1])), '../lib/gestalt-org-plan/bundles/${token}/org-plan-cli.mjs')).href);\n})().catch(error => { console.error(error.message); process.exitCode = 1; });\n`;
     writeFileSync(temporary, dispatcher, { flag: "wx", mode: 0o755 });
     ownsTemporary = true;
     chmodSync(temporary, 0o755);
-    if (process.platform !== "win32") command("bash", ["-n", temporary]);
+    command(process.execPath, ["--input-type=commonjs", "--check"], dispatcher);
+    if (process.platform === "win32") ownsShim = installCmdShim(`${publicPath}.cmd`, "org-plan");
     // Same-directory rename is the sole public activation point. On error the
     // previous public file and every old/legacy module remain untouched.
     renameSync(temporary, publicPath);
     ownsTemporary = false;
+    ownsShim = false;
     return bundle;
   } finally {
     try {
       if (ownsTemporary) rmSync(temporary, { force: true });
       if (ownsStage) rmSync(stage, { recursive: true, force: true });
+      if (ownsShim) rmSync(`${publicPath}.cmd`, { force: true });
     } finally { release(); }
   }
 }

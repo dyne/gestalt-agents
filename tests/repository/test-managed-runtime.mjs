@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import {
+  chmodSync,
   copyFileSync,
   existsSync,
   mkdirSync,
@@ -15,6 +16,7 @@ import { tmpdir } from "node:os";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
+import { installOrgPlan } from "../../scripts/install-org-plan.mjs";
 import {
   installRuntime,
   verifyInstalledRuntime,
@@ -32,6 +34,7 @@ function fixture(t) {
   const home = join(directory, "gestalt home ' $()");
   const source = join(directory, "source");
   mkdirSync(source);
+  mkdirSync(home, { mode: 0o700 });
   writeFileSync(
     join(source, "package.json"),
     JSON.stringify({ version: "1.0.0" }),
@@ -151,7 +154,7 @@ test("an ABI mismatch rebuilds in place and concurrent installers share a lock",
   assert.deepEqual(readdirSync(dirname(target)), ["context-mode"]);
 });
 
-test("stable commands preserve arguments, environment overrides, and exit status", (t) => {
+test("stable commands preserve arguments, environment overrides, and exit status", async (t) => {
   const { home, source, target } = fixture(t);
   mkdirSync(target, { recursive: true });
   writeFileSync(
@@ -161,16 +164,8 @@ test("stable commands preserve arguments, environment overrides, and exit status
   const codex = join(home, "codex home");
   mkdirSync(join(codex, "bin"), { recursive: true });
   mkdirSync(join(codex, "lib", "gestalt-org-plan"), { recursive: true });
-  const orgSource = join(root, "plugins/gestalt/skills/org-plan/scripts");
-  copyFileSync(join(orgSource, "org-plan"), join(codex, "bin", "org-plan"));
-  for (const file of readdirSync(orgSource).filter((name) =>
-    name.endsWith(".mjs"),
-  )) {
-    copyFileSync(
-      join(orgSource, file),
-      join(codex, "lib", "gestalt-org-plan", file),
-    );
-  }
+  chmodSync(codex, 0o700);
+  await installOrgPlan(root, codex);
   installGestaltCommands(home, codex);
   installGestaltCommands(home, codex);
   const env = { ...process.env, GESTALT_HOME: "override" };

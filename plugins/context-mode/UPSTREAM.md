@@ -15,6 +15,12 @@ and contents while excluding generated dependencies and build artifacts.
 
 ## Downstream changes
 
+- Configured Codex hook commands now use fixed Node source and a base64-encoded
+  launcher path, preserving hook-event argv and stdin on POSIX shells, cmd and
+  PowerShell. Paths containing spaces, Unicode and shell metacharacters remain
+  data; no Bash, POSIX colon command or platform-specific path quoting is needed.
+  Managed-hook recognition and unrelated hook preservation remain unchanged.
+
 - Resolves the build and bundle-assertion CLI entry files physically before
   deciding whether to execute them. macOS `/var` aliases, Unix symlinks and
   Windows junctions can no longer turn those commands into successful no-ops.

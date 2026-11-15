@@ -56,6 +56,7 @@ release_paths=(
   scripts/setup-storage.mjs
   scripts/prepare-agent-profiles.mjs
   scripts/install-managed-commands.mjs
+  scripts/native-command-shims.mjs
   scripts/install-org-plan.mjs
   scripts/verify-gestalt-skill-catalog.mjs
   plugins/gestalt

@@ -1,7 +1,7 @@
 # Consolidated engineering skills: source and adaptation record
 
-Native setup adds a default profile data file generated from the existing
-Org profile contract and a portable installer transaction. Profile instruction
+Native setup and installed Org helpers share a Node profile transaction and
+canonical default module captured from the existing Org profile contract. Profile instruction
 bytes, role names and default models are preserved. The independent Gestalt
 plugin carries its own original native npm command-shim recognizer for Codex
 diagnostics; context-mode packages the same utility for its separately installed
@@ -10,7 +10,15 @@ plain-Node shim protocol and never evaluates arbitrary batch source.
 Setup's Windows directory ACL creation/inspection is adapted from the original
 MIT-licensed `windows-system.ts` helper in dyne/gestalt commit
 `cb7dbf1bfb2221bd0b3f4366311280e53cd712be`; its copyright/permission notice is
-retained beside the adapted setup implementation. No manager package or native
+retained beside the shared Org storage implementation. Native status publication
+uses exclusive private-file creation and native filesystem rename/chmod;
+profile preparation preserves existing modes, rollback and encoded records,
+with explicit CODEX_HOME isolation. The Unix Org entry is a compatibility
+adapter. Immutable installed bundles use a single atomic Node dispatcher;
+standard npm-form .cmd shims provide cmd/PowerShell entry without Developer
+Mode, symlinks, administrator rights or PowerShell execution-policy changes.
+Managed commands are self-contained Node launchers with literal argv/stdin/exit
+forwarding. No manager package or native
 helper download is required.
 
 The Xerj skill and its managed-command reference are retired from this package.

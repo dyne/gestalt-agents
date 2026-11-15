@@ -29,7 +29,7 @@ jobs:
           GESTALT_NATIVE_TEST_EVIDENCE: native-evidence
         run: |
           mkdir -p native-evidence
-          node --test --test-reporter=tap tests/repository/test-native-setup.mjs tests/native-setup-smoke.mjs > native-evidence/contracts.tap 2>&1
+          node --test --test-reporter=tap tests/repository/test-native-setup.mjs tests/repository/test-native-helpers.mjs tests/native-setup-smoke.mjs > native-evidence/contracts.tap 2>&1
       - uses: actions/upload-artifact@v4
         if: always()
         with:

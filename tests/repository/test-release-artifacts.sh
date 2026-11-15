@@ -146,6 +146,7 @@ assert "gestalt-setup.mjs" in bundle_entries
 assert "scripts/setup-storage.mjs" in bundle_entries
 assert "scripts/prepare-agent-profiles.mjs" in bundle_entries
 assert "scripts/install-managed-commands.mjs" in bundle_entries
+assert "scripts/native-command-shims.mjs" in bundle_entries
 assert "scripts/install-org-plan.mjs" in bundle_entries
 assert "scripts/verify-gestalt-skill-catalog.mjs" in bundle_entries
 assert "README.md" in bundle_entries
@@ -166,6 +167,8 @@ instruction_paths = (
     "plugins/gestalt/startup/delivery-scenarios.json",
     "plugins/gestalt/scripts/startup-contract.mjs",
     "scripts/install-org-plan.mjs",
+    "scripts/native-command-shims.mjs",
+    "scripts/setup-storage.mjs",
     "plugins/context-mode/scripts/runtime-lock.mjs",
     "plugins/context-mode/scripts/install-runtime.mjs",
     "plugins/context-mode/scripts/prepare-runtime.mjs",

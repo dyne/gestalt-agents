@@ -11,6 +11,7 @@ import {
   suspendReopen,
   resume,
 } from "./org-plan-core.mjs";
+import { prepareProfiles, PROFILE_HELP } from "./org-plan-profiles.mjs";
 
 const COMMANDS = [
   "validate",
@@ -31,6 +32,7 @@ const COMMANDS = [
   "prepare-supervision",
 ];
 const HELP = {
+  ...PROFILE_HELP,
   validate: "usage: org-plan validate PLAN",
   next: "usage: org-plan next PLAN {l1|l2|review}",
   summary: "usage: org-plan summary PLAN",
@@ -137,8 +139,10 @@ function publishSignal(command, args) {
   console.log(`signal=${outcome} plan=${readPlan(args[0]).path} reason=${reason}`);
 }
 
-function run(command, args) {
-  if (command === "validate") {
+async function run(command, args) {
+  if (Object.hasOwn(PROFILE_HELP, command)) {
+    console.log(await prepareProfiles(command, args));
+  } else if (command === "validate") {
     if (args.length !== 1) usage();
     readPlan(args[0]);
   } else if (command === "next") {
@@ -191,17 +195,17 @@ if (command === "--help" || command === "-h") {
   );
   process.exit(0);
 }
-if (args.length === 1 && /^--?help$/.test(args[0])) {
+if (args.length === 1 && /^(?:--?help|-h)$/.test(args[0])) {
   if (!HELP[command]) usage();
   console.log(HELP[command]);
   process.exit(0);
 }
 
 try {
-  run(command, args);
+  await run(command, args);
 } catch (error) {
   console.error(
     `${args[0] ?? "org-plan"}: ${error instanceof Error ? error.message : String(error)}`,
   );
-  process.exit(1);
+  process.exit(error.exitCode ?? 1);
 }

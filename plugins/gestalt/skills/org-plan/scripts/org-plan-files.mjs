@@ -1,6 +1,5 @@
-import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { chmodSync as nodeChmodSync, lstatSync, realpathSync } from "node:fs";
+import { chmodSync, lstatSync, realpathSync, renameSync } from "node:fs";
 import { basename, dirname, join, resolve } from "node:path";
 
 export function fail(message) {
@@ -24,21 +23,16 @@ export function resolvePlanPath(path) {
   return canonicalPath;
 }
 
-// Keep chmod and mv on PATH so compatibility tests can inject deterministic
-// failures at the same process boundary as the original Bash implementation.
+// Retain exported names for hosts while using native filesystem operations.
 export function chmodThroughPath(path, mode) {
-  execFileSync("chmod", [mode.toString(8), path], { stdio: "ignore" });
-  nodeChmodSync(path, mode);
+  chmodSync(path, mode);
 }
 
 export function renameThroughPath(source, target) {
-  execFileSync("mv", [source, target], { stdio: "ignore" });
+  renameSync(source, target);
 }
 
 export function renameStatusThroughPath(source, target) {
-  // Preserve cleanup and reporting if the injected compatibility seam receives
-  // SIGTERM while moving the candidate into place.
-  process.once("SIGTERM", () => {});
   renameThroughPath(source, target);
 }
 

@@ -14,6 +14,39 @@ trap 'rm -rf "$tmp"' EXIT HUP INT TERM
 # parent relay's optional publication configuration change which endpoint the
 # helper chooses while this test is exercising legacy file and directory mode.
 unset GESTALT_MOBILE_ORG_PLAN_STATUS_DIRECTORY GESTALT_MOBILE_ORG_PLAN_STATUS_FILE
+export CODEX_HOME="$tmp/default-codex"
+# Inject at native fs boundaries, retaining real signal delivery and rollback.
+preload="$tmp/native-faults.mjs"
+cat > "$preload" <<'JS'
+import fs from 'node:fs';
+import { syncBuiltinESMExports } from 'node:module';
+const chmod=fs.chmodSync, mkdir=fs.mkdirSync, rename=fs.renameSync;
+let moves=0;
+fs.chmodSync=(...args)=>{
+ if(process.env.ORG_TEST_FAILURE==='chmod')throw new Error('injected chmod failure');
+ const result=chmod(...args);
+ if(process.env.ORG_TEST_FAILURE==='chmod-signal')process.kill(process.pid,'SIGTERM');
+ return result;
+};
+fs.mkdirSync=(path,...args)=>{
+ const result=mkdir(path,...args);
+ if(String(path).includes('.org-plan-stage.')){
+  if(process.env.ORG_TEST_FAILURE==='mkdir-signal')process.kill(process.pid,'SIGTERM');
+  if(process.env.ORG_TEST_FAILURE==='collision'){
+   if(process.env.COLLISION_NONEMPTY==='1')fs.writeFileSync(String(path)+'/sentinel','foreign');
+   throw Object.assign(new Error('foreign collision'),{code:'EEXIST'});
+  }
+ }
+ return result;
+};
+fs.renameSync=(...args)=>{
+ if(process.env.ORG_TEST_FAILURE==='status-rename')throw Object.assign(new Error('interrupted rename'),{code:'EINTR'});
+ const result=rename(...args);
+ if(process.env.ORG_TEST_FAILURE==='rename-signal'&&++moves===1)process.kill(process.pid,'SIGTERM');
+ return result;
+};
+syncBuiltinESMExports();
+JS
 passes=0 failures=0
 
 pass() { passes=$((passes + 1)); }
@@ -43,7 +76,10 @@ for runtime_file in \
   org-plan-effective-settings.mjs \
   org-plan-model-comparison.mjs \
   org-plan-publication.mjs \
-  org-plan-transitions.mjs; do
+  org-plan-transitions.mjs \
+  org-plan-profiles.mjs \
+  org-plan-profile-defaults.mjs \
+  org-plan-storage.mjs; do
   install -m 0644 "$root/plugins/gestalt/skills/org-plan/scripts/$runtime_file" \
     "$installed_root/lib/gestalt-org-plan/$runtime_file"
 done
@@ -107,9 +143,7 @@ copy valid-multi.org measure-failure.org
 measure_failure_before=$(cksum "$tmp/measure-failure.org")
 measure_failure_bin="$tmp/measure-failure-bin"
 mkdir -p "$measure_failure_bin"
-printf '#!/bin/sh\nexit 1\n' > "$measure_failure_bin/chmod"
-chmod +x "$measure_failure_bin/chmod"
-expect_fail env PATH="$measure_failure_bin:$PATH" "$helper" measure start "$tmp/measure-failure.org" second-task "$measurement_start"
+expect_fail env NODE_OPTIONS="--import=$preload" ORG_TEST_FAILURE=chmod "$helper" measure start "$tmp/measure-failure.org" second-task "$measurement_start"
 test "$measure_failure_before" = "$(cksum "$tmp/measure-failure.org")" && pass || fail 'failed measurement write leaves original unchanged'
 test -z "$(find "$tmp" -maxdepth 1 -name 'measure-failure.org.tmp.*' -print -quit)" && pass || fail 'failed measurement write cleans temporary file'
 
@@ -377,9 +411,7 @@ expect_ok "$helper" set "$tmp/review-failure.org" first-outcome DONE
 review_failure_before=$(cksum "$tmp/review-failure.org")
 review_failure_bin="$tmp/review-failure-bin"
 mkdir -p "$review_failure_bin"
-printf '#!/bin/sh\nexit 1\n' > "$review_failure_bin/chmod"
-chmod +x "$review_failure_bin/chmod"
-expect_fail env PATH="$review_failure_bin:$PATH" "$helper" review "$tmp/review-failure.org" first-outcome REVIEWED
+expect_fail env NODE_OPTIONS="--import=$preload" ORG_TEST_FAILURE=chmod "$helper" review "$tmp/review-failure.org" first-outcome REVIEWED
 test "$review_failure_before" = "$(cksum "$tmp/review-failure.org")" && pass || fail 'failed review write leaves original unchanged'
 test -z "$(find "$tmp" -maxdepth 1 -name 'review-failure.org.tmp.*' -print -quit)" && pass || fail 'failed review write cleans temporary file'
 
@@ -428,30 +460,24 @@ test "$before" = "$(cksum "$profile")" && pass || fail 'invalid profile name doe
 test -z "$(find "$agents_dir" -name '.*.??????' -print -quit)" && pass || fail 'profile writer leaves no temporary files'
 failure_bin="$tmp/failure-bin"
 mkdir -p "$failure_bin"
-printf '#!/bin/sh\nexit 1\n' > "$failure_bin/chmod"
-chmod +x "$failure_bin/chmod"
 write_failure_dir="$tmp/write-failure-agents"
-expect_fail env PATH="$failure_bin:$PATH" "$helper" prepare-executor --agents-dir "$write_failure_dir"
+expect_fail env NODE_OPTIONS="--import=$preload" ORG_TEST_FAILURE=chmod "$helper" prepare-executor --agents-dir "$write_failure_dir"
 test -z "$(find "$write_failure_dir" -type f -name '.*.??????' -print -quit)" && pass || fail 'profile writer cleans current temporary file on chmod failure'
 interrupt_bin="$tmp/interrupt-bin"
 mkdir -p "$interrupt_bin"
-printf '#!/bin/sh\nkill -TERM "$PPID"\nsleep 1\nexit 1\n' > "$interrupt_bin/chmod"
-chmod +x "$interrupt_bin/chmod"
 interrupt_executor_dir="$tmp/interrupt-executor-agents"
-expect_fail env PATH="$interrupt_bin:$PATH" "$helper" prepare-executor --agents-dir "$interrupt_executor_dir"
+expect_fail env NODE_OPTIONS="--import=$preload" ORG_TEST_FAILURE=chmod-signal "$helper" prepare-executor --agents-dir "$interrupt_executor_dir"
 test -z "$(find "$interrupt_executor_dir" -type f -name '.*.??????' -print -quit)" && pass || fail 'interrupted executor preparation cleans current staged file'
 interrupt_supervision_dir="$tmp/interrupt-supervision-agents"
-expect_fail env PATH="$interrupt_bin:$PATH" "$helper" prepare-supervision --agents-dir "$interrupt_supervision_dir"
+expect_fail env NODE_OPTIONS="--import=$preload" ORG_TEST_FAILURE=chmod-signal "$helper" prepare-supervision --agents-dir "$interrupt_supervision_dir"
 test -z "$(find "$interrupt_supervision_dir" -type f -name '.*.??????' -print -quit)" && pass || fail 'interrupted supervision preparation cleans current staged file'
 
 mkdir_interrupt_bin="$tmp/mkdir-interrupt-bin"
 mkdir -p "$mkdir_interrupt_bin"
 real_mkdir=$(command -v mkdir)
-printf '#!/bin/sh\nreal_mkdir=%s\n"$real_mkdir" "$@" || exit\ncase "$*" in *org-plan-stage.*) kill -TERM "$PPID" ;; esac\n' "$real_mkdir" > "$mkdir_interrupt_bin/mkdir"
-chmod +x "$mkdir_interrupt_bin/mkdir"
 for command in prepare-executor prepare-supervision; do
   creation_dir="$tmp/creation-$command-agents"
-  expect_status 143 env PATH="$mkdir_interrupt_bin:$PATH" "$helper" "$command" --agents-dir "$creation_dir"
+  expect_status 143 env NODE_OPTIONS="--import=$preload" ORG_TEST_FAILURE=mkdir-signal "$helper" "$command" --agents-dir "$creation_dir"
   test -z "$(find "$creation_dir" -name '.org-plan-stage.*' -print -quit)" && pass || fail "$command cleans a stage directory interrupted during creation"
   test ! -s "$tmp/out" && pass || fail "$command interruption prints no success result"
 done
@@ -459,11 +485,9 @@ done
 mv_interrupt_bin="$tmp/mv-interrupt-bin"
 mkdir -p "$mv_interrupt_bin"
 real_mv=$(command -v mv)
-printf '#!/bin/sh\nreal_mv=%s\n"$real_mv" "$@" || exit\ncount=0\ntest ! -f "$MOVE_COUNTER" || count=$(cat "$MOVE_COUNTER")\ncount=$((count + 1))\nprintf "%%s\\n" "$count" > "$MOVE_COUNTER"\ntest "$count" -ne 1 || kill -TERM "$PPID"\n' "$real_mv" > "$mv_interrupt_bin/mv"
-chmod +x "$mv_interrupt_bin/mv"
 
 fresh_rollback_dir="$tmp/fresh-rollback-agents"
-expect_status 143 env PATH="$mv_interrupt_bin:$PATH" MOVE_COUNTER="$tmp/fresh-moves" "$helper" prepare-supervision --agents-dir "$fresh_rollback_dir"
+expect_status 143 env NODE_OPTIONS="--import=$preload" ORG_TEST_FAILURE=rename-signal MOVE_COUNTER="$tmp/fresh-moves" "$helper" prepare-supervision --agents-dir "$fresh_rollback_dir"
 test -z "$(find "$fresh_rollback_dir" -maxdepth 1 -type f -name '*.toml' -print -quit)" && pass || fail 'interrupted fresh supervision install leaves no partial profiles'
 test -z "$(find "$fresh_rollback_dir" -name '.org-plan-stage.*' -print -quit)" && pass || fail 'fresh supervision rollback cleans stage directory'
 test ! -s "$tmp/out" && pass || fail 'fresh supervision rollback prints no success result'
@@ -473,7 +497,7 @@ expect_ok "$helper" prepare-executor --agents-dir "$legacy_rollback_dir"
 printf 'legacy-old\n' > "$legacy_rollback_dir/org-plan-executor.toml"
 chmod 640 "$legacy_rollback_dir/org-plan-executor.toml"
 legacy_before=$(cksum "$legacy_rollback_dir/org-plan-executor.toml")
-expect_status 143 env PATH="$mv_interrupt_bin:$PATH" MOVE_COUNTER="$tmp/legacy-moves" "$helper" prepare-executor --agents-dir "$legacy_rollback_dir"
+expect_status 143 env NODE_OPTIONS="--import=$preload" ORG_TEST_FAILURE=rename-signal MOVE_COUNTER="$tmp/legacy-moves" "$helper" prepare-executor --agents-dir "$legacy_rollback_dir"
 test "$legacy_before" = "$(cksum "$legacy_rollback_dir/org-plan-executor.toml")" && pass || fail 'interrupted legacy install restores old profile'
 test "$(stat -c '%a' "$legacy_rollback_dir/org-plan-executor.toml" 2>/dev/null || stat -f '%Lp' "$legacy_rollback_dir/org-plan-executor.toml")" = 640 && pass || fail 'legacy rollback preserves old mode'
 test -z "$(find "$legacy_rollback_dir" -name '.org-plan-stage.*' -print -quit)" && pass || fail 'legacy rollback cleans stage directory'
@@ -489,7 +513,7 @@ for role in reviewer executor; do
 done
 rollback_before=$(cksum "$supervision_rollback_dir"/*.toml)
 rollback_modes=$(for file in "$supervision_rollback_dir"/*.toml; do stat -c '%a' "$file" 2>/dev/null || stat -f '%Lp' "$file"; done)
-expect_status 143 env PATH="$mv_interrupt_bin:$PATH" MOVE_COUNTER="$tmp/supervision-moves" "$helper" prepare-supervision --agents-dir "$supervision_rollback_dir"
+expect_status 143 env NODE_OPTIONS="--import=$preload" ORG_TEST_FAILURE=rename-signal MOVE_COUNTER="$tmp/supervision-moves" "$helper" prepare-supervision --agents-dir "$supervision_rollback_dir"
 test "$rollback_before" = "$(cksum "$supervision_rollback_dir"/*.toml)" && pass || fail 'interrupted supervision install restores all old profiles'
 test "$rollback_modes" = "$(for file in "$supervision_rollback_dir"/*.toml; do stat -c '%a' "$file" 2>/dev/null || stat -f '%Lp' "$file"; done)" && pass || fail 'supervision rollback preserves all old modes'
 test -z "$(find "$supervision_rollback_dir" -name '.org-plan-stage.*' -print -quit)" && pass || fail 'supervision rollback cleans stage directory'
@@ -516,13 +540,11 @@ done
 
 collision_bin="$tmp/collision-bin"
 mkdir -p "$collision_bin"
-printf '#!/bin/sh\nreal_mkdir=%s\ncase "$*" in *org-plan-stage.*) "$real_mkdir" "$@" || exit; for last do :; done; test "${COLLISION_NONEMPTY:-0}" != 1 || printf foreign > "$last/sentinel"; exit 1 ;; *) exec "$real_mkdir" "$@" ;; esac\n' "$real_mkdir" > "$collision_bin/mkdir"
-chmod +x "$collision_bin/mkdir"
 for command in prepare-executor prepare-supervision; do
   for collision_kind in empty nonempty; do
     collision_dir="$tmp/collision-$command-$collision_kind-agents"
     if [[ $collision_kind == nonempty ]]; then collision_nonempty=1; else collision_nonempty=0; fi
-    expect_fail env PATH="$collision_bin:$PATH" COLLISION_NONEMPTY="$collision_nonempty" "$helper" "$command" --agents-dir "$collision_dir"
+    expect_fail env NODE_OPTIONS="--import=$preload" ORG_TEST_FAILURE=collision COLLISION_NONEMPTY="$collision_nonempty" "$helper" "$command" --agents-dir "$collision_dir"
     foreign_stage=$(find "$collision_dir" -maxdepth 1 -type d -name '.org-plan-stage.*' -print -quit)
     test -n "$foreign_stage" && pass || fail "$command preserves foreign $collision_kind colliding stage directory"
     [[ $collision_kind == empty ]] || { test -f "$foreign_stage/sentinel" && pass || fail "$command preserves foreign collision sentinel"; }
@@ -728,9 +750,7 @@ expect_fail env GESTALT_MOBILE_ORG_PLAN_STATUS_FILE="$unsafe_status_dir/status.j
 expect_contains "$tmp/err" 'unsafe status file directory'
 interrupt_bin="$tmp/status-interrupt-bin"
 mkdir -m 700 "$interrupt_bin"
-printf '#!/bin/sh\nkill -TERM "$PPID"\nexit 1\n' >"$interrupt_bin/mv"
-chmod +x "$interrupt_bin/mv"
-expect_fail env PATH="$interrupt_bin:$PATH" GESTALT_MOBILE_ORG_PLAN_STATUS_FILE="$status_file" "$helper" signal "$status_plan" interrupted
+expect_fail env NODE_OPTIONS="--import=$preload" ORG_TEST_FAILURE=status-rename GESTALT_MOBILE_ORG_PLAN_STATUS_FILE="$status_file" "$helper" signal "$status_plan" interrupted
 test -z "$(find "$status_dir" -maxdepth 1 -name '.status.json.tmp.*' -print -quit)" && pass || fail 'interrupted signal cleans its status temporary file'
 test -f "$status_file" && pass || fail 'interrupted signal preserves the prior complete status file'
 rm -rf "$interrupt_bin"

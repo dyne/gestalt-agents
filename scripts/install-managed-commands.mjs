@@ -4,17 +4,21 @@ import {
   lstatSync,
   mkdirSync,
   readFileSync,
+  realpathSync,
   renameSync,
   rmSync,
   writeFileSync,
 } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { homedir } from "node:os";
-import { isAbsolute, join, resolve } from "node:path";
+import { isAbsolute, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { commandTarget, resolveExecutable } from "../plugins/context-mode/scripts/native-command.mjs";
+import { checkCmdShim, installCmdShim } from "./native-command-shims.mjs";
+import { ensureManagedRoot } from "./setup-storage.mjs";
 
-const header = "#!/bin/sh\n# Managed by Gestalt command installer.\n";
-const quote = (value) => `'${value.replaceAll("'", "'\\''")}'`;
+const header = "#!/usr/bin/env node\n// Managed by Gestalt command installer.\n";
+const legacyHeader = "#!/bin/sh\n# Managed by Gestalt command installer.\n";
 
 /** Explicit registrations keep future commands out of installer-specific shell code. */
 export function installManagedCommands(gestaltHome, commands) {
@@ -41,31 +45,34 @@ export function installManagedCommands(gestaltHome, commands) {
     }
     if (
       existing &&
-      (!existing.isFile() || !readFileSync(path, "utf8").startsWith(header))
+      (!existing.isFile() || existing.isSymbolicLink() || ![header, legacyHeader].some((marker) => readFileSync(path, "utf8").startsWith(marker)))
     ) {
       throw new Error(`Refusing to replace unmanaged command: ${path}`);
     }
-    const defaults = Object.entries(env)
-      .map(([key, value]) => {
+    if (process.platform === "win32") checkCmdShim(`${path}.cmd`, name);
+    for (const [key, value] of Object.entries(env)) {
         if (
           !/^[A-Z][A-Z0-9_]*$/.test(key) ||
           typeof value !== "string" ||
           value.includes("\0")
         )
           throw new Error("Invalid managed environment default");
-        return `if [ -z "\${${key}:-}" ]; then export ${key}=${quote(value)}; fi\n`;
-      })
-      .join("");
+    }
+    const target = command[0] === "node" ? { executable: null, prefix: [] } : commandTarget(resolveExecutable(command[0]));
+    const argv = [...target.prefix, ...command.slice(1)];
     return {
       path,
-      text: `${header}${defaults}exec ${command.map(quote).join(" ")} "$@"\n`,
+      name,
+      text: `${header}(async () => {\nconst { spawn } = await import('node:child_process');\nconst defaults = ${JSON.stringify(env)};\nfor (const [key,value] of Object.entries(defaults)) if (!process.env[key]) process.env[key] = value;\nconst child = spawn(${JSON.stringify(target.executable)} || process.execPath, [...${JSON.stringify(argv)}, ...process.argv.slice(2)], { shell: false, stdio: 'inherit', windowsHide: true });\nconst signals = ['SIGHUP','SIGINT','SIGTERM'];\nconst handlers = new Map(signals.map(signal => [signal, () => { if (!child.killed) child.kill(signal); }]));\nfor (const [signal,handler] of handlers) process.on(signal,handler);\nchild.once('error', error => { console.error(error.message); process.exitCode = 1; });\nchild.once('exit', (code,signal) => {\n for (const [name,handler] of handlers) process.removeListener(name,handler);\n if (signal && process.platform !== 'win32') process.kill(process.pid,signal);\n else process.exitCode = code ?? ({SIGHUP:129,SIGINT:130,SIGTERM:143}[signal] || 1);\n});\n})().catch(error => { console.error(error.message); process.exitCode = 1; });\n`,
     };
   });
+  ensureManagedRoot(gestaltHome);
   mkdirSync(bin, { recursive: true, mode: 0o755 });
-  for (const { path, text } of pending) {
+  for (const { path, text, name } of pending) {
     const temporary = `${path}.tmp-${randomUUID()}`;
     try {
       writeFileSync(temporary, text, { mode: 0o755, flag: "wx" });
+      if (process.platform === "win32") installCmdShim(`${path}.cmd`, name);
       renameSync(temporary, path);
     } finally {
       rmSync(temporary, { force: true });
@@ -86,15 +93,16 @@ export function installGestaltCommands(gestaltHome, codexHome) {
     const orgPlan = join(codexHome, "bin", "org-plan");
     if (!existsSync(orgPlan))
       throw new Error(`Installed Org-plan CLI missing: ${orgPlan}`);
-    commands.push({ name: "org-plan", command: [orgPlan], env });
+    commands.push({ name: "org-plan", command: ["node", orgPlan], env });
   }
   installManagedCommands(gestaltHome, commands);
 }
 
-if (
-  process.argv[1] &&
-  resolve(process.argv[1]) === fileURLToPath(import.meta.url)
-) {
+function isDirectInvocation() {
+  try { return !!process.argv[1] && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url)); }
+  catch { return false; }
+}
+if (isDirectInvocation()) {
   const gestaltHome = process.argv[2] ?? join(homedir(), ".gestalt");
   const codexHome = process.argv[3];
   if (codexHome && !isAbsolute(codexHome))
