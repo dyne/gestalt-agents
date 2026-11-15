@@ -23,7 +23,7 @@ function fixture(t, kind, scenario) {
   const lock = kind === "install" ? join(home, "runtime", "context-mode.install.lock") : join(source, ".context-mode-prepare.lock");
   mkdirSync(source);
   mkdirSync(dirname(lock), { recursive: true });
-  writeFileSync(join(source, "package.json"), '{"version":"1.0.0"}');
+  writeFileSync(join(source, "package.json"), '{"version":"1.0.0","allowScripts":{"better-sqlite3":true,"esbuild":true}}');
   const children = [];
   const gates = [];
   t.after(async () => {

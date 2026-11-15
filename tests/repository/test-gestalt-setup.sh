@@ -207,7 +207,8 @@ exit 99
 SH
 chmod +x "$tmp/bin/codex"
 configured_real=$(CDPATH='' cd -- "$configured" && pwd -P)
-delegated=$(CODEX_HOME="$tmp/delegated-home" PATH="$tmp/bin:$PATH" \
+mkdir -p "$tmp/delegated-home"
+delegated=$(CODEX_HOME="$tmp/delegated-home" GESTALT_HOME="$tmp/delegated-gestalt" PATH="$tmp/bin:$PATH" \
   bash "$script" --force --extra-skills)
 assert_contains "$delegated" "continuing from configured marketplace $configured_real" \
   "setup delegates to the canonical configured marketplace"

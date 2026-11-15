@@ -148,7 +148,7 @@ checkout = next(step for step in matrix_steps if step.get("uses") == "actions/ch
 assert checkout["with"]["fetch-depth"] == 0
 node = next(step for step in matrix_steps if step.get("uses") == "actions/setup-node@v7")
 bun = next(step for step in matrix_steps if step.get("uses") == "oven-sh/setup-bun@v2")
-assert node["with"]["node-version"] == "22.12.0"
+assert node["with"]["node-version"] == "24"
 assert not any(step.get("uses", "").startswith("actions/setup-go@") for step in matrix_steps)
 assert bun["with"]["bun-version"] == "1.3.14"
 codex = next(step for step in matrix_steps if step.get("name") == "Install current Codex CLI")

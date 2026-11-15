@@ -115,6 +115,17 @@ function artifacts(root, manifest = false) {
   }
   fs.writeFileSync(join(root, "node_modules", "better-sqlite3", "index.cjs"),
     "module.exports = class Database { close() {} };\n");
+  for (const entry of ["esbuild/install.js", "prebuild-install/bin.js", "typescript/bin/tsc"]) {
+    const path = join(root, "node_modules", entry);
+    fs.mkdirSync(dirname(path), { recursive: true });
+    fs.writeFileSync(path, "// Dependency entrypoint fixture; execution is intercepted.\n");
+  }
+  const binaryName = `@esbuild/${process.platform}-${process.arch}`;
+  const binaryRoot = join(root, "node_modules", binaryName);
+  fs.mkdirSync(join(binaryRoot, "bin"), { recursive: true });
+  fs.writeFileSync(join(binaryRoot, "package.json"), JSON.stringify({ name: binaryName, version: "0.27.7" }));
+  fs.writeFileSync(join(binaryRoot, process.platform === "win32" ? "esbuild.exe" : "bin/esbuild"), "fixture binary");
+  fs.writeFileSync(join(root, "node_modules/esbuild/package.json"), JSON.stringify({ version: "0.27.7", optionalDependencies: { [binaryName]: "0.27.7" } }));
   if (manifest) fs.writeFileSync(join(root, ".context-mode-prepared.json"), JSON.stringify({
     schemaVersion: 2, packageVersion: "1.0.0", nodeModulesAbi: process.versions.modules,
     platform: process.platform, arch: process.arch, files,
@@ -141,6 +152,12 @@ function build(root) {
 childProcess.execFileSync = (_command, _args, options) => {
   build(options.cwd);
   return Buffer.from("");
+};
+// Preparation now forwards native command tokens through spawnSync. Keep the
+// expensive build seam explicit while exercising the same real lock/manifest.
+childProcess.spawnSync = (_command, _args, options) => {
+  build(options.cwd);
+  return { status: 0, signal: null, stdout: "", stderr: "" };
 };
 syncBuiltinESMExports();
 try {

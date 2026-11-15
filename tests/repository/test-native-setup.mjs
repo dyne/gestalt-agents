@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { chmodSync, cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, readlinkSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -11,14 +11,14 @@ import { tryAcquireRuntimeLock } from "../../plugins/context-mode/scripts/runtim
 import { ensureManagedRoot } from "../../scripts/setup-storage.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
-const temp = () => mkdtempSync(join(realTemp(), "native-setup-"));
+const temp = () => realpathSync(mkdtempSync(join(realTemp(), "native-setup-")));
 function realTemp() { return process.env.TMPDIR || tmpdir(); }
 const hash = (text) => createHash("sha256").update(text).digest("hex");
 function tree(path) {
   if (!existsSync(path)) return null;
   return readdirSync(path, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name)).map((entry) => {
     const file = join(path, entry.name), info = lstatSync(file);
-    return [entry.name, process.platform === "win32" ? null : info.mode & 0o777, entry.isDirectory() ? tree(file) : hash(readFileSync(file))];
+    return [entry.name, process.platform === "win32" ? null : info.mode & 0o777, entry.isSymbolicLink() ? readlinkSync(file) : entry.isDirectory() ? tree(file) : hash(readFileSync(file))];
   });
 }
 function nodeShim(bin, name, script) {
@@ -38,7 +38,7 @@ function fixture(t) {
   for (const path of ["gestalt-setup.mjs", "gestalt-setup.sh", "scripts", "plugins/gestalt", "plugins/context-mode/scripts", ".agents/plugins"]) cpSync(join(root, path), join(source, path), { recursive: true });
   const bin = join(base, "tools"); mkdirSync(bin);
   nodeShim(bin, "npm", `import { appendFileSync } from 'node:fs'; appendFileSync(process.env.SETUP_CALLS, JSON.stringify(['npm', ...process.argv.slice(2)])+'\\n'); if (process.env.FAIL_NPM) process.exit(42);`);
-  nodeShim(bin, "npx", `import { appendFileSync, mkdirSync, writeFileSync } from 'node:fs'; import { join } from 'node:path'; appendFileSync(process.env.SETUP_CALLS, JSON.stringify(['npx', process.cwd(), ...process.argv.slice(2)])+'\\n'); const path=join(process.cwd(),'.agents/skills/fixture-skill'); mkdirSync(path,{recursive:true}); writeFileSync(join(path,'SKILL.md'),'fixture'); if(process.env.FAIL_NPX)process.exit(43);`);
+  nodeShim(bin, "npx", `import { appendFileSync, mkdirSync, writeFileSync } from 'node:fs'; import { join } from 'node:path'; appendFileSync(process.env.SETUP_CALLS, JSON.stringify(['npx', process.cwd(), ...process.argv.slice(2)])+'\\n'); const path=join(process.cwd(),'.agents/skills/fixture-skill'); mkdirSync(path,{recursive:true}); writeFileSync(join(path,'SKILL.md'),'fixture'); writeFileSync(join(process.cwd(),'skills-lock.json'),JSON.stringify({fixture:process.env.FAIL_NPX||'success'})); if(process.env.FAIL_NPX)process.exit(43);`);
   nodeShim(bin, "codex", `
 import { appendFileSync, cpSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'; import { join } from 'node:path';
 const args=process.argv.slice(2), home=process.env.CODEX_HOME;
@@ -116,6 +116,41 @@ test("present-invalid managed scratch fails before any setup mutation", (t) => {
   assert.equal(existsSync(f.gestalt), false); assert.equal(existsSync(f.codex), false); assert.deepEqual(f.calls(), []);
 });
 
+test("unsafe writable installation namespaces are refused before creating managed homes", (t) => {
+  const f = fixture(t), parent = join(f.base, "unsafe-parent");
+  ensureManagedRoot(parent);
+  if (process.platform === "win32") {
+    const script = "$ErrorActionPreference='Stop';$p=[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($env:TEST_ACL_PATH));$d=Get-Item -LiteralPath $p;$a=$d.GetAccessControl();$s=New-Object Security.Principal.SecurityIdentifier('S-1-1-0');$a.AddAccessRule((New-Object Security.AccessControl.FileSystemAccessRule($s,'WriteData,DeleteSubdirectoriesAndFiles','Allow')));$d.SetAccessControl($a)";
+    const result = spawnSync(join(process.env.SystemRoot, "System32/WindowsPowerShell/v1.0/powershell.exe"), ["-NoProfile", "-NonInteractive", "-EncodedCommand", Buffer.from(script, "utf16le").toString("base64")], { env: { ...process.env, TEST_ACL_PATH: Buffer.from(parent).toString("base64") }, encoding: "utf8", shell: false });
+    assert.equal(result.status, 0, result.stderr);
+  } else chmodSync(parent, 0o777);
+  assert.throws(() => ensureManagedRoot(join(parent, "managed")));
+  assert.equal(existsSync(join(parent, "managed")), false);
+});
+
+test("existing managed roots readable by another user are rejected without changing permissions", (t) => {
+  const f = fixture(t);
+  if (process.platform === "win32") {
+    ensureManagedRoot(f.gestalt);
+    const script = "$ErrorActionPreference='Stop';$p=[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($env:TEST_ACL_PATH));$d=Get-Item -LiteralPath $p;$a=$d.GetAccessControl();$s=New-Object Security.Principal.SecurityIdentifier('S-1-1-0');$a.AddAccessRule((New-Object Security.AccessControl.FileSystemAccessRule($s,'ReadAndExecute','Allow')));$d.SetAccessControl($a)";
+    const result = spawnSync(join(process.env.SystemRoot, "System32/WindowsPowerShell/v1.0/powershell.exe"), ["-NoProfile", "-NonInteractive", "-EncodedCommand", Buffer.from(script, "utf16le").toString("base64")], { env: { ...process.env, TEST_ACL_PATH: Buffer.from(f.gestalt).toString("base64") }, encoding: "utf8", shell: false });
+    assert.equal(result.status, 0, result.stderr);
+    const rejected = f.run(["--prepare-only"]);
+    assert.notEqual(rejected.status, 0); assert.match(rejected.stderr, /ACL permits another principal/);
+    assert.equal(readdirSync(f.gestalt).length, 0);
+    return;
+  }
+  for (const mode of [0o755, 0o750, 0o701]) {
+    mkdirSync(f.gestalt, { mode }); chmodSync(f.gestalt, mode);
+    const result = f.run(["--prepare-only"]);
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /must be private to its owner/);
+    assert.equal(lstatSync(f.gestalt).mode & 0o777, mode);
+    assert.equal(readdirSync(f.gestalt).length, 0);
+    rmSync(f.gestalt, { recursive: true });
+  }
+});
+
 test("npm and post-plugin failures restore prior runtime and selected profile", (t) => {
   const f = fixture(t);
   let result = f.run(); assert.equal(result.status, 0, result.stderr);
@@ -131,6 +166,9 @@ test("optional skills keep all 19 explicit selections confined and preserve exis
   assert.equal(f.calls().length, 19); assert.ok(f.calls().every(([name, cwd, ...args]) => name === "npx" && cwd === f.gestalt && args.slice(-3).join(" ") === "-a codex -y"));
   const existing = join(f.codex, "skills/fixture-skill/SKILL.md"); assert.equal(readFileSync(existing, "utf8"), "fixture");
   result = f.run(["--extra-skills-only"]); assert.equal(result.status, 0, result.stderr); assert.match(result.stdout, /keeping existing/);
+  const beforeGestalt = tree(f.gestalt), beforeCodex = tree(f.codex);
+  result = f.run(["--extra-skills-only"], { FAIL_NPX: "1" }); assert.notEqual(result.status, 0);
+  assert.deepEqual(tree(f.gestalt), beforeGestalt); assert.deepEqual(tree(f.codex), beforeCodex);
   assert.equal(existsSync(join(f.gestalt, "runtime")), false);
 });
 
@@ -150,4 +188,36 @@ test("native npm Node shim forwards literal argv/stdin and exit without evaluati
   writeFileSync(join(npm, "package.json"), JSON.stringify({ name: "npm", bin: { npm: "bin/npm-cli.js" } }));
   writeFileSync(join(npm, "bin/npm-cli.js"), "#!/usr/bin/env node\nconsole.log(JSON.stringify(process.argv.slice(2)));\n");
   assert.deepEqual(JSON.parse(runCommand(bundled, args, { stdio: "pipe" })), args);
+});
+
+test("runtime preparation runs allowlisted dependency JS with scripts disabled and no compiler fallback", (t) => {
+  const f = fixture(t), runtime = join(f.source, "plugins/context-mode");
+  writeFileSync(join(runtime, "package.json"), JSON.stringify({ version: "2.26.0", allowScripts: { "better-sqlite3": true, esbuild: true } }));
+  writeFileSync(join(runtime, "start.mjs"), "// fixture launcher\n");
+  const pkg = (name, manifest, files) => {
+    const directory = join(runtime, "node_modules", name); mkdirSync(directory, { recursive: true });
+    writeFileSync(join(directory, "package.json"), JSON.stringify(manifest));
+    for (const [name, contents] of Object.entries(files)) { mkdirSync(dirname(join(directory, name)), { recursive: true }); writeFileSync(join(directory, name), contents); }
+  };
+  const record = "require('node:fs').appendFileSync(process.env.PREPARE_ENTRY_LOG,JSON.stringify([require('node:path').basename(__filename),process.env.npm_config_ignore_scripts])+'\\n');";
+  const binaryName = `@esbuild/${process.platform}-${process.arch}`;
+  pkg(binaryName, { name: binaryName, version: "0.27.7" }, { [process.platform === "win32" ? "esbuild.exe" : "bin/esbuild"]: "fixture binary" });
+  pkg("esbuild", { main: "index.cjs", version: "0.27.7", optionalDependencies: { [binaryName]: "0.27.7" } }, {
+    "install.js": `${record}if(process.env.FAIL_ESBUILD)process.exit(51);`,
+    "index.cjs": "exports.build=async o=>{const fs=require('node:fs'),p=require('node:path');fs.mkdirSync(p.dirname(p.join(o.absWorkingDir,o.outfile)),{recursive:true});fs.writeFileSync(p.join(o.absWorkingDir,o.outfile),'// fixture bundle\\n');};",
+  });
+  pkg("better-sqlite3", { main: "index.cjs" }, { "index.cjs": "module.exports=class Database {close(){}};" });
+  pkg("prebuild-install", {}, { "bin.js": `${record}if(process.env.FAIL_PREBUILD)process.exit(52);const fs=require('node:fs');fs.mkdirSync('build/Release',{recursive:true});fs.writeFileSync('build/Release/better_sqlite3.node','fixture native binary');` });
+  pkg("typescript", {}, { "bin/tsc": record });
+  for (const name of ["turndown", "turndown-plugin-gfm", "@mixmark-io/domino"]) pkg(name, {}, {});
+  const entryLog = join(f.base, "preparation-entries.jsonl");
+  const invoke = (extra = {}) => spawnSync(process.execPath, [join(runtime, "scripts/prepare-runtime.mjs"), "--force"], { env: { ...f.env, CONTEXT_MODE_PACKAGE_MANAGER: "npm", npm_config_ignore_scripts: "true", PREPARE_ENTRY_LOG: entryLog, ...extra }, encoding: "utf8", timeout: 30_000 });
+  let result = invoke(); assert.equal(result.status, 0, result.stderr);
+  const npmCall = f.calls().find(([name]) => name === "npm"); assert.ok(npmCall.includes("--ignore-scripts=true"));
+  assert.deepEqual(readFileSync(entryLog, "utf8").trim().split("\n").map(JSON.parse), [["install.js", "true"], ["bin.js", "true"], ["tsc", "true"]]);
+  result = invoke({ FAIL_PREBUILD: "1" }); assert.notEqual(result.status, 0); assert.match(result.stderr, /prebuilt better-sqlite3 binary.*native compilation is not attempted/);
+  result = invoke({ FAIL_ESBUILD: "1" }); assert.notEqual(result.status, 0); assert.match(result.stderr, /51/);
+  rmSync(join(runtime, "node_modules", binaryName), { recursive: true });
+  result = invoke(); assert.notEqual(result.status, 0); assert.match(result.stderr, /optional dependencies are required/);
+  assert.equal(f.calls().some((call) => call.some((value) => /node-gyp|rebuild/.test(value))), false);
 });

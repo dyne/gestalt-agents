@@ -15,9 +15,10 @@
  * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
  * DEALINGS IN THE SOFTWARE.
  */
-import { cpSync, lstatSync, mkdirSync, readFileSync, realpathSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, lstatSync, mkdirSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { execFileSync } from "node:child_process";
+import { userInfo } from "node:os";
 import { dirname, isAbsolute, join, parse, resolve } from "node:path";
 
 export function optionalStat(path) {
@@ -27,6 +28,7 @@ export function optionalStat(path) {
 /** Resolve existing components before normalizing missing suffixes, without writes. */
 export function resolveRoot(requested, label, userHome) {
   if (!requested || !isAbsolute(requested) || /\0|\r|\n/.test(requested)) throw new Error(`${label} must be an absolute path: ${requested}`);
+  if (process.platform === "win32" && ["\\\\?\\", "\\\\.\\", "\\??\\"].some((prefix) => requested.startsWith(prefix))) throw new Error(`device namespace is not a managed destination: ${label}`);
   let current = parse(requested).root;
   for (const component of requested.slice(current.length).split(process.platform === "win32" ? /[\\/]/ : /\//).filter(Boolean)) {
     if (component === ".") continue;
@@ -53,6 +55,31 @@ $ErrorActionPreference = 'Stop'
 try {
   $path = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($env:GESTALT_SETUP_PATH))
   $sid = [Security.Principal.WindowsIdentity]::GetCurrent().User
+  $trusted = @($sid.Value, 'S-1-5-18', 'S-1-5-32-544', 'S-1-5-80-956008885-3418522649-1831038044-1853292631-2271478464')
+  $adminMembers = $null
+  function Is-TrustedNamespacePrincipal([string]$identity) {
+    if ($identity -in $trusted) { return $true }
+    if ($identity -notmatch '^S-1-(5-21|12-1)-') { return $false }
+    if ($null -eq $script:adminMembers) {
+      $script:adminMembers = @(Get-LocalGroupMember -SID 'S-1-5-32-544' -ErrorAction Stop | Where-Object { $_.ObjectClass -eq 'User' } | ForEach-Object { $_.SID.Value })
+    }
+    return $identity -in $script:adminMembers
+  }
+  $mutating = [Security.AccessControl.FileSystemRights]::Delete -bor [Security.AccessControl.FileSystemRights]::DeleteSubdirectoriesAndFiles -bor [Security.AccessControl.FileSystemRights]::ChangePermissions -bor [Security.AccessControl.FileSystemRights]::TakeOwnership -bor [Security.AccessControl.FileSystemRights]::WriteData -bor [Security.AccessControl.FileSystemRights]::WriteAttributes -bor [Security.AccessControl.FileSystemRights]::WriteExtendedAttributes
+  $ancestor = (New-Object IO.DirectoryInfo($path)).Parent
+  while ($null -ne $ancestor) {
+    $item = Get-Item -LiteralPath $ancestor.FullName -Force
+    if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) { throw 'Redirected namespace parent' }
+    $acl = $item.GetAccessControl()
+    $raw = New-Object Security.AccessControl.RawSecurityDescriptor($acl.GetSecurityDescriptorBinaryForm(), 0)
+    if ($null -eq $raw.DiscretionaryAcl) { throw 'Unrestricted namespace parent ACL' }
+    if (-not (Is-TrustedNamespacePrincipal $acl.GetOwner([Security.Principal.SecurityIdentifier]).Value)) { throw 'Untrusted namespace parent owner' }
+    foreach ($rule in $acl.GetAccessRules($true, $true, [Security.Principal.SecurityIdentifier])) {
+      if (($rule.PropagationFlags -band [Security.AccessControl.PropagationFlags]::InheritOnly) -ne 0) { continue }
+      if ($rule.AccessControlType -eq 'Allow' -and ($rule.FileSystemRights -band $mutating) -ne 0 -and -not (Is-TrustedNamespacePrincipal $rule.IdentityReference.Value)) { throw 'Untrusted namespace parent can redirect managed storage' }
+    }
+    $ancestor = $ancestor.Parent
+  }
   if (-not [IO.Directory]::Exists($path)) {
     $acl = New-Object Security.AccessControl.DirectorySecurity
     $acl.SetOwner($sid)
@@ -75,20 +102,43 @@ try {
 } catch { [Console]::Error.WriteLine($_.Exception.Message); exit 1 }
 `;
 
+function assertMacAcl(path, privateRoot = false) {
+  if (process.platform !== "darwin") return;
+  const listing = execFileSync("/bin/ls", ["-lde", path], { encoding: "utf8", env: { ...process.env, LC_ALL: "C" }, timeout: 5000, stdio: ["ignore", "pipe", "pipe"] });
+  const trusted = new Set([`user:${userInfo().username}`, `user:${process.getuid()}`, "user:root", "user:0"]);
+  for (const line of listing.split("\n").slice(1).filter((value) => value.trim())) {
+    const match = /^\s*\d+:\s+(.+?)\s+(allow|deny)\s+(.+)$/.exec(line);
+    if (!match) throw new Error(`cannot inspect managed directory ACL: ${path}`);
+    if (match[2] === "allow" && !trusted.has(match[1]) && (privateRoot || /(?:^|,)(?:write|add_file|add_subdirectory|delete|delete_child|chown|writeattr|writeextattr|writesecurity)(?:,|$)/.test(match[3]))) throw new Error(`managed directory ACL permits another user: ${path}`);
+  }
+}
+
 export function ensureManagedRoot(path) {
   const info = optionalStat(path);
   if (info && (!info.isDirectory() || info.isSymbolicLink())) throw new Error(`not a real managed directory: ${path}`);
+  if (process.platform !== "win32" && info && (info.uid !== process.getuid() || (info.mode & 0o077))) throw new Error(`managed directory must be private to its owner: ${path}`);
   if (!optionalStat(dirname(path))) ensureManagedRoot(dirname(path));
   if (process.platform === "win32") {
     const systemRoot = process.env.SystemRoot;
     if (!systemRoot || !isAbsolute(systemRoot)) throw new Error("Windows SystemRoot is unavailable");
-    execFileSync(join(systemRoot, "System32/WindowsPowerShell/v1.0/powershell.exe"), [
-      "-NoLogo", "-NoProfile", "-NonInteractive", "-EncodedCommand", Buffer.from(privateDirectoryScript, "utf16le").toString("base64"),
-    ], { env: { ...process.env, GESTALT_SETUP_PATH: Buffer.from(path).toString("base64") }, shell: false, windowsHide: true, stdio: ["ignore", "ignore", "pipe"] });
+    try {
+      execFileSync(join(systemRoot, "System32/WindowsPowerShell/v1.0/powershell.exe"), [
+        "-NoLogo", "-NoProfile", "-NonInteractive", "-EncodedCommand", Buffer.from(privateDirectoryScript, "utf16le").toString("base64"),
+      ], { env: { ...process.env, GESTALT_SETUP_PATH: Buffer.from(path).toString("base64") }, shell: false, windowsHide: true, stdio: ["ignore", "ignore", "pipe"] });
+    } catch (error) {
+      throw new Error(`Windows managed storage refused: ${String(error.stderr ?? error.code ?? "permission inspection failed").trim().slice(0, 1000)}`, { cause: error });
+    }
   } else {
+    for (let ancestor = dirname(path); ; ancestor = dirname(ancestor)) {
+      const parent = lstatSync(ancestor);
+      if (!parent.isDirectory() || parent.isSymbolicLink() || ![0, process.getuid()].includes(parent.uid) || ((parent.mode & 0o022) && !(parent.uid === 0 && (parent.mode & 0o1000)))) throw new Error(`untrusted managed directory ancestor: ${ancestor}`);
+      assertMacAcl(ancestor);
+      if (ancestor === dirname(ancestor)) break;
+    }
     if (!info) mkdirSync(path, { mode: 0o700 });
     const actual = lstatSync(path);
-    if (actual.uid !== process.getuid() || (actual.mode & 0o022)) throw new Error(`managed directory is writable by another user: ${path}`);
+    if (actual.uid !== process.getuid() || (actual.mode & 0o077)) throw new Error(`managed directory must be private to its owner: ${path}`);
+    assertMacAcl(path, true);
   }
 }
 

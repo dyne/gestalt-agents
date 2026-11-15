@@ -21,6 +21,7 @@ import {
   verifyPreparedRuntime,
 } from "./runtime-preflight.mjs";
 import { runtimeLockTimeout, tryAcquireRuntimeLock } from "./runtime-lock.mjs";
+import { BUNDLES } from "./build-runtime.mjs";
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 const DEFAULT_PLUGIN_ROOT = resolve(SCRIPT_DIR, "..");
@@ -37,8 +38,8 @@ function findBun() {
   if (selection === "npm") return null;
   if (typeof globalThis.Bun !== "undefined") return process.execPath;
   const candidates = [
-    process.env.BUN_INSTALL ? join(process.env.BUN_INSTALL, "bin", "bun") : null,
-    join(homedir(), ".bun", "bin", "bun"),
+    process.env.BUN_INSTALL ? join(process.env.BUN_INSTALL, "bin", process.platform === "win32" ? "bun.exe" : "bun") : null,
+    join(homedir(), ".bun", "bin", process.platform === "win32" ? "bun.exe" : "bun"),
     "/usr/local/bin/bun",
     "/usr/bin/bun",
   ].filter(Boolean);
@@ -70,6 +71,7 @@ function run(pluginRoot, tempDir, command, args, timeout = WAIT_TIMEOUT_MS) {
       ...(!Object.hasOwn(process.env, "GESTALT_SESSION_TMP_CONTEXT") ? { TMPDIR: tempDir, TMP: tempDir, TEMP: tempDir } : {}),
       BUN_INSTALL_CACHE_DIR: join(tempDir, "bun-cache"),
       npm_config_cache: join(tempDir, "npm-cache"),
+      ESBUILD_BINARY_PATH: "", // Use the locked platform package, not an external override.
     },
     stdio: "inherit",
     timeout,
@@ -80,23 +82,49 @@ function run(pluginRoot, tempDir, command, args, timeout = WAIT_TIMEOUT_MS) {
 function installBuildDependencies(pluginRoot, tempDir) {
   const bun = findBun();
   if (bun) {
-    run(pluginRoot, tempDir, bun, ["install", "--frozen-lockfile"]);
+    run(pluginRoot, tempDir, bun, ["install", "--frozen-lockfile", "--ignore-scripts"]);
     return;
   }
   run(
     pluginRoot,
     tempDir,
     "npm",
-    ["ci", "--no-audit", "--no-fund", "--ignore-scripts=false"],
+    ["ci", "--no-audit", "--no-fund", "--ignore-scripts=true", "--include=optional"],
   );
 }
 
 function buildRuntimeArtifacts(pluginRoot, tempDir) {
   installBuildDependencies(pluginRoot, tempDir);
-  const npm = "npm";
-  run(pluginRoot, tempDir, npm, ["exec", "--", "tsc", "--noEmit"]);
-  run(pluginRoot, tempDir, npm, ["run", "bundle", "--silent"]);
-  run(pluginRoot, tempDir, npm, ["run", "assert-bundle", "--silent"]);
+  const require = createRequire(join(pluginRoot, "package.json"));
+  const policy = JSON.parse(readFileSync(join(pluginRoot, "package.json"), "utf8")).allowScripts;
+  if (JSON.stringify(policy) !== JSON.stringify({ "better-sqlite3": true, esbuild: true })) throw new Error("unexpected runtime dependency installer allowlist");
+  // The esbuild installer otherwise attempts an npm-shell repair when its
+  // optional platform package is omitted. Require the locked binary first.
+  const esbuild = JSON.parse(readFileSync(require.resolve("esbuild/package.json"), "utf8"));
+  const binaryName = `@esbuild/${process.platform}-${process.arch}`;
+  let binary;
+  try {
+    const metadata = JSON.parse(readFileSync(require.resolve(`${binaryName}/package.json`), "utf8"));
+    if (metadata.name !== binaryName || metadata.version !== esbuild.version || esbuild.optionalDependencies?.[binaryName] !== esbuild.version) throw new Error("platform package version mismatch");
+    binary = require.resolve(`${binaryName}/${process.platform === "win32" ? "esbuild.exe" : "bin/esbuild"}`);
+  } catch (error) {
+    throw new Error(`locked esbuild platform binary is unavailable for ${process.platform}/${process.arch}; optional dependencies are required`, { cause: error });
+  }
+  if (!existsSync(binary)) throw new Error("locked esbuild platform binary is missing");
+  // These are the only dependency install entrypoints. Invoke JS through Node
+  // with literal argv/cwd; npm's .bin batch dispatch breaks paths containing &.
+  run(pluginRoot, tempDir, process.execPath, [require.resolve("esbuild/install.js")]);
+  const sqliteRoot = dirname(require.resolve("better-sqlite3/package.json"));
+  const sqliteRequire = createRequire(join(sqliteRoot, "package.json"));
+  try {
+    run(sqliteRoot, tempDir, process.execPath, [sqliteRequire.resolve("prebuild-install/bin.js")]);
+  } catch (error) {
+    throw new Error(`context-mode requires a prebuilt better-sqlite3 binary for ${process.platform}/${process.arch}/Node ABI ${process.versions.modules}; native compilation is not attempted`, { cause: error });
+  }
+  verifyNativeDependencies(pluginRoot);
+  run(pluginRoot, tempDir, process.execPath, [require.resolve("typescript/bin/tsc"), "--noEmit"]);
+  run(pluginRoot, tempDir, process.execPath, [join(pluginRoot, "scripts/build-runtime.mjs")]);
+  run(pluginRoot, tempDir, process.execPath, [join(pluginRoot, "scripts/assert-bundle.mjs"), ...BUNDLES.map(([, output]) => output)]);
 }
 
 function verifyNativeDependencies(pluginRoot) {

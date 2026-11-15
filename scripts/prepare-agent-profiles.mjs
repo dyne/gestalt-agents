@@ -1,7 +1,7 @@
 /** Installer-owned portable profile transaction; defaults retain the Org contract. */
 import { chmodSync, lstatSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
-import { dirname, join } from "node:path";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const defaults = JSON.parse(readFileSync(new URL("../plugins/gestalt/skills/org-plan/assets/agent-profiles.json", import.meta.url), "utf8"));

@@ -108,16 +108,19 @@ for coverage, licensing, and preserved tooling.
 Gestalt setup requires Node.js 24 or newer, npm, and a compatible Codex CLI.
 The underlying context-mode runtime supports Node.js 22.5 or newer; native
 setup uses Node 24+. It uses Bun for dependency installation when a working
-Bun executable is available. Fresh runtime preparation needs network access;
-if a native dependency has no prebuilt binary for the target, its build also
-needs Python and the platform's C/C++ build tools.
+Bun executable is available. Fresh runtime preparation needs network access
+and the dependency's prebuilt binary for the current OS, architecture and Node
+ABI. Setup does not compile native addons or install compilers.
 
 `node gestalt-setup.mjs` owns installation on every platform. The existing
 `gestalt-setup.sh` is a Unix adapter. Setup never changes global npm lifecycle
-configuration: runtime dependency installation explicitly enables its required
-install scripts within the staged runtime. A verified runtime is reused offline;
+configuration: dependency installation disables lifecycle scripts, then runs
+the two allowlisted dependency installer JS entrypoints directly through Node.
+TypeScript and esbuild also run through Node APIs without command-shell shims.
+A missing compatible prebuilt native binary fails explicitly. A verified runtime is reused offline;
 `--force` rebuilds it. Setup locks both managed homes and restores managed
-profile/runtime files on failure. Unknown interrupted snapshots are retained
+profile/runtime files on failure. Managed roots must be private to the current
+user; existing broader permissions are refused without changing them. Unknown interrupted snapshots are retained
 for inspection. Native installed helper and hook support is being validated
 separately before a Windows support claim.
 

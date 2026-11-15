@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 /** One setup transaction owner for native Windows, macOS and Linux. */
-import { cpSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, realpathSync, rmSync, symlinkSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, rmSync, symlinkSync } from "node:fs";
 import { homedir } from "node:os";
-import { dirname, isAbsolute, join, relative, resolve } from "node:path";
+import { dirname, isAbsolute, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import { runCommand, resolveExecutable } from "./plugins/context-mode/scripts/native-command.mjs";
 import { runtimeLockTimeout, tryAcquireRuntimeLock } from "./plugins/context-mode/scripts/runtime-lock.mjs";
@@ -100,7 +100,7 @@ async function main(args) {
   if (!only) {
     marketplace = JSON.parse(readFileSync(join(sourceRoot, ".agents/plugins/marketplace.json"), "utf8")).name;
     if (!/^[A-Za-z0-9._+-]+$/.test(marketplace)) throw new Error("invalid marketplace name");
-    if (codexHome && !dry) {
+    if (codexHome && !dry && existsSync(codexHome)) {
       const listing = runCommand("codex", ["plugin", "marketplace", "list"], { env, stdio: ["ignore", "pipe", "inherit"] });
       const configured = listing.split(/\r?\n/).map((line) => /^\s*(\S+)\s+(.+?)\s*$/.exec(line)).find((match) => match?.[1] === marketplace)?.[2];
       marketplaceConfigured = Boolean(configured);
@@ -132,7 +132,8 @@ async function main(args) {
         if (!release) throw new Error(`setup is already running: ${runtimeLockTimeout(lock)}`);
         releases.push(release);
       }
-      snapshots.push(beginSetupSnapshot(gestaltHome, only ? [".agents/skills", ".codex/skills"] : ["runtime/context-mode", "bin", ...(flags.has("--extra-skills") ? [".agents/skills", ".codex/skills"] : [])]));
+      const optionalPaths = [".agents", ".codex", "skills-lock.json"];
+      snapshots.push(beginSetupSnapshot(gestaltHome, only ? optionalPaths : ["runtime/context-mode", "bin", ...(flags.has("--extra-skills") ? optionalPaths : [])]));
       if (codexHome) snapshots.push(beginSetupSnapshot(codexHome, only ? ["skills"] : ["config.toml", "hooks.json", "plugins", "agents", "bin", "lib", ".tmp/marketplaces", ...(flags.has("--extra-skills") ? ["skills"] : [])]));
       for (const [name, handler] of handlers) process.on(name, handler);
     }

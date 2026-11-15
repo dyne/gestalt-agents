@@ -19,8 +19,13 @@ and contents while excluding generated dependencies and build artifacts.
   native argv instead of evaluating batch files through a shell. The original
   bounded recognizer checks complete npm cmd-shim forms (npm 11.19.1,
   cmd-shim 8.0.0); unknown forms fail explicitly. Runtime dependency installation
-  enables required lifecycle scripts only for the staged install without
-  changing global npm policy. Inherited managed scratch context and TMP variables
+  disables lifecycle scripts and explicitly invokes only the required esbuild
+  installer and better-sqlite3 prebuilt installer through Node argv. No native
+  compiler fallback is attempted. The locked esbuild optional platform binary
+  must exist before its installer runs, preventing shell-based npm repair.
+  TypeScript and the shared esbuild bundle owner also use direct Node entrypoints.
+  These changes avoid npm batch dispatch truncating metacharacter-containing
+  runtime paths and leave global npm policy unchanged. Inherited managed scratch context and TMP variables
   remain intact; standalone preparation keeps its destination-local temporary
   directory. The command utility is packaged here because the external runtime
   is independent of the separately installable Gestalt plugin.

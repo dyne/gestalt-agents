@@ -64,6 +64,12 @@ jobs:
             if ($LASTEXITCODE -gt 7) { throw 'Native candidate copy failed' }
             & icacls $work /grant ('*' + $user.SID.Value + ':(OI)(CI)F') /T /Q | Out-Null
             if ($LASTEXITCODE -ne 0) { throw 'Native fixture access setup failed' }
+            $checkoutSha = (& git rev-parse HEAD).Trim()
+            $checkoutTree = (& git rev-parse 'HEAD^{tree}').Trim()
+            $copiedEvidence = Join-Path $source 'native-evidence'
+            New-Item -ItemType Directory -Path $copiedEvidence -Force | Out-Null
+            $identity = @{ schemaVersion = 1; checkoutSha = $checkoutSha; checkoutTree = $checkoutTree; githubSha = $env:GITHUB_SHA }
+            [IO.File]::WriteAllText((Join-Path $copiedEvidence 'checkout.json'), ($identity | ConvertTo-Json), (New-Object Text.UTF8Encoding($false)))
             $credential = New-Object Management.Automation.PSCredential(($env:COMPUTERNAME + '\' + $name), $password)
             $node = (Get-Command node.exe).Source
             $script = Join-Path $source 'scripts/test-setup-standard-user.ps1'
