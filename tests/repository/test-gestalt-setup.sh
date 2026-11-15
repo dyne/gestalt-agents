@@ -81,7 +81,7 @@ for line in output.read_text().splitlines():
     args = shlex.split(line.removeprefix("DRY-RUN:"))
     if len(args) < 2 or args[1] != str(root / "scripts/install-org-plan.mjs"):
         continue
-    assert args == ["node", str(root / "scripts/install-org-plan.mjs"), root_arg, home_arg]
+    assert args == ["node", str(root / "scripts/install-org-plan.mjs"), root_arg, str(home.resolve())]
     publication_commands.append(args)
 assert len(publication_commands) == 1
 expected = {
@@ -193,12 +193,9 @@ fi
 
 configured="$tmp/configured marketplace"
 mkdir -p "$configured" "$tmp/bin"
-cat >"$configured/gestalt-setup.sh" <<'SH'
-#!/usr/bin/env bash
-printf 'delegated home=%s args=' "$CODEX_HOME"
-printf '<%s>' "$@"
-printf '\n'
-SH
+cat >"$configured/gestalt-setup.mjs" <<'JS'
+process.stdout.write(`delegated home=${process.env.CODEX_HOME} args=${process.argv.slice(2).map(x => `<${x}>`).join('')}\n`);
+JS
 cat >"$tmp/bin/codex" <<SH
 #!/usr/bin/env bash
 if [[ \$* == 'plugin marketplace list' ]]; then
@@ -208,7 +205,7 @@ if [[ \$* == 'plugin marketplace list' ]]; then
 fi
 exit 99
 SH
-chmod +x "$configured/gestalt-setup.sh" "$tmp/bin/codex"
+chmod +x "$tmp/bin/codex"
 configured_real=$(CDPATH='' cd -- "$configured" && pwd -P)
 delegated=$(CODEX_HOME="$tmp/delegated-home" PATH="$tmp/bin:$PATH" \
   bash "$script" --force --extra-skills)

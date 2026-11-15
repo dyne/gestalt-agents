@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 /** Prepare immutable context-mode runtime artifacts before Codex starts MCP. */
 import { execFileSync } from "node:child_process";
+import { runCommand } from "./native-command.mjs";
+import { scratchEnvironment } from "./session-scratch.mjs";
 import { createHash } from "node:crypto";
 import {
   existsSync,
@@ -61,20 +63,17 @@ function findBun() {
 
 function run(pluginRoot, tempDir, command, args, timeout = WAIT_TIMEOUT_MS) {
   mkdirSync(tempDir, { recursive: true });
-  execFileSync(command, args, {
+  runCommand(command, args, {
     cwd: pluginRoot,
     env: {
-      ...process.env,
-      TMPDIR: tempDir,
-      TMP: tempDir,
-      TEMP: tempDir,
+      ...scratchEnvironment(process.env),
+      ...(!Object.hasOwn(process.env, "GESTALT_SESSION_TMP_CONTEXT") ? { TMPDIR: tempDir, TMP: tempDir, TEMP: tempDir } : {}),
       BUN_INSTALL_CACHE_DIR: join(tempDir, "bun-cache"),
       npm_config_cache: join(tempDir, "npm-cache"),
     },
     stdio: "inherit",
     timeout,
     windowsHide: true,
-    shell: process.platform === "win32" && command.endsWith(".cmd"),
   });
 }
 
@@ -87,14 +86,14 @@ function installBuildDependencies(pluginRoot, tempDir) {
   run(
     pluginRoot,
     tempDir,
-    process.platform === "win32" ? "npm.cmd" : "npm",
-    ["ci", "--no-audit", "--no-fund"],
+    "npm",
+    ["ci", "--no-audit", "--no-fund", "--ignore-scripts=false"],
   );
 }
 
 function buildRuntimeArtifacts(pluginRoot, tempDir) {
   installBuildDependencies(pluginRoot, tempDir);
-  const npm = process.platform === "win32" ? "npm.cmd" : "npm";
+  const npm = "npm";
   run(pluginRoot, tempDir, npm, ["exec", "--", "tsc", "--noEmit"]);
   run(pluginRoot, tempDir, npm, ["run", "bundle", "--silent"]);
   run(pluginRoot, tempDir, npm, ["run", "assert-bundle", "--silent"]);
@@ -132,6 +131,7 @@ function writeManifest(pluginRoot) {
 }
 
 export async function prepareRuntime(pluginRoot = DEFAULT_PLUGIN_ROOT, { force = false } = {}) {
+  scratchEnvironment(process.env); // Present-invalid context fails before any writes.
   const lockDir = join(pluginRoot, ".context-mode-prepare.lock");
   const tempDir = join(pluginRoot, ".context-mode-prepare-tmp");
   if (!force && verifyPreparedRuntime(pluginRoot).ok) return;

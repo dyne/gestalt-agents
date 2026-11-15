@@ -1,5 +1,6 @@
 import { spawn } from "node:child_process";
 import { createInterface } from "node:readline";
+import { commandTarget, resolveExecutable } from "./native-command.mjs";
 
 /** A bounded, read-only diagnostic connection; no thread or turn is started. */
 export async function withCodexRpc(
@@ -10,10 +11,13 @@ export async function withCodexRpc(
     timeoutMs = 15000,
   } = {},
 ) {
-  const child = spawn("codex", ["app-server", "--stdio"], {
+  const target = commandTarget(resolveExecutable("codex", environment));
+  const child = spawn(target.executable, [...target.prefix, "app-server", "--stdio"], {
     cwd: workspace,
     env: environment,
     stdio: ["pipe", "pipe", "ignore"],
+    shell: false,
+    windowsHide: true,
   });
   const lines = createInterface({ input: child.stdout });
   const pending = new Map();

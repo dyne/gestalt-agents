@@ -29,7 +29,7 @@ describe("explicit runtime preparation", () => {
     const lock = JSON.parse(readFileSync(resolve(ROOT, "package-lock.json"), "utf8"));
     expect(lock.lockfileVersion).toBe(3);
     expect(lock.packages[""]?.name).toBe("context-mode");
-    expect(source).toContain('["ci", "--no-audit", "--no-fund"]');
+    expect(source).toContain('["ci", "--no-audit", "--no-fund", "--ignore-scripts=false"]');
   });
 
   it("permits only required native and bundler install scripts under npm", () => {

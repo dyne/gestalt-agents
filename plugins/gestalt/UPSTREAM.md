@@ -1,5 +1,18 @@
 # Consolidated engineering skills: source and adaptation record
 
+Native setup adds a default profile data file generated from the existing
+Org profile contract and a portable installer transaction. Profile instruction
+bytes, role names and default models are preserved. The independent Gestalt
+plugin carries its own original native npm command-shim recognizer for Codex
+diagnostics; context-mode packages the same utility for its separately installed
+external runtime. The recognizer observes npm 11.19.1/cmd-shim 8.0.0's complete
+plain-Node shim protocol and never evaluates arbitrary batch source.
+Setup's Windows directory ACL creation/inspection is adapted from the original
+MIT-licensed `windows-system.ts` helper in dyne/gestalt commit
+`cb7dbf1bfb2221bd0b3f4366311280e53cd712be`; its copyright/permission notice is
+retained beside the adapted setup implementation. No manager package or native
+helper download is required.
+
 The Xerj skill and its managed-command reference are retired from this package.
 Startup, discovery/catalog contracts and source-routing guidance now use native
 text search for lexical discovery, verified optional Serena for semantic work,

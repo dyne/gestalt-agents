@@ -142,6 +142,9 @@ subprocess.run([
 bundle_entries = regular_entries(artifacts / f"gestalt-agents-{tag}.zip")
 assert ".agents/plugins/marketplace.json" in bundle_entries
 assert "gestalt-setup.sh" in bundle_entries
+assert "gestalt-setup.mjs" in bundle_entries
+assert "scripts/setup-storage.mjs" in bundle_entries
+assert "scripts/prepare-agent-profiles.mjs" in bundle_entries
 assert "scripts/install-managed-commands.mjs" in bundle_entries
 assert "scripts/install-org-plan.mjs" in bundle_entries
 assert "scripts/verify-gestalt-skill-catalog.mjs" in bundle_entries
@@ -293,6 +296,7 @@ tracked = subprocess.check_output(
     [
         "git", "-C", str(root), "ls-tree", "-r", "--name-only", "HEAD", "--",
         ".agents/plugins/marketplace.json", "README.md", "USAGE.md", "gestalt-setup.sh",
+        "gestalt-setup.mjs", "scripts/setup-storage.mjs", "scripts/prepare-agent-profiles.mjs",
         "scripts/install-managed-commands.mjs", "scripts/verify-gestalt-skill-catalog.mjs",
         "scripts/install-org-plan.mjs",
         "plugins/gestalt", "plugins/context-mode",

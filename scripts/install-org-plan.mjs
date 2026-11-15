@@ -3,7 +3,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import {
-  chmodSync, lstatSync, mkdirSync, readdirSync, readFileSync, realpathSync, renameSync,
+  chmodSync, copyFileSync, lstatSync, mkdirSync, readdirSync, readFileSync, realpathSync, renameSync,
   rmSync, writeFileSync,
 } from "node:fs";
 import { isAbsolute, join } from "node:path";
@@ -84,7 +84,7 @@ function sourceInventory(sourceRoot) {
     const path = name === "LICENSE" ? license : join(scripts, name);
     const info = regular(path);
     if (realpathSync(path) !== path) throw new Error(`symlinked helper source ancestry: ${path}`);
-    if (name === "org-plan" && !(info.mode & 0o111)) throw new Error("source Org helper is not executable");
+    if (process.platform !== "win32" && name === "org-plan" && !(info.mode & 0o111)) throw new Error("source Org helper is not executable");
     return { name, source: path, mode: name === "org-plan" ? 0o755 : 0o644, sha256: sha256(readFileSync(path)) };
   });
 }
@@ -96,13 +96,13 @@ function validateStage(stage, inventory, recordText) {
     for (const { name, mode, sha256: expected } of [...inventory, { name: RECORD, mode: 0o644, sha256: sha256(recordText) }]) {
       const path = join(stage, name);
       const info = regular(path);
-      if ((info.mode & 0o7777) !== mode || sha256(readFileSync(path)) !== expected) throw new Error(`invalid staged helper file: ${name}`);
+      if ((process.platform !== "win32" && (info.mode & 0o7777) !== mode) || sha256(readFileSync(path)) !== expected) throw new Error(`invalid staged helper file: ${name}`);
     }
   }
   verifyFiles();
-  command("bash", ["-n", join(stage, "org-plan")]);
+  if (process.platform !== "win32") command("bash", ["-n", join(stage, "org-plan")]);
   for (const name of MODULES) command(process.execPath, ["--check", join(stage, name)]);
-  command(join(stage, "org-plan"), ["--help"]);
+  command(process.execPath, [join(stage, "org-plan-cli.mjs"), "--help"]);
   verifyFiles();
 }
 
@@ -142,7 +142,10 @@ export async function installOrgPlan(sourceRoot, codexHome) {
     const recordText = JSON.stringify({ schemaVersion: 1, pid: process.pid, token, files: inventory.map(({ name, mode, sha256 }) => ({ name, mode, sha256 })) }) + "\n";
     writeFileSync(join(stage, RECORD), recordText, { flag: "wx", mode: 0o644 });
     chmodSync(join(stage, RECORD), 0o644);
-    for (const { name, source, mode } of inventory) command("install", ["-m", mode.toString(8), "--", source, join(stage, name)]);
+    for (const { name, source, mode } of inventory) {
+      copyFileSync(source, join(stage, name));
+      chmodSync(join(stage, name), mode);
+    }
     validateStage(stage, inventory, recordText);
     // Both names are in bundles: this rename never touches an old bundle.
     renameSync(stage, bundle);
@@ -150,11 +153,13 @@ export async function installOrgPlan(sourceRoot, codexHome) {
     // The literal UUID pins the wrapper and its imports, even if this open
     // dispatcher inode is replaced. Resolve once relative to the public path
     // to preserve relocation; there is no mutable current-version pointer.
-    const dispatcher = `${DISPATCH_HEADER}bundle=$(CDPATH='' cd -- "$(dirname -- "$0")/../lib/gestalt-org-plan/bundles/${token}" && pwd -P) || exit 1\nexec "$bundle/org-plan" "$@"\n`;
+    const dispatcher = process.platform === "win32"
+      ? `#!/usr/bin/env node\n// Gestalt Org helper dispatcher v1\nimport { pathToFileURL } from 'node:url';\nimport { dirname, resolve } from 'node:path';\nawait import(pathToFileURL(resolve(dirname(process.argv[1]), '../lib/gestalt-org-plan/bundles/${token}/org-plan-cli.mjs')).href);\n`
+      : `${DISPATCH_HEADER}bundle=$(CDPATH='' cd -- "$(dirname -- "$0")/../lib/gestalt-org-plan/bundles/${token}" && pwd -P) || exit 1\nexec "$bundle/org-plan" "$@"\n`;
     writeFileSync(temporary, dispatcher, { flag: "wx", mode: 0o755 });
     ownsTemporary = true;
     chmodSync(temporary, 0o755);
-    command("bash", ["-n", temporary]);
+    if (process.platform !== "win32") command("bash", ["-n", temporary]);
     // Same-directory rename is the sole public activation point. On error the
     // previous public file and every old/legacy module remain untouched.
     renameSync(temporary, publicPath);

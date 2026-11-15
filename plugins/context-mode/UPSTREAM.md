@@ -15,6 +15,16 @@ and contents while excluding generated dependencies and build artifacts.
 
 ## Downstream changes
 
+- Makes explicit runtime preparation execute npm's standard Node shims with
+  native argv instead of evaluating batch files through a shell. The original
+  bounded recognizer checks complete npm cmd-shim forms (npm 11.19.1,
+  cmd-shim 8.0.0); unknown forms fail explicitly. Runtime dependency installation
+  enables required lifecycle scripts only for the staged install without
+  changing global npm policy. Inherited managed scratch context and TMP variables
+  remain intact; standalone preparation keeps its destination-local temporary
+  directory. The command utility is packaged here because the external runtime
+  is independent of the separately installable Gestalt plugin.
+
 - Reconciles Codex TOML as byte-preserving logical records instead of deleting
   physical-line sections. Managed registration replacement retains standalone
   operator comments, unrelated values, mixed line endings and trailing bytes;

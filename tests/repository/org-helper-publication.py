@@ -1,4 +1,4 @@
-"""Exercise real setup/launcher publication in private, instrumented installations.
+"""Exercise real Node bundle/launcher publication in private installations.
 
 Only unrelated plugin/runtime setup is stubbed. Helper implementations retain
 their production bodies; appended version exports and a probe CLI branch make
@@ -123,6 +123,33 @@ class Installation:
                         PATH=str(self.bin) + os.pathsep + os.environ["PATH"],
                         PUBLICATION_SOCKET=self.address,
                         PUBLICATION_REAL_INSTALL=shutil.which("install"))
+        # Native copy no longer invokes a Unix install command. Inject at the
+        # actual filesystem boundary without adding production-only test hooks.
+        self.copy_preload = directory / "copy-preload.mjs"
+        self.copy_preload.write_text(r'''
+import fs from 'node:fs';
+import { syncBuiltinESMExports } from 'node:module';
+import { spawnSync } from 'node:child_process';
+const copy = fs.copyFileSync, chmod = fs.chmodSync;
+const gate = (name) => {
+ const code = "import socket,os; s=socket.socket(socket.AF_UNIX); s.settimeout(12); s.connect(os.environ['PUBLICATION_SOCKET']); s.sendall("+JSON.stringify(name+"\n")+".encode()); assert s.recv(1)==b'!'";
+ const result = spawnSync(process.env.PUBLICATION_GATE_PYTHON, ['-c', code], {stdio:'inherit'});
+ if(result.status!==0)throw new Error('copy gate failed');
+};
+fs.copyFileSync = (source, target, ...args) => {
+ if(String(source).endsWith('/org-plan-core.mjs') && process.env.PUBLICATION_FAIL==='copy')throw new Error('injected copy failure');
+ const result=copy(source,target,...args);
+ if(String(source).endsWith('/org-plan-parser.mjs')) {
+  if(process.env.PUBLICATION_TAMPER==='symlink'){fs.unlinkSync(target);fs.symlinkSync(source,target);}
+  if(process.env.PUBLICATION_TAMPER==='inventory')fs.writeFileSync(new URL('unexpected-file', 'file://'+target),'unexpected');
+ }
+ if(String(source).endsWith('/org-plan-cli.mjs')&&process.env.PUBLICATION_COPY_GATE)gate('copied-cli');
+ return result;
+};
+fs.chmodSync=(path,mode)=>{const result=chmod(path,mode);if(String(path).endsWith('/org-plan-parser.mjs')&&process.env.PUBLICATION_TAMPER==='mode')chmod(path,0o777);return result;};
+syncBuiltinESMExports();
+''')
+        self.env["PUBLICATION_GATE_PYTHON"] = sys.executable
         for key in list(self.env):
             if key.startswith("GESTALT_MOBILE_ORG_PLAN_"):
                 self.env.pop(key)
@@ -131,6 +158,7 @@ class Installation:
         source = self.root / ("source " + version)
         (source / SCRIPTS).mkdir(parents=True)
         shutil.copy2(ROOT / "gestalt-setup.sh", source)
+        shutil.copy2(ROOT / "gestalt-setup.mjs", source)
         manifest = source / ".agents/plugins/marketplace.json"
         manifest.parent.mkdir(parents=True)
         shutil.copy2(ROOT / ".agents/plugins/marketplace.json", manifest)
@@ -138,9 +166,20 @@ class Installation:
         shutil.copy2(ROOT / "plugins/gestalt/LICENSE", source / "plugins/gestalt/LICENSE")
         (source / "scripts").mkdir()
         shutil.copy2(ROOT / "scripts/install-org-plan.mjs", source / "scripts/install-org-plan.mjs")
+        shutil.copy2(ROOT / "scripts/setup-storage.mjs", source / "scripts/setup-storage.mjs")
         lock = source / "plugins/context-mode/scripts/runtime-lock.mjs"
         lock.parent.mkdir(parents=True)
         shutil.copy2(ROOT / "plugins/context-mode/scripts/runtime-lock.mjs", lock)
+        shutil.copy2(ROOT / "plugins/context-mode/scripts/native-command.mjs", lock.with_name("native-command.mjs"))
+        shutil.copy2(ROOT / "plugins/context-mode/scripts/session-scratch.mjs", lock.with_name("session-scratch.mjs"))
+        (source / "publication-install.mjs").write_text('''
+if (process.env.PUBLICATION_READY_GATE) {
+ const { createConnection } = await import('node:net');
+ await new Promise((resolve,reject)=>{const c=createConnection(process.env.PUBLICATION_SOCKET);c.setTimeout(12000,()=>c.destroy(new Error('gate timeout')));c.on('error',reject);c.on('connect',()=>c.write('setup-ready\\n'));c.on('data',()=>{c.end();resolve();});});
+}
+const { installOrgPlan } = await import('./scripts/install-org-plan.mjs');
+await installOrgPlan(process.argv[2], process.env.CODEX_HOME);
+''')
         for module in MODULES:
             path = source / SCRIPTS / (module + ".mjs")
             with path.open("a") as stream:
@@ -254,7 +293,9 @@ syncBuiltinESMExports();
         return process.returncode, output
 
     def setup(self, source, **extra):
-        return self.start(["bash", str(source / "gestalt-setup.sh")], **extra)
+        options = extra.pop("NODE_OPTIONS", "")
+        options += " --import=" + json.dumps(str(self.copy_preload))
+        return self.start(["node", str(source / "publication-install.mjs"), str(source)], NODE_OPTIONS=options.strip(), **extra)
 
     @property
     def launcher(self):
