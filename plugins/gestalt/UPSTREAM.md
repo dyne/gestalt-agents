@@ -7,6 +7,8 @@ exit. The profile owner accepts setup-only environment, cancellation and cleanup
 policy options; installed CLI defaults, schemas and encoded success records are
 preserved. Fixed host ACL helpers use bounded system executable calls. Unknown
 managed command lifetime retains transaction state and locks.
+Setup diagnostic RPC closes stdin before bounded owned shutdown, keeping normal
+standalone completion separate from an interrupted or unknown lifetime.
 
 Native setup and installed Org helpers share a Node profile transaction and
 canonical default module captured from the existing Org profile contract. Profile instruction

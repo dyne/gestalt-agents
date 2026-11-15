@@ -54,3 +54,27 @@ test("setup RPC timeout stops the supplied lease and retains the error", async (
   await assert.rejects(withCodexRpc((request) => request("never", {}), { workspace: f.base, environment: f.environment, timeoutMs: 25, commandContext: f.context }), /timed out/);
   assert.ok(f.stops() > 0); assert.equal(f.context.canCleanup(), true);
 });
+
+test("standalone RPC sends EOF and observes real child completion before a repeat", async (t) => {
+  const base = mkdtempSync(join(tmpdir(), "setup-standalone-rpc-")); t.after(() => rmSync(base, { recursive: true, force: true }));
+  const entry = join(base, "codex"), receipt = join(base, "eof.jsonl");
+  writeFileSync(entry, `#!/usr/bin/env node
+const {createInterface}=require('node:readline');const fs=require('node:fs');
+const input=createInterface({input:process.stdin});
+input.on('line',line=>{const message=JSON.parse(line);if(message.id)console.log(JSON.stringify({id:message.id,result:{method:message.method,text:'ü & repeat'}}));});
+input.on('close',()=>fs.appendFileSync(process.env.RPC_EOF_RECEIPT,JSON.stringify({pid:process.pid,eof:true})+'\\n'));
+`); chmodSync(entry, 0o755);
+  if (process.platform === "win32") writeFileSync(`${entry}.cmd`, cmdShim("codex"));
+  const inherited = Object.fromEntries(Object.entries(process.env).filter(([name]) => name.toUpperCase() !== "PATH"));
+  const environment = { ...inherited, RPC_EOF_RECEIPT: receipt, PATH: base + (process.platform === "win32" ? ";" : ":") + process.env.PATH };
+  const context = new SetupCommandContext({ environment, cwd: base, streams: { stdout: async () => {}, stderr: async () => {} } });
+  for (let repeat = 0; repeat < 2; repeat++) {
+    const result = await withCodexRpc((request) => request("config/read", {}), { workspace: base, environment, commandContext: context });
+    assert.deepEqual(result, { method: "config/read", text: "ü & repeat" });
+    assert.equal(context.canCleanup(), true);
+    assert.deepEqual(context.outcome().ownership, { kind: "standalone", completeTree: false });
+  }
+  const { readFileSync } = await import("node:fs");
+  const receipts = readFileSync(receipt, "utf8").trim().split("\n").map(JSON.parse);
+  assert.equal(receipts.length, 2); assert.ok(receipts.every((value) => value.eof === true));
+});

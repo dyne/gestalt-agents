@@ -101,7 +101,7 @@ class Installation:
         self.gestalt = self.home / "custom gestalt"
         self.bin = directory / "path"
         self.bin.mkdir()
-        self.home.mkdir()
+        self.home.mkdir(mode=0o700)
         self.gestalt.mkdir(mode=0o700)
         cache = self.codex / "plugins/cache/dyne-gestalt-agents/context-mode/fixture"
         cache.mkdir(parents=True)
@@ -174,7 +174,7 @@ syncBuiltinESMExports();
         shutil.copy2(ROOT / "scripts/setup-storage.mjs", source / "scripts/setup-storage.mjs")
         shutil.copy2(ROOT / "scripts/native-command-shims.mjs", source / "scripts/native-command-shims.mjs")
         lock = source / "plugins/context-mode/scripts/runtime-lock.mjs"
-        lock.parent.mkdir(parents=True)
+        lock.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(ROOT / "plugins/context-mode/scripts/runtime-lock.mjs", lock)
         shutil.copy2(ROOT / "plugins/context-mode/scripts/native-command.mjs", lock.with_name("native-command.mjs"))
         shutil.copy2(ROOT / "plugins/context-mode/scripts/setup-command-context.mjs", lock.with_name("setup-command-context.mjs"))

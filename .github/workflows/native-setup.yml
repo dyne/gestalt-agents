@@ -32,6 +32,25 @@ jobs:
       - name: Build pinned ownership fixture for integration tests only
         run: node scripts/prepare-owned-setup-fixture.mjs .native-manager-fixture
       - run: npm install --global --ignore-scripts @openai/codex@latest
+      - name: Prepare disposable Ubuntu ownership namespace prerequisites
+        if: runner.os == 'Linux' && runner.environment == 'github-hosted'
+        run: |
+          set -euo pipefail
+          mkdir -p native-evidence
+          {
+            current_userns=$(sysctl -n kernel.unprivileged_userns_clone 2>/dev/null || true)
+            printf 'before kernel.unprivileged_userns_clone=%s\n' "$current_userns"
+            if [[ -n $current_userns && $current_userns != 1 ]]; then
+              sudo sysctl -w kernel.unprivileged_userns_clone=1
+            fi
+            current_apparmor=$(sysctl -n kernel.apparmor_restrict_unprivileged_userns 2>/dev/null || true)
+            printf 'before kernel.apparmor_restrict_unprivileged_userns=%s\n' "$current_apparmor"
+            if [[ -n $current_apparmor && $current_apparmor != 0 ]]; then
+              sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+            fi
+            printf 'after kernel.unprivileged_userns_clone=%s\n' "$(sysctl -n kernel.unprivileged_userns_clone 2>/dev/null || true)"
+            printf 'after kernel.apparmor_restrict_unprivileged_userns=%s\n' "$(sysctl -n kernel.apparmor_restrict_unprivileged_userns 2>/dev/null || true)"
+          } > native-evidence/linux-namespace-prerequisites.log
       - name: Run native Node setup contracts and actual package installation
         env:
           GESTALT_NATIVE_TEST_EVIDENCE: native-evidence

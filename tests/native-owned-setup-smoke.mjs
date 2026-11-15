@@ -2,7 +2,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createHash } from "node:crypto";
-import { appendFileSync, chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { appendFileSync, chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -24,6 +24,8 @@ for (const [name, expected] of Object.entries(fixture.sourceHashes)) assert.equa
 const helper = join(fixtureRoot, fixture.helper);
 assert.equal(digest(helper), fixture.helperSha256);
 writeFileSync(join(evidence, "owned-fixture.json"), JSON.stringify(fixture, null, 2));
+copyFileSync(helper, join(evidence, "owned-primary-helper" + (process.platform === "win32" ? ".exe" : "")));
+copyFileSync(join(fixtureRoot, "src/cli/platform/native/owned-process.c"), join(evidence, "owned-primary-source.c"));
 const { NativeOwnedProcesses } = await import(pathToFileURL(join(fixtureRoot, "src/cli/platform/processes.ts")).href);
 const native = new NativeOwnedProcesses(helper);
 const commands = { apiVersion: 1, launch: native.launch.bind(native) };
@@ -147,4 +149,48 @@ test("real setup cancellation fences detached writes before compensation or lock
       assert.ok(readdirSync(env.GESTALT_HOME).some((name) => name.startsWith(".gestalt-setup-state-")));
     }
   } finally { if (clean) rmSync(base, { recursive: true, force: true }); }
+});
+
+
+if (process.platform === "win32") test("TEST ONLY Windows diagnostic helper records one isolated repeat attempt", { timeout: 600_000 }, async () => {
+  const diagnostic = fixture.diagnostic;
+  assert.equal(diagnostic?.testOnly, true); assert.equal(diagnostic.replacesAcceptance, false);
+  assert.equal(diagnostic.originalPin, fixture.pin);
+  assert.equal(diagnostic.originalSourceSha256, fixture.sourceHashes["src/cli/platform/native/owned-process.c"]);
+  for (const [field, label] of [["source", "owned-diagnostic-source.c"], ["patch", "owned-diagnostic.patch"], ["helper", "owned-diagnostic-helper.exe"]]) {
+    assert.equal(digest(join(fixtureRoot, diagnostic[field])), diagnostic[`${field}Sha256`]);
+    copyFileSync(join(fixtureRoot, diagnostic[field]), join(evidence, label));
+  }
+  const base = scratch(), env = environment(base), calls = [];
+  const observation = { testOnly: true, replacesAcceptance: false, observedAt: new Date().toISOString(), base, pin: fixture.pin, diagnostic, phases: [], calls };
+  const save = () => writeFileSync(join(evidence, "owned-windows-diagnostic.json"), JSON.stringify(observation, null, 2));
+  save();
+  let cleanupAuthorized = false;
+  const invoke = async (label, options) => {
+    const log = join(evidence, `${label}.log`); writeFileSync(log, "");
+    try {
+      const result = await setupAgents([], { environment: env, cwd: base, ...options, streams: { stdin: emptyInput(), stdout: async (bytes) => appendFileSync(log, bytes), stderr: async (bytes) => appendFileSync(log, bytes) } });
+      observation.phases.push({ label, status: 0, result, log, sha256: digest(log) }); save(); return result;
+    } catch (error) {
+      observation.phases.push({ label, status: error.status || 1, error: error.message, execution: error.execution ?? null, log, sha256: digest(log) }); save(); return null;
+    }
+  };
+  try {
+    // No unknown profile is reused: only a known standalone seed enters the
+    // single diagnostic repeat. Original pinned primary acceptance stays above.
+    const seed = await invoke("diagnostic-standalone-seed", {});
+    if (!seed || seed.ownership.kind !== "standalone") { observation.notAttempted = "seed failed or lifetime unknown; retain state"; save(); return; }
+    const diagnosticNative = new NativeOwnedProcesses(join(fixtureRoot, diagnostic.helper));
+    const port = { apiVersion: 1, async launch(executable, invocation, streams, limits) {
+      const call = { executable, argv: invocation.argv, cwd: invocation.cwd }; calls.push(call); save();
+      const lease = await diagnosticNative.launch(executable, invocation, streams, limits);
+      void lease.result.then((value) => { call.result = value; save(); });
+      void lease.completed.then((claim) => { call.claim = claim; save(); });
+      return lease;
+    } };
+    const result = await invoke("diagnostic-owned-repeat-offline", { mode: "managed", commands: port, environment: { ...env, npm_config_offline: "true" } });
+    observation.reproducedUnknown = result?.ownership.kind !== "released";
+    cleanupAuthorized = result?.ownership.kind === "released";
+    observation.cleanupAuthorized = cleanupAuthorized; save();
+  } finally { if (cleanupAuthorized) rmSync(base, { recursive: true, force: true }); }
 });

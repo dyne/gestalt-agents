@@ -51,12 +51,23 @@ async function withOwnedCodexRpc(operation, { workspace, environment, timeoutMs,
     const id = ++nextId; pending.set(id, { resolve, reject }); send({ id, method, params });
   });
   const timeout = setTimeout(() => { fail(new Error("Codex diagnostic connection timed out")); void lease.stop(); }, timeoutMs);
+  let successful = false;
   try {
     await request("initialize", { clientInfo: { name: "gestalt-org-plan-preflight", version: "1" }, capabilities: {} });
     send({ method: "initialized", params: {} });
-    return await operation(request);
+    const result = await operation(request);
+    successful = true;
+    return result;
   } finally {
     clearTimeout(timeout); ended = true; wake?.();
+    // Normal diagnostics finish by delivering target stdin EOF. Give that
+    // orderly shutdown a bounded chance before requesting owned stop; command
+    // result and complete-tree release remain separate in the supplied port.
+    if (successful && !commandContext.signal?.aborted) {
+      let timer;
+      try { await Promise.race([lease.completed, new Promise((done) => { timer = setTimeout(done, 2000); })]); }
+      finally { clearTimeout(timer); }
+    }
     await lease.stop();
     commandContext.check();
   }
