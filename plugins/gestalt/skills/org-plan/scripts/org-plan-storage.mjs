@@ -128,7 +128,7 @@ export function ensureManagedRoot(path, { privateMode = true, create = true } = 
     try {
       execFileSync(join(systemRoot, "System32/WindowsPowerShell/v1.0/powershell.exe"), [
         "-NoLogo", "-NoProfile", "-NonInteractive", "-EncodedCommand", Buffer.from(privateDirectoryScript, "utf16le").toString("base64"),
-      ], { env: { ...process.env, GESTALT_SETUP_PATH: Buffer.from(path).toString("base64"), GESTALT_STORAGE_PRIVATE: privateMode ? "1" : "0" }, shell: false, windowsHide: true, stdio: ["ignore", "ignore", "pipe"] });
+      ], { env: { ...process.env, GESTALT_SETUP_PATH: Buffer.from(path).toString("base64"), GESTALT_STORAGE_PRIVATE: privateMode ? "1" : "0" }, shell: false, windowsHide: true, timeout: 10_000, stdio: ["ignore", "ignore", "pipe"] });
     } catch (error) {
       throw new Error(`Windows managed storage refused: ${String(error.stderr ?? error.code ?? "permission inspection failed").trim().slice(0, 1000)}`, { cause: error });
     }
@@ -163,14 +163,14 @@ try {
  $f=New-Object IO.FileStream($p,[IO.FileMode]::CreateNew,[Security.AccessControl.FileSystemRights]::FullControl,[IO.FileShare]::None,4096,[IO.FileOptions]::None,$a)
  $f.Dispose()
 } catch {[Console]::Error.WriteLine($_.Exception.Message);exit 1}`;
-      execFileSync(join(systemRoot,"System32/WindowsPowerShell/v1.0/powershell.exe"),["-NoLogo","-NoProfile","-NonInteractive","-EncodedCommand",Buffer.from(script,"utf16le").toString("base64")],{env:{...process.env,GESTALT_STORAGE_FILE:Buffer.from(path).toString("base64")},shell:false,windowsHide:true,stdio:["ignore","ignore","pipe"]});
+      execFileSync(join(systemRoot,"System32/WindowsPowerShell/v1.0/powershell.exe"),["-NoLogo","-NoProfile","-NonInteractive","-EncodedCommand",Buffer.from(script,"utf16le").toString("base64")],{env:{...process.env,GESTALT_STORAGE_FILE:Buffer.from(path).toString("base64")},shell:false,windowsHide:true,timeout:10_000,stdio:["ignore","ignore","pipe"]});
       created = true;
       writeFileSync(path, contents, { flag: "r+" });
     } else {
       const fd = openSync(path, constants.O_CREAT | constants.O_EXCL | constants.O_WRONLY, mode);
       created = true;
       try {
-        if (process.platform === "darwin") execFileSync("/bin/chmod", ["-N", path], { stdio: "ignore" });
+        if (process.platform === "darwin") execFileSync("/bin/chmod", ["-N", path], { stdio: "ignore", timeout: 5000 });
         writeFileSync(fd, contents);
       } finally { closeSync(fd); }
     }

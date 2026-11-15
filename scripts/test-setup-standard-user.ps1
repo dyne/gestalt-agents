@@ -17,5 +17,5 @@ $npmCli = Join-Path $nodeDirectory 'node_modules\npm\bin\npm-cli.js'
 if ($LASTEXITCODE -ne 0) { throw 'Standard-user Codex test dependency installation failed' }
 Set-Location -LiteralPath $Repository
 $env:GESTALT_NATIVE_TEST_EVIDENCE = Join-Path $Repository 'native-evidence'
-& $Node --test --test-reporter=tap tests/repository/test-native-setup.mjs tests/repository/test-native-helpers.mjs tests/native-setup-smoke.mjs
+& $Node --test --test-reporter=tap tests/repository/test-setup-api.mjs tests/repository/test-setup-command-port.mjs tests/repository/test-setup-rpc.mjs tests/repository/test-native-setup.mjs tests/repository/test-native-helpers.mjs tests/native-setup-smoke.mjs tests/native-owned-setup-smoke.mjs
 exit $LASTEXITCODE

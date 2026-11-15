@@ -1,6 +1,66 @@
 import { spawn } from "node:child_process";
 import { createInterface } from "node:readline";
+import { StringDecoder } from "node:string_decoder";
 import { commandTarget, resolveExecutable } from "./native-command.mjs";
+
+// Setup supplies its owned command context. Keep this plugin independently
+// distributable: the ordinary diagnostic path has no context-mode dependency.
+async function withOwnedCodexRpc(operation, { workspace, environment, timeoutMs, commandContext }) {
+  const target = commandTarget(resolveExecutable("codex", environment));
+  const pending = new Map(), queued = [];
+  let wake, ended = false, failure, nextId = 0, buffered = "";
+  const decoder = new StringDecoder("utf8");
+  const fail = (error = new Error("Codex diagnostic connection failed")) => {
+    failure ??= error;
+    for (const waiter of pending.values()) waiter.reject(failure);
+    pending.clear();
+  };
+  const input = {
+    async *[Symbol.asyncIterator]() {
+      while (!ended || queued.length) {
+        if (queued.length) yield queued.shift();
+        else await new Promise((done) => { wake = done; });
+      }
+    },
+  };
+  const send = (message) => { queued.push(Buffer.from(`${JSON.stringify(message)}\n`)); wake?.(); wake = undefined; };
+  const lease = await commandContext.launch(target.executable, {
+    argv: [...target.prefix, "app-server", "--stdio"], cwd: workspace, environment,
+  }, {
+    stdin: input,
+    stdout: async (bytes) => {
+      buffered += decoder.write(bytes);
+      if (Buffer.byteLength(buffered) > 1024 * 1024) throw new Error("Codex diagnostic response exceeds1MiB");
+      let index;
+      while ((index = buffered.indexOf("\n")) !== -1) {
+        const line = buffered.slice(0, index); buffered = buffered.slice(index + 1);
+        let message; try { message = JSON.parse(line); } catch { continue; }
+        const waiter = pending.get(message.id);
+        if (!waiter) continue;
+        pending.delete(message.id);
+        if (message.error) waiter.reject(new Error("Codex diagnostic request failed"));
+        else waiter.resolve(message.result);
+      }
+    },
+    stderr: async () => {},
+  }, { graceMs: 1000, deadlineMs: 10_000 });
+  void Promise.resolve(lease.result).then(() => fail(), (error) => fail(error));
+  void lease.completed.then(() => fail(), (error) => fail(error));
+  const request = (method, params) => new Promise((resolve, reject) => {
+    if (failure) { reject(failure); return; }
+    const id = ++nextId; pending.set(id, { resolve, reject }); send({ id, method, params });
+  });
+  const timeout = setTimeout(() => { fail(new Error("Codex diagnostic connection timed out")); void lease.stop(); }, timeoutMs);
+  try {
+    await request("initialize", { clientInfo: { name: "gestalt-org-plan-preflight", version: "1" }, capabilities: {} });
+    send({ method: "initialized", params: {} });
+    return await operation(request);
+  } finally {
+    clearTimeout(timeout); ended = true; wake?.();
+    await lease.stop();
+    commandContext.check();
+  }
+}
 
 /** A bounded, read-only diagnostic connection; no thread or turn is started. */
 export async function withCodexRpc(
@@ -9,8 +69,10 @@ export async function withCodexRpc(
     workspace = process.cwd(),
     environment = process.env,
     timeoutMs = 15000,
+    commandContext,
   } = {},
 ) {
+  if (commandContext) return withOwnedCodexRpc(operation, { workspace, environment, timeoutMs, commandContext });
   const target = commandTarget(resolveExecutable("codex", environment));
   const child = spawn(target.executable, [...target.prefix, "app-server", "--stdio"], {
     cwd: workspace,

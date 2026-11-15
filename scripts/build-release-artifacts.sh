@@ -53,6 +53,8 @@ release_paths=(
   USAGE.md
   gestalt-setup.sh
   gestalt-setup.mjs
+  scripts/setup-agents.mjs
+  scripts/setup-api.md
   scripts/setup-storage.mjs
   scripts/prepare-agent-profiles.mjs
   scripts/install-managed-commands.mjs

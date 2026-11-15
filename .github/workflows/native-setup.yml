@@ -23,13 +23,21 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: 24
+      - uses: actions/checkout@v7
+        with:
+          repository: dyne/gestalt
+          ref: cb7dbf1bfb2221bd0b3f4366311280e53cd712be
+          path: .native-manager-fixture
+          persist-credentials: false
+      - name: Build pinned ownership fixture for integration tests only
+        run: node scripts/prepare-owned-setup-fixture.mjs .native-manager-fixture
       - run: npm install --global --ignore-scripts @openai/codex@latest
       - name: Run native Node setup contracts and actual package installation
         env:
           GESTALT_NATIVE_TEST_EVIDENCE: native-evidence
         run: |
           mkdir -p native-evidence
-          node --test --test-reporter=tap tests/repository/test-native-setup.mjs tests/repository/test-native-helpers.mjs tests/native-setup-smoke.mjs > native-evidence/contracts.tap 2>&1
+          node --test --test-reporter=tap tests/repository/test-setup-api.mjs tests/repository/test-setup-command-port.mjs tests/repository/test-setup-rpc.mjs tests/repository/test-native-setup.mjs tests/repository/test-native-helpers.mjs tests/native-setup-smoke.mjs tests/native-owned-setup-smoke.mjs > native-evidence/contracts.tap 2>&1
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -47,6 +55,14 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: 24
+      - uses: actions/checkout@v7
+        with:
+          repository: dyne/gestalt
+          ref: cb7dbf1bfb2221bd0b3f4366311280e53cd712be
+          path: .native-manager-fixture
+          persist-credentials: false
+      - name: Build pinned ownership fixture for integration tests only
+        run: node scripts/prepare-owned-setup-fixture.mjs .native-manager-fixture
       - name: Run native setup with an isolated standard-user token
         shell: powershell
         run: |

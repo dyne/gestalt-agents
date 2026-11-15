@@ -22,6 +22,7 @@ let polls = 0;
 // shortening wall time must not skip the remaining lock-wait budget.
 Date.now = () => realNow() + elapsed;
 globalThis.setTimeout = (callback, milliseconds, ...args) => {
+  if (milliseconds !== 250) return realTimeout(callback, milliseconds, ...args);
   elapsed += milliseconds;
   polls++;
   return realTimeout(callback, 2, ...args);
@@ -148,25 +149,23 @@ function build(root) {
   }
   artifacts(root, config.kind === "install");
 }
-// Preparation still performs its real manifest and native-dependency checks.
-childProcess.execFileSync = (_command, _args, options) => {
-  build(options.cwd);
-  return Buffer.from("");
-};
-// Preparation now forwards native command tokens through spawnSync. Keep the
-// expensive build seam explicit while exercising the same real lock/manifest.
-childProcess.spawnSync = (_command, _args, options) => {
-  build(options.cwd);
-  return { status: 0, signal: null, stdout: "", stderr: "" };
-};
-syncBuiltinESMExports();
+// Keep real locks, dependency inventory, manifest and publication. Only the
+// expensive external command capability is controlled by this fixture.
+const { SetupCommandContext } = await import(pathToFileURL(join(config.scripts, "setup-command-context.mjs")));
+let commandId = 0;
+const commandContext = new SetupCommandContext({ mode: "managed", commands: { apiVersion: 1, async launch(_executable, invocation) {
+  let failure; try { build(invocation.cwd); } catch (error) { failure = error; }
+  const id = `fixture-${++commandId}`, result = failure ? { kind: "spawn-error", message: failure.message } : { kind: "exit", code: 0 };
+  const proof = { kind: "released", lease: id, backend: "controlled-lock-fixture", result };
+  return { id, result: Promise.resolve(result), completed: Promise.resolve(proof), stop: async () => proof };
+} } });
 try {
   if (config.kind === "install") {
     const { installRuntime } = await import(pathToFileURL(join(config.scripts, "install-runtime.mjs")));
     await installRuntime(config.source, { force: config.force, env: { GESTALT_HOME: config.home }, prepare: async (stage) => build(stage) });
   } else {
     const { prepareRuntime } = await import(pathToFileURL(join(config.scripts, "prepare-runtime.mjs")));
-    await prepareRuntime(config.source, { force: config.force });
+    await prepareRuntime(config.source, { force: config.force, commandContext });
   }
   console.log(JSON.stringify({ status: "completed", entered, elapsed, polls }));
 } catch (error) {

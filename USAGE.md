@@ -5,11 +5,20 @@ and the `context-mode` runtime plugin.
 
 ## Codex setup
 
-Context-mode requires Node.js 22.5 or newer, npm, network access during setup,
-and the native toolchain needed by `better-sqlite3` (`python3`, `make`, and a
-C/C++ compiler). A working Bun installation is used for dependencies when
-available. Set `CONTEXT_MODE_PACKAGE_MANAGER=npm` or `bun` to override automatic
-selection during setup.
+Setup requires Node.js 24 or newer, npm, a compatible Codex CLI and network
+access for the first installation. Runtime preparation uses the dependency's
+prebuilt native binary for the current OS, architecture and Node ABI; it does
+not install compilers or compile native addons. A working Bun installation is
+used for dependencies when available. Set `CONTEXT_MODE_PACKAGE_MANAGER=npm`
+or `bun` to override automatic selection. Dependency installation disables
+lifecycle scripts, then runs only the allowlisted installer JS entrypoints;
+global npm lifecycle configuration is preserved.
+
+`node gestalt-setup.mjs` works in PowerShell, cmd and Unix shells. The existing
+`gestalt-setup.sh` is a Unix compatibility adapter. Windows users need no Bash,
+Git Bash, WSL, Developer Mode or administrator rights. Programmatic callers can
+use the import-safe [setup API v1](scripts/setup-api.md), including an explicit
+owned-command capability for managed setup.
 
 ```sh
 export CODEX_HOME="$HOME/.codex-gestalt"
@@ -43,9 +52,10 @@ Useful modes:
 ```
 
 The curated list is maintained directly in the marketplace's
-`gestalt-setup.sh`. It runs `npx skills` in project scope so canonical copies
+`scripts/setup-agents.mjs`. It runs `npx skills` in project scope so canonical copies
 and lock metadata remain under `${GESTALT_HOME:-$HOME/.gestalt}` rather than
 the normal global skills directory. Setup exposes them through per-skill links
+(or native copies on Windows)
 in `CODEX_HOME/skills` and preserves entries that already exist there.
 `--extra-skills` cannot be combined with `--prepare-only`.
 `--extra-skills-only` skips runtime preparation, marketplace registration,

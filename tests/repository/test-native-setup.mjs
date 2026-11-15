@@ -3,7 +3,7 @@ import { test } from "node:test";
 import { chmodSync, cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, readlinkSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { commandTarget, runCommand } from "../../plugins/context-mode/scripts/native-command.mjs";
@@ -56,12 +56,15 @@ else process.exit(45);
   // Runtime build and catalog transport are explicit fixture boundaries here.
   // The native smoke suite separately builds and installs the unmodified source.
   writeFileSync(join(source, "plugins/context-mode/scripts/install-runtime.mjs"), `
-import { existsSync, mkdirSync, writeFileSync, readFileSync } from 'node:fs'; import { join } from 'node:path'; import { runCommand } from './native-command.mjs';
-const dest=join(process.env.GESTALT_HOME,'runtime/context-mode');
-if(!process.argv.includes('--check')&&(!existsSync(dest)||process.argv.includes('--force'))) { runCommand('npm',['ci','--ignore-scripts=false']); mkdirSync(dest,{recursive:true}); writeFileSync(join(dest,'cli.bundle.mjs'),'// fixture'); writeFileSync(join(dest,'builds'),String(Number(existsSync(join(dest,'builds'))?readFileSync(join(dest,'builds'),'utf8'):0)+1)); }
-if(!existsSync(join(dest,'cli.bundle.mjs')))process.exit(46);
+import { existsSync, mkdirSync, writeFileSync, readFileSync } from 'node:fs'; import { join } from 'node:path';
+export async function installRuntime(source,{force,env,commandContext}) {
+ const dest=join(env.GESTALT_HOME,'runtime/context-mode');
+ if(!existsSync(dest)||force) { await commandContext.run('npm',['ci','--ignore-scripts=false'],{env,stdin:'ignore'}); mkdirSync(dest,{recursive:true}); writeFileSync(join(dest,'cli.bundle.mjs'),'// fixture'); writeFileSync(join(dest,'builds'),String(Number(existsSync(join(dest,'builds'))?readFileSync(join(dest,'builds'),'utf8'):0)+1)); }
+ return dest;
+}
+export function verifyInstalledRuntime(source,dest) { return {ok:existsSync(join(dest,'cli.bundle.mjs')),problems:['fixture CLI missing']}; }
 `);
-  writeFileSync(join(source, "scripts/verify-gestalt-skill-catalog.mjs"), `if(process.env.FAIL_CATALOG)process.exit(47);`);
+  writeFileSync(join(source, "scripts/verify-gestalt-skill-catalog.mjs"), `export async function verifySetupCatalog({environment}) {if(environment.FAIL_CATALOG)throw new Error('catalog fixture failure');}`);
   const home = join(base, "user"); mkdirSync(home);
   const gestalt = join(base, "Gestalt ü & home"), codex = join(base, "Codex ü & home");
   const inherited = Object.fromEntries(Object.entries(process.env).filter(([key]) => key.toUpperCase() !== "PATH"));
@@ -171,6 +174,38 @@ test("optional skills keep all 19 explicit selections confined and preserve exis
   result = f.run(["--extra-skills-only"], { FAIL_NPX: "1" }); assert.notEqual(result.status, 0);
   assert.deepEqual(tree(f.gestalt), beforeGestalt); assert.deepEqual(tree(f.codex), beforeCodex);
   assert.equal(existsSync(join(f.gestalt, "runtime")), false);
+});
+
+test("concurrent setup API fixture calls isolate environments and install no global signal handlers", async (t) => {
+  const f = fixture(t), secondHome = join(f.base, "second Gestalt ü & home");
+  const { setupAgents } = await import(pathToFileURL(join(f.source, "scripts/setup-agents.mjs")).href);
+  const before = JSON.stringify(process.env), signals = ["SIGINT", "SIGTERM", "SIGHUP"], listeners = signals.map((name) => process.listenerCount(name));
+  const observed = [], outputs = [[], []]; let id = 0;
+  const commands = { apiVersion: 1, async launch(executable, invocation) {
+    observed.push({ executable, environment: invocation.environment, cwd: invocation.cwd });
+    await new Promise((resolve) => setImmediate(resolve));
+    const lease = `concurrent-fixture-${++id}`, result = { kind: "exit", code: 0 }, proof = { kind: "released", lease, backend: "controlled-concurrency-fixture", result };
+    return { id: lease, result: Promise.resolve(result), completed: Promise.resolve(proof), stop: async () => proof };
+  } };
+  const environments = [{ ...f.env }, { ...f.env, GESTALT_HOME: secondHome }];
+  await Promise.all(environments.map((environment, index) => setupAgents(["--prepare-only"], { mode: "managed", commands, environment, cwd: f.base, streams: { stdout: async (bytes) => outputs[index].push(Buffer.from(bytes)), stderr: async () => {} } })));
+  assert.deepEqual(observed.map((call) => call.environment.GESTALT_HOME).sort(), [f.gestalt, secondHome].sort());
+  assert.equal(JSON.stringify(process.env), before); assert.deepEqual(signals.map((name) => process.listenerCount(name)), listeners);
+  for (const home of [f.gestalt, secondHome]) { assert.ok(existsSync(join(home, "bin/context-mode"))); assert.equal(existsSync(join(home, ".gestalt-setup.lock")), false); }
+  for (const chunks of outputs) assert.match(Buffer.concat(chunks).toString(), /external runtime is prepared/);
+});
+
+test("configured marketplace requires the import-safe setup API without CLI fallback", (t) => {
+  const f = fixture(t), configured = join(f.base, "old configured source"), forbidden = join(f.base, "unconfined-cli-ran");
+  mkdirSync(configured); ensureManagedRoot(f.codex);
+  writeFileSync(join(f.codex, "marketplace.txt"), configured);
+  writeFileSync(join(configured, "gestalt-setup.mjs"), `require('node:fs').writeFileSync(${JSON.stringify(forbidden)},'forbidden');`);
+  let result = f.run(); assert.notEqual(result.status, 0); assert.match(result.stderr, /setup API v1 is missing; update/);
+  assert.equal(existsSync(forbidden), false); assert.equal(existsSync(f.gestalt), false);
+  mkdirSync(join(configured, "scripts"));
+  writeFileSync(join(configured, "scripts/setup-agents.mjs"), "export const SETUP_API_VERSION=2; export async function setupAgents(){throw new Error('incompatible API invoked');}");
+  result = f.run(); assert.notEqual(result.status, 0); assert.match(result.stderr, /setup API is incompatible; update/);
+  assert.equal(existsSync(forbidden), false); assert.equal(existsSync(f.gestalt), false);
 });
 
 test("native npm Node shim forwards literal argv/stdin and exit without evaluating batch", (t) => {

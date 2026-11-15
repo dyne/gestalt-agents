@@ -207,9 +207,11 @@ if bash "$script" --force --extra-skills-only >"$tmp/only-incompatible.out" 2>&1
 fi
 
 configured="$tmp/configured marketplace"
-mkdir -p "$configured" "$tmp/bin"
-cat >"$configured/gestalt-setup.mjs" <<'JS'
-process.stdout.write(`delegated home=${process.env.CODEX_HOME} args=${process.argv.slice(2).map(x => `<${x}>`).join('')}\n`);
+mkdir -p "$configured/scripts" "$tmp/bin"
+cat >"$configured/scripts/setup-agents.mjs" <<'JS'
+export const SETUP_API_VERSION=1;
+export const SETUP_API_CAPABILITIES=['async-owned-commands-v1','host-filesystem-v1','shared-context-v1'];
+export async function setupAgents(args,{environment,streams}) {await streams.stdout(Buffer.from(`delegated home=${environment.CODEX_HOME} args=${args.map(x => `<${x}>`).join('')}\n`));}
 JS
 cat >"$tmp/bin/codex" <<SH
 #!/usr/bin/env bash
@@ -222,7 +224,7 @@ exit 99
 SH
 chmod +x "$tmp/bin/codex"
 configured_real=$(CDPATH='' cd -- "$configured" && pwd -P)
-mkdir -p "$tmp/delegated-home"
+mkdir -m 700 "$tmp/delegated-home"
 delegated=$(CODEX_HOME="$tmp/delegated-home" GESTALT_HOME="$tmp/delegated-gestalt" PATH="$tmp/bin:$PATH" \
   bash "$script" --force --extra-skills)
 assert_contains "$delegated" "continuing from configured marketplace $configured_real" \

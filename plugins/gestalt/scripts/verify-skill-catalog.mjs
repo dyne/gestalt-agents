@@ -13,6 +13,7 @@ export async function verifyGestaltSkillCatalog({
   workspace = process.cwd(),
   environment = process.env,
   timeoutMs = 15_000,
+  commandContext,
 } = {}) {
   const canonicalRoot = resolve(pluginRoot);
   const skillsRoot = join(canonicalRoot, 'skills');
@@ -29,7 +30,7 @@ export async function verifyGestaltSkillCatalog({
   const canonicalWorkspace = resolve(workspace);
   const result = await withCodexRpc(
     (request) => request('skills/list', { cwds: [canonicalWorkspace], forceReload: true }),
-    { workspace: canonicalWorkspace, environment, timeoutMs },
+    { workspace: canonicalWorkspace, environment, timeoutMs, commandContext },
   );
   const entry = result?.data?.find((candidate) => candidate.cwd === canonicalWorkspace);
   if (!entry) throw new Error(`skills/list omitted workspace ${canonicalWorkspace}`);

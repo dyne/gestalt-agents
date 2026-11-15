@@ -16,10 +16,14 @@ function invalid(message) { throw Object.assign(new Error(message), { exitCode: 
 const encoded = (value) => [...Buffer.from(value)].map((byte) => /[A-Za-z0-9._~/-]/.test(String.fromCharCode(byte)) ? String.fromCharCode(byte) : `%${byte.toString(16).toUpperCase().padStart(2, "0")}`).join("");
 const toml = (profile) => Object.entries(profile).map(([key, value]) => `${key} = ${JSON.stringify(value)}\n`).join("");
 
-export async function prepareProfiles(command, args = []) {
+export async function prepareProfiles(command, args = [], {
+  environment = process.env, signal, canCleanup = () => true, retain = () => {}, listenForSignals = true,
+} = {}) {
+  if (signal?.aborted) throw Object.assign(new Error("profile preparation interrupted"), { status: signal.reason?.status || 130 });
   const supervision = command === "prepare-supervision";
   if (!PROFILE_HELP[command]) invalid("unknown profile command");
-  const options = { "agents-dir": join(process.env.CODEX_HOME || join(homedir(), ".codex"), "agents") };
+  const userHome = environment === process.env ? homedir() : environment.HOME || environment.USERPROFILE || homedir();
+  const options = { "agents-dir": join(environment.CODEX_HOME || join(userHome, ".codex"), "agents") };
   const keys = supervision
     ? ["executor-model", "reviewer-model", "executor-reasoning-effort", "reviewer-reasoning-effort", "executor-profile-name", "reviewer-profile-name"]
     : ["model", "reasoning-effort", "profile-name"];
@@ -42,7 +46,7 @@ export async function prepareProfiles(command, args = []) {
   });
   if (new Set(selected.map((profile) => profile.name)).size !== selected.length) invalid("profile names must be distinct");
   const displayDir = options["agents-dir"];
-  const agentsDir = resolveRoot(resolve(displayDir), "agents directory", homedir(), { allowControlCharacters: process.platform !== "win32" });
+  const agentsDir = resolveRoot(resolve(displayDir), "agents directory", userHome, { allowControlCharacters: process.platform !== "win32" });
   ensureManagedRoot(agentsDir, { privateMode: false });
   const records = selected.map((profile) => {
     const path = join(agentsDir, `${profile.name}.toml`);
@@ -51,10 +55,14 @@ export async function prepareProfiles(command, args = []) {
     return { path, profile, mode: info ? info.mode & 0o777 : 0o600, before: info ? readFileSync(path) : null };
   });
   const stage = join(agentsDir, `.org-plan-stage.${process.pid}.${randomUUID()}`);
-  let ownsStage = false, signal;
-  const handlers = new Map([ ["SIGHUP",129], ["SIGINT",130], ["SIGTERM",143] ].map(([name, status]) => [name, () => { signal = { name, status }; }]));
-  const checkpoint = async () => { await setImmediate(); if (signal) throw Object.assign(new Error(`profile preparation interrupted: ${signal.name}`), { exitCode: signal.status }); };
-  for (const [name, handler] of handlers) process.on(name, handler);
+  let ownsStage = false, interrupted;
+  const handlers = new Map([ ["SIGHUP",129], ["SIGINT",130], ["SIGTERM",143] ].map(([name, status]) => [name, () => { interrupted = { name, status }; }]));
+  const checkpoint = async () => {
+    await setImmediate();
+    const reason = interrupted ?? (signal?.aborted ? { name: signal.reason?.signal || "abort", status: signal.reason?.status || 130 } : null);
+    if (reason) throw Object.assign(new Error(`profile preparation interrupted: ${reason.name}`), { exitCode: reason.status, status: reason.status });
+  };
+  if (listenForSignals) for (const [name, handler] of handlers) process.on(name, handler);
   const installed = [];
   try {
     mkdirSync(stage, { mode: 0o700 }); ownsStage = true;
@@ -71,6 +79,7 @@ export async function prepareProfiles(command, args = []) {
       await checkpoint();
     }
   } catch (error) {
+    if (!canCleanup()) { retain(stage); throw error; }
     for (const record of installed.reverse()) {
       if (record.before === null) rmSync(record.path, { force: true });
       else {
@@ -82,8 +91,9 @@ export async function prepareProfiles(command, args = []) {
     }
     throw error;
   } finally {
-    for (const [name, handler] of handlers) process.removeListener(name, handler);
-    if (ownsStage) rmSync(stage, { recursive: true, force: true });
+    if (listenForSignals) for (const [name, handler] of handlers) process.removeListener(name, handler);
+    if (ownsStage && canCleanup()) rmSync(stage, { recursive: true, force: true });
+    else if (ownsStage) retain(stage);
   }
   // Records describe the caller's exact spelling, including repeated
   // separators and explicit aliases. Writes use the validated physical root.

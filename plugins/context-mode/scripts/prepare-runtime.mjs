@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 /** Prepare immutable context-mode runtime artifacts before Codex starts MCP. */
-import { execFileSync } from "node:child_process";
-import { runCommand } from "./native-command.mjs";
+import { SetupCommandContext } from "./setup-command-context.mjs";
 import { scratchEnvironment } from "./session-scratch.mjs";
 import { createHash } from "node:crypto";
 import {
@@ -30,71 +29,55 @@ const WAIT_MS = 250;
 const WAIT_TIMEOUT_MS = 180_000;
 
 const delay = (ms) => new Promise((done) => setTimeout(done, ms));
-function findBun() {
-  const selection = process.env.CONTEXT_MODE_PACKAGE_MANAGER ?? "auto";
-  if (!new Set(["auto", "bun", "npm"]).has(selection)) {
-    throw new Error(`CONTEXT_MODE_PACKAGE_MANAGER must be auto, bun, or npm; found ${selection}`);
-  }
+async function findBun(env, context, pluginRoot) {
+  const selection = env.CONTEXT_MODE_PACKAGE_MANAGER ?? "auto";
+  if (!["auto", "bun", "npm"].includes(selection)) throw new Error(`CONTEXT_MODE_PACKAGE_MANAGER must be auto, bun, or npm; found ${selection}`);
   if (selection === "npm") return null;
   if (typeof globalThis.Bun !== "undefined") return process.execPath;
-  const candidates = [
-    process.env.BUN_INSTALL ? join(process.env.BUN_INSTALL, "bin", process.platform === "win32" ? "bun.exe" : "bun") : null,
-    join(homedir(), ".bun", "bin", process.platform === "win32" ? "bun.exe" : "bun"),
-    "/usr/local/bin/bun",
-    "/usr/bin/bun",
-  ].filter(Boolean);
-  const bun = candidates.find((candidate) => {
-    if (!existsSync(candidate)) return false;
-    try {
-      execFileSync(candidate, ["--version"], {
-        stdio: "ignore",
-        timeout: 1_000,
-        windowsHide: true,
-      });
-      return true;
-    } catch {
-      return false;
-    }
-  }) ?? null;
-  if (selection === "bun" && !bun) {
-    throw new Error("CONTEXT_MODE_PACKAGE_MANAGER=bun but no working Bun executable was found");
+  const home = env.HOME || env.USERPROFILE || homedir();
+  const candidates = [env.BUN_INSTALL ? join(env.BUN_INSTALL, "bin", process.platform === "win32" ? "bun.exe" : "bun") : null,
+    join(home, ".bun", "bin", process.platform === "win32" ? "bun.exe" : "bun"), "/usr/local/bin/bun", "/usr/bin/bun"].filter(Boolean);
+  for (const candidate of candidates) {
+    if (!existsSync(candidate)) continue;
+    try { await context.run(candidate, ["--version"], { env, cwd: pluginRoot, stdin: "ignore", stdout: async () => {}, stderr: async () => {}, timeout: 1000 }); return candidate; }
+    catch { context.check(); if (!context.canCleanup()) throw new Error("Bun probe ownership is unknown; retain preparation state"); }
   }
-  return bun;
+  if (selection === "bun") throw new Error("CONTEXT_MODE_PACKAGE_MANAGER=bun but no working Bun executable was found");
+  return null;
 }
 
-function run(pluginRoot, tempDir, command, args, timeout = WAIT_TIMEOUT_MS) {
+async function run(pluginRoot, tempDir, command, args, context, env, timeout = WAIT_TIMEOUT_MS) {
   mkdirSync(tempDir, { recursive: true });
-  runCommand(command, args, {
+  await context.run(command, args, {
     cwd: pluginRoot,
     env: {
-      ...scratchEnvironment(process.env),
-      ...(!Object.hasOwn(process.env, "GESTALT_SESSION_TMP_CONTEXT") ? { TMPDIR: tempDir, TMP: tempDir, TEMP: tempDir } : {}),
+      ...scratchEnvironment(env),
+      ...(!Object.hasOwn(env, "GESTALT_SESSION_TMP_CONTEXT") ? { TMPDIR: tempDir, TMP: tempDir, TEMP: tempDir } : {}),
       BUN_INSTALL_CACHE_DIR: join(tempDir, "bun-cache"),
       npm_config_cache: join(tempDir, "npm-cache"),
       ESBUILD_BINARY_PATH: "", // Use the locked platform package, not an external override.
     },
-    stdio: "inherit",
     timeout,
     windowsHide: true,
   });
 }
 
-function installBuildDependencies(pluginRoot, tempDir) {
-  const bun = findBun();
+async function installBuildDependencies(pluginRoot, tempDir, context, env) {
+  const bun = await findBun(env, context, pluginRoot);
   if (bun) {
-    run(pluginRoot, tempDir, bun, ["install", "--frozen-lockfile", "--ignore-scripts"]);
+    await run(pluginRoot, tempDir, bun, ["install", "--frozen-lockfile", "--ignore-scripts"], context, env);
     return;
   }
-  run(
+  await run(
     pluginRoot,
     tempDir,
     "npm",
-    ["ci", "--no-audit", "--no-fund", "--ignore-scripts=true", "--include=optional"],
+    ["ci", "--no-audit", "--no-fund", "--ignore-scripts=true", "--include=optional"], context, env,
   );
 }
 
-function buildRuntimeArtifacts(pluginRoot, tempDir) {
-  installBuildDependencies(pluginRoot, tempDir);
+async function buildRuntimeArtifacts(pluginRoot, tempDir, context, env) {
+  await installBuildDependencies(pluginRoot, tempDir, context, env);
   const require = createRequire(join(pluginRoot, "package.json"));
   const policy = JSON.parse(readFileSync(join(pluginRoot, "package.json"), "utf8")).allowScripts;
   if (JSON.stringify(policy) !== JSON.stringify({ "better-sqlite3": true, esbuild: true })) throw new Error("unexpected runtime dependency installer allowlist");
@@ -113,25 +96,24 @@ function buildRuntimeArtifacts(pluginRoot, tempDir) {
   if (!existsSync(binary)) throw new Error("locked esbuild platform binary is missing");
   // These are the only dependency install entrypoints. Invoke JS through Node
   // with literal argv/cwd; npm's .bin batch dispatch breaks paths containing &.
-  run(pluginRoot, tempDir, process.execPath, [require.resolve("esbuild/install.js")]);
+  await run(pluginRoot, tempDir, process.execPath, [require.resolve("esbuild/install.js")], context, env);
   const sqliteRoot = dirname(require.resolve("better-sqlite3/package.json"));
   const sqliteRequire = createRequire(join(sqliteRoot, "package.json"));
   try {
-    run(sqliteRoot, tempDir, process.execPath, [sqliteRequire.resolve("prebuild-install/bin.js")]);
+    await run(sqliteRoot, tempDir, process.execPath, [sqliteRequire.resolve("prebuild-install/bin.js")], context, env);
   } catch (error) {
     throw new Error(`context-mode requires a prebuilt better-sqlite3 binary for ${process.platform}/${process.arch}/Node ABI ${process.versions.modules}; native compilation is not attempted`, { cause: error });
   }
-  verifyNativeDependencies(pluginRoot);
-  run(pluginRoot, tempDir, process.execPath, [require.resolve("typescript/bin/tsc"), "--noEmit"]);
-  run(pluginRoot, tempDir, process.execPath, [join(pluginRoot, "scripts/build-runtime.mjs")]);
-  run(pluginRoot, tempDir, process.execPath, [join(pluginRoot, "scripts/assert-bundle.mjs"), ...BUNDLES.map(([, output]) => output)]);
+  await verifyNativeDependencies(pluginRoot, tempDir, context, env);
+  await run(pluginRoot, tempDir, process.execPath, [require.resolve("typescript/bin/tsc"), "--noEmit"], context, env);
+  await run(pluginRoot, tempDir, process.execPath, [join(pluginRoot, "scripts/build-runtime.mjs")], context, env);
+  await run(pluginRoot, tempDir, process.execPath, [join(pluginRoot, "scripts/assert-bundle.mjs"), ...BUNDLES.map(([, output]) => output)], context, env);
 }
 
-function verifyNativeDependencies(pluginRoot) {
-  const require = createRequire(join(pluginRoot, "package.json"));
-  const Database = require("better-sqlite3");
-  const database = new Database(":memory:");
-  database.close();
+async function verifyNativeDependencies(pluginRoot, tempDir, context, env) {
+  // Loading third-party native code is an external command boundary too.
+  const program = "const r=require('node:module').createRequire(process.argv[1]);const D=r('better-sqlite3');const d=new D(':memory:');d.close();";
+  await run(pluginRoot, tempDir, process.execPath, ["-e", program, join(pluginRoot, "package.json")], context, env);
 }
 
 function writeManifest(pluginRoot) {
@@ -158,25 +140,29 @@ function writeManifest(pluginRoot) {
   );
 }
 
-export async function prepareRuntime(pluginRoot = DEFAULT_PLUGIN_ROOT, { force = false } = {}) {
-  scratchEnvironment(process.env); // Present-invalid context fails before any writes.
+export async function prepareRuntime(pluginRoot = DEFAULT_PLUGIN_ROOT, { force = false, env = process.env, commandContext } = {}) {
+  const context = commandContext ?? new SetupCommandContext({ environment: env, cwd: pluginRoot });
+  context.check();
+  scratchEnvironment(env); // Present-invalid context fails before any writes.
   const lockDir = join(pluginRoot, ".context-mode-prepare.lock");
   const tempDir = join(pluginRoot, ".context-mode-prepare-tmp");
   if (!force && verifyPreparedRuntime(pluginRoot).ok) return;
 
   const deadline = Date.now() + WAIT_TIMEOUT_MS;
   while (Date.now() < deadline) {
-    const releaseLock = tryAcquireRuntimeLock(lockDir);
+    context.check();
+    const acquired = tryAcquireRuntimeLock(lockDir);
+    const releaseLock = acquired ? context.protectLock(lockDir, acquired) : null;
     if (releaseLock) {
       try {
         if (force || !verifyPreparedRuntime(pluginRoot).ok) {
-          buildRuntimeArtifacts(pluginRoot, tempDir);
-          verifyNativeDependencies(pluginRoot);
+          await buildRuntimeArtifacts(pluginRoot, tempDir, context, env);
+          await verifyNativeDependencies(pluginRoot, tempDir, context, env);
           writeManifest(pluginRoot);
         }
       } finally {
-        try { rmSync(tempDir, { recursive: true, force: true }); }
-        finally { releaseLock(); }
+        if (context.canCleanup()) { try { rmSync(tempDir, { recursive: true, force: true }); } finally { releaseLock(); } }
+        else { context.retain(tempDir); context.retain(lockDir); releaseLock(); }
       }
       const result = verifyPreparedRuntime(pluginRoot);
       if (!result.ok) throw new Error(`preparation incomplete: ${result.problems.join(", ")}`);
@@ -189,10 +175,10 @@ export async function prepareRuntime(pluginRoot = DEFAULT_PLUGIN_ROOT, { force =
   throw new Error(`timed out waiting for preparation lock: ${runtimeLockTimeout(lockDir)}`);
 }
 
-if (
-  process.argv[1] &&
-  realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url))
-) {
+function isDirectInvocation() {
+  try { return !!process.argv[1] && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url)); } catch { return false; }
+}
+if (isDirectInvocation()) {
   const checkOnly = process.argv.includes("--check");
   const force = process.argv.includes("--force");
   if (checkOnly) {

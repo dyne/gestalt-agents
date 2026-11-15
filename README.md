@@ -113,7 +113,9 @@ and the dependency's prebuilt binary for the current OS, architecture and Node
 ABI. Setup does not compile native addons or install compilers.
 
 `node gestalt-setup.mjs` owns installation on every platform. The existing
-`gestalt-setup.sh` is a Unix adapter. Setup never changes global npm lifecycle
+`gestalt-setup.sh` is a Unix adapter. Import-safe managed callers use the
+[setup API v1](scripts/setup-api.md) with an explicit owned-command capability;
+standalone Node execution makes no complete-tree ownership claim. Setup never changes global npm lifecycle
 configuration: dependency installation disables lifecycle scripts, then runs
 the two allowlisted dependency installer JS entrypoints directly through Node.
 TypeScript and esbuild also run through Node APIs without command-shell shims.

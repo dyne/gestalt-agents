@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /** Publish immutable Org helper bundles through one atomic public-file rename. */
 import { createHash, randomUUID } from "node:crypto";
-import { spawnSync } from "node:child_process";
+import { SetupCommandContext } from "../plugins/context-mode/scripts/setup-command-context.mjs";
 import {
   chmodSync, copyFileSync, lstatSync, mkdirSync, readdirSync, readFileSync, realpathSync, renameSync,
   rmSync, writeFileSync,
@@ -42,10 +42,11 @@ function directory(path) {
   ensureManagedRoot(path, { privateMode: false });
 }
 
-function command(executable, args, input) {
-  const result = spawnSync(executable, args, { encoding: "utf8", maxBuffer: 65536, input });
-  if (result.error) throw result.error;
-  if (result.status !== 0) throw new Error(`helper validation/copy failed: ${executable} (${result.status ?? result.signal}): ${(result.stderr ?? "").trim().slice(0, 400)}`);
+async function command(context, executable, args, input) {
+  let stderr = "";
+  try { await context.run(executable, args, { input, stdin: "ignore", capture: true,
+    stderr: async (bytes) => { stderr = (stderr + Buffer.from(bytes).toString()).slice(-65536); } }); }
+  catch (error) { throw new Error(`helper validation/copy failed: ${executable} (${error.status ?? "unknown"}): ${(stderr || error.message).trim().slice(0,400)}`, { cause: error }); }
 }
 
 function dead(pid) {
@@ -93,7 +94,7 @@ function sourceInventory(sourceRoot) {
   });
 }
 
-function validateStage(stage, inventory, recordText) {
+async function validateStage(stage, inventory, recordText, context) {
   function verifyFiles() {
     const actual = readdirSync(stage).sort();
     if (JSON.stringify(actual) !== JSON.stringify([...FILES, RECORD].sort())) throw new Error("unexpected staged Org helper inventory");
@@ -104,13 +105,15 @@ function validateStage(stage, inventory, recordText) {
     }
   }
   verifyFiles();
-  if (process.platform !== "win32") command("bash", ["-n", join(stage, "org-plan")]);
-  for (const name of MODULES) command(process.execPath, ["--check", join(stage, name)]);
-  command(process.execPath, [join(stage, "org-plan-cli.mjs"), "--help"]);
+  if (process.platform !== "win32") await command(context, "bash", ["-n", join(stage, "org-plan")]);
+  for (const name of MODULES) await command(context, process.execPath, ["--check", join(stage, name)]);
+  await command(context, process.execPath, [join(stage, "org-plan-cli.mjs"), "--help"]);
   verifyFiles();
 }
 
-export async function installOrgPlan(sourceRoot, codexHome) {
+export async function installOrgPlan(sourceRoot, codexHome, { commandContext, env = process.env } = {}) {
+  const context = commandContext ?? new SetupCommandContext({ environment: env, cwd: sourceRoot });
+  context.check();
   if (!isAbsolute(sourceRoot) || !isAbsolute(codexHome)) throw new Error("Org helper source and Codex home must be absolute");
   sourceRoot = realpathSync(sourceRoot);
   codexHome = realpathSync(codexHome);
@@ -127,11 +130,13 @@ export async function installOrgPlan(sourceRoot, codexHome) {
   const publicPath = join(bin, "org-plan");
   const lock = join(target, ".install.lock");
   const deadline = Date.now() + 300_000;
-  let release;
-  while (!(release = tryAcquireRuntimeLock(lock))) {
+  let acquired;
+  while (!(acquired = tryAcquireRuntimeLock(lock))) {
+    context.check();
     if (Date.now() >= deadline) throw new Error(`timed out waiting for Org helper publication: ${runtimeLockTimeout(lock)}`);
     await delay(100);
   }
+  const release = context.protectLock(lock, acquired);
   const token = randomUUID();
   const stage = join(bundles, `.stage-${process.pid}-${token}`);
   const bundle = join(bundles, token);
@@ -152,7 +157,7 @@ export async function installOrgPlan(sourceRoot, codexHome) {
       copyFileSync(source, join(stage, name));
       chmodSync(join(stage, name), mode);
     }
-    validateStage(stage, inventory, recordText);
+    await validateStage(stage, inventory, recordText, context);
     // Both names are in bundles: this rename never touches an old bundle.
     renameSync(stage, bundle);
     ownsStage = false;
@@ -164,7 +169,7 @@ export async function installOrgPlan(sourceRoot, codexHome) {
     writeFileSync(temporary, dispatcher, { flag: "wx", mode: 0o755 });
     ownsTemporary = true;
     chmodSync(temporary, 0o755);
-    command(process.execPath, ["--input-type=commonjs", "--check"], dispatcher);
+    await command(context, process.execPath, ["--input-type=commonjs", "--check"], dispatcher);
     if (process.platform === "win32") ownsShim = installCmdShim(`${publicPath}.cmd`, "org-plan");
     // Same-directory rename is the sole public activation point. On error the
     // previous public file and every old/legacy module remain untouched.
@@ -174,9 +179,12 @@ export async function installOrgPlan(sourceRoot, codexHome) {
     return bundle;
   } finally {
     try {
-      if (ownsTemporary) rmSync(temporary, { force: true });
-      if (ownsStage) rmSync(stage, { recursive: true, force: true });
-      if (ownsShim) rmSync(`${publicPath}.cmd`, { force: true });
+      if (ownsTemporary && context.canCleanup()) rmSync(temporary, { force: true });
+      else if (ownsTemporary) context.retain(temporary);
+      if (ownsStage && context.canCleanup()) rmSync(stage, { recursive: true, force: true });
+      else if (ownsStage) context.retain(stage);
+      if (ownsShim && context.canCleanup()) rmSync(`${publicPath}.cmd`, { force: true });
+      else if (ownsShim) context.retain(`${publicPath}.cmd`);
     } finally { release(); }
   }
 }

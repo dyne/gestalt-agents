@@ -161,12 +161,15 @@ syncBuiltinESMExports();
         (source / SCRIPTS).mkdir(parents=True)
         shutil.copy2(ROOT / "gestalt-setup.sh", source)
         shutil.copy2(ROOT / "gestalt-setup.mjs", source)
+        shutil.copytree(ROOT / "scripts", source / "scripts", dirs_exist_ok=True)
+        shutil.copytree(ROOT / "plugins/context-mode/scripts", source / "plugins/context-mode/scripts", dirs_exist_ok=True)
+        shutil.copytree(ROOT / "plugins/gestalt/scripts", source / "plugins/gestalt/scripts", dirs_exist_ok=True)
         manifest = source / ".agents/plugins/marketplace.json"
         manifest.parent.mkdir(parents=True)
         shutil.copy2(ROOT / ".agents/plugins/marketplace.json", manifest)
         shutil.copytree(ROOT / SCRIPTS, source / SCRIPTS, dirs_exist_ok=True)
         shutil.copy2(ROOT / "plugins/gestalt/LICENSE", source / "plugins/gestalt/LICENSE")
-        (source / "scripts").mkdir()
+        (source / "scripts").mkdir(exist_ok=True)
         shutil.copy2(ROOT / "scripts/install-org-plan.mjs", source / "scripts/install-org-plan.mjs")
         shutil.copy2(ROOT / "scripts/setup-storage.mjs", source / "scripts/setup-storage.mjs")
         shutil.copy2(ROOT / "scripts/native-command-shims.mjs", source / "scripts/native-command-shims.mjs")
@@ -174,6 +177,7 @@ syncBuiltinESMExports();
         lock.parent.mkdir(parents=True)
         shutil.copy2(ROOT / "plugins/context-mode/scripts/runtime-lock.mjs", lock)
         shutil.copy2(ROOT / "plugins/context-mode/scripts/native-command.mjs", lock.with_name("native-command.mjs"))
+        shutil.copy2(ROOT / "plugins/context-mode/scripts/setup-command-context.mjs", lock.with_name("setup-command-context.mjs"))
         shutil.copy2(ROOT / "plugins/context-mode/scripts/session-scratch.mjs", lock.with_name("session-scratch.mjs"))
         (source / "publication-install.mjs").write_text('''
 if (process.env.PUBLICATION_READY_GATE) {
@@ -202,25 +206,6 @@ await installOrgPlan(process.argv[2], process.env.CODEX_HOME);
             (source / SCRIPTS / "org-plan-parser.mjs").write_text("invalid fixture syntax !!!\n")
         # Keep production publication and module resolution intact. Substitute
         # unrelated runtime/plugin/profile-adjacent setup, without network use.
-        for relative in ("plugins/context-mode/scripts/install-runtime.mjs",
-                         "plugins/context-mode/scripts/configure-codex.mjs",
-                         "scripts/install-managed-commands.mjs"):
-            path = source / relative
-            path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text("import { mkdirSync } from 'node:fs'; mkdirSync(process.env.GESTALT_HOME, { recursive: true });\n")
-        verifier = source / "scripts/verify-gestalt-skill-catalog.mjs"
-        verifier.write_text('''
-if (process.env.PUBLICATION_READY_GATE) {
-  const { createConnection } = await import("node:net");
-  await new Promise((resolve, reject) => {
-    const connection = createConnection(process.env.PUBLICATION_SOCKET);
-    connection.setTimeout(12000, () => connection.destroy(new Error("setup gate timeout")));
-    connection.on("error", reject);
-    connection.on("connect", () => connection.write("setup-ready\\n"));
-    connection.on("data", () => { connection.end(); resolve(); });
-  });
-}
-''')
         return source
 
     def legacy(self, version="old"):

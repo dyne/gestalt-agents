@@ -9,8 +9,10 @@ import {
   rmSync,
 } from "node:fs";
 import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
+import { randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { prepareRuntime } from "./prepare-runtime.mjs";
+import { SetupCommandContext } from "./setup-command-context.mjs";
 import { getRuntimeIdentity, getRuntimeRoot } from "./runtime-location.mjs";
 import { verifyPreparedRuntime } from "./runtime-preflight.mjs";
 import { runtimeLockTimeout, tryAcquireRuntimeLock } from "./runtime-lock.mjs";
@@ -42,15 +44,16 @@ function shouldCopy(sourceRoot, source) {
   return !GENERATED.has(name);
 }
 
-function publishRuntime(stage, target) {
-  const backup = `${target}.backup-${process.pid}`;
-  rmSync(backup, { recursive: true, force: true });
+function publishRuntime(stage, target, context) {
+  const backup = `${target}.backup-${randomUUID()}`;
   if (existsSync(target)) renameSync(target, backup);
   try {
     renameSync(stage, target);
-    rmSync(backup, { recursive: true, force: true });
+    if (context.canCleanup()) rmSync(backup, { recursive: true, force: true });
+    else context.retain(backup);
   } catch (error) {
-    if (!existsSync(target) && existsSync(backup)) renameSync(backup, target);
+    if (context.canCleanup()) { if (!existsSync(target) && existsSync(backup)) renameSync(backup, target); }
+    else { context.retain(backup); context.retain(stage); }
     throw error;
   }
 }
@@ -67,7 +70,9 @@ export function verifyInstalledRuntime(sourceRoot, target) {
   return { ok: false, problems: ["package.json:source-version"] };
 }
 
-export async function installRuntime(sourceRoot = SOURCE_ROOT, { force = false, env = process.env, prepare = prepareRuntime } = {}) {
+export async function installRuntime(sourceRoot = SOURCE_ROOT, { force = false, env = process.env, prepare = prepareRuntime, commandContext } = {}) {
+  const context = commandContext ?? new SetupCommandContext({ environment: env, cwd: sourceRoot });
+  context.check();
   const target = getRuntimeRoot(sourceRoot, env);
   const targetFromSource = relative(sourceRoot, target);
   if (
@@ -82,7 +87,9 @@ export async function installRuntime(sourceRoot = SOURCE_ROOT, { force = false, 
   const lockDir = `${target}.install.lock`;
   const deadline = Date.now() + WAIT_TIMEOUT_MS;
   while (Date.now() < deadline) {
-    const releaseLock = tryAcquireRuntimeLock(lockDir);
+    context.check();
+    const acquired = tryAcquireRuntimeLock(lockDir);
+    const releaseLock = acquired ? context.protectLock(lockDir, acquired) : null;
     if (releaseLock) {
       const stage = `${target}.stage-${process.pid}-${Date.now()}`;
       try {
@@ -91,14 +98,14 @@ export async function installRuntime(sourceRoot = SOURCE_ROOT, { force = false, 
             recursive: true,
             filter: (source) => shouldCopy(sourceRoot, source),
           });
-          await prepare(stage, { force: true });
+          await prepare(stage, { force: true, env, commandContext: context });
           const prepared = verifyInstalledRuntime(sourceRoot, stage);
           if (!prepared.ok) throw new Error(`staged runtime is invalid: ${prepared.problems.join(", ")}`);
-          publishRuntime(stage, target);
+          publishRuntime(stage, target, context);
         }
       } finally {
-        try { rmSync(stage, { recursive: true, force: true }); }
-        finally { releaseLock(); }
+        if (context.canCleanup()) { try { rmSync(stage, { recursive: true, force: true }); } finally { releaseLock(); } }
+        else { context.retain(stage); context.retain(lockDir); releaseLock(); }
       }
       return target;
     }
@@ -109,10 +116,10 @@ export async function installRuntime(sourceRoot = SOURCE_ROOT, { force = false, 
   throw new Error(`timed out waiting for runtime installation lock: ${runtimeLockTimeout(lockDir)}`);
 }
 
-if (
-  process.argv[1] &&
-  realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url))
-) {
+function isDirectInvocation() {
+  try { return !!process.argv[1] && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url)); } catch { return false; }
+}
+if (isDirectInvocation()) {
   const target = getRuntimeRoot(SOURCE_ROOT);
   if (process.argv.includes("--check")) {
     const result = verifyInstalledRuntime(SOURCE_ROOT, target);

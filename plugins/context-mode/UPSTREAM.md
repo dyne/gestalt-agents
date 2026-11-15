@@ -15,6 +15,16 @@ and contents while excluding generated dependencies and build artifacts.
 
 ## Downstream changes
 
+- Runtime setup now accepts the call-scoped asynchronous command context owned
+  by Agents setup API v1. Host filesystem staging, manifest validation and
+  publication remain in the orchestrator; npm/Bun, dependency installer JS,
+  native SQLite verification and the TypeScript/esbuild worker use the injected
+  external-command capability. The standalone default retains direct-child
+  compatibility without claiming complete-tree absence. Managed unknown lifetime
+  retains stages, backups, snapshots and fenced locks even after owner PID death.
+  The runtime payload manifest includes its command-context and native-command
+  dependencies; a same-version older payload must be prepared again.
+
 - Configured Codex hook commands now use fixed Node source and a base64-encoded
   launcher path, preserving hook-event argv and stdin on POSIX shells, cmd and
   PowerShell. Paths containing spaces, Unicode and shell metacharacters remain
