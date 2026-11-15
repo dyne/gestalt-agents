@@ -20,8 +20,12 @@ CODEX_HOME="$codex_home" GESTALT_HOME="$gestalt_home" CONTEXT_MODE_PACKAGE_MANAG
 CODEX_HOME="$codex_home" codex plugin list \
   --marketplace dyne-gestalt-agents --json >"$codex_home/plugins.json"
 
-python3 - "$codex_home/plugins.json" "$codex_home" "$gestalt_home" "$root" <<'PY'
+python3 - "$codex_home/plugins.json" "$codex_home" "$gestalt_home" "$root" "$workspace" <<'PY'
+import base64
 import json
+import os
+import shlex
+import subprocess
 import sys
 from pathlib import Path
 
@@ -74,8 +78,33 @@ hooks = json.loads((codex_home / "hooks.json").read_text())
 assert set(hooks["hooks"]) == {
     "PreToolUse", "PostToolUse", "SessionStart", "PreCompact", "UserPromptSubmit", "Stop"
 }
-for entries in hooks["hooks"].values():
-    assert any("context-mode-hook.mjs" in hook["command"] for entry in entries for hook in entry["hooks"])
+events = {
+    "PreToolUse": "pretooluse", "PostToolUse": "posttooluse",
+    "SessionStart": "sessionstart", "PreCompact": "precompact",
+    "UserPromptSubmit": "userpromptsubmit", "Stop": "stop",
+}
+for event, argument in events.items():
+    commands = [hook["command"] for entry in hooks["hooks"][event] for hook in entry["hooks"]
+                if f"context-mode hook codex {argument}" in hook["command"]]
+    assert len(commands) == 1, (event, commands)
+    args = shlex.split(commands[0])
+    assert args[:3] == ["node", "--input-type=commonjs", "-e"] and len(args) == 6, args
+    assert args[-1] == argument, args
+    launcher = Path(base64.b64decode(args[-2], validate=True).decode("utf-8"))
+    assert launcher == codex_home / "bin/context-mode-hook.mjs" and launcher.is_file(), launcher
+
+# Execute the configured command after cache rematerialization; path encoding
+# must preserve the real launcher, stdin event payload and external runtime.
+workspace = Path(sys.argv[5])
+session = next(hook["command"] for entry in hooks["hooks"]["SessionStart"] for hook in entry["hooks"]
+               if "context-mode hook codex sessionstart" in hook["command"])
+hook = subprocess.run(["/bin/sh", "-c", session],
+    input=json.dumps({"source": "startup", "session_id": "codex-installed-hook", "cwd": str(workspace)}) + "\n",
+    env={**os.environ, "CODEX_HOME": str(codex_home), "GESTALT_HOME": str(gestalt_home),
+         "CONTEXT_MODE_WORKSPACE": str(workspace), "CONTEXT_MODE_DIR": str(gestalt_home / "smoke-hook-data")},
+    cwd=workspace, text=True, capture_output=True, timeout=20)
+assert hook.returncode == 0, hook.stderr
+assert json.loads(hook.stdout)["hookSpecificOutput"]["hookEventName"] == "SessionStart", hook.stdout
 PY
 
 CODEX_HOME="$codex_home" node "$root/scripts/verify-gestalt-skill-catalog.mjs" "$root" \

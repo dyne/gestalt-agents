@@ -14,7 +14,9 @@ retained beside the shared Org storage implementation. Native status publication
 uses exclusive private-file creation and native filesystem rename/chmod;
 profile preparation preserves existing modes, rollback and encoded records,
 with explicit CODEX_HOME isolation. The Unix Org entry is a compatibility
-adapter. Immutable installed bundles use a single atomic Node dispatcher;
+adapter. Success-record paths preserve the caller's exact spelling (including
+repeated separators); profile writes use the validated physical destination.
+Immutable installed bundles use a single atomic Node dispatcher;
 standard npm-form .cmd shims provide cmd/PowerShell entry without Developer
 Mode, symlinks, administrator rights or PowerShell execution-policy changes.
 Their directory assignment is quoted to keep ampersands in installation paths

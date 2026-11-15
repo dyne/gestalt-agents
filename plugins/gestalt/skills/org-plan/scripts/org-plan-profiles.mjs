@@ -2,7 +2,7 @@
 import { chmodSync, mkdirSync, readFileSync, renameSync, rmSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { homedir } from "node:os";
-import { join, resolve } from "node:path";
+import { join, resolve, sep } from "node:path";
 import { setImmediate } from "node:timers/promises";
 import { PROFILE_DEFAULTS } from "./org-plan-profile-defaults.mjs";
 import { ensureManagedRoot, optionalStat, resolveRoot, writePrivateFile } from "./org-plan-storage.mjs";
@@ -85,7 +85,9 @@ export async function prepareProfiles(command, args = []) {
     for (const [name, handler] of handlers) process.removeListener(name, handler);
     if (ownsStage) rmSync(stage, { recursive: true, force: true });
   }
-  const field = (index) => encoded(join(displayDir, `${selected[index].name}.toml`));
+  // Records describe the caller's exact spelling, including repeated
+  // separators and explicit aliases. Writes use the validated physical root.
+  const field = (index) => encoded(`${displayDir}${sep}${selected[index].name}.toml`);
   return supervision
     ? `root_reviewer=${selected[0].name} root_reviewer_model=${selected[0].model} root_reviewer_profile=${field(0)} executor=${selected[1].name} executor_model=${selected[1].model} executor_profile=${field(1)}`
     : `executor=${selected[0].name} model=${selected[0].model} profile=${field(0)}`;
