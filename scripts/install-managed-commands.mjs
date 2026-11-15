@@ -15,7 +15,7 @@ import { isAbsolute, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { commandTarget, resolveExecutable } from "../plugins/context-mode/scripts/native-command.mjs";
 import { checkCmdShim, installCmdShim } from "./native-command-shims.mjs";
-import { ensureManagedRoot } from "./setup-storage.mjs";
+import { ensureManagedRoot, resolveRoot } from "./setup-storage.mjs";
 
 const header = "#!/usr/bin/env node\n// Managed by Gestalt command installer.\n";
 const legacyHeader = "#!/bin/sh\n# Managed by Gestalt command installer.\n";
@@ -24,6 +24,9 @@ const legacyHeader = "#!/bin/sh\n# Managed by Gestalt command installer.\n";
 export function installManagedCommands(gestaltHome, commands) {
   if (!isAbsolute(gestaltHome))
     throw new Error("GESTALT_HOME must be absolute");
+  // Public callers may use macOS /var or an explicit directory alias. Resolve
+  // the selected destination before checking its actual namespace and ACLs.
+  gestaltHome = resolveRoot(gestaltHome, "GESTALT_HOME", homedir());
   const bin = join(gestaltHome, "bin");
   const names = new Set();
   const pending = commands.map(({ name, command, env = {} }) => {

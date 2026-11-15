@@ -302,11 +302,15 @@ tracked = subprocess.check_output(
         "gestalt-setup.mjs", "scripts/setup-storage.mjs", "scripts/prepare-agent-profiles.mjs",
         "scripts/install-managed-commands.mjs", "scripts/verify-gestalt-skill-catalog.mjs",
         "scripts/install-org-plan.mjs",
+        "scripts/native-command-shims.mjs",
         "plugins/gestalt", "plugins/context-mode",
     ],
     text=True,
 ).splitlines()
-assert set(tracked) == bundle_entries
+assert set(tracked) == bundle_entries, {
+    "missing": sorted(set(tracked) - bundle_entries),
+    "unexpected": sorted(bundle_entries - set(tracked)),
+}
 PY
 
 if "$root/scripts/build-release-artifacts.sh" "$tag" "$artifacts" 2>/dev/null; then

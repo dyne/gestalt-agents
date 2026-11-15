@@ -9,6 +9,7 @@ import {
   readFileSync,
   readdirSync,
   rmSync,
+  symlinkSync,
   writeFileSync,
 } from "node:fs";
 import { dirname, join } from "node:path";
@@ -229,4 +230,11 @@ test("the registry accepts future commands and preserves unmanaged files", (t) =
       installManagedCommands(home, [{ name: "../escape", command: ["true"] }]),
     /Invalid/,
   );
+  // This is a public caller spelling, not a namespace guard exception. The
+  // canonical private root and all of its physical ancestors remain checked.
+  const alias = join(dirname(home), "selected home alias");
+  symlinkSync(home, alias, "dir");
+  installManagedCommands(alias, [{ name: "aliased-tool", command: [process.execPath, "-e", "process.exit(19)"] }]);
+  assert.equal(spawnSync(join(home, "bin/aliased-tool")).status, 19);
+  assert.equal(spawnSync(join(alias, "bin/aliased-tool")).status, 19);
 });
