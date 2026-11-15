@@ -10,9 +10,24 @@ report_error() {
 
 trap 'report_error "$LINENO" "$BASH_COMMAND"' ERR
 
-root=$(CDPATH= cd -- "$(dirname -- "$0")/../../.." && pwd)
+root=$(CDPATH='' cd -- "$(dirname -- "$0")/../../.." && pwd)
 tmp=$(mktemp -d "${TMPDIR:-/tmp}/context-mode-nested-smoke.XXXXXX")
-trap 'rm -rf "$tmp"' EXIT HUP INT TERM
+builder_one='' builder_two=''
+cleanup() {
+  local status=$? builder
+  trap - EXIT HUP INT TERM
+  # A failed first wait must not remove scratch while the second real installer
+  # still owns its build/lock. Reap both tracked children before fixture cleanup.
+  for builder in "$builder_one" "$builder_two"; do
+    [[ -z $builder ]] || wait "$builder" || true
+  done
+  rm -rf -- "$tmp" || { (( status != 0 )) || status=1; }
+  return "$status"
+}
+trap cleanup EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
 version=$(node -p "require('$root/plugins/context-mode/package.json').version")
 plugin="$tmp/cache/dyne-gestalt-agents/context-mode/$version"
 gestalt_home="$tmp/gestalt-home"
@@ -54,6 +69,7 @@ tar -C "$root/plugins/context-mode" \
   --exclude='*.bundle.mjs' \
   -cf - . | tar -C "$plugin" -xf -
 
+# shellcheck disable=SC2016 # Positional arguments expand in the nested Bash.
 output=$(timeout 20s bash -c 'cd "$2"
   printf "%s\n%s\n" \
   "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{\"protocolVersion\":\"2025-03-26\",\"capabilities\":{},\"clientInfo\":{\"name\":\"nested-smoke\",\"version\":\"1\"}}}" \

@@ -15,6 +15,14 @@ and contents while excluding generated dependencies and build artifacts.
 
 ## Downstream changes
 
+- Resolves the build and bundle-assertion CLI entry files physically before
+  deciding whether to execute them. macOS `/var` aliases, Unix symlinks and
+  Windows junctions can no longer turn those commands into successful no-ops.
+  Library imports through unrelated entrypoints, eval and stdin remain inert.
+  Native preparation regressions require artifact creation and missing-bundle
+  rejection through an aliased path. The concurrent nested MCP smoke retains
+  both installer waits and reaps both children before removing fixture scratch.
+
 - Makes explicit runtime preparation execute npm's standard Node shims with
   native argv instead of evaluating batch files through a shell. The original
   bounded recognizer checks complete npm cmd-shim forms (npm 11.19.1,

@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 /** Shared esbuild owner; no npm lifecycle shell or platform .bin shims. */
 import { createRequire } from "node:module";
+import { realpathSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -24,4 +25,10 @@ export async function buildRuntime(pluginRoot = resolve(dirname(fileURLToPath(im
   });
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) await buildRuntime();
+function isDirectInvocation() {
+  if (!process.argv[1]) return false;
+  try { return realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url)); }
+  catch { return false; } // Library imports through eval/stdin have no entry file.
+}
+
+if (isDirectInvocation()) await buildRuntime();

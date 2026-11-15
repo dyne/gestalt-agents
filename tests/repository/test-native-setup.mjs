@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { chmodSync, cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, readlinkSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, readlinkSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -210,6 +210,11 @@ test("runtime preparation runs allowlisted dependency JS with scripts disabled a
   pkg("prebuild-install", {}, { "bin.js": `${record}if(process.env.FAIL_PREBUILD)process.exit(52);const fs=require('node:fs');fs.mkdirSync('build/Release',{recursive:true});fs.writeFileSync('build/Release/better_sqlite3.node','fixture native binary');` });
   pkg("typescript", {}, { "bin/tsc": record });
   for (const name of ["turndown", "turndown-plugin-gfm", "@mixmark-io/domino"]) pkg(name, {}, {});
+  const runtimeAlias = join(f.base, "runtime alias");
+  symlinkSync(runtime, runtimeAlias, process.platform === "win32" ? "junction" : "dir");
+  const aliasedBuild = spawnSync(process.execPath, [join(runtimeAlias, "scripts/build-runtime.mjs")], { env: f.env, encoding: "utf8" });
+  const aliasedValidation = spawnSync(process.execPath, [join(runtimeAlias, "scripts/assert-bundle.mjs"), join(runtime, "missing.bundle.mjs")], { env: f.env, encoding: "utf8" });
+  assert.deepEqual({ buildExit: aliasedBuild.status, serverProduced: existsSync(join(runtime, "server.bundle.mjs")), missingBundleExit: aliasedValidation.status }, { buildExit: 0, serverProduced: true, missingBundleExit: 1 }, "aliased entrypoints must build artifacts and reject a missing bundle, rather than silently exiting0");
   const entryLog = join(f.base, "preparation-entries.jsonl");
   const invoke = (extra = {}) => spawnSync(process.execPath, [join(runtime, "scripts/prepare-runtime.mjs"), "--force"], { env: { ...f.env, CONTEXT_MODE_PACKAGE_MANAGER: "npm", npm_config_ignore_scripts: "true", PREPARE_ENTRY_LOG: entryLog, ...extra }, encoding: "utf8", timeout: 30_000 });
   let result = invoke(); assert.equal(result.status, 0, result.stderr);
