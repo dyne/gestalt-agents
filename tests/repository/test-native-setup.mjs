@@ -9,6 +9,7 @@ import { createHash } from "node:crypto";
 import { commandTarget, runCommand } from "../../plugins/context-mode/scripts/native-command.mjs";
 import { tryAcquireRuntimeLock } from "../../plugins/context-mode/scripts/runtime-lock.mjs";
 import { ensureManagedRoot } from "../../scripts/setup-storage.mjs";
+import { cmdShim, installCmdShim } from "../../scripts/native-command-shims.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const temp = () => realpathSync(mkdtempSync(join(realTemp(), "native-setup-")));
@@ -188,6 +189,19 @@ test("native npm Node shim forwards literal argv/stdin and exit without evaluati
   writeFileSync(join(npm, "package.json"), JSON.stringify({ name: "npm", bin: { npm: "bin/npm-cli.js" } }));
   writeFileSync(join(npm, "bin/npm-cli.js"), "#!/usr/bin/env node\nconsole.log(JSON.stringify(process.argv.slice(2)));\n");
   assert.deepEqual(JSON.parse(runCommand(bundled, args, { stdio: "pipe" })), args);
+  const own = join(path, "Gestalt ü & shims"); mkdirSync(own);
+  const ownEntry = join(own, "gestalt-probe"), ownShim = `${ownEntry}.cmd`;
+  writeFileSync(ownEntry, "#!/usr/bin/env node\nconst fs=require('node:fs');console.log(JSON.stringify({args:process.argv.slice(2),input:fs.readFileSync(0,'utf8')}));\n");
+  const hardened = cmdShim("gestalt-probe");
+  assert.ok(hardened.includes('SET "dp0=%~dp0"'));
+  writeFileSync(ownShim, hardened.replace('SET "dp0=%~dp0"', "SET dp0=%~dp0"), { mode: 0o755 });
+  assert.deepEqual(JSON.parse(runCommand(ownShim, args, { stdio: "pipe", input: "upgrade stdin\n" })), { args, input: "upgrade stdin\n" });
+  assert.equal(installCmdShim(ownShim, "gestalt-probe"), false, "owned legacy shim is upgraded, not newly claimed");
+  assert.equal(readFileSync(ownShim, "utf8"), hardened);
+  assert.deepEqual(JSON.parse(runCommand(ownShim, args, { stdio: "pipe", input: "literal stdin\n" })), { args, input: "literal stdin\n" });
+  writeFileSync(ownShim, hardened + "rem unknown mutation\r\n");
+  assert.throws(() => commandTarget(ownShim), /Unsupported batch shim/);
+  assert.throws(() => installCmdShim(ownShim, "gestalt-probe"), /unmanaged native command/);
 });
 
 test("runtime preparation runs allowlisted dependency JS with scripts disabled and no compiler fallback", (t) => {

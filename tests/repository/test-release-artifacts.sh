@@ -231,7 +231,7 @@ entries = (
 )
 for label, options, entry in entries:
     installed_home = artifacts / ("installed-delivery-" + label)
-    installed_home.mkdir()
+    installed_home.mkdir(mode=0o700)
     installation = subprocess.run(["node", *options, str(entry),
                                    str(delivered), str(installed_home)],
                                   cwd=artifacts, capture_output=True, text=True)
@@ -262,7 +262,7 @@ for arguments in ([], [str(delivered)], [str(delivered), str(invalid_home), "ext
 # Import the actual delivered module through Node's eval/stdin entry modes.
 # Valid installation operands make an accidental CLI dispatch observable.
 import_home = artifacts / "library-import-home"
-import_home.mkdir()
+import_home.mkdir(mode=0o700)
 unrelated_entry = artifacts / "unrelated-entry.mjs"
 unrelated_entry.write_text("// Existing unrelated entry for the library import probe.\n")
 missing_entry = artifacts / "missing-entry.mjs"

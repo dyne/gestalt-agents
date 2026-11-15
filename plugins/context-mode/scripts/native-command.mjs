@@ -54,7 +54,10 @@ export function commandTarget(executable) {
   const invocation = lines.at(-2);
   const entry = invocation?.match(/"%dp0%\\([^"%\r\n]+)" %\*$/)?.[1];
   const inside = lines.includes("  SET PATHEXT=%PATHEXT:;.JS;=;%");
-  const expected = ["@ECHO off", "GOTO start", ":find_dp0", "SET dp0=%~dp0", "EXIT /b", ":start", "SETLOCAL", "CALL :find_dp0", "", 'IF EXIST "%dp0%\\node.exe" (', '  SET "_prog=%dp0%\\node.exe"', ") ELSE (", '  SET "_prog=node"', ...(inside ? ["  SET PATHEXT=%PATHEXT:;.JS;=;%"] : []), ")", "",
+  // Gestalt's generated shim quotes this assignment so & in %~dp0 is data.
+  // Accept only either complete known form; never interpret arbitrary batch.
+  const assignment = lines[3] === 'SET "dp0=%~dp0"' ? lines[3] : "SET dp0=%~dp0";
+  const expected = ["@ECHO off", "GOTO start", ":find_dp0", assignment, "EXIT /b", ":start", "SETLOCAL", "CALL :find_dp0", "", 'IF EXIST "%dp0%\\node.exe" (', '  SET "_prog=%dp0%\\node.exe"', ") ELSE (", '  SET "_prog=node"', ...(inside ? ["  SET PATHEXT=%PATHEXT:;.JS;=;%"] : []), ")", "",
     `endLocal & goto #_undefined_# 2>NUL || title %COMSPEC% & ${inside ? "" : "set PATHEXT=%PATHEXT:;.JS;=;% & "}"%_prog%"  "%dp0%\\${entry}" %*`, ""].join("\n");
   if (!entry || source !== expected) {
     throw new Error(`Unsupported batch shim; a standard npm Node shim is required: ${executable}`);

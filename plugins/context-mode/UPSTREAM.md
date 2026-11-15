@@ -20,6 +20,8 @@ and contents while excluding generated dependencies and build artifacts.
   PowerShell. Paths containing spaces, Unicode and shell metacharacters remain
   data; no Bash, POSIX colon command or platform-specific path quoting is needed.
   Managed-hook recognition and unrelated hook preservation remain unchanged.
+  The original strict npm-shim recognizer additionally accepts Gestalt's complete
+  quoted-directory variant; it still never interprets arbitrary batch source.
 
 - Resolves the build and bundle-assertion CLI entry files physically before
   deciding whether to execute them. macOS `/var` aliases, Unix symlinks and

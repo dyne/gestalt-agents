@@ -120,7 +120,9 @@ for key in list(probe_env):
 
 for kind in ("fresh", "legacy-upgrade"):
     selected_home = home if kind == "fresh" else home.with_name("legacy-home")
-    selected_home.mkdir()
+    # This fixture is an actual managed Codex root, including legacy upgrades.
+    # Public-read profile subdirectories retain their separate policy below.
+    selected_home.mkdir(mode=0o700)
     launcher = selected_home / "bin/org-plan"
     flat = selected_home / "lib/gestalt-org-plan"
     user_home = selected_home / "isolated-user-home"

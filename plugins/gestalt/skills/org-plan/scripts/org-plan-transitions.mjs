@@ -31,7 +31,7 @@ const MEASURED_PROPERTIES = [
 ];
 
 function writePlan(path, plan, reason, options = {}) {
-  const text = plan.lines.join("\n");
+  const text = plan.lines.join(plan.lineEnding);
   const candidate = parsePlan(text);
   projection(candidate);
   requireConsumerCapabilities(candidate, options);

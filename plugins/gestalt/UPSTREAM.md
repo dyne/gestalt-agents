@@ -17,6 +17,11 @@ with explicit CODEX_HOME isolation. The Unix Org entry is a compatibility
 adapter. Immutable installed bundles use a single atomic Node dispatcher;
 standard npm-form .cmd shims provide cmd/PowerShell entry without Developer
 Mode, symlinks, administrator rights or PowerShell execution-policy changes.
+Their directory assignment is quoted to keep ampersands in installation paths
+literal; the bounded native recognizers accept either complete known form and
+the installer atomically upgrades its exact earlier unquoted shim. Org parsing
+accepts LF/CRLF logical lines, keeps byte-based fingerprints and preserves the
+selected line-ending convention and final-newline state during mutations.
 Managed commands are self-contained Node launchers with literal argv/stdin/exit
 forwarding. No manager package or native
 helper download is required.

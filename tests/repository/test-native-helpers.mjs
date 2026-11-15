@@ -12,6 +12,7 @@ import { installOrgPlan } from "../../scripts/install-org-plan.mjs";
 import { installManagedCommands } from "../../scripts/install-managed-commands.mjs";
 import { commandTarget } from "../../plugins/context-mode/scripts/native-command.mjs";
 import { ensureManagedRoot } from "../../scripts/setup-storage.mjs";
+import { parsePlan } from "../../plugins/gestalt/skills/org-plan/scripts/org-plan-parser.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const scripts = "plugins/gestalt/skills/org-plan/scripts";
@@ -36,15 +37,45 @@ function sourceCopy(base) {
   return source;
 }
 
+test("Org LF and CRLF plans retain source fingerprints, line endings and final-newline state", (t) => {
+  const base = realpathSync(mkdtempSync(join(process.env.TMPDIR || tmpdir(), "org-eol-")));
+  t.after(() => rmSync(base, { recursive: true, force: true }));
+  const original = readFileSync(join(root, "tests/plugins/gestalt/fixtures/valid-minimal.org"), "utf8");
+  const lf = original.replace(/\r\n/g, "\n").replace(/\n$/, "");
+  const env = { ...process.env };
+  for (const key of Object.keys(env)) if (key.startsWith("GESTALT_MOBILE_ORG_PLAN_")) delete env[key];
+  for (const ending of ["\n", "\r\n"]) for (const finalNewline of [false, true]) {
+    const text = lf.replace(/\n/g, ending) + (finalNewline ? ending : "");
+    const plan = join(base, `${ending.length}-${finalNewline}.org`); writeFileSync(plan, text);
+    assert.equal(parsePlan(text).fingerprint, `sha256:${hash(plan)}`);
+    const run = (...args) => spawnSync(process.execPath, [join(root, scripts, "org-plan-cli.mjs"), ...args], { env, encoding: "utf8" });
+    const transition = run("set", plan, "first-outcome", "WIP");
+    assert.equal(transition.status, 0, transition.stderr);
+    const measurement = run("measure", "start", plan, "first-outcome", '{"observedAt":"2026-11-15T13:00:00Z","tokensUsed":1}');
+    assert.equal(measurement.status, 0, measurement.stderr);
+    const updated = readFileSync(plan, "utf8");
+    assert.equal(updated.endsWith(ending), finalNewline);
+    assert.equal(ending === "\r\n" ? /(?<!\r)\n/.test(updated) : /\r/.test(updated), false);
+    assert.equal(parsePlan(updated).fingerprint, `sha256:${hash(plan)}`);
+    assert.equal(run("review", plan, "first-outcome", "REVIEWED").status, 1);
+  }
+});
+
 test("installed Org lifecycle preserves review gates, status schema and profile isolation", async (t) => {
   const f = fixture(t);
   await installOrgPlan(root, f.codex);
   const command = join(f.codex, "bin/org-plan"), plan = join(f.base, "literal ü & plan.org");
   copyFileSync(join(root, "tests/plugins/gestalt/fixtures/valid-minimal.org"), plan);
+  if (process.env.GESTALT_NATIVE_TEST_EVIDENCE) {
+    const bytes = readFileSync(plan);
+    mkdirSync(process.env.GESTALT_NATIVE_TEST_EVIDENCE, { recursive: true });
+    writeFileSync(join(process.env.GESTALT_NATIVE_TEST_EVIDENCE, "plan-source-eol.json"), JSON.stringify({ sha256: hash(plan), bytes: bytes.length, crlf: bytes.toString().includes("\r\n"), platform: process.platform }, null, 2));
+  }
   const status = join(f.base, "status"); ensureManagedRoot(status);
   const env = { ...f.env, GESTALT_MOBILE_ORG_PLAN_STATUS_FILE: join(status, "status.json") };
   const run = (...args) => installed(command, args, { env });
-  assert.equal(run("validate", plan).status, 0);
+  const validation = run("validate", plan);
+  assert.equal(validation.status, 0, validation.stderr);
   assert.equal(run("review", plan, "first-outcome", "REVIEWED").status, 1);
   assert.equal(run("set", plan, "first-outcome", "WIP").status, 0);
   assert.equal(run("set", plan, "first-outcome", "DONE").status, 1);
@@ -97,6 +128,17 @@ test("installed command executes through the actual native user shells", async (
     const script = "$ErrorActionPreference='Stop'; & ([Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($env:HELPER_TEST_COMMAND))) '--help'; exit $LASTEXITCODE";
     const ps = spawnSync(join(process.env.SystemRoot, "System32/WindowsPowerShell/v1.0/powershell.exe"), ["-NoLogo", "-NoProfile", "-NonInteractive", "-EncodedCommand", Buffer.from(script, "utf16le").toString("base64")], { env: { ...f.env, HELPER_TEST_COMMAND: Buffer.from(`${command}.cmd`).toString("base64") }, encoding: "utf8" });
     assert.equal(ps.status, 0, ps.stderr); assert.match(ps.stdout, /usage: org-plan/);
+    const probe = join(f.base, "shell ü & probe.mjs");
+    writeFileSync(probe, "import {readFileSync} from 'node:fs';console.log(JSON.stringify({args:process.argv.slice(2),input:readFileSync(0,'utf8')}));process.exit(17);\n");
+    installManagedCommands(f.gestalt, [{ name: "shell-probe", command: ["node", probe] }]);
+    const shellProbe = join(f.gestalt, "bin/shell-probe.cmd"), literal = "literal ü & | ^ % !", input = "literal ü stdin\n";
+    const cmdProbe = spawnSync(process.env.ComSpec, ["/d", "/s", "/c", `""${shellProbe}" "${literal}""`], { env: f.env, input, encoding: "utf8", windowsVerbatimArguments: true });
+    assert.equal(cmdProbe.status, 17, cmdProbe.stderr);
+    assert.deepEqual(JSON.parse(cmdProbe.stdout), { args: [literal], input });
+    const psScript = "$ErrorActionPreference='Stop'; & ([Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($env:HELPER_TEST_COMMAND))) 'literal ü & | ^ % !'; exit $LASTEXITCODE";
+    const psProbe = spawnSync(join(process.env.SystemRoot, "System32/WindowsPowerShell/v1.0/powershell.exe"), ["-NoLogo", "-NoProfile", "-NonInteractive", "-EncodedCommand", Buffer.from(psScript, "utf16le").toString("base64")], { env: { ...f.env, HELPER_TEST_COMMAND: Buffer.from(shellProbe).toString("base64") }, input, encoding: "utf8" });
+    assert.equal(psProbe.status, 17, psProbe.stderr);
+    assert.deepEqual(JSON.parse(psProbe.stdout), { args: [literal], input });
   } else {
     const result = spawnSync("/bin/sh", ["-c", '"$1" --help', "helper-shell", command], { env: f.env, encoding: "utf8" });
     assert.equal(result.status, 0, result.stderr); assert.match(result.stdout, /usage: org-plan/);
