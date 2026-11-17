@@ -36,7 +36,7 @@ const SENTINEL_FRESH_MS = 90_000;
  */
 export function sentinelDir() {
   const scratch = resolveSessionScratch();
-  if (scratch) return scratch.directory;
+  if (scratch) return scratch.runtime?.directory ?? scratch.directory;
   const override = process.env.CONTEXT_MODE_MCP_SENTINEL_DIR;
   if (override && override.length > 0) return override;
   return process.platform === "win32" ? tmpdir() : "/tmp";

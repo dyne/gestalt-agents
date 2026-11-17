@@ -1,9 +1,14 @@
 export interface SessionScratchContext {
-  schemaVersion: 1;
+  schemaVersion: 1 | 2;
   workspacePath: string;
   ownerId: string;
   directory: string;
   markerPath: string;
+  runtime?: {
+    directory: string;
+    token: string;
+    identity: string;
+  };
 }
 export const SESSION_TMP_CONTEXT: string;
 export const SESSION_SCRATCH_GUIDANCE: string;

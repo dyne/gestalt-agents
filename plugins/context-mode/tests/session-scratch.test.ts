@@ -1,4 +1,4 @@
-import { createHash, randomUUID } from "node:crypto";
+import { createHash, randomBytes, randomUUID } from "node:crypto";
 import * as childProcess from "node:child_process";
 import * as fs from "node:fs";
 import { tmpdir } from "node:os";
@@ -6,7 +6,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { once } from "node:events";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import { resolveScratchDirectory, resolveSessionScratch, scratchEnvironment, SESSION_SCRATCH_GUIDANCE, type SessionScratchContext } from "../scripts/session-scratch.mjs";
+import { borrowSessionScratch, resolveScratchDirectory, resolveSessionScratch, scratchEnvironment, SESSION_SCRATCH_GUIDANCE, type SessionScratchContext } from "../scripts/session-scratch.mjs";
 import { createCodexRoutingReminder } from "../hooks/routing-block.mjs";
 import { isMCPReady, sentinelDir, sentinelPathForPid } from "../hooks/core/mcp-ready.mjs";
 import { PolyglotExecutor } from "../src/executor.js";
@@ -30,14 +30,14 @@ vi.mock("node:fs", async importOriginal => {
 let root: string;
 let nativeMkdtemp: typeof fs.mkdtempSync;
 let servers: Array<{ close: () => Promise<void> }> = [];
+let runtimeRoots: string[] = [];
 const runtime: RuntimeMap = {
   javascript: process.execPath, typescript: "tsx", python: "python3", shell: "/bin/sh",
   ruby: null, go: null, rust: null, php: null, perl: null, r: null, elixir: null, csharp: null,
 };
 const pluginRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
-function owner(sessionId: string, kind = "mobile-session"): SessionScratchContext {
-  const workspacePath = join(root, "workspace with spaces");
+function owner(sessionId: string, kind = "mobile-session", workspacePath = join(root, "workspace with spaces")): SessionScratchContext {
   const ownerId = kind === "mobile-session" ? "mobile-" + createHash("sha256").update(sessionId).digest("hex")
     : (kind === "cli-session" ? "cli-" : "service-") + randomUUID();
   const directory = join(workspacePath, "tmp", "sessions", ownerId);
@@ -60,6 +60,23 @@ function owner(sessionId: string, kind = "mobile-session"): SessionScratchContex
   return context;
 }
 
+function v2Owner(sessionId: string, kind = "mobile-session", workspacePath?: string) {
+  const legacy = owner(sessionId, kind, workspacePath);
+  const container = join(fs.realpathSync("/tmp"), `gs-${process.getuid!()}`);
+  fs.mkdirSync(container, { mode: 0o700, recursive: true });
+  const directory = join(container, randomBytes(10).toString("hex"));
+  fs.mkdirSync(directory, { mode: 0o700 }); runtimeRoots.push(directory);
+  const info = fs.lstatSync(directory, { bigint: true });
+  const runtime = { directory, token: randomBytes(32).toString("hex"), identity: `${info.dev}:${info.ino}:${info.birthtimeNs}` };
+  const context = { ...legacy, schemaVersion: 2 as const, runtime };
+  const marker = { ...JSON.parse(fs.readFileSync(context.markerPath, "utf8")), schemaVersion: 2, runtime };
+  fs.writeFileSync(context.markerPath, JSON.stringify(marker));
+  fs.writeFileSync(join(directory, ".gestalt-runtime.json"), JSON.stringify({
+    schemaVersion: 2, ownerId: context.ownerId, workspacePath: context.workspacePath, token: runtime.token, identity: runtime.identity,
+  }), { mode: 0o600 });
+  return context;
+}
+
 function use(context: SessionScratchContext) {
   vi.stubEnv("GESTALT_SESSION_TMP_CONTEXT", JSON.stringify(context));
   // Deliberately unusable ambient values must not override the validated owner.
@@ -72,11 +89,76 @@ beforeEach(async () => {
   nativeMkdtemp = nativeFs.mkdtempSync;
   vi.mocked(fs.mkdtempSync).mockReset().mockImplementation(nativeMkdtemp);
   vi.mocked(childProcess.execFileSync).mockReset().mockImplementation(nativeChild.execFileSync);
-  root = fs.realpathSync(nativeMkdtemp(join(tmpdir(), "ss-"))); servers = [];
+  root = fs.realpathSync(nativeMkdtemp(join(tmpdir(), "ss-"))); servers = []; runtimeRoots = [];
 });
 afterEach(async () => {
   await Promise.all(servers.map(server => server.close()));
   vi.restoreAllMocks(); vi.unstubAllEnvs(); fs.rmSync(root, { recursive: true, force: true });
+  for (const directory of runtimeRoots) fs.rmSync(directory, { recursive: true, force: true });
+});
+
+describe.skipIf(process.platform === "win32")("v2 managed runtime compatibility", () => {
+  test.each(["mobile-session", "cli-session", "workspace-service"])("validates %s while separating runtime payload from ownership records", kind => {
+    const context = v2Owner("session-v2", kind); use(context);
+    expect(resolveSessionScratch()).toEqual(context);
+    expect(resolveScratchDirectory()).toBe(context.runtime.directory);
+    expect(sentinelDir()).toBe(context.runtime.directory);
+    expect(defaultDBPath()).toBe(join(context.runtime.directory, `context-mode-${process.pid}.db`));
+    for (const key of ["TMPDIR", "TMP", "TEMP"]) expect(scratchEnvironment()[key]).toBe(context.runtime.directory);
+    expect(scratchEnvironment().GESTALT_SESSION_TMP_CONTEXT).toBe(JSON.stringify(context));
+  });
+
+  test.each(["missing-runtime", "token", "sentinel", "sentinel-owner", "sentinel-mode", "identity", "runtime-mode", "runtime-link", "retiring", "downgrade"])("rejects %s instead of falling back to arbitrary temporary paths", fault => {
+    const context = v2Owner("invalid-v2");
+    if (fault === "missing-runtime") delete (context as any).runtime;
+    else if (fault === "token") context.runtime.token = "0".repeat(64);
+    else if (fault === "sentinel") fs.unlinkSync(join(context.runtime.directory, ".gestalt-runtime.json"));
+    else if (fault === "sentinel-owner") {
+      const path = join(context.runtime.directory, ".gestalt-runtime.json");
+      const record = JSON.parse(fs.readFileSync(path, "utf8")); record.ownerId = "different-owner";
+      fs.writeFileSync(path, JSON.stringify(record));
+    } else if (fault === "sentinel-mode") fs.chmodSync(join(context.runtime.directory, ".gestalt-runtime.json"), 0o644);
+    else if (fault === "identity") context.runtime.identity = "1:2:3";
+    else if (fault === "runtime-mode") fs.chmodSync(context.runtime.directory, 0o755);
+    else if (fault === "runtime-link") {
+      const moved = context.runtime.directory + "-real";
+      fs.renameSync(context.runtime.directory, moved); runtimeRoots.push(moved);
+      fs.symlinkSync(moved, context.runtime.directory, "dir");
+    } else if (fault === "retiring") (context.runtime as any).retiring = true;
+    else (context as any).schemaVersion = 1;
+    vi.stubEnv("GESTALT_SESSION_TMP_CONTEXT", JSON.stringify(context));
+    expect(() => resolveScratchDirectory()).toThrow("SESSION_SCRATCH_INVALID_CONTEXT");
+  });
+
+  test("borrows nested v2 owners without publishing leases in the runtime payload", () => {
+    const parent = v2Owner("parent-v2");
+    const child = v2Owner("child-v2", "workspace-service", join(parent.directory, "nested workspace"));
+    use(child);
+    const lease = borrowSessionScratch()!;
+    const records = () => fs.readdirSync(join(child.directory, "leases")).map(name => JSON.parse(fs.readFileSync(join(child.directory, "leases", name), "utf8")));
+    expect(records().filter(record => record.consumers.includes("context-mode-execution"))).toHaveLength(1);
+    expect(fs.readdirSync(child.runtime.directory)).toEqual([".gestalt-runtime.json"]);
+    lease.release();
+    expect(records().find(record => record.consumers.length === 0)).toMatchObject({ state: "released" });
+    expect(fs.existsSync(join(parent.directory, ".containment-lock"))).toBe(false);
+  });
+
+  test("real MCP startup and execution accept Mobile v2 scratch", async () => {
+    const context = v2Owner("mcp-v2");
+    const server = await startServer(context);
+    expect(fs.existsSync(join(context.runtime.directory, `context-mode-mcp-ready-${server.pid}`))).toBe(true);
+    const response = await server.call("ctx_execute", { language: "javascript", code: "console.log('v2-start-ok', process.env.TMPDIR, process.env.TMP, process.env.TEMP)", timeout: 5000 });
+    expect(response.isError, resultText(response)).not.toBe(true);
+    expect(resultText(response)).toContain("v2-start-ok");
+    expect(resultText(response)).toContain(context.runtime.directory);
+    expect(fs.existsSync(join(context.workspacePath, ".gestalt", "context-mode"))).toBe(true);
+    const records = () => fs.readdirSync(join(context.directory, "leases")).map(name => JSON.parse(fs.readFileSync(join(context.directory, "leases", name), "utf8")));
+    await vi.waitFor(() => expect(records().every(record => record.state === "released" && record.consumers.length === 0)).toBe(true));
+    expect(records().length).toBeGreaterThan(0);
+    await server.close();
+    expect(fs.existsSync(context.markerPath)).toBe(true);
+    expect(fs.existsSync(join(context.runtime.directory, `context-mode-mcp-ready-${server.pid}`))).toBe(false);
+  }, 30000);
 });
 
 describe("v1 managed scratch validation", () => {

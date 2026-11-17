@@ -308,6 +308,14 @@ Provenance, overflow, query-window, response-budget, and response-accounting
 test fixtures also canonicalize temporary roots before constructing authorized
 workspace and artifact paths, including in the live-server tests.
 
+The managed temporary-context consumer accepts both the original v1 layout and
+Mobile's v2 short runtime roots. It validates the workspace ownership record,
+private physical runtime directory, inode identity and matching runtime marker
+before forwarding temporary paths or starting execution. V2 payloads and MCP
+readiness sentinels use the short runtime root, while borrower leases and owner
+fences stay with the durable workspace record. Nested owner validation retains
+each ancestor's version and runtime binding; no consumer grants cleanup authority.
+
 Import a reviewed upstream revision, reapply the Codex-only changes above,
 choose a distinct downstream package version, regenerate the checksum fixture,
 and run `bash tests/run.sh` plus `git diff --check`.
