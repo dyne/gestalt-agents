@@ -1,8 +1,8 @@
 # Context-mode session scratch
 
-Context-mode consumes the shared Gestalt version 1 context in
+Context-mode consumes the shared Gestalt version 1 and 2 contexts in
 `GESTALT_SESSION_TMP_CONTEXT`. Mobile and the launcher allocate owners; this
-package validates them and publishes delegated execution borrower leases. The JSON locator contains
+package validates them and publishes delegated execution borrower leases. The v1 JSON locator contains
 `schemaVersion: 1`, canonical `workspacePath`, `ownerId`, `directory` and
 `markerPath`. Owners live at `<workspace>/tmp/sessions/<ownerId>/`, with a
 `.gestalt-owner.json` marker. The resolver rejects links, foreign UID,
@@ -11,8 +11,26 @@ CLI or service leases. It preserves an existing user `tmp` parent's modes.
 Present but invalid context fails visibly, without path-bearing diagnostics or
 fallback to another temporary root.
 
+In v2, `directory` still identifies durable workspace metadata and leases. A
+`runtime` binding names a separate private physical payload root under
+`<canonical /tmp>/gs-<uid>/<20 random hex digits>`. Both markers, current user,
+permissions, canonical paths and device/inode/birth identity must agree. Aliases,
+copied/replaced roots, retiring records and partial metadata are rejected. The
+producer caps the root at 48 encoded bytes independently of workspace depth.
+Linux permits 107 pathname bytes plus NUL; macOS checks reserve
+NUL within 104 bytes. This leaves at least 55 appended bytes including separators
+for Bitcoin/Chrome patterns; arbitrary third-party suffixes still need bounds.
+Canonicalization keeps the physical pathname short. All components must support
+v2 before use; retained v1 owners are validated without relocation. Sandbox and
+approval restrictions remain unchanged. Persistent state never moves to runtime
+scratch, and context-mode never retires a session's root itself.
+Borrower publication/release also claims the shared workspace publication fence
+before containment and owner fences, and checks logical/temporary ancestors
+before and after publication. Final Forget holds that fence through durable
+finalization; existing or replaced claims cannot be adopted or expired.
+
 Managed subprocesses inherit exactly this context and `TMPDIR`, `TMP`, `TEMP`
-set to its validated owner directory. Each executor invocation creates its own
+set to the validated physical root in v2, or owner directory in v1. Each executor invocation creates its own
 `.ctx-mode-*` child and removes only that child after foreground completion.
 Background execution retains its files. Each managed operation publishes a
 private v1 borrower before writing scripts or spawning any runtime; compilation

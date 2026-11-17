@@ -315,6 +315,11 @@ before forwarding temporary paths or starting execution. V2 payloads and MCP
 readiness sentinels use the short runtime root, while borrower leases and owner
 fences stay with the durable workspace record. Nested owner validation retains
 each ancestor's version and runtime binding; no consumer grants cleanup authority.
+Borrower writes also hold the shared workspace publication fence used by
+Mobile/Launcher cleanup. Containment discovery follows external runtime roots
+back to their durable owners and checks logical parent publication before and
+after writes. Native Node, shell and Python socket exchange and v1/v2 MCP
+restart coverage exercise these producer/consumer boundaries.
 
 Import a reviewed upstream revision, reapply the Codex-only changes above,
 choose a distinct downstream package version, regenerate the checksum fixture,

@@ -83,6 +83,8 @@ function use(context: SessionScratchContext) {
   for (const key of ["TMPDIR", "TMP", "TEMP"]) vi.stubEnv(key, join(root, "forbidden-os-temp"));
 }
 
+const payloadRoot = (context: SessionScratchContext) => context.runtime?.directory ?? context.directory;
+
 beforeEach(async () => {
   const nativeFs = await vi.importActual<typeof import("node:fs")>("node:fs");
   const nativeChild = await vi.importActual<typeof import("node:child_process")>("node:child_process");
@@ -159,6 +161,94 @@ describe.skipIf(process.platform === "win32")("v2 managed runtime compatibility"
     expect(fs.existsSync(context.markerPath)).toBe(true);
     expect(fs.existsSync(join(context.runtime.directory, `context-mode-mcp-ready-${server.pid}`))).toBe(false);
   }, 30000);
+
+  test("publication and release hold the workspace fence through each lease write", () => {
+    const context = v2Owner("publication-v2"); use(context);
+    const observed: boolean[] = [];
+    const nativeOpen = fs.openSync;
+    vi.spyOn(fs, "openSync").mockImplementation(((path: fs.PathLike, flags: string | number, mode?: fs.Mode) => {
+      if (typeof path === "string" && path.startsWith(join(context.directory, "leases") + "/") && flags === "wx")
+        observed.push(fs.existsSync(join(context.workspacePath, ".gestalt-scratch-lock")));
+      return nativeOpen(path, flags, mode);
+    }) as typeof fs.openSync);
+    const lease = borrowSessionScratch()!;
+    lease.release();
+    expect(observed).toEqual([true, true]);
+    expect(fs.existsSync(join(context.workspacePath, ".gestalt-scratch-lock"))).toBe(false);
+  });
+
+  test("an existing workspace publication fence stays untouched", () => {
+    const context = v2Owner("busy-publication"); use(context);
+    const fence = join(context.workspacePath, ".gestalt-scratch-lock");
+    fs.mkdirSync(fence, { mode: 0o700 });
+    const before = fs.lstatSync(fence, { bigint: true });
+    try {
+      expect(() => borrowSessionScratch()).toThrow("SESSION_SCRATCH_BORROW_FAILED");
+      expect(fs.lstatSync(fence, { bigint: true }).ino).toBe(before.ino);
+      expect(fs.existsSync(join(context.directory, "leases"))).toBe(false);
+    } finally { fs.rmdirSync(fence); }
+  });
+
+  test.each(["publication", "containment"])("follows an external runtime root back to its parent's %s fence", fenceKind => {
+    const parent = v2Owner("external-parent");
+    const child = v2Owner("external-child", "workspace-service", join(parent.runtime.directory, "nested workspace"));
+    use(child);
+    const fence = fenceKind === "publication" ? join(parent.workspacePath, ".gestalt-scratch-lock")
+      : join(parent.directory, ".containment-lock");
+    fs.mkdirSync(fence, { mode: 0o700 });
+    try {
+      expect(() => borrowSessionScratch()).toThrow("SESSION_SCRATCH_BORROW_FAILED");
+      expect(fs.existsSync(fence)).toBe(true);
+      const records = fs.readdirSync(join(child.directory, "leases")).map(name => JSON.parse(fs.readFileSync(join(child.directory, "leases", name), "utf8")));
+      expect(records).toHaveLength(1); // Only the primary service lease exists.
+      expect(fs.existsSync(join(child.workspacePath, ".gestalt-scratch-lock"))).toBe(false);
+    } finally { fs.rmdirSync(fence); }
+    const lease = borrowSessionScratch()!;
+    lease.release();
+    expect(fs.existsSync(join(parent.directory, ".containment-lock"))).toBe(false);
+  });
+
+  test("a replaced workspace publication fence is never removed as our own", () => {
+    const context = v2Owner("replaced-publication"); use(context);
+    const fence = join(context.workspacePath, ".gestalt-scratch-lock");
+    const nativeOpen = fs.openSync;
+    let replaced = false;
+    vi.spyOn(fs, "openSync").mockImplementation(((path: fs.PathLike, flags: string | number, mode?: fs.Mode) => {
+      if (!replaced && typeof path === "string" && path.startsWith(join(context.directory, "leases") + "/") && flags === "wx") {
+        fs.renameSync(fence, fence + "-held");
+        fs.mkdirSync(fence, { mode: 0o700 });
+        replaced = true;
+      }
+      return nativeOpen(path, flags, mode);
+    }) as typeof fs.openSync);
+    expect(() => borrowSessionScratch()).toThrow("SESSION_SCRATCH_BORROW_FAILED");
+    expect(replaced).toBe(true);
+    expect(fs.existsSync(fence)).toBe(true);
+    expect(fs.existsSync(fence + "-held")).toBe(true);
+  });
+
+  test.each(["javascript", "shell", "python"] as const)("%s exchanges Unix socket data under the bounded physical root", async language => {
+    const context = v2Owner("socket-v2"); use(context);
+    expect(Buffer.byteLength(context.runtime.directory)).toBeLessThanOrEqual(48);
+    const python = `import os,socket,tempfile
+root=tempfile.gettempdir();assert root==os.path.realpath(root)==os.environ['TMP']==os.environ['TEMP']
+path=root+'/bitcoin_sock0_qR2DkZ'
+with socket.socket(socket.AF_UNIX,socket.SOCK_STREAM) as server:
+ server.settimeout(5);server.bind(path);server.listen(1)
+ with socket.socket(socket.AF_UNIX,socket.SOCK_STREAM) as client:
+  client.settimeout(5);client.connect(path);client.sendall(b'ping');peer,_=server.accept()
+  with peer:
+   peer.settimeout(5);assert peer.recv(4)==b'ping';peer.sendall(b'pong');assert client.recv(4)==b'pong'
+os.unlink(path);print('socket-exchange-ok')`;
+    const javascript = `const os=require('node:os'),fs=require('node:fs'),net=require('node:net'),assert=require('node:assert/strict');
+const root=os.tmpdir();assert.equal(root,fs.realpathSync(root));assert.equal(root,process.env.TMP);assert.equal(root,process.env.TEMP);
+const path=root+'/bitcoin_sock0_Node01',server=net.createServer(peer=>peer.on('data',data=>{assert.equal(data.toString(),'ping');peer.end('pong');}));
+server.listen(path,()=>{const client=net.connect(path);client.on('connect',()=>client.write('ping'));let result='';client.on('data',b=>result+=b);client.on('end',()=>{assert.equal(result,'pong');server.close(()=>console.log('socket-exchange-ok'));});});`;
+    const code = language === "javascript" ? javascript : language === "python" ? python : "python3 - <<'PY'\n" + python + "\nPY";
+    const result = await new PolyglotExecutor({ runtimes: runtime, projectRoot: context.workspacePath }).execute({ language, code, timeout: 10000 });
+    expect(result.exitCode, result.stderr).toBe(0);
+    expect(result.stdout).toContain("socket-exchange-ok");
+  });
 });
 
 describe("v1 managed scratch validation", () => {
@@ -377,16 +467,17 @@ async function startServer(context: SessionScratchContext) {
 
 const resultText = (result: any) => result.content.filter((part: any) => part.type === "text").map((part: any) => part.text).join("\n");
 
-test.skipIf(process.platform === "win32")("real MCP handshake, execution, batch and reopen use isolated owners and durable workspace state", async () => {
-  const a = owner("session-a"), b = owner("session-b");
+test.skipIf(process.platform === "win32").each([1, 2])("v%s real MCP handshake, execution, batch and reopen use isolated owners and durable workspace state", async version => {
+  const make = (id: string) => version === 2 ? v2Owner(id) : owner(id);
+  const a = make("session-a"), b = make("session-b");
   const [first, second] = await Promise.all([startServer(a), startServer(b)]);
-  expect(fs.existsSync(join(a.directory, `context-mode-mcp-ready-${first.pid}`))).toBe(true);
-  expect(fs.existsSync(join(b.directory, `context-mode-mcp-ready-${second.pid}`))).toBe(true);
+  expect(fs.existsSync(join(payloadRoot(a), `context-mode-mcp-ready-${first.pid}`))).toBe(true);
+  expect(fs.existsSync(join(payloadRoot(b), `context-mode-mcp-ready-${second.pid}`))).toBe(true);
   for (const [server, context] of [[first, a], [second, b]] as const) {
     const response = await server.call("ctx_execute", { language: "javascript", code: "console.log('managed-ok', process.env.TMPDIR, process.env.TMP, process.env.TEMP)", timeout: 5_000 });
     expect(response.isError, resultText(response)).not.toBe(true);
-    expect(resultText(response)).toContain("managed-ok"); expect(resultText(response)).toContain(context.directory);
-    expect(fs.readdirSync(context.directory).some(name => name.startsWith("cm-fs-preload-"))).toBe(false);
+    expect(resultText(response)).toContain("managed-ok"); expect(resultText(response)).toContain(payloadRoot(context));
+    expect(fs.readdirSync(payloadRoot(context)).some(name => name.startsWith("cm-fs-preload-"))).toBe(false);
     const claims = () => fs.readdirSync(join(context.directory, "leases")).map(name =>
       JSON.parse(fs.readFileSync(join(context.directory, "leases", name), "utf8")));
     expect(claims().length).toBeGreaterThan(0);
@@ -405,9 +496,9 @@ test.skipIf(process.platform === "win32")("real MCP handshake, execution, batch 
   const indexed = await first.call("ctx_index", { content: "# Durable nebula\n\nThe durable nebula evidence survives a session scratch cleanup.", source: "scratch-nebula" });
   expect(indexed.isError, resultText(indexed)).not.toBe(true);
   await first.close();
-  expect(fs.existsSync(join(a.directory, `context-mode-mcp-ready-${first.pid}`))).toBe(false);
-  expect(fs.readdirSync(a.directory).some(name => name.startsWith("cm-fs-preload-"))).toBe(false);
-  expect(fs.existsSync(join(b.directory, `context-mode-mcp-ready-${second.pid}`))).toBe(true);
+  expect(fs.existsSync(join(payloadRoot(a), `context-mode-mcp-ready-${first.pid}`))).toBe(false);
+  expect(fs.readdirSync(payloadRoot(a)).some(name => name.startsWith("cm-fs-preload-"))).toBe(false);
+  expect(fs.existsSync(join(payloadRoot(b), `context-mode-mcp-ready-${second.pid}`))).toBe(true);
   const reopened = await startServer(a);
   const searched = await reopened.call("ctx_search", { queries: ["durable nebula"], source: "scratch-nebula" });
   expect(searched.isError, resultText(searched)).not.toBe(true); expect(resultText(searched)).toContain("nebula");

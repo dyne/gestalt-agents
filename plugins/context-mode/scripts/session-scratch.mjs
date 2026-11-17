@@ -44,12 +44,17 @@ function jsonRecord(file) {
   } finally { closeSync(fd); }
 }
 
+function runtimeContainer() {
+  assert(typeof process.getuid === "function");
+  return join(realpathSync("/tmp"), `gs-${process.getuid()}`);
+}
+
 /** V2 payload roots are short physical allocations bound to durable ownership. */
 function validateRuntime(context, marker) {
   assert(process.getuid && context.runtime &&
     JSON.stringify(context.runtime) === JSON.stringify(marker.runtime));
   const runtime = context.runtime;
-  const container = join(realpathSync("/tmp"), `gs-${process.getuid()}`);
+  const container = runtimeContainer();
   assert(typeof runtime.directory === "string" && dirname(runtime.directory) === container &&
     /^[0-9a-f]{20}$/.test(runtime.directory.slice(container.length + 1)) &&
     Buffer.byteLength(runtime.directory) <= 48 &&
@@ -64,6 +69,55 @@ function validateRuntime(context, marker) {
     schemaVersion: 2, ownerId: marker.ownerId, workspacePath: marker.workspacePath,
     token: runtime.token, identity: runtime.identity,
   }));
+}
+
+function ownerContext(directory, workspacePath, ownerId) {
+  const markerPath = join(directory, ".gestalt-owner.json");
+  const marker = jsonRecord(markerPath);
+  return { schemaVersion: marker.schemaVersion, workspacePath, ownerId, directory, markerPath,
+    ...(marker.schemaVersion === 2 ? { runtime: marker.runtime } : {}) };
+}
+
+/** Share Mobile/Launcher's publication fence; never recover it by age or PID. */
+function withWorkspacePublication(workspace, operation) {
+  canonical(workspace);
+  const path = join(workspace, ".gestalt-scratch-lock");
+  let claimed = false;
+  for (let attempt = 0; attempt < 100; attempt++) {
+    try { mkdirSync(path, { mode: 0o700 }); claimed = true; break; }
+    catch (error) {
+      if (error.code !== "EEXIST") throw error;
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 10);
+    }
+  }
+  assert(claimed);
+  privateDirectory(path);
+  const fd = openSync(path, constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW);
+  const held = fstatSync(fd, { bigint: true });
+  try { return operation(); }
+  finally {
+    try {
+      const current = lstatSync(path, { bigint: true });
+      assert(current.isDirectory() && !current.isSymbolicLink() &&
+        current.dev === held.dev && current.ino === held.ino && current.birthtimeNs === held.birthtimeNs);
+      rmdirSync(path);
+    } finally { closeSync(fd); }
+  }
+}
+
+function checkParentPublications(workspace, logicalParents) {
+  const parents = new Set(logicalParents);
+  let current = parse(workspace).root;
+  for (const part of workspace.slice(current.length).split(sep).filter(Boolean)) {
+    current = join(current, part);
+    if (part === "tmp") parents.add(dirname(current));
+  }
+  parents.delete(workspace);
+  for (const parent of parents) {
+    try { lstatSync(join(parent, ".gestalt-scratch-lock")); }
+    catch (error) { if (error.code === "ENOENT") continue; throw error; }
+    throw new Error("SESSION_SCRATCH_BUSY");
+  }
 }
 
 /** An absent context preserves operator fallback; any present invalid value fails. */
@@ -149,31 +203,52 @@ function leaseRecords(context) {
 
 /** Same outermost-first containment and owner fences as Mobile/Launcher. */
 function withBorrowerFences(context, operation) {
+  return withWorkspacePublication(context.workspacePath, () => withContainmentFences(context, operation));
+}
+
+function withContainmentFences(context, operation) {
   const ancestors = [], claims = [];
-  const parts = context.directory.slice(parse(context.directory).root.length).split(sep).filter(Boolean);
-  let directory = parse(context.directory).root;
-  for (let index = 0; index < parts.length; index++) {
-    directory = join(directory, parts[index]);
-    if (index >= 2 && parts[index - 1] === "sessions" && parts[index - 2] === "tmp") {
-      assert(ancestors.length < 64);
-      const workspacePath = dirname(dirname(dirname(directory)));
-      const markerPath = join(directory, ".gestalt-owner.json");
-      const ancestorMarker = jsonRecord(markerPath);
-      const locator = { schemaVersion: ancestorMarker.schemaVersion, workspacePath, ownerId: parts[index], directory,
-        markerPath, ...(ancestorMarker.schemaVersion === 2 ? { runtime: ancestorMarker.runtime } : {}) };
-      // Capture the path per ancestor, not the mutable traversal variable.
-      const path = directory;
-      const provenance = () => {
+  const runtimeBase = process.getuid ? runtimeContainer() : undefined;
+  const visiting = new Set();
+  const discover = selected => {
+    assert(!visiting.has(selected) && visiting.size < 64);
+    visiting.add(selected);
+    const parts = selected.slice(parse(selected).root.length).split(sep).filter(Boolean);
+    let directory = parse(selected).root;
+    for (let index = 0; index < parts.length; index++) {
+      directory = join(directory, parts[index]);
+      if (runtimeBase && dirname(directory) === runtimeBase) {
+        privateDirectory(directory);
+        const record = jsonRecord(join(directory, ".gestalt-runtime.json"));
+        assert(typeof record.workspacePath === "string" && validId(record.ownerId));
+        const locator = ownerContext(join(record.workspacePath, "tmp", "sessions", record.ownerId), record.workspacePath, record.ownerId);
         resolveScratchContext({ [SESSION_TMP_CONTEXT]: JSON.stringify(locator) }, true);
-        const marker = jsonRecord(locator.markerPath);
-        if (readdirSync(path).includes("leases")) leaseRecords(locator);
-        else assert(marker.ownerKind === "mobile-session");
-        return JSON.stringify([identity(path), marker.schemaVersion, marker.ownerKind,
-          marker.ownerId, marker.workspacePath, marker.sessionId, marker.createdAt, marker.authority, marker.runtime]);
-      };
-      ancestors.push({ path, provenance, expected: provenance() });
+        assert(locator.runtime?.directory === directory);
+        discover(locator.directory);
+      }
+      if (index >= 2 && parts[index - 1] === "sessions" && parts[index - 2] === "tmp") {
+        if (ancestors.some(ancestor => ancestor.path === directory)) continue;
+        assert(ancestors.length < 64);
+        const workspacePath = dirname(dirname(dirname(directory)));
+        const locator = ownerContext(directory, workspacePath, parts[index]);
+        // Capture the path per ancestor, not the mutable traversal variable.
+        const path = directory;
+        const provenance = () => {
+          resolveScratchContext({ [SESSION_TMP_CONTEXT]: JSON.stringify(locator) }, true);
+          const marker = jsonRecord(locator.markerPath);
+          if (readdirSync(path).includes("leases")) leaseRecords(locator);
+          else assert(marker.ownerKind === "mobile-session");
+          return JSON.stringify([identity(path), marker.schemaVersion, marker.ownerKind,
+            marker.ownerId, marker.workspacePath, marker.sessionId, marker.createdAt, marker.authority, marker.runtime]);
+        };
+        ancestors.push({ path, workspacePath, provenance, expected: provenance() });
+      }
     }
-  }
+    visiting.delete(selected);
+  };
+  discover(context.directory);
+  const logicalParents = ancestors.map(ancestor => ancestor.workspacePath);
+  checkParentPublications(context.workspacePath, logicalParents);
   const claim = path => {
     mkdirSync(path, { mode: 0o700 });
     const expected = identity(path);
@@ -195,7 +270,9 @@ function withBorrowerFences(context, operation) {
     for (const ancestor of ancestors) assert(ancestor.expected === ancestor.provenance());
     if (marker.ownerKind === "mobile-session")
       assert(!readdirSync(context.directory).includes(".association-lock"));
-    return operation();
+    const result = operation();
+    checkParentPublications(context.workspacePath, logicalParents);
+    return result;
   } finally {
     let failure;
     for (const held of claims.reverse()) {
