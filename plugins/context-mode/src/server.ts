@@ -4243,7 +4243,8 @@ server.registerTool(
       const repoUrl = "https://github.com/mksglu/context-mode.git";
       // Write inline script to a temp .mjs file — avoids quote-escaping issues
       // across cmd.exe, PowerShell, and bash (node -e '...' breaks on Windows).
-      const managedDirectory = resolveSessionScratch()?.directory;
+      const scratch = resolveSessionScratch();
+      const managedDirectory = scratch?.runtime?.directory ?? scratch?.directory;
       const upgradeRoot = managedDirectory === undefined ? "tmpdir()" : JSON.stringify(managedDirectory);
       const scriptLines = [
         `import{execFileSync}from"node:child_process";`,

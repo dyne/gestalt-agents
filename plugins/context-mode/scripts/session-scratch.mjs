@@ -1,4 +1,4 @@
-/** Validated v1 consumer with delegated execution-borrower publication. */
+/** Validated v1/v2 consumer with delegated execution-borrower publication. */
 import { createHash, randomUUID } from "node:crypto";
 import { constants, closeSync, fstatSync, fsyncSync, lstatSync, mkdirSync, openSync, readFileSync, readdirSync, realpathSync, renameSync, rmdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -44,12 +44,34 @@ function jsonRecord(file) {
   } finally { closeSync(fd); }
 }
 
+/** V2 payload roots are short physical allocations bound to durable ownership. */
+function validateRuntime(context, marker) {
+  assert(process.getuid && context.runtime &&
+    JSON.stringify(context.runtime) === JSON.stringify(marker.runtime));
+  const runtime = context.runtime;
+  const container = join(realpathSync("/tmp"), `gs-${process.getuid()}`);
+  assert(typeof runtime.directory === "string" && dirname(runtime.directory) === container &&
+    /^[0-9a-f]{20}$/.test(runtime.directory.slice(container.length + 1)) &&
+    Buffer.byteLength(runtime.directory) <= 48 &&
+    typeof runtime.token === "string" && /^[0-9a-f]{64}$/.test(runtime.token) &&
+    typeof runtime.identity === "string" && /^\d+:\d+:\d+$/.test(runtime.identity) &&
+    runtime.retiring === undefined);
+  privateDirectory(container);
+  privateDirectory(runtime.directory);
+  assert(identity(runtime.directory) === runtime.identity);
+  const actual = jsonRecord(join(runtime.directory, ".gestalt-runtime.json"));
+  assert(JSON.stringify(actual) === JSON.stringify({
+    schemaVersion: 2, ownerId: marker.ownerId, workspacePath: marker.workspacePath,
+    token: runtime.token, identity: runtime.identity,
+  }));
+}
+
 /** An absent context preserves operator fallback; any present invalid value fails. */
 function resolveScratchContext(environment, allowReleased = false) {
   if (!Object.hasOwn(environment, SESSION_TMP_CONTEXT)) return null;
   try {
     const context = JSON.parse(environment[SESSION_TMP_CONTEXT]);
-    assert(context?.schemaVersion === 1 && validId(context.ownerId));
+    assert([1, 2].includes(context?.schemaVersion) && validId(context.ownerId));
     canonical(context.workspacePath);
     const container = join(context.workspacePath, "tmp", "sessions");
     assert(context.directory === join(container, context.ownerId) &&
@@ -60,7 +82,7 @@ function resolveScratchContext(environment, allowReleased = false) {
     privateDirectory(container);
     privateDirectory(context.directory);
     const marker = jsonRecord(context.markerPath);
-    assert(marker?.schemaVersion === 1 && marker.ownerId === context.ownerId &&
+    assert(marker?.schemaVersion === context.schemaVersion && marker.ownerId === context.ownerId &&
       marker.workspacePath === context.workspacePath && validId(marker.sessionId) &&
       timestamp(marker.createdAt) && Array.isArray(marker.providerThreads) &&
       marker.providerThreads.every(thread => ["codex", "kimi"].includes(thread?.provider) && validId(thread.threadId)));
@@ -79,6 +101,8 @@ function resolveScratchContext(environment, allowReleased = false) {
         timestamp(lease.createdAt) && timestamp(lease.updatedAt) &&
         Array.isArray(lease.consumers) && lease.consumers.every(validId));
     }
+    if (context.schemaVersion === 2) validateRuntime(context, marker);
+    else assert(context.runtime === undefined && marker.runtime === undefined);
     return context;
   } catch {
     // Do not expose private workspace paths or attacker-controlled JSON/errors.
@@ -91,13 +115,15 @@ export function resolveSessionScratch(environment = process.env) {
 }
 
 export function resolveScratchDirectory(fallback = tmpdir) {
-  return resolveSessionScratch()?.directory ?? fallback();
+  const context = resolveSessionScratch();
+  return context ? context.runtime?.directory ?? context.directory : fallback();
 }
 
 /** Forward the exact four-variable contract, deriving temp values from ownership. */
 export function scratchEnvironment(environment = process.env) {
   const context = resolveSessionScratch(environment);
-  return context ? { ...environment, TMPDIR: context.directory, TMP: context.directory, TEMP: context.directory } : { ...environment };
+  const directory = context?.runtime?.directory ?? context?.directory;
+  return context ? { ...environment, TMPDIR: directory, TMP: directory, TEMP: directory } : { ...environment };
 }
 
 const identity = directory => {
@@ -131,8 +157,10 @@ function withBorrowerFences(context, operation) {
     if (index >= 2 && parts[index - 1] === "sessions" && parts[index - 2] === "tmp") {
       assert(ancestors.length < 64);
       const workspacePath = dirname(dirname(dirname(directory)));
-      const locator = { schemaVersion: 1, workspacePath, ownerId: parts[index], directory,
-        markerPath: join(directory, ".gestalt-owner.json") };
+      const markerPath = join(directory, ".gestalt-owner.json");
+      const ancestorMarker = jsonRecord(markerPath);
+      const locator = { schemaVersion: ancestorMarker.schemaVersion, workspacePath, ownerId: parts[index], directory,
+        markerPath, ...(ancestorMarker.schemaVersion === 2 ? { runtime: ancestorMarker.runtime } : {}) };
       // Capture the path per ancestor, not the mutable traversal variable.
       const path = directory;
       const provenance = () => {
@@ -141,7 +169,7 @@ function withBorrowerFences(context, operation) {
         if (readdirSync(path).includes("leases")) leaseRecords(locator);
         else assert(marker.ownerKind === "mobile-session");
         return JSON.stringify([identity(path), marker.schemaVersion, marker.ownerKind,
-          marker.ownerId, marker.workspacePath, marker.sessionId, marker.createdAt, marker.authority]);
+          marker.ownerId, marker.workspacePath, marker.sessionId, marker.createdAt, marker.authority, marker.runtime]);
       };
       ancestors.push({ path, provenance, expected: provenance() });
     }

@@ -728,10 +728,11 @@ export class PolyglotExecutor {
 
     // Sandbox overrides — forced values for correct sandbox behavior
     const scratch = resolveSessionScratch();
-    env["TMPDIR"] = scratch?.directory ?? tmpDir;
+    const scratchDirectory = scratch?.runtime?.directory ?? scratch?.directory;
+    env["TMPDIR"] = scratchDirectory ?? tmpDir;
     if (scratch) {
-      env["TMP"] = scratch.directory;
-      env["TEMP"] = scratch.directory;
+      env["TMP"] = scratchDirectory!;
+      env["TEMP"] = scratchDirectory!;
     }
     env["HOME"] = realHome;
     env["LANG"] = "en_US.UTF-8";
