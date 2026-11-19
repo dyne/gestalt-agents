@@ -21,6 +21,15 @@ import { execFileSync } from "node:child_process";
 import { userInfo } from "node:os";
 import { dirname, isAbsolute, join, parse, resolve } from "node:path";
 
+// Leave time for fixed Windows PowerShell startup and ACL inspection on a
+// standard-user profile while keeping both storage operations bounded.
+const WINDOWS_STORAGE_TIMEOUT_MS = 60_000;
+
+export function windowsStorageRefusal(error) {
+  const detail = String(error?.stderr ?? "").trim() || String(error?.code ?? "").trim() || "permission inspection failed";
+  return new Error(`Windows managed storage refused: ${detail.slice(0, 1000)}`, { cause: error });
+}
+
 export function optionalStat(path) {
   try { return lstatSync(path); } catch (error) { if (error.code === "ENOENT") return null; throw error; }
 }
@@ -128,9 +137,9 @@ export function ensureManagedRoot(path, { privateMode = true, create = true } = 
     try {
       execFileSync(join(systemRoot, "System32/WindowsPowerShell/v1.0/powershell.exe"), [
         "-NoLogo", "-NoProfile", "-NonInteractive", "-EncodedCommand", Buffer.from(privateDirectoryScript, "utf16le").toString("base64"),
-      ], { env: { ...process.env, GESTALT_SETUP_PATH: Buffer.from(path).toString("base64"), GESTALT_STORAGE_PRIVATE: privateMode ? "1" : "0" }, shell: false, windowsHide: true, timeout: 10_000, stdio: ["ignore", "ignore", "pipe"] });
+      ], { env: { ...process.env, GESTALT_SETUP_PATH: Buffer.from(path).toString("base64"), GESTALT_STORAGE_PRIVATE: privateMode ? "1" : "0" }, shell: false, windowsHide: true, timeout: WINDOWS_STORAGE_TIMEOUT_MS, stdio: ["ignore", "ignore", "pipe"] });
     } catch (error) {
-      throw new Error(`Windows managed storage refused: ${String(error.stderr ?? error.code ?? "permission inspection failed").trim().slice(0, 1000)}`, { cause: error });
+      throw windowsStorageRefusal(error);
     }
   } else {
     for (let ancestor = dirname(path); ; ancestor = dirname(ancestor)) {
@@ -163,7 +172,7 @@ try {
  $f=New-Object IO.FileStream($p,[IO.FileMode]::CreateNew,[Security.AccessControl.FileSystemRights]::FullControl,[IO.FileShare]::None,4096,[IO.FileOptions]::None,$a)
  $f.Dispose()
 } catch {[Console]::Error.WriteLine($_.Exception.Message);exit 1}`;
-      execFileSync(join(systemRoot,"System32/WindowsPowerShell/v1.0/powershell.exe"),["-NoLogo","-NoProfile","-NonInteractive","-EncodedCommand",Buffer.from(script,"utf16le").toString("base64")],{env:{...process.env,GESTALT_STORAGE_FILE:Buffer.from(path).toString("base64")},shell:false,windowsHide:true,timeout:10_000,stdio:["ignore","ignore","pipe"]});
+      execFileSync(join(systemRoot,"System32/WindowsPowerShell/v1.0/powershell.exe"),["-NoLogo","-NoProfile","-NonInteractive","-EncodedCommand",Buffer.from(script,"utf16le").toString("base64")],{env:{...process.env,GESTALT_STORAGE_FILE:Buffer.from(path).toString("base64")},shell:false,windowsHide:true,timeout:WINDOWS_STORAGE_TIMEOUT_MS,stdio:["ignore","ignore","pipe"]});
       created = true;
       writeFileSync(path, contents, { flag: "r+" });
     } else {

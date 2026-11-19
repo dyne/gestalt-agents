@@ -10,11 +10,29 @@ import { commandTarget, runCommand } from "../../plugins/context-mode/scripts/na
 import { tryAcquireRuntimeLock } from "../../plugins/context-mode/scripts/runtime-lock.mjs";
 import { ensureManagedRoot } from "../../scripts/setup-storage.mjs";
 import { cmdShim, installCmdShim } from "../../scripts/native-command-shims.mjs";
+import { windowsStorageRefusal } from "../../plugins/gestalt/skills/org-plan/scripts/org-plan-storage.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const temp = () => realpathSync(mkdtempSync(join(realTemp(), "native-setup-")));
 function realTemp() { return process.env.TMPDIR || tmpdir(); }
 const hash = (text) => createHash("sha256").update(text).digest("hex");
+
+test("Windows managed storage refusals keep readable diagnostics and the original cause", () => {
+  for (const [fields, detail] of [
+    [{ code: "ETIMEDOUT", stderr: Buffer.alloc(0), signal: "SIGTERM", status: null }, "ETIMEDOUT"],
+    [{ code: "EACCES", stderr: Buffer.from(" \r\n\t") }, "EACCES"],
+    [{ code: 1, stderr: Buffer.from(" ACL permits another principal\r\n") }, "ACL permits another principal"],
+    [{ code: 1 }, "1"],
+    [{ stderr: Buffer.from("x".repeat(1200)) }, "x".repeat(1000)],
+    [{ stderr: "" }, "permission inspection failed"],
+  ]) {
+    const original = Object.assign(new Error("PowerShell storage failed"), fields);
+    const error = windowsStorageRefusal(original);
+    assert.equal(error.message, `Windows managed storage refused: ${detail}`);
+    assert.equal(error.cause, original);
+  }
+});
+
 function tree(path) {
   if (!existsSync(path)) return null;
   return readdirSync(path, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name)).map((entry) => {
