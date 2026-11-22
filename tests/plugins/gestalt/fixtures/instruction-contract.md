@@ -232,7 +232,7 @@ Managed scratch guidance is conditional on `GESTALT_SESSION_TMP_CONTEXT`.
 The canonical context-mode skill and generated Codex SessionStart/subagent
 reminder require validated `TMPDIR`, exact four-variable child inheritance,
 retaining the owner until Forget, and persistent workspace database/evidence
-boundaries. Without context, standalone/operator fallback remains. Two static
+boundaries. Task files and parallel checkouts use workspace tmp through the task-dir command; standalone callers supply the workspace explicitly. Static
 instruction scenarios bind the skill text; package regressions exercise actual
 SessionStart delivery, runtime ownership, and native MCP environment forwarding.
 The inactive vendor AGENTS example and Org role/profile authority are unchanged.

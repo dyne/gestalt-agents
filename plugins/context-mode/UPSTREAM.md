@@ -15,6 +15,11 @@ and contents while excluding generated dependencies and build artifacts.
 
 ## Downstream changes
 
+- Routes managed executor scripts, fetched data and temporary databases to
+  workspace session storage. Adds `context-mode task-dir` for isolated task
+  files and checkouts. Codex session and child reminders advertise this command.
+  Subprocess temporary variables and readiness sentinels retain their runtime binding.
+
 - Reconciles Codex TOML as byte-preserving logical records instead of deleting
   physical-line sections. Managed registration replacement retains standalone
   operator comments, unrelated values, mixed line endings and trailing bytes;

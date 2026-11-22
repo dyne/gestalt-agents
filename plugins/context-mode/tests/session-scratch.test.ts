@@ -6,7 +6,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { once } from "node:events";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import { borrowSessionScratch, resolveScratchDirectory, resolveSessionScratch, scratchEnvironment, SESSION_SCRATCH_GUIDANCE, type SessionScratchContext } from "../scripts/session-scratch.mjs";
+import { borrowSessionScratch, createTaskDirectory, resolveScratchDirectory, resolveSessionScratch, scratchEnvironment, SESSION_SCRATCH_GUIDANCE, type SessionScratchContext } from "../scripts/session-scratch.mjs";
 import { createCodexRoutingReminder } from "../hooks/routing-block.mjs";
 import { isMCPReady, sentinelDir, sentinelPathForPid } from "../hooks/core/mcp-ready.mjs";
 import { PolyglotExecutor } from "../src/executor.js";
@@ -99,13 +99,27 @@ afterEach(async () => {
   for (const directory of runtimeRoots) fs.rmSync(directory, { recursive: true, force: true });
 });
 
+test("standalone task allocation requires an explicit workspace, rejects a tmp symlink and preserves its mode", () => {
+  const workspace = join(root, "selected workspace");
+  fs.mkdirSync(workspace);
+  expect(() => createTaskDirectory(undefined, {})).toThrow("absolute workspace");
+  fs.mkdirSync(join(workspace, "tmp"), {mode: 0o750});
+  const before = fs.statSync(join(workspace, "tmp")).mode;
+  expect(dirname(createTaskDirectory(workspace, {}))).toBe(join(workspace, "tmp"));
+  expect(fs.statSync(join(workspace, "tmp")).mode).toBe(before);
+  fs.renameSync(join(workspace, "tmp"), join(workspace, "old"));
+  fs.symlinkSync(join(workspace, "old"), join(workspace, "tmp"), "dir");
+  expect(() => createTaskDirectory(workspace, {})).toThrow();
+  expect(() => createTaskDirectory(workspace, {GESTALT_SESSION_TMP_CONTEXT: "{}"})).toThrow("INVALID_CONTEXT");
+});
+
 describe.skipIf(process.platform === "win32")("v2 managed runtime compatibility", () => {
   test.each(["mobile-session", "cli-session", "workspace-service"])("validates %s while separating runtime payload from ownership records", kind => {
     const context = v2Owner("session-v2", kind); use(context);
     expect(resolveSessionScratch()).toEqual(context);
-    expect(resolveScratchDirectory()).toBe(context.runtime.directory);
+    expect(resolveScratchDirectory()).toBe(context.directory);
     expect(sentinelDir()).toBe(context.runtime.directory);
-    expect(defaultDBPath()).toBe(join(context.runtime.directory, `context-mode-${process.pid}.db`));
+    expect(defaultDBPath()).toBe(join(context.directory, `context-mode-${process.pid}.db`));
     for (const key of ["TMPDIR", "TMP", "TEMP"]) expect(scratchEnvironment()[key]).toBe(context.runtime.directory);
     expect(scratchEnvironment().GESTALT_SESSION_TMP_CONTEXT).toBe(JSON.stringify(context));
   });
@@ -143,6 +157,30 @@ describe.skipIf(process.platform === "win32")("v2 managed runtime compatibility"
     lease.release();
     expect(records().find(record => record.consumers.length === 0)).toMatchObject({ state: "released" });
     expect(fs.existsSync(join(parent.directory, ".containment-lock"))).toBe(false);
+  });
+
+  test("CLI places parallel Git worktrees under the selected workspace from another cwd", () => {
+    const context = v2Owner("worktree-task"); use(context);
+    const repo = join(root, "main repository");
+    fs.mkdirSync(repo);
+    const run = (exe: string, args: string[]) => {
+      const result = childProcess.spawnSync(exe, args, { cwd: repo, env: scratchEnvironment(), encoding: "utf8" });
+      expect(result.status, result.stderr).toBe(0);
+      return result.stdout.trim();
+    };
+    const allocate = () => run(process.execPath, [join(pluginRoot, "cli.bundle.mjs"), "task-dir"]);
+    const first = allocate(), second = allocate();
+    expect(dirname(first)).toBe(context.directory);
+    expect(dirname(second)).toBe(context.directory);
+    expect(first).not.toBe(second);
+    run("git", ["init", "-q"]);
+    run("git", ["-c", "user.name=Test", "-c", "user.email=test@example.invalid", "commit", "--allow-empty", "-qm", "base"]);
+    const checkout = join(first, "parallel checkout");
+    run("git", ["worktree", "add", "--detach", checkout, "HEAD"]);
+    expect(fs.existsSync(join(checkout, ".git"))).toBe(true);
+    run("git", ["worktree", "remove", checkout]);
+    expect(run("git", ["worktree", "list", "--porcelain"])).not.toContain(checkout);
+    expect(fs.readdirSync(context.workspacePath)).toEqual(["tmp"]);
   });
 
   test("real MCP startup and execution accept Mobile v2 scratch", async () => {
@@ -407,10 +445,10 @@ test("actual Codex SessionStart and child reminder deliver conditional scratch b
   });
   expect(result.status, result.stderr).toBe(0);
   expect(JSON.parse(result.stdout).hookSpecificOutput.additionalContext).toContain(SESSION_SCRATCH_GUIDANCE);
-  expect(SESSION_SCRATCH_GUIDANCE).toContain("With GESTALT_SESSION_TMP_CONTEXT, use validated owner TMPDIR");
-  expect(SESSION_SCRATCH_GUIDANCE).toContain("children inherit context + TMPDIR/TMP/TEMP");
+  expect(SESSION_SCRATCH_GUIDANCE).toContain("temporary checkouts");
+  expect(SESSION_SCRATCH_GUIDANCE).toContain("context-mode task-dir");
+  expect(SESSION_SCRATCH_GUIDANCE).toContain("workspace tmp/");
   expect(SESSION_SCRATCH_GUIDANCE).toContain("until Forget");
-  expect(SESSION_SCRATCH_GUIDANCE).toContain("DBs/evidence/caches stay persistent");
 });
 
 async function startServer(context: SessionScratchContext) {

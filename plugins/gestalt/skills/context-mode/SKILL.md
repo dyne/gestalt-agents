@@ -42,13 +42,26 @@ source discovery and large or uncertain evidence by intent below.
 
 ## Session scratch
 
-With `GESTALT_SESSION_TMP_CONTEXT` present, use validated `TMPDIR` for
-disposable files/folders; invalid context must fail visibly. Child agents and
-subprocesses inherit `GESTALT_SESSION_TMP_CONTEXT`, `TMPDIR`, `TMP` and `TEMP`.
-Retain the owning directory until Forget; stop/reopen keeps it. Source, Git,
+Allocate one working directory per task with `context-mode task-dir`; use the
+printed absolute path across repository changes and pass it to parallel agents.
+If the command is outside PATH, use the installed wrapper at
+`"${GESTALT_HOME:-$HOME/.gestalt}/bin/context-mode"`.
+With `GESTALT_SESSION_TMP_CONTEXT` present this creates
+`<workspace>/tmp/sessions/<ownerId>/task-*`; invalid context must fail visibly.
+Without context, pass the selected absolute workspace to get `<workspace>/tmp/task-*`.
+Put temporary clones, linked worktrees, patches, scripts, build output and logs
+there. Put requested source changes and deliverables in their intended repositories.
+Child agents and subprocesses inherit `GESTALT_SESSION_TMP_CONTEXT`, `TMPDIR`, `TMP`
+and `TEMP`. Use validated TMPDIR for tools requiring short runtime/socket paths.
+Retain the owning directory until Forget; stop/reopen keeps it. Source, Git
 history, auth, installations, caches, profiles, indexes and workspace
-`.gestalt/context-mode` databases/evidence stay persistent. Without context,
-preserve standalone/operator fallback.
+`.gestalt/context-mode` databases/evidence stay persistent.
+
+At task or Org Plan completion, verify changes are delivered and all consumers
+have finished. Remove each clean linked worktree with `git worktree remove` from
+its owning repository before removing the task directory. Preserve dirty,
+untracked, unpushed or otherwise undelivered work and report its path.
+For disposable local clones use `git clone --no-local` to avoid shared hard links.
 
 ## Tool selection
 

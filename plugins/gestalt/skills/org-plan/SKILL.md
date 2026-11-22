@@ -85,6 +85,12 @@ authorization in [Canonical positions and agent names](references/supervised-exe
    projection only: tool unavailability warns without rolling back or changing
    the authoritative Org state.
 5. Keep one writer. L2 changes remain uncommitted through L1 review.
+   Keep plan-only checkouts and disposable artifacts in a task directory below
+   the selected workspace's `tmp/` (`context-mode task-dir`; pass the absolute
+   workspace in standalone sessions). Pass its absolute path
+   to each executor and reviewer. Retain it through resume and terminal review.
+   After verified delivery, remove clean linked worktrees with `git worktree remove`;
+   preserve and report any undelivered changes or commits.
 6. Review only DONE + UNREVIEWED L1s. A REJECT returns corrections to the same
    L1 writer. REVIEWED is valid only after explicit reviewer acceptance.
 7. After ACCEPT, create exactly one conventional commit for the L1 when files
