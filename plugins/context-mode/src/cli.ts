@@ -21,7 +21,7 @@ import { readFileSync, writeFileSync, cpSync, accessSync, existsSync, readdirSyn
 import { request as httpsRequest } from "node:https";
 import { resolve, dirname, join, sep, basename, isAbsolute } from "node:path";
 import { devNull, homedir } from "node:os";
-import { resolveScratchDirectory, scratchEnvironment } from "../scripts/session-scratch.mjs";
+import { createTaskDirectory, resolveScratchDirectory, scratchEnvironment } from "../scripts/session-scratch.mjs";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import {
   detectRuntimes,
@@ -197,6 +197,7 @@ function printHelp(): void {
   console.log([
     "Usage:",
     "  context-mode                         Start MCP server (stdio)",
+    "  context-mode task-dir [workspace]     Create a private workspace tmp directory for task files and checkouts",
     "  context-mode index <path>            Index a file or directory into the FTS5 knowledge base",
     "  context-mode search <query...>       Search the current project's FTS5 knowledge base",
     "  context-mode doctor                  Diagnose runtime issues, hooks, FTS5, version",
@@ -228,6 +229,9 @@ function printHelp(): void {
 
 if (args[0] === "--help" || args[0] === "-h" || args[0] === "help") {
   printHelp();
+} else if (args[0] === "task-dir") {
+  if (args.length > 2) throw new Error("Usage: context-mode task-dir [absolute-workspace]");
+  console.log(createTaskDirectory(args[1]));
 } else if (args[0] === "index") {
   indexCommand(args.slice(1)).then((code) => process.exit(code));
 } else if (args[0] === "search") {

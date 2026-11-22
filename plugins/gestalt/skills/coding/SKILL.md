@@ -15,6 +15,13 @@ none is a prerequisite for every feature. No other architecture skill is needed.
 
 ## Workflow
 
+Apply changes in the intended repositories. For temporary files and parallel
+checkouts, allocate a directory under the selected workspace’s `tmp/` with
+`context-mode task-dir` (supply the absolute workspace in standalone sessions).
+Share it with collaborators; use distinct child paths for concurrent work.
+After delivery, verify the checkout is clean and its commits are retained before
+removing it. Use `git worktree remove` for linked worktrees.
+
 For broad/repeated discovery, use scoped `rg` and current source reads. If `rg`
 is unavailable, use native text search. Verify repository and path identities
 before treating another checkout's example as current local behavior.

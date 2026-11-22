@@ -1,13 +1,13 @@
 /** Validated v1/v2 consumer with delegated execution-borrower publication. */
 import { createHash, randomUUID } from "node:crypto";
-import { constants, closeSync, fstatSync, fsyncSync, lstatSync, mkdirSync, openSync, readFileSync, readdirSync, realpathSync, renameSync, rmdirSync, writeFileSync } from "node:fs";
+import { constants, closeSync, fstatSync, fsyncSync, lstatSync, mkdirSync, mkdtempSync, openSync, readFileSync, readdirSync, realpathSync, renameSync, rmdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, isAbsolute, join, parse, resolve, sep } from "node:path";
 
 export const SESSION_TMP_CONTEXT = "GESTALT_SESSION_TMP_CONTEXT";
 // Canonical generated SessionStart/subagent reminder; keep this conditional
 // so standalone/operator temporary roots retain their documented behavior.
-export const SESSION_SCRATCH_GUIDANCE = "With GESTALT_SESSION_TMP_CONTEXT, use validated owner TMPDIR; children inherit context + TMPDIR/TMP/TEMP. Keep owner until Forget; DBs/evidence/caches stay persistent. No context: standalone fallback. Details: context-mode skill.";
+export const SESSION_SCRATCH_GUIDANCE = "Put task files and temporary checkouts in `context-mode task-dir` under workspace tmp/ (standalone: pass absolute workspace). Inherit validated TMPDIR/TMP/TEMP for runtime. Keep owner until Forget; preserve durable state. See context-mode skill.";
 const validId = value => typeof value === "string" && /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}$/.test(value);
 const uuid = value => typeof value === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(value);
 const timestamp = value => typeof value === "string" && Number.isFinite(Date.parse(value));
@@ -170,7 +170,34 @@ export function resolveSessionScratch(environment = process.env) {
 
 export function resolveScratchDirectory(fallback = tmpdir) {
   const context = resolveSessionScratch();
-  return context ? context.runtime?.directory ?? context.directory : fallback();
+  return context ? context.directory : fallback();
+}
+
+/** Allocate once per task. The selected workspace stays authoritative across cd and child agents. */
+export function createTaskDirectory(workspace, environment = process.env) {
+  const context = resolveSessionScratch(environment);
+  if (context) {
+    if (workspace !== undefined && workspace !== context.workspacePath)
+      throw new Error("Task workspace differs from the managed session workspace");
+    return withBorrowerFences(context, () => {
+      resolveSessionScratch(environment);
+      return mkdtempSync(join(context.directory, "task-"));
+    });
+  }
+  if (!workspace || !isAbsolute(workspace))
+    throw new Error("Without a managed session, pass the absolute workspace to context-mode task-dir");
+  canonical(workspace);
+  assert(lstatSync(workspace).isDirectory());
+  const root = join(workspace, "tmp");
+  return withWorkspacePublication(workspace, () => {
+    checkParentPublications(workspace, []);
+    try { mkdirSync(root, { mode: 0o700 }); }
+    catch (error) { if (error.code !== "EEXIST") throw error; }
+    canonical(root);
+    const info = lstatSync(root);
+    assert(info.isDirectory() && ownUid(info));
+    return mkdtempSync(join(root, "task-"));
+  });
 }
 
 /** Forward the exact four-variable contract, deriving temp values from ownership. */

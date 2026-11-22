@@ -13,6 +13,7 @@ export interface SessionScratchContext {
 export const SESSION_TMP_CONTEXT: string;
 export const SESSION_SCRATCH_GUIDANCE: string;
 export function resolveSessionScratch(environment?: NodeJS.ProcessEnv): SessionScratchContext | null;
+export function createTaskDirectory(workspace?: string, environment?: NodeJS.ProcessEnv): string;
 export function resolveScratchDirectory(fallback?: () => string): string;
 export function scratchEnvironment(environment?: NodeJS.ProcessEnv): NodeJS.ProcessEnv;
 export function borrowSessionScratch(environment?: NodeJS.ProcessEnv): { release(): void } | null;

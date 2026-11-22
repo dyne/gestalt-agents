@@ -11,7 +11,7 @@ CLI or service leases. It preserves an existing user `tmp` parent's modes.
 Present but invalid context fails visibly, without path-bearing diagnostics or
 fallback to another temporary root.
 
-In v2, `directory` still identifies durable workspace metadata and leases. A
+In v2, `directory` holds workspace task files, ownership metadata and leases. A
 `runtime` binding names a separate private physical payload root under
 `<canonical /tmp>/gs-<uid>/<20 random hex digits>`. Both markers, current user,
 permissions, canonical paths and device/inode/birth identity must agree. Aliases,
@@ -54,9 +54,21 @@ remain conservative. Standalone execution retains its existing behavior.
 Delegated publishing supplies protection, never cleanup authority; only the
 owning Mobile/Launcher lifecycle can retire owner directories.
 
-Executor scripts, transient fetch output, filesystem-tracking preloads,
-default temporary databases, upgrade/probe scratch, and MCP readiness sentinels
-use this owner. Producer and readiness hooks use the same sentinel resolver.
+### Workspace task directories
+
+Run `context-mode task-dir` (installed at `$GESTALT_HOME/bin/context-mode`)
+once per task and share its returned absolute path
+with executors. Temporary clones, linked worktrees, patches, test artifacts and logs
+belong here. Managed sessions allocate a private `task-*` child under the validated
+workspace owner. Standalone callers supply an absolute workspace and receive a
+private `<workspace>/tmp/task-*` directory. The command never infers a workspace
+from a repository checkout. After verified delivery, remove clean linked worktrees
+using Git before removing the task directory. Keep undelivered work for handoff.
+Existing checkouts outside scratch require individual ownership and delivery checks.
+
+Executor scripts and transient fetch output use the workspace owner. Filesystem-tracking preloads
+and MCP readiness sentinels use the short runtime root. Default temporary
+databases and upgrade scratch use the workspace owner. Producer and readiness hooks use the same sentinel resolver.
 Node batch preload paths are quoted for spaces. Managed TypeScript's `tsx`
 fallback uses its Node loader instead of the CLI's length-limited Unix socket.
 Filesystem mount and sandbox restrictions still apply.
