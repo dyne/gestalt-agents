@@ -75,7 +75,10 @@ authorization in [Canonical positions and agent names](references/supervised-exe
    challenges benefit from them, without a plan revision. Load skills on demand;
    catalog availability does not mean their instructions are already loaded.
    Conditional capabilities such as `$gestalt:serena` and `$gestalt:playwright` still
-   require runtime readiness. Skill use never expands plan scope or authority.
+   require runtime readiness. When a milestone reaches existing symbols whose
+   definitions, callers, or bodies matter, apply the
+   [Serena workflow](../serena/SKILL.md#operation-workflow) if the managed
+   connection is available. Skill use never expands plan scope or authority.
 4. Use helper commands for TODO and review transitions; do not hand-edit them
    during execution.
    After each successful `authoring-start`, `supervision-start`, `set`, `l2`,

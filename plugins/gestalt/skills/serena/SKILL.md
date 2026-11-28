@@ -15,6 +15,11 @@ connection, always managed with `--context codex --mode editing`.
 - Read Serena's initial instructions when exposed. Identify the requested
   operation and reuse its identity-bound readiness below. A connection proves
   neither extraction nor references; an overview proves local extraction only.
+- If the file and symbol are known, start with `find_symbol` scoped to that
+  file. A usable result verifies local extraction and answers the question in
+  the same call. Use a bounded overview when you need the file's symbol layout.
+  Continue directly to the needed reference, diagnostic, or edit operation
+  once its prerequisites below are met.
 - Decide whether symbol-cache warmup is useful for the task; do not require the
   user to request an index command. When prerequisites are satisfied and cache
   writes are permitted, run `gestalt serena index --cwd /absolute/workspace`
@@ -34,6 +39,7 @@ connection, always managed with `--context codex --mode editing`.
   |---|---|
   | Find a definition or read its body | Locate the symbol, then retrieve its definition/body. Local extraction suffices; unrelated callers are not a prerequisite. |
   | Analyze callers or interface impact | Query references; check diagnostics when exposed and verify a known definition/reference relationship against current source. Empty references do not prove no callers. |
+  | Inspect language-server feedback on a changed file | Query file diagnostics when exposed. Verify build and test behavior with the repository's normal checks. |
   | Replace a body or insert around a symbol | Read current source natively; use the fitting structured edit on the verified symbol when authorized. Interface changes also require verified references. Inspect the diff and run relevant checks. |
   | Edit prose or text without a fitting symbol operation | Use native edits. |
 - Retrieval and an advertised editing
