@@ -30,7 +30,7 @@ generation are omitted. Setup no longer selects those six overlapping skills;
 it does not delete user-installed copies. The plugin skill remains the single
 runtime source; operator details stay in its on-demand lifecycle reference.
 
-- Downstream adaptation versions: `1.0.2` (coding); `1.0.0` (security, scripting)
+- Downstream adaptation versions: `1.0.3` (coding); `1.0.0` (security, scripting)
 - Imported local snapshot: `skills-used`, supplied by the user, 2026-10-26
 - Canonical packages: `skills/coding`, `skills/security`, `skills/scripting`
 - Source snapshot manifest: `tests/plugins/gestalt/fixtures/engineering-sources.json`
@@ -66,6 +66,10 @@ replaced with an invented permission grant.
 ## Coverage and deliberate changes
 
 ### Coding
+
+Adaptation `1.0.3` routes definitions, callers, and symbol-scoped edits on
+existing code to the optional managed Serena workflow. It preserves native
+fallback when semantic readiness cannot be verified.
 
 Adaptation `1.0.2` retires the optional Xerj discovery pointer introduced in
 `1.0.1`. Broad/repeated discovery uses scoped native search and current source

@@ -1,7 +1,7 @@
 ---
 name: coding
 metadata:
-  adaptation_version: "1.0.2"
+  adaptation_version: "1.0.3"
 description: Write, review, or refactor application code and architecture. Use for features, APIs, DDD, bounded contexts, aggregates, Clean/Hexagonal Architecture, vertical slices, ports/adapters, repositories, CQRS, events, and monolith decomposition. Follow existing conventions; apply deeper patterns only when needed. Shell-only work belongs to scripting.
 ---
 
@@ -25,6 +25,12 @@ removing it. Use `git worktree remove` for linked worktrees.
 For broad/repeated discovery, use scoped `rg` and current source reads. If `rg`
 is unavailable, use native text search. Verify repository and path identities
 before treating another checkout's example as current local behavior.
+
+When work reaches a specific existing symbol, use `$gestalt:serena` if the
+managed connection is available.
+Make the first bounded semantic query when you need a definition, callers, or a
+symbol-scoped edit. Reuse verified readiness for subsequent operations on the
+same inputs. Use native tools if the needed operation remains unverified.
 
 1. Inspect the requested behavior, current implementation, repository rules,
    tests, and framework conventions. Identify the use case, inputs, observable
